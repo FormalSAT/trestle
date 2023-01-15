@@ -35,8 +35,11 @@ target leancadical.o (pkg : Package) : FilePath := do
 
 extern_lib libleancadical (pkg : Package) := do
   let libcadicalFile := cadicalDir / "build" / "libcadical.a"
+
+  -- Build the file if it doesn't exist already
   if not <| ← libcadicalFile.pathExists then
     initSubmodules
+    checkLeanLlvm
     buildCadical
 
   -- copy libcadical.so into build/lib
@@ -60,7 +63,14 @@ where
     if (← child.wait) ≠ 0 then
       throw <| .mkOtherError 1 s!"Error initializing LeanSAT subodules, aborting"
 
-  buildCadical : IndexBuildM Unit := do  
+  checkLeanLlvm : IO Unit := do
+    if not <| ← leanLlvmDir.pathExists then
+      throw <| .mkOtherError 1 <|
+        "Missing lean-llvm: Find the relevant release at\n" ++
+        "https://github.com/leanprover/lean-llvm/releases\n" ++
+        s!"and extract it to {leanLlvmDir}"
+
+  buildCadical : IO Unit := do  
     IO.println "Configuring cadical makefile..."
     let ⟨errNo, stdout, stderr⟩ ← IO.Process.output {
       cmd := s!"./configure"
