@@ -1,6 +1,7 @@
 import LeanSAT
+import Examples.SolverConfig
 
-open LeanSAT
+open LeanSAT Encode
 
 namespace Akari
 
@@ -47,7 +48,7 @@ deriving Inhabited
 
 def encode : AkariProblem → EncCNF AkariVars
 | ⟨height, width, board⟩ =>
-  open EncCNF Constraint in do
+  open EncCNF in do
   let varArr ←
     Array.initM height fun r =>
       Array.initM width fun c =>
@@ -99,16 +100,16 @@ def encode : AkariProblem → EncCNF AkariVars
 
   return ⟨⟨height, width, board⟩, isLight⟩
 
-def solve (p : AkariProblem) :=
+def solve (p : AkariProblem) : IO Unit := do
   let (v,enc) := EncCNF.new! (encode p)
   let varList :=
     List.fins _ |>.bind fun i =>
       List.fins _ |>.map fun j =>
         v.isLight i j
-  match Solver.solve enc varList with
-  | (_, .error) => IO.println "error"
-  | (_, .unsat) => IO.println "unsat"
-  | (_, .sat assn) =>
+  match ←Solver.solve enc.toFormula with
+  | .error => IO.println "error"
+  | .unsat => IO.println "unsat"
+  | .sat assn =>
     for i in List.fins _ do
       for j in List.fins _ do
         match assn.find? (v.isLight i j) with

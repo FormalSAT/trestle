@@ -48,7 +48,7 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 | .error => throw default
 
 
-def printEnc (s : EncCNF.State) : IO Unit := do
+def printEnc (s : Encode.EncCNF.State) : IO Unit := do
   for i in [0:s.nextVar] do
     for name in s.names.find? i do
       IO.println s!"c {Dimacs.formatVar i} {name}"
@@ -133,7 +133,7 @@ def parseResult (maxVar : Var) (s : String) : Except String Solver.Res := do
   | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
 
-def fromFileEnc (cnfFile : String) : IO EncCNF.State := do
+def fromFileEnc (cnfFile : String) : IO Encode.EncCNF.State := do
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
   let {vars, clauses} ← IO.ofExcept <| Dimacs.parseFormula contents
   return {

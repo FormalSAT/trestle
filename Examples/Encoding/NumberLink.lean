@@ -1,6 +1,7 @@
 import LeanSAT
+import Examples.SolverConfig
 
-open LeanSAT
+open LeanSAT Encode
 
 namespace NumberLink
 
@@ -17,7 +18,7 @@ structure NumberLinkVars where
 deriving Inhabited
 
 def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
-  open EncCNF Constraint in do
+  open EncCNF in do
   /- make variables -/
   let arr ← Array.initM prob.height fun i =>
     Array.initM prob.width fun j =>
@@ -88,15 +89,10 @@ def main : IO Unit := do
   }
   let (vars, enc) := EncCNF.new! <| numberLink prob
 --  enc.prettyPrintAux (IO.println)
-  match Solver.solve enc (
-    List.fins _ |>.bind fun i =>
-    List.fins _ |>.bind fun j =>
-    List.fins _ |>.map fun c =>
-    vars.piece_var i j c
-  ) with
-  | (_, .error) => IO.println "err"
-  | (_, .unsat) => IO.println "unsat"
-  | (_, .sat assn) =>
+  match ← Solver.solve enc.toFormula with
+  | .error => IO.println "err"
+  | .unsat => IO.println "unsat"
+  | .sat assn =>
     for i in List.fins _ do
       for j in List.fins _ do
 --        for n in List.fins _ do

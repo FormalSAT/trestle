@@ -4,7 +4,9 @@ import LeanSAT.AuxDefs
 
 open Std
 
-namespace LeanSAT.EncCNF
+namespace LeanSAT.Encode
+
+namespace EncCNF
 
 /-- State for an encoding -/
 structure State where
@@ -24,6 +26,9 @@ def scramble (s : State) : IO State := do
     return ⟨← (IO.randPerm lits)⟩
   let clausesScrambled ← IO.randPerm litsScrambled
   return { s with clauses := clausesScrambled }
+
+def toFormula : State → Formula
+| {clauses, ..} => ⟨clauses⟩
 
 end State
 
