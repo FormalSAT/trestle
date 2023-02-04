@@ -63,13 +63,20 @@ def Assn := Std.HashMap Var Bool
 
 namespace Assn
 
-def hasTrue   (v : Var) (a : Assn) : Bool := a.find? v = some true
-def hasFalse  (v : Var) (a : Assn) : Bool := a.find? v = some false
-def undecided (v : Var) (a : Assn) : Bool := a.find? v = none
+@[simp] def hasTrue   (v : Var) (a : Assn) : Bool := a.find? v = some true
+@[simp] def hasFalse  (v : Var) (a : Assn) : Bool := a.find? v = some false
+@[simp] def undecided (v : Var) (a : Assn) : Bool := a.find? v = none
 
 def litTrue       (l : Literal) (a : Assn) : Bool := a.find? l.var = some l.isPos
 def litFalse      (l : Literal) (a : Assn) : Bool := a.find? l.var = some l.isNeg
 def litUndecided  (l : Literal) (a : Assn) : Bool := a.find? l.var = none
+
+@[simp] theorem litTrue_pos : litTrue (.pos v) a = hasTrue v a := rfl
+@[simp] theorem litTrue_neg : litTrue (.neg v) a = hasFalse v a := rfl
+@[simp] theorem litFalse_pos : litFalse (.pos v) a = hasFalse v a := rfl
+@[simp] theorem litFalse_neg : litFalse (.neg v) a = hasTrue v a := rfl
+@[simp] theorem litUndecided_pos : litUndecided (.pos v) a = undecided v a := rfl
+@[simp] theorem litUndecided_neg : litUndecided (.neg v) a = undecided v a := rfl
 
 def insertLit (l : Literal) (a : Assn) : Assn :=
   a.insert l.var l.isPos

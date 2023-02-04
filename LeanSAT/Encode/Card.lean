@@ -1,6 +1,6 @@
-import LeanSAT.EncCNF
+import LeanSAT.Encode.EncCNF
 
-namespace LeanSAT.Constraint
+namespace LeanSAT.Encode
 
 open EncCNF
 

@@ -1,5 +1,4 @@
 import Std
-import Std
 
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
@@ -258,6 +257,23 @@ theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
     apply Nat.succ_le_succ
     apply Nat.le_add_right
 
+@[simp] theorem List.find?_map (p : β → Bool) (f : α → β) (L : List α)
+  : List.find? p (List.map f L) = Option.map f (List.find? (p ∘ f) L)
+  := by induction L <;> simp; split <;> simp [*]
+
+@[simp]
+def Std.AssocList.ofList : List (α × β) → Std.AssocList α β
+| [] => .nil
+| (a,b)::tail => .cons a b (ofList tail)
+
+@[simp] theorem Std.AssocList.toList_ofList (L : List (α × β))
+  : toList (ofList L) = L
+  := by induction L <;> simp [*]
+
+@[simp]
+theorem Std.HashMap.find?_ofList {B : BEq α} {H : Hashable α} (a : List (α × β)) (k : α)
+  : (@Std.HashMap.ofList _ B H _ a |>.find? k) = (Std.AssocList.ofList a |>.find? k)
+  := sorry
 
 @[inline]
 def Option.expectSome (err : Unit → ε) : Option α → Except ε α

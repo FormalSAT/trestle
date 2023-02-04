@@ -1,4 +1,4 @@
-import LeanSAT.EncCNF
+import LeanSAT.Encode.EncCNF
 import LeanSAT.Solver.Basic
 
 open Std
@@ -107,7 +107,7 @@ def parseAssnLine (maxVar : Var) (assn : Assn) (s : String) : Except String Assn
   match ← (s.splitOn " " |>.expectNonempty fun () => panic! "splitOn returned empty?? 645") with
   | ⟨"v", vars⟩ => do
     let forAssn ← vars.foldlM (fun assn x => do
-      ForInStep.bind assn fun (assn : Assn) => do
+      ForInStep.bind assn fun assn => do
         if x = "0" then
           return ForInStep.done assn
         else
