@@ -1,5 +1,6 @@
 import Std
-import LeanSAT.Dimacs
+import LeanSAT.CNF
+import LeanSAT.AuxDefs
 
 open Std
 
@@ -17,27 +18,6 @@ namespace State
 def new : State := ⟨1, [], HashMap.empty, ""⟩
 
 instance : Inhabited State := ⟨new⟩
-
-def printDIMACS (s : State) : IO Unit := do
-  for i in [0:s.nextVar] do
-    for name in s.names.find? i do
-      IO.println s!"c {Dimacs.formatVar i} {name}"
-
-  Dimacs.printFormula IO.print ⟨s.clauses.reverse⟩
-
-def fromFileDIMACS (cnfFile : String) : IO EncCNF.State := do
-  let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
-  let {vars, clauses} ← IO.ofExcept <| Dimacs.parseFormula contents
-  return {
-    nextVar := vars
-    clauses := clauses
-    names := Id.run do
-      let mut map : HashMap Var String := HashMap.empty
-      for i in [0:vars] do
-        map := map.insert i s!"DIMACS var {i}"
-      return map
-    varCtx := ""
-  }
 
 def scramble (s : State) : IO State := do
   let litsScrambled ← s.clauses.mapM fun ⟨lits⟩ => do
@@ -90,17 +70,6 @@ def addClause (C : Clause) : EncCNF Unit := do
 def mkTemp : EncCNF Var := do
   let oldState ← get
   return ← mkVar ("tmp" ++ toString oldState.nextVar)
-
-
-#eval do
-  let ((), enc) := new! do
-    let x ← mkVar "x1"
-    newCtx "hi." do
-      let t1 ← mkTemp
-      addClause (¬t1 ∨ x)
-    let t ← mkTemp
-    addClause (¬t ∨ x)
-  enc.printDIMACS
 
 
 structure VarBlock (dims : List Nat) where

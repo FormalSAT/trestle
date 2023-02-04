@@ -71,6 +71,15 @@ def litTrue       (l : Literal) (a : Assn) : Bool := a.find? l.var = some l.isPo
 def litFalse      (l : Literal) (a : Assn) : Bool := a.find? l.var = some l.isNeg
 def litUndecided  (l : Literal) (a : Assn) : Bool := a.find? l.var = none
 
+def insertLit (l : Literal) (a : Assn) : Assn :=
+  a.insert l.var l.isPos
+
+def toList (a : Assn) : List Literal :=
+  Std.HashMap.toList a |>.map (fun (v,pos) => if pos then .pos v else .neg v)
+
+instance : ToString Assn :=
+  ⟨fun assn => assn.toList |>.map toString |> String.intercalate " "⟩
+
 end Assn
 
 
@@ -123,6 +132,19 @@ structure Formula where
 deriving DecidableEq, Repr
 
 namespace Formula
+
+def numVars : Formula → Nat
+| ⟨clauses⟩ =>
+  clauses.filterMap (·.lits.map (β := Nat) Literal.var |>.maximum?)
+  |>.maximum?.map Nat.succ |>.getD 0
+
+def vars : Formula → List Var
+| ⟨clauses⟩ => Id.run do
+  let mut set := Std.HashMap.empty
+  for c in clauses do
+    for l in c.lits do
+      set := set.insert l.var ()
+  return set.toList.map (·.1)
 
 /-- ⊤ / true Formula -/
 def empty : Formula := ⟨[]⟩

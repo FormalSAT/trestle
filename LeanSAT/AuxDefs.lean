@@ -272,3 +272,11 @@ structure NonemptyList (α) where
 def List.expectNonempty (err : Unit → ε) : List α → Except ε (NonemptyList α)
 | [] => .error (err ())
 | hd::tl => .ok ⟨hd,tl⟩
+
+
+def PrinterM := StateM String
+def PrinterM.putStr : String → PrinterM Unit :=
+  fun string state => ((), state.append string)
+def PrinterM.run : PrinterM Unit → String := (StateT.run · "" |>.2)
+
+instance : Monad PrinterM := show Monad (StateM String) from inferInstance

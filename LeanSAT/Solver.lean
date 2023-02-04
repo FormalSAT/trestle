@@ -1,11 +1,9 @@
-import LeanSAT.Constraint
-import LeanSAT.Solver.Cadical
-import LeanSAT.Solver.SolveRes
+import LeanSAT.Solver.Basic
+import LeanSAT.Solver.Dimacs
+import LeanSAT.Solver.Impl.DimacsCommand
+import LeanSAT.Solver.Impl.ApproxMCCommand
 
-namespace LeanSAT.Solver
-
-open System Std EncCNF
-
+/-
 private def solveAux (s : CadicalSolver) (varsToGet : List Var)
   : CadicalSolver × SolveRes :=
   match s.solve with
@@ -102,3 +100,4 @@ def allSols (enc : State) (varsToGet : List Var)
     IO.FS.Stream.flush std
 
   return
+-/
