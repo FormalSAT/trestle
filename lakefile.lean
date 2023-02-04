@@ -12,5 +12,4 @@ lean_exe run_examples {
 }
 
 require Std from git "http://github.com/leanprover/std4.git"@"main"
-require Mathlib from git "http://github.com/leanprover-community/mathlib4.git"@"master"
 
