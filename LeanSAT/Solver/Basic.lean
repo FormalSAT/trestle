@@ -30,6 +30,29 @@ class Solver (m : Type → Type v) [outParam (Monad m)] where
 
 namespace Solver
 
+def allSolutions [@Solver m _mm] (f : Formula) (varsToBlock : List Var)
+  : m (List Assn) := do
+  let mut sols := []
+  let mut state := some f
+  while state.isSome do
+    match state with
+    | none => panic! "woo"
+    | some f =>
+    match ← solve f with
+    | .error
+    | .unsat =>
+      state := none
+    | .sat assn =>
+      sols := assn :: sols
+      let blocking_clause : List Literal :=
+        varsToBlock.filterMap (fun v =>
+          assn.find? v |>.map (if · then .pos v else .neg v))
+      let f' :=
+        ⟨blocking_clause :: f.clauses⟩
+      state := some f'
+  return sols
+
+
 class IpasirSolver (S : Type) (m : Type → Type v) [outParam (Monad m)] where
   new : m S
   addClause : Clause → S → m S
