@@ -49,12 +49,12 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 | .error => throw default
 
 
-def printEnc (s : Encode.EncCNF.State) : IO Unit := do
+def printEnc [Monad m] (print : String → m Unit) (s : Encode.EncCNF.State) : m Unit := do
   for i in [0:s.nextVar] do
     for name in s.names.find? i do
-      IO.println s!"c {Dimacs.formatVar i} {name}"
+      print s!"c {Dimacs.formatVar i} {name}\n"
 
-  Dimacs.printFormula IO.print ⟨s.clauses.reverse⟩
+  Dimacs.printFormula print ⟨s.clauses.reverse⟩
 
 
 
