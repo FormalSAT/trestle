@@ -1,6 +1,6 @@
 import LeanSAT
 
-open LeanSAT
+open LeanSAT Notation
 
 instance : Solver IO := Solver.Impl.DimacsCommand "cadical"
 

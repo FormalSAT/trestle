@@ -48,7 +48,7 @@ deriving Inhabited
 
 def encode : AkariProblem → EncCNF AkariVars
 | ⟨height, width, board⟩ =>
-  open EncCNF in do
+  open EncCNF Notation in do
   let varArr ←
     Array.initM height fun r =>
       Array.initM width fun c =>
@@ -102,10 +102,6 @@ def encode : AkariProblem → EncCNF AkariVars
 
 def solve (p : AkariProblem) : IO Unit := do
   let (v,enc) := EncCNF.new! (encode p)
-  let varList :=
-    List.fins _ |>.bind fun i =>
-      List.fins _ |>.map fun j =>
-        v.isLight i j
   match ←Solver.solve enc.toFormula with
   | .error => IO.println "error"
   | .unsat => IO.println "unsat"

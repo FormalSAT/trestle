@@ -15,7 +15,6 @@ This solver lives in IO, since we need access to process invocation.
 def DimacsCommand
   (cmd : String) (flags : List String := []) : Solver IO :=
   ⟨fun fml => do
-  IO.println "start"
   let child ← IO.Process.spawn {
     cmd := cmd
     args := flags.toArray
@@ -23,10 +22,8 @@ def DimacsCommand
     stdout := .piped
   }
   let (stdin, child) ← child.takeStdin
-  IO.println "printing fml"
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
-  IO.println "printed fml"
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
   let _ ← child.wait
   let outputStr ← IO.ofExcept output.get
