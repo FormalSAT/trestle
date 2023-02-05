@@ -2,7 +2,7 @@ import LeanSAT.Encode.EncCNF
 
 namespace LeanSAT.Encode
 
-open EncCNF
+open EncCNF Notation
 
 def condAmoPairwise (cond lits : List Literal) : EncCNF Unit := do
   match lits with

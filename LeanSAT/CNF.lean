@@ -44,12 +44,6 @@ def not : Literal → Literal
 instance : Coe Var Literal := ⟨.pos⟩
 /-- Allow literals to be written as nat constants -/
 instance : OfNat Literal n := ⟨show Var from n⟩
-/-- Allow notation `¬l` for negating a literal -/
-notation:max "¬" l:40 => not l
-
-example : Literal := 5
-example : Literal := ¬5
-example : Literal := not (not (not (¬10)))
 
 instance : ToString Literal where
   toString | pos v => s!"{v}"
@@ -114,17 +108,12 @@ theorem eval_cons : eval a ⟨l::ls⟩ = (a.litTrue l || eval a ⟨ls⟩)
   := by
   simp [eval, List.any, List.foldr]
 
-/-- Allow notation `a ∨ b` for the clause composed of `a` and `b` -/
-notation:30 a:31 " ∨ " b:30 => Clause.mk (List.append (Clause.lits a) (Clause.lits b))
-
 instance : OfNat Clause n := ⟨(⟨[.pos n]⟩)⟩
 instance : Coe Literal Clause := ⟨(⟨[·]⟩)⟩
 instance : Coe (List Literal) Clause := ⟨(⟨·⟩)⟩
 
 instance : ToString Clause where
   toString | ⟨lits⟩ => toString lits
-
-example (x y : Var) : Clause := ¬x ∨ y ∨ y
 
 end Clause
 
@@ -178,9 +167,22 @@ def satisfiable (c : Formula) := ∃ a, c.eval a = true
 assignment on which it is satisfied. -/
 def unsat (c : Formula) := ¬c.satisfiable
 
-notation a "∧" b => Formula.mk (List.append (Formula.clauses a) (Formula.clauses b))
-
 instance : Coe Clause Formula := ⟨(⟨[·]⟩)⟩
 instance : OfNat Formula n := ⟨Literal.pos n⟩
 
 end Formula
+
+
+/-! CNF notation -/
+namespace Notation
+
+scoped notation:30 a:31 " ∨ " b:30 => Clause.mk (List.append (Clause.lits a) (Clause.lits b))
+scoped notation a "∧" b => Formula.mk (List.append (Formula.clauses a) (Formula.clauses b))
+scoped notation:max "¬" l:40 => Literal.not l
+
+example : Literal := 5
+example : Literal := ¬5
+example : Clause  := ¬5 ∨ ¬10
+example : Formula := (¬5 ∨ ¬10) ∧ 20 ∧ ¬30
+
+end Notation

@@ -26,6 +26,7 @@ def printFormula [Monad m] (print : String → m Unit) (f : Formula) : m Unit :=
   for c in f.clauses do
     print <| formatClause c ++ "\n"
 
+open Notation in
 example : (printFormula PrinterM.putStr ((0 ∨ 1) ∧ 5) |>.run) =
 "p cnf 6 2
 1 2 0
