@@ -65,7 +65,7 @@ instance [Monad m] [IpasirSolver S m] : Solver m where
     IpasirSolver.solve s
 
 class ModelCount (m : Type → Type v) [outParam (Monad m)] where
-  modelCount : Formula → List Var → m Nat
+  modelCount : Formula → Option (List Var) → m Nat
 
 structure ApproxModelCount.Res where
   mult : Nat
@@ -84,4 +84,4 @@ def toNat : ApproxModelCount.Res → Nat
 end ApproxModelCount.Res
 
 class ApproxModelCount (m : Type → Type v) [outParam (Monad m)] where
-  approxModelCount : Formula → List Var → m ApproxModelCount.Res
+  approxModelCount : Formula → Option (List Var) → m ApproxModelCount.Res

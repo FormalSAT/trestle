@@ -18,7 +18,9 @@ def ApproxMCCommand
     stdout := .piped
   }
   let (stdin, child) ← child.takeStdin
-  stdin.putStrLn <| "c ind " ++ (sampleSet.map Dimacs.formatVar ++ ["0"] |> String.intercalate " ")
+  for sampleSet in sampleSet do
+    stdin.putStrLn <| "c ind " ++
+      (sampleSet.map Dimacs.formatVar ++ ["0"] |> String.intercalate " ")
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
