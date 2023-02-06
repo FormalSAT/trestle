@@ -73,8 +73,15 @@ structure ApproxModelCount.Res where
   pow  : Nat
 deriving Inhabited
 
+namespace ApproxModelCount.Res
+
 instance : ToString ApproxModelCount.Res where
   toString | ⟨mult,base,pow⟩ => s!"{mult} * {base}^{pow}"
+
+def toNat : ApproxModelCount.Res → Nat
+| {mult, base, pow} => mult * base^pow
+
+end ApproxModelCount.Res
 
 class ApproxModelCount (m : Type → Type v) [outParam (Monad m)] where
   approxModelCount : Formula → List Var → m ApproxModelCount.Res
