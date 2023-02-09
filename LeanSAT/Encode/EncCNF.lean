@@ -17,7 +17,7 @@ structure State where
 
 namespace State
 
-def new : State := ⟨1, [], HashMap.empty, ""⟩
+def new : State := ⟨0, [], HashMap.empty, ""⟩
 
 instance : Inhabited State := ⟨new⟩
 
