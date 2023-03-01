@@ -30,26 +30,40 @@ class Solver (m : Type → Type v) [outParam (Monad m)] where
 
 namespace Solver
 
+def Solutions (f : Formula) (varsToBlock : List Var) : Type := Unit
+def solutions (f vars) : Solutions f vars := ()
+
+instance [@Solver m _mm] : ForIn m (Solutions f vars) Assn where
+  forIn _ b perItem := do
+    let mut b := b
+    let mut state := some f
+    while state.isSome do
+      match state with
+      | none => panic! "woo"
+      | some f =>
+      match ← solve f with
+      | .error
+      | .unsat =>
+        state := none
+      | .sat assn =>
+      match ← perItem assn b with
+      | .done b' =>
+        return b'
+      | .yield b' =>
+        b := b'
+        let blocking_clause : List Literal :=
+          vars.filterMap (fun v =>
+            assn.find? v |>.map (if · then .pos v else .neg v))
+        let f' :=
+          ⟨blocking_clause :: f.clauses⟩
+        state := some f'
+    return b
+
 def allSolutions [@Solver m _mm] (f : Formula) (varsToBlock : List Var)
   : m (List Assn) := do
   let mut sols := []
-  let mut state := some f
-  while state.isSome do
-    match state with
-    | none => panic! "woo"
-    | some f =>
-    match ← solve f with
-    | .error
-    | .unsat =>
-      state := none
-    | .sat assn =>
-      sols := assn :: sols
-      let blocking_clause : List Literal :=
-        varsToBlock.filterMap (fun v =>
-          assn.find? v |>.map (if · then .pos v else .neg v))
-      let f' :=
-        ⟨blocking_clause :: f.clauses⟩
-      state := some f'
+  for assn in solutions f varsToBlock do
+    sols := assn :: sols
   return sols
 
 
