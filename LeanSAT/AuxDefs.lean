@@ -158,6 +158,12 @@ def wait (task : TaskIO α) : IO α := do
   let x ← IO.wait task
   ofExcept x
 
+instance : MonadExceptOf IO.Error TaskIO where
+  throw e := show IO _ from throw e
+  tryCatch a f := bind (m := IO) a (IO.bindTask · fun
+    | .ok a => show TaskIO _ from pure a
+    | .error e => f e)
+
 def par [ForIn IO σ α] (xs : σ) (f : α → TaskIO β)
     : TaskIO (List β) := show IO _ from do
   let mut tasks := #[]
