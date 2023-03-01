@@ -53,7 +53,7 @@ instance [@Solver m _mm] : ForIn m (Solutions f vars) Assn where
         b := b'
         let blocking_clause : List Literal :=
           vars.filterMap (fun v =>
-            assn.find? v |>.map (if · then .pos v else .neg v))
+            assn.find? v |>.map (if · then .neg v else .pos v))
         let f' :=
           ⟨blocking_clause :: f.clauses⟩
         state := some f'
