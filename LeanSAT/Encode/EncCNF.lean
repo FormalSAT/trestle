@@ -125,3 +125,5 @@ where gen (dims : List Nat) (pref : String) : EncCNF Unit := do
 def mkTempBlock (dims : List Nat) (h : dims.length > 0 := by simp)
   : EncCNF (VarBlock dims) := do
   return ← mkVarBlock ("tmp" ++ toString (← get).nextVar) dims h
+
+def blockAssn (a : Assn) : EncCNF Unit := addClause ⟨a.toList.map (.not ·)⟩
