@@ -29,7 +29,7 @@ def ApproxMCCommand
     let outputStr ← IO.ofExcept output.get
     IO.ofExcept <| parseOutput outputStr
   | x =>
-    IO.ofExcept <| .error s!"Non-zero return code ({x}) from command: {cmd}"
+    IO.ofExcept <| .error s!"Non-zero return code ({x}) from command {cmd}:\n{output.get}"
   ⟩
 where
   parseOutput (s : String) : Except String ApproxModelCount.Res := do
