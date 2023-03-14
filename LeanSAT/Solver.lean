@@ -2,6 +2,7 @@ import LeanSAT.Solver.Basic
 import LeanSAT.Solver.Dimacs
 import LeanSAT.Solver.Impl.DimacsCommand
 import LeanSAT.Solver.Impl.ApproxMCCommand
+import LeanSAT.Solver.Impl.D4Command
 
 /-
 private def solveAux (s : CadicalSolver) (varsToGet : List Var)
