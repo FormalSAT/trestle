@@ -127,3 +127,7 @@ def mkTempBlock (dims : List Nat) (h : dims.length > 0 := by simp)
   return ← mkVarBlock ("tmp" ++ toString (← get).nextVar) dims h
 
 def blockAssn (a : Assn) : EncCNF Unit := addClause ⟨a.toList.map (.not ·)⟩
+
+def addAssn (a : Assn) : EncCNF Unit := do
+  for l in a.toList do
+    addClause l
