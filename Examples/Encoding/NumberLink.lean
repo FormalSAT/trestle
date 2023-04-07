@@ -1,9 +1,8 @@
 import LeanSAT
-import Examples.SolverConfig
 
-open LeanSAT Encode
+open LeanSAT Encode Notation
 
-namespace NumberLink
+namespace Examples.NumberLink
 
 structure NumberLinkProblem where
   width : Nat
@@ -57,13 +56,13 @@ def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
           if n = n' then
             addClause <| piece_var i j n
           else
-            addClause <| ¬piece_var i j n'
+            addClause <| ¬ piece_var i j n'
         /- exactly one neighbor must share this color -/
         equalK (neighbors i j |>.map fun (i',j') => piece_var i' j' n).toArray 1
 
   return ⟨prob, piece_var⟩
 
-def main : IO Unit := do
+def main [Solver IO] : IO Unit := do
   let prob : NumberLinkProblem := {
     width := 9
     height := 8
@@ -88,16 +87,12 @@ def main : IO Unit := do
     ]
   }
   let (vars, enc) := EncCNF.new! <| numberLink prob
---  enc.prettyPrintAux (IO.println)
   match ← Solver.solve enc.toFormula with
   | .error => IO.println "err"
   | .unsat => IO.println "unsat"
   | .sat assn =>
     for i in List.fins _ do
       for j in List.fins _ do
---        for n in List.fins _ do
---          if assn.find? (vars.piece_var i j n) = some true then
---            IO.println s!"{i},{j} is {n}"
         match (List.fins _).find? (fun n =>
           assn.find? (vars.piece_var i j n) |>.get!)
         with

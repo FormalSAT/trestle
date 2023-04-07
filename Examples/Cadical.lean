@@ -2,6 +2,8 @@ import LeanSAT
 
 open LeanSAT Notation
 
+namespace Examples.Cadical
+
 instance : Solver IO := Solver.Impl.DimacsCommand "cadical"
 
 def main : IO Unit := do
@@ -9,5 +11,3 @@ def main : IO Unit := do
     (0 ∨ 1 ∨ 2) ∧ (¬0) ∧ (¬ 1)
   let res ← Solver.solve formula
   IO.println res
-
-#eval main

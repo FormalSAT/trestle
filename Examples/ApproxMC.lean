@@ -1,9 +1,11 @@
 import LeanSAT
 
-open LeanSAT
+open LeanSAT Notation
+
+namespace Examples.ApproxMC
 
 instance : Solver IO := Solver.Impl.DimacsCommand "cadical"
-instance : Solver.ApproxModelCount IO := Solver.Impl.ApproxMCCommand
+instance : Solver.ModelCount IO := Solver.Impl.ApproxMCCommand
 
 def main : IO Unit := do
   let formula : Formula :=
@@ -11,7 +13,5 @@ def main : IO Unit := do
   IO.println formula.vars
   let res ← Solver.solve formula
   IO.println res
-  let res ← Solver.ApproxModelCount.approxModelCount formula formula.vars
+  let res ← Solver.ModelCount.modelCount formula formula.vars
   IO.println res
-
-#eval main

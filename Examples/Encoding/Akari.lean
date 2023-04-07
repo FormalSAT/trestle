@@ -1,9 +1,8 @@
 import LeanSAT
-import Examples.SolverConfig
 
 open LeanSAT Encode
 
-namespace Akari
+namespace Examples.Akari
 
 inductive AkariSquare
 | space | filled (num : Option (Fin 5))
@@ -100,7 +99,7 @@ def encode : AkariProblem → EncCNF AkariVars
 
   return ⟨⟨height, width, board⟩, isLight⟩
 
-def solve (p : AkariProblem) : IO Unit := do
+def solve [Solver IO] (p : AkariProblem) : IO Unit := do
   let (v,enc) := EncCNF.new! (encode p)
   match ←Solver.solve enc.toFormula with
   | .error => IO.println "error"
@@ -118,7 +117,7 @@ def solve (p : AkariProblem) : IO Unit := do
           | .filled (some n) => IO.print s!"{n}"
       IO.println ""
 
-def main := do
+def main [Solver IO] := do
   match AkariProblem.ofString <|
     "    X    \n" ++
     "  0    1 \n" ++
