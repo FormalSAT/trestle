@@ -75,6 +75,9 @@ def litUndecided  (l : Literal) (a : Assn) : Bool := a.find? l.var = none
 def insertLit (l : Literal) (a : Assn) : Assn :=
   a.insert l.var l.isPos
 
+def ofList (ls : List Literal) : Assn :=
+  ls.foldl (·.insertLit ·) .empty
+
 def toList (a : Assn) : List Literal :=
   Std.HashMap.toList a |>.map (fun (v,pos) => if pos then .pos v else .neg v)
 

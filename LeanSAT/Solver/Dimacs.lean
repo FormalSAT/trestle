@@ -104,7 +104,7 @@ def parseFormula (s : String) : Except String DimacsParseRes := do
     clauses := clauses
   }
 
-def parseAssnLine (maxVar : Var) (assn : Assn) (s : String) : Except String Assn := do
+def parseVLines (maxVar : Var) (assn : Assn) (s : String) : Except String Assn := do
   match ← (s.splitOn " " |>.expectNonempty fun () => panic! "splitOn returned empty?? 645") with
   | ⟨"v", vars⟩ => do
     let forAssn ← vars.foldlM (fun assn x => do
@@ -129,7 +129,7 @@ def parseResult (maxVar : Var) (s : String) : Except String Solver.Res := do
   | "s UNSATISFIABLE" => return .unsat
   | "s SATISFIABLE" =>
     let assn ←
-      rest.foldlM (fun assn line => parseAssnLine maxVar assn line) (HashMap.empty)
+      rest.foldlM (fun assn line => parseVLines maxVar assn line) (HashMap.empty)
     return .sat assn
   | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
@@ -147,3 +147,23 @@ def fromFileEnc (cnfFile : String) : IO Encode.EncCNF.State := do
       return map
     varCtx := ""
   }
+
+def parseAssnLine (maxVar : Var) (s : String) : Except String Assn := do
+  let nums := s.splitOn " "
+  let mut assn : Assn := .empty
+  let mut seenZero := false
+  for n in nums do
+    if seenZero then throw s!"Expected end of line after 0, but got `{n}`"
+    else
+    if n = "0" then
+      seenZero := true
+    else
+      let lit ← parseLit maxVar n
+      assn := assn.insertLit lit
+
+  if !seenZero then throw s!"Expected `0`, got end of line"
+  else return assn
+
+def parseAssnLines (maxVar : Var) (s : String) : Except String (List Assn) := do
+  let lines := s.splitOn "\n"
+  lines.mapM (parseAssnLine maxVar)

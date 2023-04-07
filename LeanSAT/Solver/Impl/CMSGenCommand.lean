@@ -27,21 +27,5 @@ def CMSGenCommand
   let _ ← child.wait
   
   let sampleOutput ← IO.FS.readFile temp
-  IO.ofExcept <| parseOutput sampleOutput
+  IO.ofExcept <| Dimacs.parseAssnLines fml.numVars sampleOutput
   )⟩
-where
-  parseOutput (s : String) : Except String (List Assn) := do
-    let assns ←
-      s.splitOn "\n"
-      |>.filter (fun line => !line.startsWith "c" && !line.all (·.isWhitespace))
-      |>.mapM (fun line =>
-        line.splitOn " "
-        |>.mapM (fun num => do
-          let i ← num.toInt?.expectSome fun () =>
-            s!"Expected number, got {num} in line `{line}`"
-          if i < 0 then
-            return (i.natAbs, false)
-          else
-            return (i.natAbs, true)
-        ))
-    return assns.map (fun list => Std.HashMap.ofList list)
