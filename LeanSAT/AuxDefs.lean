@@ -304,13 +304,15 @@ def PrinterM.run : PrinterM Unit → String := (StateT.run · "" |>.2)
 instance : Monad PrinterM := show Monad (StateM String) from inferInstance
 
 def IO.FS.withTempFile (f : System.FilePath → IO α) : IO α := do
-  let mut file := ".tmp"
+  let mut file := ".tmp" ++ toString (← IO.rand 0 999999)
   while ← System.FilePath.pathExists file do
     file := file ++ toString (← IO.rand 0 999999)
 
   IO.FS.writeFile file ""
-  let res ← f file
-  if ← System.FilePath.pathExists file then
-    IO.FS.removeFile file
+  let res ←
+    try f file
+    finally
+      if ← System.FilePath.pathExists file then
+        IO.FS.removeFile file
 
   return res

@@ -23,24 +23,21 @@ def CMSGenCommand
   let (stdin, child) ← child.takeStdin
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
-  match ←child.wait with
-  | 0 =>
-    let sampleOutput ← IO.FS.readFile temp
-    IO.ofExcept <| parseOutput sampleOutput
-  | x =>
-    let output ← child.stdout.readToEnd
-    IO.ofExcept <| .error
-      s!"Non-zero return code ({x}) from command {cmd}:\n{output}"
+  let _ ← child.wait
+  
+  let sampleOutput ← IO.FS.readFile temp
+  IO.ofExcept <| parseOutput sampleOutput
   )⟩
 where
   parseOutput (s : String) : Except String (List Assn) := do
     let assns ←
       s.splitOn "\n"
+      |>.filter (fun line => !line.startsWith "c" && !line.all (·.isWhitespace))
       |>.mapM (fun line =>
         line.splitOn " "
         |>.mapM (fun num => do
           let i ← num.toInt?.expectSome fun () =>
-            s!"Expected number, got {num}"
+            s!"Expected number, got {num} in line `{line}`"
           if i < 0 then
             return (i.natAbs, false)
           else
