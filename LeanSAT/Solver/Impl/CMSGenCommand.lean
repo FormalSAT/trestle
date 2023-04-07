@@ -25,7 +25,6 @@ def CMSGenCommand
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
   let _ ← child.wait
-  
   let sampleOutput ← IO.FS.readFile temp
   IO.ofExcept <| Dimacs.parseAssnLines fml.numVars sampleOutput
   )⟩

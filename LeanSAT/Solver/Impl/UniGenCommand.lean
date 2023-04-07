@@ -20,7 +20,7 @@ def UniGenCommand
   }
   let (stdin, child) ← child.takeStdin
   for sampleSet in sampleSet do
-    stdin.putStrLn (["c", "ind"] ++ sampleSet.map toString ++ ["0"] |> String.intercalate " ")
+    stdin.putStrLn (["c", "ind"] ++ sampleSet.map Dimacs.formatVar ++ ["0"] |> String.intercalate " ")
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
