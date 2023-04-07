@@ -9,7 +9,7 @@ namespace LeanSAT.Solver.Impl
 Lives in IO, since we need access to process invocation.
 -/
 def ApproxMCCommand
-  (cmd : String := "approxmc") (flags : List String := []) : ApproxModelCount IO :=
+  (cmd : String := "approxmc") (flags : List String := []) : ModelCount IO :=
   ⟨fun fml sampleSet => do
   let child ← IO.Process.spawn {
     cmd := cmd
@@ -32,7 +32,7 @@ def ApproxMCCommand
     IO.ofExcept <| .error s!"Non-zero return code ({x}) from command {cmd}:\n{output.get}"
   ⟩
 where
-  parseOutput (s : String) : Except String ApproxModelCount.Res := do
+  parseOutput (s : String) : Except String Nat := do
     let lines :=
       s.splitOn "\n"
       |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
@@ -41,7 +41,7 @@ where
     | satRes :: rest =>
     match satRes with
     | "s UNSATISFIABLE" =>
-      return ⟨0,2,0⟩
+      return 0
     | "s SATISFIABLE" =>
       match rest with
       | [] | _ :: _ :: _ =>
@@ -51,5 +51,5 @@ where
         .error s!"Expected `s mc <count>`, got `{s}`"
       else
       let number := res.drop 5 |>.trim
-      return ⟨← (number.toNat?.expectSome fun () => s!"Expected number, got {number}"), 2, 0⟩
+      return ← (number.toNat?.expectSome fun () => s!"Expected number, got {number}")
     | _ => .error s!"Expected `s [UN]SATISFIABLE`, got {satRes}"

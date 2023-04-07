@@ -81,21 +81,5 @@ instance [Monad m] [IpasirSolver S m] : Solver m where
 class ModelCount (m : Type → Type v) [outParam (Monad m)] where
   modelCount : Formula → Option (List Var) → m Nat
 
-structure ApproxModelCount.Res where
-  mult : Nat
-  base : Nat
-  pow  : Nat
-deriving Inhabited
-
-namespace ApproxModelCount.Res
-
-instance : ToString ApproxModelCount.Res where
-  toString | ⟨mult,base,pow⟩ => s!"{mult} * {base}^{pow}"
-
-def toNat : ApproxModelCount.Res → Nat
-| {mult, base, pow} => mult * base^pow
-
-end ApproxModelCount.Res
-
-class ApproxModelCount (m : Type → Type v) [outParam (Monad m)] where
-  approxModelCount : Formula → Option (List Var) → m ApproxModelCount.Res
+class ModelSample (m : Type → Type v) where
+  modelSample : Formula → Nat → m (List Assn)
