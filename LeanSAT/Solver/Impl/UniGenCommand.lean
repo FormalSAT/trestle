@@ -21,8 +21,9 @@ def UniGenCommand
   let (stdin, child) ← child.takeStdin
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
+  let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
   let _ ← child.wait
-  let sampleOutput ← child.stdout.readToEnd
+  let sampleOutput ← IO.ofExcept output.get
   IO.ofExcept <| parseOutput sampleOutput
   ⟩
 where
