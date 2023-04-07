@@ -82,4 +82,4 @@ class ModelCount (m : Type → Type v) [outParam (Monad m)] where
   modelCount : Formula → Option (List Var) → m Nat
 
 class ModelSample (m : Type → Type v) where
-  modelSample : Formula → Nat → m (List Assn)
+  modelSample : Formula → Option (List Var) → Nat → m (List Assn)

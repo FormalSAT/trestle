@@ -10,7 +10,8 @@ Lives in IO, since we need access to process invocation.
 -/
 def CMSGenCommand
   (cmd : String := "cmsgen") (flags : List String := []) : ModelSample IO :=
-  ⟨fun fml count =>
+  ⟨fun fml sampleSet count =>
+  if sampleSet.isSome then panic! "cmsgen does not support sample sets" else
   IO.FS.withTempFile (fun temp => do
   let child ← IO.Process.spawn {
     cmd := cmd

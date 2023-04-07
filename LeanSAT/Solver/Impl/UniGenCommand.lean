@@ -10,7 +10,7 @@ Lives in IO, since we need access to process invocation.
 -/
 def UniGenCommand
   (cmd : String := "unigen") (flags : List String := []) : ModelSample IO :=
-  ⟨fun fml count => do
+  ⟨fun fml sampleSet count => do
   let child ← IO.Process.spawn {
     cmd := cmd
     args := flags.toArray ++ #[
@@ -19,6 +19,8 @@ def UniGenCommand
     stdout := .piped
   }
   let (stdin, child) ← child.takeStdin
+  for sampleSet in sampleSet do
+    stdin.putStrLn ("c ind " ++ (sampleSet.map toString |> String.intercalate " "))
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
