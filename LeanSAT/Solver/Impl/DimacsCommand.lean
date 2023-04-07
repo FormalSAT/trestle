@@ -24,6 +24,7 @@ def DimacsCommand
   Dimacs.printFormula (stdin.putStr) fml
   stdin.flush
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
+  let _ ← child.wait
   let outputStr ← IO.ofExcept output.get
   IO.ofExcept <| Dimacs.parseResult fml.numVars outputStr
   ⟩
