@@ -30,6 +30,16 @@ def scramble (s : State) : IO State := do
 def toFormula : State → Formula
 | {clauses, ..} => ⟨clauses⟩
 
+def toString : State → String
+| {clauses,names,nextVar, ..} => Id.run do
+  let mut acc := ""
+  for i in [0:nextVar] do
+    match names.find? i with
+    | none => ()
+    | some name => acc := acc ++ s!"c {i} {name}\n"
+  acc ++ Formula.toString ⟨clauses⟩
+
+instance : ToString State := ⟨toString⟩
 end State
 
 end EncCNF

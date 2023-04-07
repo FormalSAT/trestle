@@ -113,7 +113,7 @@ instance : Coe Literal Clause := ⟨(⟨[·]⟩)⟩
 instance : Coe (List Literal) Clause := ⟨(⟨·⟩)⟩
 
 instance : ToString Clause where
-  toString | ⟨lits⟩ => toString lits
+  toString | ⟨lits⟩ => lits.map toString |> String.intercalate " "
 
 end Clause
 
@@ -170,6 +170,10 @@ def unsat (c : Formula) := ¬c.satisfiable
 instance : Coe Clause Formula := ⟨(⟨[·]⟩)⟩
 instance : OfNat Formula n := ⟨Literal.pos n⟩
 
+nonrec def toString (f : Formula) : String :=
+  f.clauses.map toString |> String.intercalate "\n"
+
+instance : ToString Formula := ⟨toString⟩
 end Formula
 
 
