@@ -165,5 +165,7 @@ def parseAssnLine (maxVar : Var) (s : String) : Except String Assn := do
   else return assn
 
 def parseAssnLines (maxVar : Var) (s : String) : Except String (List Assn) := do
-  let lines := s.splitOn "\n"
+  let lines :=
+      s.splitOn "\n"
+    |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
   lines.mapM (parseAssnLine maxVar)
