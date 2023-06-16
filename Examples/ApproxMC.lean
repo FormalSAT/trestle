@@ -1,6 +1,6 @@
 import LeanSAT
 
-open LeanSAT Notation
+open LeanSAT
 
 namespace Examples.ApproxMC
 
@@ -9,7 +9,14 @@ instance : Solver.ModelCount IO := Solver.Impl.ApproxMCCommand
 
 def main : IO Unit := do
   let formula : Formula :=
-    (0 ∨ 1 ∨ 2) ∧ ¬0
+    open Encode Tseitin.Notation in
+    let ((), enc) := EncCNF.new! do
+      let x ← EncCNF.mkVar "x"
+      let y ← EncCNF.mkVar "y"
+      let z ← EncCNF.mkVar "z"
+      Tseitin.tseitin
+        ((x ∧ y ∧ z) ∨ (¬ x ∧ ¬ y))
+    enc.toFormula
   IO.println formula.vars
   let res ← Solver.solve formula
   IO.println res
