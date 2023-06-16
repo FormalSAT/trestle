@@ -20,6 +20,20 @@ def Fin.pred? : Fin n → Option (Fin n)
 | ⟨0, _⟩ => none
 | ⟨i+1,h⟩ => some ⟨i, Nat.le_of_succ_le h⟩
 
+/-- if i > 0, then i-1, else none -/
+def Fin.predCast : Fin n → Option (Fin n.pred)
+| ⟨0, _⟩ => none
+| ⟨i+1,h⟩ => some ⟨i, Nat.le_pred_of_lt h⟩
+
+/-- if i < Fin.last n then i, else none -/
+def Fin.castPred (i : Fin n) : Option (Fin n.pred) :=
+  match n with
+  | 0 => i.elim0
+  | n+1 =>
+    if h : ↑i = n
+    then none
+    else some ⟨i, by simp; exact Nat.lt_of_le_of_ne (Nat.le_of_succ_le_succ i.isLt) h⟩
+
 def Fin.succ? : {n : Nat} → Fin n → Option (Fin n)
 | 0, i => i.elim0
 | n+1, ⟨i,_⟩ =>
@@ -262,6 +276,22 @@ theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
     rw [Nat.add_comm, Nat.add_comm 1, Nat.add_one, Nat.add_succ]
     apply Nat.succ_le_succ
     apply Nat.le_add_right
+
+def List.subtypeSize [SizeOf α] : (L : List α) → List {a : α // sizeOf a < sizeOf L}
+| [] => []
+| x::xs =>
+  have : sizeOf x < sizeOf (x::xs) := by
+    simp
+    calc sizeOf x
+      _ < sizeOf x + 1 := Nat.lt_succ_self _
+      _ = 1 + sizeOf x := by rw [Nat.add_comm]
+      _ ≤ 1 + sizeOf x + sizeOf xs := Nat.le_add_right _ _
+  ⟨x, this⟩ :: xs.subtypeSize.map (fun ⟨a,h⟩ =>
+    ⟨a, by
+      simp
+      calc sizeOf a
+      _ < sizeOf xs := h
+      _ ≤ 1 + sizeOf x + sizeOf xs := Nat.le_add_left _ _⟩)
 
 @[simp] theorem List.find?_map (p : β → Bool) (f : α → β) (L : List α)
   : List.find? p (List.map f L) = Option.map f (List.find? (p ∘ f) L)
