@@ -14,10 +14,11 @@ structure State where
   clauses : List Clause
   names : HashMap Var String
   varCtx : String
+  conditionCtx : List Literal
 
 namespace State
 
-def new : State := ⟨0, [], HashMap.empty, ""⟩
+def new : State := ⟨0, [], HashMap.empty, "", []⟩
 
 instance : Inhabited State := ⟨new⟩
 
@@ -77,15 +78,26 @@ def mkVar (name : String) : EncCNF Var := do
                 (oldState.varCtx ++ name)}
   return oldState.nextVar
 
-def addClause (C : Clause) : EncCNF Unit := do
-  let oldState ← get
-  set { oldState with
-    clauses := C :: oldState.clauses }
-
 def mkTemp : EncCNF Var := do
   let oldState ← get
   return ← mkVar ("tmp" ++ toString oldState.nextVar)
 
+def addClause (C : Clause) : EncCNF Unit := do
+  let oldState ← get
+  set { oldState with
+    clauses := ⟨oldState.conditionCtx ++ C.lits⟩ :: oldState.clauses }
+
+/-- runs `e`, adding `ls` to each generated clause -/
+def unlessOneOf (ls : List Literal) (e : EncCNF α) : EncCNF α := do
+  let oldState ← get
+  set { oldState with conditionCtx := ls ++ oldState.conditionCtx }
+  let res ← e
+  let newState ← get
+  set { newState with conditionCtx := oldState.conditionCtx }
+  return res
+
+def assuming (ls : List Literal) (e : EncCNF α) : EncCNF α :=
+  unlessOneOf (ls.map (·.not)) e
 
 structure VarBlock (dims : List Nat) where
   start : Var

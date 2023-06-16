@@ -146,6 +146,7 @@ def fromFileEnc (cnfFile : String) : IO Encode.EncCNF.State := do
         map := map.insert i s!"DIMACS var {i}"
       return map
     varCtx := ""
+    conditionCtx := []
   }
 
 def parseAssnLine (maxVar : Var) (s : String) : Except String Assn := do
