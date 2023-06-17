@@ -46,10 +46,10 @@ def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
         /- if a color assigned to this square, exactly two neighbors
           must share that color -/
         for n in List.fins _ do
-          condEqualK
-            [piece_var i j n]
-            (neighbors i j |>.map fun (i',j') => piece_var i' j' n).toArray
-            2
+          assuming [piece_var i j n] <|
+            equalK
+              (neighbors i j |>.map fun (i',j') => piece_var i' j' n).toArray
+              2
       | some (n, _, _) =>
         /- assign the square to n -/
         for n' in List.fins _ do
