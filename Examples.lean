@@ -1,5 +1,6 @@
 import Examples.Encoding.Akari
 import Examples.Encoding.NumberLink
+import Examples.Encoding.Yajilin
 import Examples.ApproxMC
 import Examples.Cadical
 
@@ -16,6 +17,7 @@ instance : Solver IO := Solver.Impl.DimacsCommand "cadical"
 def mains :=
   [ ("Akari", Akari.main)
   , ("NumberLink", NumberLink.main)
+  , ("Yajilin", Yajilin.main)
   ]
 
 def main (args : List String) : IO UInt32 := do
