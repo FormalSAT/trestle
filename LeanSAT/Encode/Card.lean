@@ -7,7 +7,7 @@ open EncCNF Tseitin Tseitin.Notation
 
 def amoPairwise (lits : List Literal) : EncCNF Unit := do
   -- for every pair x,y of literals in `lits`, they can't both be true
-  lits.forDiagM (fun (x y : Literal) => do
+  lits.forPairsM (fun (x y : Literal) => do
     tseitin (¬(x ∧ y))
   )
 
@@ -28,7 +28,7 @@ def atMostOne (lits : List Literal) : EncCNF Unit :=
   else
     amoCut4 lits
 
-def partialSumsBlock (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk : k > 1)
+def partialSumsBlock (lits : Array Literal) (k : Nat) (hk : k > 1)
   : EncCNF (VarBlock [k, lits.size]) := do
   -- `temps[i][j]` ↔ i < ∑ j' ≤ j, `lits[j']`
   let temps ← mkTempBlock [k, lits.size]
@@ -54,7 +54,7 @@ def partialSumsBlock (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk :
 
 def partialSumsAtMostK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
   newCtx s!"pSums≤{k}" do
-  let sumsBlock ← partialSumsBlock lits hl (k+1) (Nat.succ_le_succ hk)
+  let sumsBlock ← partialSumsBlock lits (k+1) (Nat.succ_le_succ hk)
 
   have : lits.size-1 < lits.size := Nat.sub_lt hl (by simp)
 
@@ -65,7 +65,7 @@ def partialSumsAtMostK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk
 
 def partialSumsAtLeastK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk : k > 1) : EncCNF Unit :=
   newCtx s!"pSums≥{k}" do
-  let sumsBlock ← partialSumsBlock lits hl k hk
+  let sumsBlock ← partialSumsBlock lits k hk
 
   have : k-1 < k := Nat.sub_lt (Nat.lt_trans (by simp) hk) (by simp)
   have : lits.size-1 < lits.size := Nat.sub_lt hl (by simp)
@@ -79,7 +79,7 @@ def partialSumsEqualK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk 
   newCtx s!"pSums={k}" do
   have : lits.size-1 < lits.size := Nat.sub_lt ‹_› (by simp)
   have : k-1 < k+1 := Nat.le_step <| Nat.sub_lt ‹_› (by simp)
-  let sumsBlock ← partialSumsBlock lits hl (k+1) (Nat.succ_le_succ hk)
+  let sumsBlock ← partialSumsBlock lits (k+1) (Nat.succ_le_succ hk)
 
   -- `¬sumsBlock[k][lits.size-1]`
   -- <=> ¬(k < ∑ j, lits[j])
