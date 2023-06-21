@@ -12,8 +12,8 @@ namespace EncCNF
 structure State where
   nextVar : Nat
   clauses : List Clause
-  names : HashMap Var String
-  varCtx : String
+  names   : HashMap Var String
+  varCtx  : String
   conditionCtx : List Literal
 
 namespace State
@@ -102,6 +102,9 @@ def assuming (ls : List Literal) (e : EncCNF α) : EncCNF α :=
 structure VarBlock (dims : List Nat) where
   start : Var
   h_dims : dims.length > 0
+
+instance : Inhabited (VarBlock (x::xs)) where
+  default := {start := 0, h_dims := by simp [Nat.succ_pos]}
 
 @[reducible, inline, simp]
 def VarBlock.hdLen : VarBlock ds → Nat
