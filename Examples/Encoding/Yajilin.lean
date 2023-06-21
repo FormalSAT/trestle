@@ -14,6 +14,7 @@ structure Board where
 deriving Inhabited
 
 structure BoardVars extends Board where
+  pathLengthBits : Nat
   isNumber : Fin height → Fin width → Var
   isFilled : Fin height → Fin width → Var
   isInPath : Fin height → Fin width → Var
@@ -24,27 +25,32 @@ structure BoardVars extends Board where
   /-- whether `(i,j)` is lex-before the first path cell -/
   isLTRoot : Fin height → Fin width → Var
   /-- whether `(i,j)` is connected to the root in `n` steps -/
-  rootDist : Fin height → Fin width → Fin (height * width) → Var
+  rootDist : Fin height → Fin width → BinNumber pathLengthBits
 deriving Inhabited
 
 open EncCNF Tseitin Tseitin.Notation
 
 def mkVars (b : Board) : EncCNF BoardVars := do
+  /- the farthest a path can be to the root is ⌊b.height * b.width / 2⌋,
+    so we want ⌈log₂ (⌊b.height * b.width / 2⌋ + 2)⌉ bits to count 1 past
+    the max without overflowing -/
+  let pathLengthBits := (b.height * b.width / 2 + 1).log2 + 1
   let isNumber ← mkVarBlock "isNumber" [b.height, b.width]
   let isFilled ← mkVarBlock "isFilled" [b.height, b.width]
   let isInPath ← mkVarBlock "isInPath" [b.height, b.width]
   let vertLine ← mkVarBlock "vertLine" [b.height.pred, b.width]
   let horzLine ← mkVarBlock "horzLine" [b.height, b.width.pred]
   let isLTRoot ← mkVarBlock "isLTRoot" [b.height, b.width]
-  let rootDist ← mkVarBlock "rootDist" [b.height, b.width, b.height * b.width]
+  let rootDist ← mkVarBlock "rootDist" [b.height, b.width, pathLengthBits]
   return { b with
+    pathLengthBits
     isNumber := (isNumber[·][·])
     isFilled := (isFilled[·][·])
     isInPath := (isInPath[·][·])
     vertLine := (vertLine[·][·])
     horzLine := (horzLine[·][·])
     isLTRoot := (isLTRoot[·][·])
-    rootDist := (rootDist[·][·][·])
+    rootDist := (rootDist[·][·])
   }
 
 /-- each neighbor square & the line var that goes to it -/
@@ -83,6 +89,11 @@ def fillVarsInDir (b : BoardVars) (i : Fin b.height) (j : Fin b.width) (d : Dir)
 
 def encode (b : Board) : EncCNF BoardVars := do
   let b ← mkVars b
+
+  let pathLengthCap : BinNumber b.pathLengthBits ←
+    mkVarBlock "pathLengthCap" [_]
+  
+  tseitin <| BinNumber.eqConst pathLengthCap <| b.height * b.width / 2 + 1
 
   for i in List.fins b.height do
     for j in List.fins b.width do
@@ -133,30 +144,25 @@ def encode (b : Board) : EncCNF BoardVars := do
       have : 0 < _ := Nat.mul_pos (Nat.zero_lt_of_lt i.isLt) (Nat.zero_lt_of_lt j.isLt)
       have : OfNat (Fin (b.height * b.width)) 0 := ⟨⟨0, this⟩⟩
 
-      /- rootDist[i][j][0] is true iff (i,j) is the root -/
-      match lexPrev with
-      | none =>
-        tseitin (b.rootDist i j 0 ↔ ¬b.isLTRoot i j)
-      | some (i',j') =>
-        tseitin (b.rootDist i j 0 ↔ (¬b.isLTRoot i j  ∧  b.isLTRoot i' j'))
+      /- rootDist[i][j] < pathLengthCap -/
+      tseitin <| ← (b.rootDist i j).lt pathLengthCap
 
-      /- rootDist[i][j][n+1] iff ( rootDist[i][j][n] ∨
-              ⋁_{(i',j') ∈ neighbors} (line var) ∧ rootDist[i'][j'][n] ) -/
-      for h:n in [0 : b.height * b.width - 1] do
-        have : n+1 < b.height * b.width :=
-          calc n+1 < b.height * b.width - 1 + 1 := Nat.succ_le_succ h.2
-               _   = b.height * b.width := Nat.sub_add_cancel ‹_›
-        have : n < b.height * b.width := Nat.le_of_lt this
-        
-        let frm : Tseitin.Formula := .or <|
-            neighbors b i j |>.map (fun (i',j',v) =>
-              v ∧ b.rootDist i' j' ⟨n,‹_›⟩
-            ) |>.toList
-        
-        tseitin (b.rootDist i j ⟨n+1,‹_›⟩ ↔ (b.rootDist i j ⟨n,‹_›⟩ ∨ frm))
-      
-      /- isInPath → rootDist max -/
-      tseitin (b.isInPath i j → b.rootDist i j (Fin.last (b.height * b.width) ‹_›))
+      let isRoot : Tseitin.Formula :=
+        match lexPrev with
+        | none => ¬b.isLTRoot i j
+        | some (i',j') => ¬b.isLTRoot i j ∧ b.isLTRoot i' j'
+
+      /- if (i,j) is root, then rootDist[i][j] = 0 -/
+      tseitin <| isRoot → (BinNumber.eqConst (b.rootDist i j) 0)
+
+      /- otherwise, for some neighbor (i',j'),
+            the path connects (i,j) <-> (i',j')
+            AND rootDist[i][j] = rootDist[i'][j'] + 1 -/
+      tseitin <| ¬isRoot ∧ b.isInPath i j → .or (
+          (← neighbors b i j
+          |>.mapM (fun (i',j',v) => do
+            return v ∧ (← BinNumber.eqSucc (b.rootDist i j) (b.rootDist i' j')))
+          ).toList)
 
   return b
 
@@ -199,7 +205,6 @@ def printAssn (vars : BoardVars) (assn : Assn) : String := Id.run do
 
 def solve [Solver IO] (b : Board) : IO Unit := do
   let (v,enc) := EncCNF.new! (encode b)
-  --LeanSAT.Solver.Dimacs.printEnc IO.print enc
   match ←Solver.solve enc.toFormula with
   | .error => IO.println "error"
   | .unsat => IO.println "unsat"
@@ -268,6 +273,26 @@ def bigBoard : Except String Board :=
     "  0D  0L            1D                    0L                    " ++ "\n" ++
     "                                    0D    1R              1R    " ++ "\n" ++
     "                    3L                    0R      0R            "
+
+def bigBoard2 : Except String Board :=
+  parse 17 17 <|
+    "2D2R                              \n" ++
+    "              3R                  \n" ++
+    "            3R                    \n" ++
+    "        3D                        \n" ++
+    "              2D      3L          \n" ++
+    "          4R          2R          \n" ++
+    "  4R      3R                      \n" ++
+    "  5R      4R          2R          \n" ++
+    "                                  \n" ++
+    "4R                                \n" ++
+    "    4R      3R      2R            \n" ++
+    "    4R      3R      2R            \n" ++
+    "                                  \n" ++
+    "          3R                      \n" ++
+    "  5R      4R          2R          \n" ++
+    "  3R      2R          1R          \n" ++
+    "                                  "
 
 def main [Solver IO] := do
   --solve (← IO.ofExcept smallBoard)
