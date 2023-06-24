@@ -26,7 +26,7 @@ Important types:
 
 ## Planned scope
 
-We are planning to add support for:
+I am planning to add support for:
 - Non-CNF formulas (KNF, d-DNNF, XOR-CNF, ...)
 - Verification
   - Verified encodings (see [Cayden Codel's work](https://github.com/ccodel/verified-encodings))
