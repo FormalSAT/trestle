@@ -25,15 +25,15 @@ def Res.getAssn? : Res → Option Assn
 
 end Solver
 
-class Solver (m : Type → Type v) [outParam (Monad m)] where
-  solve : Formula → m Solver.Res
+class Solver (m : Type → Type v) where
+  solve : [Monad m] → Formula → m Solver.Res
 
 namespace Solver
 
-def Solutions (f : Formula) (varsToBlock : List Var) : Type := Unit
+def Solutions (_f : Formula) (_varsToBlock : List Var) : Type := Unit
 def solutions (f vars) : Solutions f vars := ()
 
-instance [@Solver m _mm] : ForIn m (Solutions f vars) Assn where
+instance [Solver m] : ForIn m (Solutions f vars) Assn where
   forIn _ b perItem := do
     let mut b := b
     let mut state := some f
@@ -59,7 +59,7 @@ instance [@Solver m _mm] : ForIn m (Solutions f vars) Assn where
         state := some f'
     return b
 
-def allSolutions [@Solver m _mm] (f : Formula) (varsToBlock : List Var)
+def allSolutions [Monad m] [Solver m] (f : Formula) (varsToBlock : List Var)
   : m (List Assn) := do
   let mut sols := []
   for assn in solutions f varsToBlock do
@@ -67,7 +67,7 @@ def allSolutions [@Solver m _mm] (f : Formula) (varsToBlock : List Var)
   return sols
 
 
-class IpasirSolver (S : Type) (m : Type → Type v) [outParam (Monad m)] where
+class IpasirSolver (S : outParam Type) (m : Type → Type v) where
   new : m S
   addClause : Clause → S → m S
   solve : S → m SolveRes

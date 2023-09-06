@@ -11,11 +11,6 @@ def List.enum' (L : List α) : List (Fin L.length × α) :=
         simp [←h, Nat.add_succ, Nat.succ_add])
   go L 0 (by simp)
 
-def Fin.last (n : Nat) (_ : 0 < n) : Fin n :=
-  match n with
-  | 0 => by contradiction
-  | n+1 => ⟨n, Nat.le_refl _⟩
-
 def Fin.pred? : Fin n → Option (Fin n)
 | ⟨0, _⟩ => none
 | ⟨i+1,h⟩ => some ⟨i, Nat.le_of_succ_le h⟩
@@ -93,7 +88,7 @@ theorem Array.init_succ {f : Fin n.succ → α}
     conv => lhs; unfold Std.Range.forIn'.loop
     conv => rhs; unfold Std.Range.forIn'.loop
     simp
-    have hn := Nat.sub_lt_of_pos_le _ _ (Nat.succ_pos _) hi
+    have hn := Nat.sub_lt_of_pos_le (Nat.succ_pos _) hi
     have hn' : n - Nat.succ i < Nat.succ n := Nat.le_step hn
     simp [hn, hn']
     have : n - Nat.succ i + 1 = n - i := by
@@ -253,8 +248,7 @@ theorem List.sizeOf_filter [SizeOf α] (f) (L : List α)
   . simp
     apply Nat.add_le_add_left
     assumption
-  . simp
-    apply Nat.le_trans ?_ (Nat.le_add_left _ _)
+  . apply Nat.le_trans ?_ (Nat.le_add_left _ _)
     assumption
 
 theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
@@ -313,7 +307,7 @@ def Std.AssocList.ofList : List (α × β) → Std.AssocList α β
 
 @[simp]
 theorem Std.HashMap.find?_ofList {B : BEq α} {H : Hashable α} (a : List (α × β)) (k : α)
-  : (@Std.HashMap.ofList _ B H _ a |>.find? k) = (Std.AssocList.ofList a |>.find? k)
+  : (@Std.HashMap.ofList _ _ B H a |>.find? k) = (Std.AssocList.ofList a |>.find? k)
   := sorry
 
 @[inline]
