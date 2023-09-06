@@ -1,9 +1,27 @@
-{"version": 4,
+{"version": 5,
  "packagesDir": "lake-packages",
  "packages":
  [{"git":
+   {"url": "http://github.com/JamesGallicchio/waterfall.git",
+    "subDir?": null,
+    "rev": "20d6dad8e1cfe0afa835dc2056fc0c27b8c8d7f0",
+    "opts": {},
+    "name": "waterfall",
+    "inputRev?": "main",
+    "inherited": false}},
+  {"git":
+   {"url": "http://github.com/mhuisi/lean4-cli.git",
+    "subDir?": null,
+    "rev": "21dac2e9cc7e3cf7da5800814787b833e680b2fd",
+    "opts": {},
+    "name": "Cli",
+    "inputRev?": "nightly",
+    "inherited": true}},
+  {"git":
    {"url": "http://github.com/leanprover/std4.git",
     "subDir?": null,
-    "rev": "7d37ab32aac2004fa32e1df5b38d878c2301cd71",
-    "name": "Std",
-    "inputRev?": "main"}}]}
+    "rev": "e8c27f7d90ee71470558efd1bc197fe55068c748",
+    "opts": {},
+    "name": "std",
+    "inputRev?": "main",
+    "inherited": false}}]}
