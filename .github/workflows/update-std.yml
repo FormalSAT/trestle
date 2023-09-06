@@ -2,7 +2,7 @@ name: update std
 
 on:
   schedule:
-    - cron: '0/5 * * * *'
+    - cron: '*/10 * * * *'
 
 jobs:
 
@@ -11,7 +11,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: install elan
+        run: |
+          set -o pipefail
+          curl -sSfL https://github.com/leanprover/elan/releases/download/v1.4.2/elan-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          ./elan-init -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
       - uses: actions/checkout@v2
+
       - run: |
           STD_HEAD=$(git ls-remote https://github.com/leanprover/std4.git refs/heads/main | awk '{ print $1 }')
           echo "Latest commit to std4/main: $STD_HEAD"
