@@ -289,7 +289,7 @@ def List.subtypeSize [SizeOf α] : (L : List α) → List {a : α // sizeOf a < 
 
 @[simp] theorem List.find?_map (p : β → Bool) (f : α → β) (L : List α)
   : List.find? p (List.map f L) = Option.map f (List.find? (p ∘ f) L)
-  := by induction L <;> simp; split <;> simp [*]
+  := by induction L <;> simp [find?]; split <;> simp [*]
 
 /-- Like `forDiagM`, but only runs `f e e'` (not `f e e`). -/
 @[simp] def List.forPairsM [Monad m] (f : α → α → m PUnit) : List α → m PUnit
