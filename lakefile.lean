@@ -11,5 +11,6 @@ lean_exe run_examples {
   root := `Examples
 }
 
-require std from git "http://github.com/leanprover/std4.git" @ "main"
+-- Note: `std` is not required so that Lake selects a version matching mathlib.
 require waterfall from git "http://github.com/JamesGallicchio/waterfall.git" @ "main"
+require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "master"
