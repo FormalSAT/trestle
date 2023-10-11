@@ -84,7 +84,7 @@ end PropAssignment
 
 namespace PropForm
 
-/-- The unique extension of `τ` from just variables to formulas. -/
+/-- The unique extension of `τ` from variables to formulas. -/
 @[simp]
 def eval (τ : PropAssignment ν) : PropForm ν → Bool
   | var x => τ x
@@ -102,8 +102,8 @@ def eval (τ : PropAssignment ν) : PropForm ν → Bool
 def satisfies (τ : PropAssignment ν) (φ : PropForm ν) : Prop :=
   φ.eval τ = true
 
-/-- This instance is scoped so that `τ ⊨ φ : Prop` implies `φ : PropForm _` via the `outParam` only
-when `PropForm` is open. -/
+/-- This instance is scoped so that `τ ⊨ φ : Prop` implies `φ : PropForm _` via the `outParam`
+only when `PropForm` is open. -/
 scoped instance : SemanticEntails (PropAssignment ν) (PropForm ν) where
   entails := PropForm.satisfies
 
@@ -157,11 +157,8 @@ theorem satisfies_biImpl' : τ ⊨ biImpl φ₁ φ₂ ↔ ((τ ⊨ φ₁ ∧ τ 
 /-- A formula `φ₁` semantically entails `φ₂` when `τ ⊨ φ₁` implies `τ ⊨ φ₂`.
 
 This is actually defined in terms of the Boolean lattice
-and the above statement is a theorem.
-Note that the two-valued Boolean model is universal,
-meaning that this formulation of semantic entailment
-is equivalent to entailment in any Boolean algebra,
-and also (by completeness) to provability. -/
+to reuse various `le_blah` theorems,
+and the above statement is a theorem (`entails_ext`). -/
 def entails (φ₁ φ₂ : PropForm ν) : Prop :=
   ∀ (τ : PropAssignment ν), φ₁.eval τ ≤ φ₂.eval τ
 
