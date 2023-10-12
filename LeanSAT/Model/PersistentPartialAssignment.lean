@@ -15,6 +15,20 @@ structure PersistentPartialAssignment where
   generation : Nat
   /-- The maximum absolute value of any entry in `assignments`. -/
   maxGen : Nat
+  
+namespace PersistentPartialAssignment
+  /-- The value of the given literal in the current assignment, if assigned.
+  Otherwise `none`. -/
+  def litValue? (τ : PersistentPartialAssignment) (l : ILit) : Option Bool :=
+    let v := τ.assignment.getD (l.var.val-1) 0
+    if τ.generation ≤ v.natAbs  then
+      some <| xor (v < 0) l.polarity
+    else none
+
+def PersistentPartialAssignment.toPropFun (τ : PersistentPartialAssignment) : PropFun Int :=
+  sorry
+
+end PersistentPartialAssignment
  
 -- ??
 structure PersistentPartialAssignment.WF (ppa : PersistentPartialAssignment) where
@@ -61,14 +75,6 @@ namespace PersistentPartialAssignment
       assignment := τ.assignment.set! (l.var.val-1) v
       maxGen := Nat.max τ.maxGen gen }
 
-  /-- The value of the given literal in the current assignment, if assigned.
-  Otherwise `none`. -/
-  def litValue? (τ : PersistentPartialAssignment) (l : ILit) : Option Bool :=
-    let v := τ.assignment.getD (l.var.val-1) 0
-    if τ.generation ≤ v.natAbs  then
-      some <| xor (v < 0) l.polarity
-    else none
-
   /-- Check if the given clause is a tautology.
   The current partial assignment is ignored,
   and the assignment afterwards is unspecified. -/
@@ -90,9 +96,10 @@ namespace PersistentPartialAssignment
   def setNegatedClauseUntil (τ : PersistentPartialAssignment) (C : IClause) (gen : Nat) : PersistentPartialAssignment :=
     C.foldl (init := τ) (fun τ l => τ.setLitUntil (-l) gen)
 
-  inductive PropagateResult where
-    | extended
-    | contradiction
+  /-- A result of `propagateUnit` on inputs `τ` and `C`. -/
+  inductive PropagateResult (τ : PersistentPartialAssignment) (C : IClause) where
+    | extended -- (h : ?)
+    | contradiction -- (h : ?)
     | notUnit
 
   /-- If `C` is satisfied by `τ`, return `notUnit`.
@@ -100,7 +107,8 @@ namespace PersistentPartialAssignment
   If `C' = [u]` is a unit, extend `τ` by `u` and return `extended`.
   If `C'` has become empty (is falsified), return `contradiction`.
   If `C'` is not a unit and not falsified, return `notUnit`. -/
-  def propagateUnit (τ : PersistentPartialAssignment) (C : IClause) : PersistentPartialAssignment × PropagateResult := Id.run do
+  def propagateUnit (τ : PersistentPartialAssignment) (C : IClause) :
+      PersistentPartialAssignment × PropagateResult τ C := Id.run do
     let mut τ := τ
     -- The candidate for a unit.
     let mut unit? : Option ILit := none
