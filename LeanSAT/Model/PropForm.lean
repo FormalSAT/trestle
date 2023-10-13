@@ -5,7 +5,6 @@ Authors: Wojciech Nawrocki
 -/
 
 import Mathlib.Data.Set.Basic
-import Mathlib.Order.BooleanAlgebra
 
 import LeanSAT.Model.ToMathlib
 
