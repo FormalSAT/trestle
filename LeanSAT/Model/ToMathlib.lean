@@ -8,6 +8,8 @@ Authors: Wojciech Nawrocki
 
 /-! Std.Logic or Std.Bool? -/
 
+@[simp] theorem Bool.bnot_eq_bnot (a b : Bool) :
+  ((!a) = !b) = (a = b) := by cases a <;> cases b <;> decide
 @[simp] theorem Bool.eq_true_iff_eq_true_to_eq (a b : Bool) :
   (a = true ↔ b = true) = (a = b) := by cases a <;> cases b <;> decide
 @[simp] theorem Bool.eq_false_iff_eq_false_to_eq (a b : Bool) :
