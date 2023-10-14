@@ -8,43 +8,9 @@ import Mathlib.Data.Set.Basic
 
 import LeanSAT.Model.ToMathlib
 
-/-! Formulas of propositional logic.
+/-! ## Propositional assignments, formulas, and entailment -/
 
-This modules inductively defines the syntax of formulas.
-Later on we can take a quotient to identify `x ∨ ¬x` with `⊤`, for example. -/
-
-/-- A propositional formula over variables of type `ν`. -/
-inductive PropForm (ν : Type u)
-  | var (x : ν)
-  | tr
-  | fls
-  | neg (φ : PropForm ν)
-  | conj (φ₁ φ₂ : PropForm ν)
-  | disj (φ₁ φ₂ : PropForm ν)
-  | impl (φ₁ φ₂ : PropForm ν)
-  | biImpl (φ₁ φ₂ : PropForm ν)
-  deriving Repr, DecidableEq, Inhabited
-
-namespace PropForm
-
--- HACK: a `let` doesn't work with structural recursion
-local macro "go " n:ident : term =>
-  `(let s := $(Lean.mkIdent `PropForm.toString) $n
-    if s.contains ' ' then s!"({s})" else s)
-protected def toString [ToString ν] : PropForm ν → String
-  | var x        => toString x
-  | tr           => "⊤"
-  | fls          => "⊥"
-  | neg φ        => s!"¬{go φ}"
-  | conj φ₁ φ₂   => s!"{go φ₁} ∧ {go φ₂}"
-  | disj φ₁ φ₂   => s!"{go φ₁} ∨ {go φ₂}"
-  | impl φ₁ φ₂   => s!"{go φ₁} → {go φ₂}"
-  | biImpl φ₁ φ₂ => s!"{go φ₁} ↔ {go φ₂}"
-
-instance [ToString ν] : ToString (PropForm ν) :=
-  ⟨PropForm.toString⟩
-
-end PropForm
+/-! ### Propositional assignments -/
 
 /-- An assignment of truth values to propositional variables. -/
 def PropAssignment (ν : Type u) := ν → Bool
@@ -79,7 +45,69 @@ theorem set_same [DecidableEq ν] (τ : PropAssignment ν) (x : ν) :
   ext x'
   dsimp [set]; split <;> simp_all
 
+-- TODO: is this defined in mathlib for functions in general?
+def agreeOn (X : Set ν) (σ₁ σ₂ : PropAssignment ν) : Prop :=
+  ∀ x ∈ X, σ₁ x = σ₂ x
+
+theorem agreeOn_refl (X : Set ν) (σ : PropAssignment ν) : agreeOn X σ σ :=
+  fun _ _ => rfl
+theorem agreeOn.symm : agreeOn X σ₁ σ₂ → agreeOn X σ₂ σ₁ :=
+  fun h x hX => Eq.symm (h x hX)
+theorem agreeOn.trans : agreeOn X σ₁ σ₂ → agreeOn X σ₂ σ₃ → agreeOn X σ₁ σ₃ :=
+  fun h₁ h₂ x hX => Eq.trans (h₁ x hX) (h₂ x hX)
+
+theorem agreeOn.subset : X ⊆ Y → agreeOn Y σ₁ σ₂ → agreeOn X σ₁ σ₂ :=
+  fun hSub h x hX => h x (hSub hX)
+
+theorem agreeOn_empty (σ₁ σ₂ : PropAssignment ν) : agreeOn ∅ σ₁ σ₂ :=
+  fun _ h => False.elim (Set.not_mem_empty _ h)
+
+variable [DecidableEq ν]
+
+theorem agreeOn_set_of_not_mem {x : ν} {X : Set ν} (σ : PropAssignment ν) (v : Bool) : x ∉ X →
+    agreeOn X (σ.set x v) σ := by
+  -- I ❤ A️esop
+  aesop (add norm unfold agreeOn, norm unfold set)
+
 end PropAssignment
+
+/-! ### Propositional formulas -/
+
+/-- A propositional formula over variables of type `ν`.
+
+This is the inductively defined syntax of formulas.
+Later on we can take a quotient to identify `x ∨ ¬x` with `⊤`, for example. -/
+inductive PropForm (ν : Type u)
+  | var (x : ν)
+  | tr
+  | fls
+  | neg (φ : PropForm ν)
+  | conj (φ₁ φ₂ : PropForm ν)
+  | disj (φ₁ φ₂ : PropForm ν)
+  | impl (φ₁ φ₂ : PropForm ν)
+  | biImpl (φ₁ φ₂ : PropForm ν)
+  deriving Repr, DecidableEq, Inhabited
+
+namespace PropForm
+
+-- HACK: a `let` doesn't work with structural recursion
+local macro "go " n:ident : term =>
+  `(let s := $(Lean.mkIdent `PropForm.toString) $n
+    if s.contains ' ' then s!"({s})" else s)
+protected def toString [ToString ν] : PropForm ν → String
+  | var x        => toString x
+  | tr           => "⊤"
+  | fls          => "⊥"
+  | neg φ        => s!"¬{go φ}"
+  | conj φ₁ φ₂   => s!"{go φ₁} ∧ {go φ₂}"
+  | disj φ₁ φ₂   => s!"{go φ₁} ∨ {go φ₂}"
+  | impl φ₁ φ₂   => s!"{go φ₁} → {go φ₂}"
+  | biImpl φ₁ φ₂ => s!"{go φ₁} ↔ {go φ₂}"
+
+instance [ToString ν] : ToString (PropForm ν) :=
+  ⟨PropForm.toString⟩
+
+end PropForm
 
 namespace PropForm
 
@@ -95,7 +123,7 @@ def eval (τ : PropAssignment ν) : PropForm ν → Bool
   | impl φ₁ φ₂ => (eval τ φ₁) ⇨ (eval τ φ₂)
   | biImpl φ₁ φ₂ => eval τ φ₁ = eval τ φ₂
 
-/-! Satisfying assignments -/
+/-! ### Satisfying assignments -/
 
 /-- An assignment satisfies a formula `φ` when `φ` evaluates to `⊤` at that assignment. -/
 def satisfies (τ : PropAssignment ν) (φ : PropForm ν) : Prop :=
@@ -151,7 +179,7 @@ theorem satisfies_biImpl' : τ ⊨ biImpl φ₁ φ₂ ↔ ((τ ⊨ φ₁ ∧ τ 
   simp only [sEntails, satisfies, eval]
   cases (eval τ φ₁) <;> aesop
 
-/-! Semantic entailment and equivalence. -/
+/-! ### Semantic entailment and equivalence -/
 
 /-- A formula `φ₁` semantically entails `φ₂` when `τ ⊨ φ₁` implies `τ ⊨ φ₂`.
 

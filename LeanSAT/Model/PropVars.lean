@@ -20,40 +20,11 @@ import LeanSAT.Model.PropFun
 `PropFun.hasUniqueExtension X Y` - the assignments to a function extend uniquely from a set `X` to
 a set `Y` of variables
 
-NOTE: Semantic notions are not generally defined on `PropForm`s. They are expected to be used on
-`PropForm`s by composing with `⟦-⟧`.
+NOTE: Semantic notions are not generally defined on `PropForm`s.
+They are expected to be used on `PropForm`s by composing with `⟦-⟧`.
 
-NOTE: We try to delay talking about dependently-typed functions `{x // x ∈ X} → Bool` for as long as
-possible by developing the theory in terms of total assignments `ν → Bool`. Assignments with finite
-domain are eventually considered in `ModelCount.lean`. -/
-
-namespace PropAssignment
-
--- TODO: is this defined in mathlib for functions in general?
-def agreeOn (X : Set ν) (σ₁ σ₂ : PropAssignment ν) : Prop :=
-  ∀ x ∈ X, σ₁ x = σ₂ x
-
-theorem agreeOn_refl (X : Set ν) (σ : PropAssignment ν) : agreeOn X σ σ :=
-  fun _ _ => rfl
-theorem agreeOn.symm : agreeOn X σ₁ σ₂ → agreeOn X σ₂ σ₁ :=
-  fun h x hX => Eq.symm (h x hX)
-theorem agreeOn.trans : agreeOn X σ₁ σ₂ → agreeOn X σ₂ σ₃ → agreeOn X σ₁ σ₃ :=
-  fun h₁ h₂ x hX => Eq.trans (h₁ x hX) (h₂ x hX)
-
-theorem agreeOn.subset : X ⊆ Y → agreeOn Y σ₁ σ₂ → agreeOn X σ₁ σ₂ :=
-  fun hSub h x hX => h x (hSub hX)
-
-theorem agreeOn_empty (σ₁ σ₂ : PropAssignment ν) : agreeOn ∅ σ₁ σ₂ :=
-  fun _ h => False.elim (Set.not_mem_empty _ h)
-
-variable [DecidableEq ν]
-
-theorem agreeOn_set_of_not_mem {x : ν} {X : Set ν} (σ : PropAssignment ν) (v : Bool) : x ∉ X →
-    agreeOn X (σ.set x v) σ := by
-  -- I ❤ A️esop
-  aesop (add norm unfold agreeOn, norm unfold set)
-
-end PropAssignment
+NOTE: We try to delay talking about dependently-typed functions `{x // x ∈ X} → Bool`
+for as long as possible by developing the theory in terms of total assignments `ν → Bool`. -/
 
 namespace PropForm
 
@@ -105,52 +76,46 @@ lemma mem_vars_of_flip {φ : PropForm ν} {τ : PropAssignment ν} (x : ν) : τ
     push_neg at hτ'
     aesop
 
-theorem exists_flip {φ : PropForm ν} {σ₁ σ₂ : PropAssignment ν} : σ₁ ⊨ φ → σ₂ ⊭ φ →
+theorem exists_flip {φ : PropForm ν} {σ₁ σ₂ : PropAssignment ν} (h₁ : σ₁ ⊨ φ) (h₂ : σ₂ ⊭ φ) :
     ∃ (x : ν) (τ : PropAssignment ν), σ₁ x ≠ σ₂ x ∧ τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ :=
-  fun h₁ h₂ =>
-    let s := φ.vars.filter fun x => σ₁ x ≠ σ₂ x
-    have hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x := fun _ h => Finset.mem_filter.mp h |>.right
-    have hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x := fun _ h => by simp_all
-    have ⟨x, τ, hMem, hτ, hτ'⟩ := go h₁ h₂ s hS hSC rfl
-    ⟨x, τ, hS _ hMem, hτ, hτ'⟩
--- NOTE(Jeremy): a proof using `Finset.induction` would likely be shorter
-where go {σ₁ σ₂ : PropAssignment ν} (h₁ : σ₁ ⊨ φ) (h₂ : σ₂ ⊭ φ)
-    (s : Finset ν) (hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x) (hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x) :
-    {n : Nat} → s.card = n →
-    ∃ (x : ν) (τ : PropAssignment ν), x ∈ s ∧ τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ
-  | 0,   hCard =>
-    -- In the base case, σ₁ and σ₂ agree on all φ.vars, contradiction.
-    have : s = ∅ := Finset.card_eq_zero.mp hCard
-    have : σ₁.agreeOn φ.vars σ₂ := fun _ h => by simp_all
-    have : σ₂ ⊨ φ := (agreeOn_vars this).mp h₁
-    False.elim (h₂ this)
-  | _+1, hCard => by
-    -- In the inductive case, let σ₁' := σ₁[x₀ ↦ !(σ₁ x₀)] and see if σ₁' satisfies φ or not.
-    have ⟨x₀, s', h₀, h', hCard'⟩ := Finset.card_eq_succ.mp hCard
-    have h₀S : x₀ ∈ s := h' ▸ Finset.mem_insert_self x₀ s'
-    let σ₁' := σ₁.set x₀ (!σ₁ x₀)
-    by_cases h₁' : σ₁' ⊨ φ
-    case neg =>
-      -- If σ₁' no longer satisfies φ, we're done.
-      use x₀, σ₁ 
-    case pos =>
-      -- If σ₁' still satisfies φ, proceed by induction.
-      have hS' : ∀ x ∈ s', σ₁' x ≠ σ₂ x := fun x hMem => by
-        have hX : x₀ ≠ x := fun h => h₀ (h ▸ hMem)
-        simp only [σ₁.set_get_of_ne (!σ₁ x₀) hX]
-        exact hS _ (h' ▸ Finset.mem_insert_of_mem hMem)
-      have hSC' : ∀ x ∈ φ.vars \ s', σ₁' x = σ₂ x := fun x hMem => by
-        by_cases hX : x₀ = x
-        case pos =>
-          simp only [← hX, σ₁.set_get]
-          sorry
-          -- apply hS _ h₀S
-        case neg =>
-          simp only [σ₁.set_get_of_ne _ hX]
-          apply hSC
-          aesop
-      have ⟨x, τ, hMem, H⟩ := go h₁' h₂ s' hS' hSC' hCard'
-      refine ⟨x, τ, h' ▸ Finset.mem_insert_of_mem hMem, H⟩
+  let s := φ.vars.filter fun x => σ₁ x ≠ σ₂ x
+  have hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x := fun _ h => Finset.mem_filter.mp h |>.right
+  have hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x := by simp_all
+  have ⟨x, τ, hx, hτ, hτ'⟩ := go h₁ h₂ s hS hSC
+  ⟨x, τ, hS _ hx, hτ, hτ'⟩
+where
+  go {σ₁ σ₂ : PropAssignment ν} (h₁ : σ₁ ⊨ φ) (h₂ : σ₂ ⊭ φ)
+      (s : Finset ν) (hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x) (hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x) :
+      ∃ (x : ν) (τ : PropAssignment ν), x ∈ s ∧ τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ := by
+    induction s using Finset.induction generalizing σ₁
+    . -- In the base case, σ₁ and σ₂ agree on all φ.vars, contradiction.
+      have : σ₁.agreeOn φ.vars σ₂ := by rw [Finset.sdiff_empty] at hSC; exact hSC
+      have : σ₂ ⊨ φ := (agreeOn_vars this).mp h₁
+      exact False.elim (h₂ this)
+    next x₀ s' hx₀ ih =>
+      -- In the inductive case, let σ₁' := σ₁[x₀ ↦ !(σ₁ x₀)] and see if σ₁' satisfies φ or not.
+      let σ₁' := σ₁.set x₀ (!σ₁ x₀)
+      by_cases h₁' : σ₁' ⊨ φ
+      case neg =>
+        -- If σ₁' no longer satisfies φ, we're done.
+        use x₀, σ₁ 
+        simp [h₁, h₁']
+      case pos =>
+        -- If σ₁' still satisfies φ, proceed by induction.
+        have hS' : ∀ x ∈ s', σ₁' x ≠ σ₂ x := fun x hMem => by
+          have hX : x₀ ≠ x := fun h => hx₀ (h ▸ hMem)
+          simp only [σ₁.set_get_of_ne (!σ₁ x₀) hX]
+          exact hS _ (Finset.mem_insert_of_mem hMem)
+        have hSC' : ∀ x ∈ φ.vars \ s', σ₁' x = σ₂ x := fun x hMem => by
+          by_cases hX : x₀ = x
+          case pos =>
+            have := hS _ (Finset.mem_insert_self _ _)
+            simp only [← hX, σ₁.set_get, Bool.bnot_eq, this]
+          case neg =>
+            simp only [σ₁.set_get_of_ne _ hX]
+            aesop
+        have ⟨x, τ, hx, H⟩ := ih h₁' hS' hSC'
+        exact ⟨x, τ, Finset.mem_insert_of_mem hx, H⟩ 
 
 end PropForm
 
