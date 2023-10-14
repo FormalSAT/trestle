@@ -17,12 +17,14 @@ structure PersistentPartialAssignment where
   maxGen : Nat
   
 namespace PersistentPartialAssignment
+  open LitVar
+
   /-- The value of the given literal in the current assignment, if assigned.
   Otherwise `none`. -/
   def litValue? (τ : PersistentPartialAssignment) (l : ILit) : Option Bool :=
-    let v := τ.assignment.getD (l.var.val-1) 0
-    if τ.generation ≤ v.natAbs  then
-      some <| xor (v < 0) l.polarity
+    let v := τ.assignment.getD ((toVar l).val-1) 0
+    if τ.generation ≤ v.natAbs then
+      some <| xor (v < 0) (polarity l)
     else none
 
 def PersistentPartialAssignment.toPropFun (τ : PersistentPartialAssignment) : PropFun Int :=
@@ -36,6 +38,8 @@ structure PersistentPartialAssignment.WF (ppa : PersistentPartialAssignment) whe
   -- hMaxVal : ∀ x ∈ assignment, x.natAbs ≤ maxVal
 
 namespace PersistentPartialAssignment
+  open LitVar
+
   /-- Initialize to an empty partial assignment,
   supporting variables in the range `[1, maxVar]`.
   
@@ -62,17 +66,17 @@ namespace PersistentPartialAssignment
   /-- Set the given literal to `true` for the current generation
   in the assignment. -/
   def setLit (τ : PersistentPartialAssignment) (l : ILit) : PersistentPartialAssignment :=
-    let v : Int := if l.polarity then τ.generation else -τ.generation
+    let v : Int := if polarity l then τ.generation else -τ.generation
     -- TODO: use DynArray instead of Array
     { τ with
-      assignment := τ.assignment.set! (l.var.val-1) v
+      assignment := τ.assignment.set! ((toVar l).val-1) v
       maxGen := Nat.max τ.maxGen τ.generation }
     
   /-- Set the given literal to `true` for all generations until `gen`. -/
   def setLitUntil (τ : PersistentPartialAssignment) (l : ILit) (gen : Nat) : PersistentPartialAssignment :=
-    let v : Int := if l.polarity then gen else -gen
+    let v : Int := if polarity l then gen else -gen
     { τ with
-      assignment := τ.assignment.set! (l.var.val-1) v
+      assignment := τ.assignment.set! ((toVar l).val-1) v
       maxGen := Nat.max τ.maxGen gen }
 
   /-- Check if the given clause is a tautology.
