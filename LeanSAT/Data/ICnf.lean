@@ -80,5 +80,5 @@ instance : LawfulLitVar ILit IVar where
       have : l₂ = 0 := Int.eq_zero_of_lt_neg_iff_lt l₂ h₂
       simp [this, h]
   
-abbrev IClause := Clause IVar
-abbrev ICnf := Cnf IClause
+abbrev IClause := Clause ILit
+abbrev ICnf := Cnf ILit

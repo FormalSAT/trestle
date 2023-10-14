@@ -20,6 +20,8 @@ class LitVar (L : Type u) (ν : outParam $ Type v) where
   mkNeg : ν → L := fun x => negate (mkPos x)
   toVar : L → ν
   polarity : L → Bool
+  -- TODO: ν moreover needs to biject with PNat (perhaps in a separate typeclass)
+  -- so that we can use variable names as array indices
 
 namespace LitVar
 

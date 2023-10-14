@@ -1,6 +1,12 @@
 import Mathlib.Data.Set.Finite
 import Mathlib.Order.BooleanAlgebra
 
+/-! Note : this was an experiment at defining PropFun impredicatively, top-down
+rather than by quotienting the syntax.
+It currently doesn't work. -/
+
+#exit
+
 import LeanSAT.Model.PropForm
 
 variable [DecidableEq ν]
