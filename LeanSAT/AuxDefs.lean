@@ -21,7 +21,8 @@ def Fin.predCast : Fin n → Option (Fin n.pred)
 | ⟨i+1,h⟩ => some ⟨i, Nat.le_pred_of_lt h⟩
 
 /-- if i < Fin.last n then i, else none -/
-def Fin.castPred (i : Fin n) : Option (Fin n.pred) :=
+-- NOTE: in mathlib, castPred : Fin (n + 2) → Fin (n + 1)
+def Fin.castPred' (i : Fin n) : Option (Fin n.pred) :=
   match n with
   | 0 => i.elim0
   | n+1 =>

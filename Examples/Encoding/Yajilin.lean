@@ -58,11 +58,11 @@ def neighbors (b : BoardVars) (i : Fin b.height) (j : Fin b.width) : Array (Fin 
   let mut res : Array _ := #[]
   for i' in i.predCast do
     res := res.push (⟨i', Nat.lt_of_lt_of_le i'.isLt (Nat.pred_le _)⟩, j, b.vertLine i' j)
-  for i' in i.castPred do
+  for i' in i.castPred' do
     res := res.push (cast (congrArg Fin <| Nat.succ_pred (· ▸ i |>.elim0)) i'.succ, j, b.vertLine i' j)
   for j' in j.predCast do
     res := res.push (i, ⟨j', Nat.lt_of_lt_of_le j'.isLt (Nat.pred_le _)⟩, b.horzLine i j')
-  for j' in j.castPred do
+  for j' in j.castPred' do
     res := res.push (i, cast (congrArg Fin <| Nat.succ_pred (· ▸ j |>.elim0)) j'.succ, b.horzLine i j')
   return res
 
@@ -183,9 +183,9 @@ def printAssn (vars : BoardVars) (assn : Assn) : String := Id.run do
         s := s ++ "██"
       else
         match i.predCast.bind (assn.find? <| vars.vertLine · j)
-            , i.castPred.bind (assn.find? <| vars.vertLine · j)
+            , i.castPred'.bind (assn.find? <| vars.vertLine · j)
             , j.predCast.bind (assn.find? <| vars.horzLine i ·)
-            , j.castPred.bind (assn.find? <| vars.horzLine i ·) with
+            , j.castPred'.bind (assn.find? <| vars.horzLine i ·) with
         | some true, _, some true, _ =>
           s := s ++ "─┘"
         | some true, _, _, some true =>
