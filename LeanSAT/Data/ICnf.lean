@@ -10,6 +10,19 @@ import LeanSAT.Model.ToMathlib
 import LeanSAT.Model.PropFun
 import LeanSAT.Model.PropVars
 
+-- TODO: generalize variables and literals
+-- class ILit (ν : Type u) (L : Type v) [DecidableEq L] where
+--   flipL : L → L
+--   pos : ν → L 
+--   var : L → ν
+--   isPos : L →Bool := fun l => l = pos (var l) 
+  
+-- open ILit in
+-- class LawfulILitWaffle (ν : Type u) (L : Type v) [DecidableEq L] [ILit ν L] where
+--   flip_flip : ∀ (l : L), flipL ν (flipL ν l) = l
+--   isPos_flip : ∀ (l : L), isPos ν (flipL ν l) != isPos ν  l
+--   -- .. more axioms
+
 abbrev Var := PNat
 
 namespace Var
@@ -24,19 +37,6 @@ instance : Ord Var where
   compare a b := compare a.val b.val
 
 end Var
-
--- TODO:
--- class ILit (ν : Type u) (L : Type v) [DecidableEq L] where
---   flipL : L → L
---   pos : ν → L 
---   var : L → ν
---   isPos : L →Bool := fun l => l = pos (var l) 
-  
--- open ILit in
--- class LawfulILitWaffle (ν : Type u) (L : Type v) [DecidableEq L] [ILit ν L] where
---   flip_flip : ∀ (l : L), flipL ν (flipL ν l) = l
---   isPos_flip : ∀ (l : L), isPos ν (flipL ν l) != isPos ν  l
---   -- .. more axioms
 
 /-! Literals -/
 
@@ -110,11 +110,11 @@ theorem polarity_eq {l₁ l₂ : ILit} :
     l₁.polarity = l₂.polarity ↔ ((0 : Int) < l₁.val ↔ (0 : Int) < l₂.val) := by
   simp [polarity]
 
--- @[simp]
--- theorem polarity_negate (l : ILit) : (-l).polarity = !l.polarity := by
---   rw [Bool.eq_bnot_to_not_eq, polarity_eq]
---   intro hEq
---   exact l.property (Int.eq_zero_of_lt_neg_iff_lt _ hEq)
+@[simp]
+theorem polarity_negate (l : ILit) : (-l).polarity = !l.polarity := by
+  rw [Bool.eq_bnot, polarity_eq]
+  intro hEq
+  exact l.property (Int.eq_zero_of_lt_neg_iff_lt _ hEq)
 
 @[ext]
 theorem ext {l₁ l₂ : ILit} : l₁.var = l₂.var → l₁.polarity = l₂.polarity → l₁ = l₂ := by
@@ -130,17 +130,16 @@ theorem ext {l₁ l₂ : ILit} : l₁.var = l₂.var → l₁.polarity = l₂.po
   . assumption
   next h =>
     rw [h] at h₂
-    -- have : l₂ = 0 := Int.eq_zero_of_lt_neg_iff_lt l₂ h₂
-    sorry
-    -- simp [this, h]
+    have : l₂ = 0 := Int.eq_zero_of_lt_neg_iff_lt l₂ h₂
+    simp [this, h]
 
 @[simp]
 theorem eta (l : ILit) : mk l.var l.polarity = l := by
   apply ext <;> simp
 
--- @[simp]
--- theorem eta_neg (l : ILit) : mk l.var (!l.polarity) = -l := by
---   apply ext <;> simp
+@[simp]
+theorem eta_neg (l : ILit) : mk l.var (!l.polarity) = -l := by
+  apply ext <;> simp
 
 theorem mkPos_or_mkNeg (l : ILit) : l = .mkPos l.var ∨ l = .mkNeg l.var := by
   rw [← eta l]
@@ -182,10 +181,10 @@ theorem toPropFun_mkPos (x : Var) : (mkPos x).toPropFun = .var x := by
 theorem toPropFun_mkNeg (x : Var) : (mkNeg x).toPropFun = (.var x)ᶜ := by
   simp [toPropFun]
 
--- @[simp]
--- theorem toPropFun_neg (l : ILit) : (-l).toPropFun = l.toPropFunᶜ := by
---   dsimp [toPropFun]
---   aesop
+@[simp]
+theorem toPropFun_neg (l : ILit) : (-l).toPropFun = l.toPropFunᶜ := by
+  dsimp [toPropFun]
+  aesop
 
 @[simp]
 theorem semVars_toPropFun (l : ILit) : l.toPropFun.semVars = {l.var} := by
@@ -199,9 +198,9 @@ theorem satisfies_iff {τ : PropAssignment Var} {l : ILit} :
   dsimp [toPropFun, var, polarity]
   aesop
 
--- theorem satisfies_neg {τ : PropAssignment Var} {l : ILit} :
---     τ ⊨ (-l).toPropFun ↔ τ ⊭ l.toPropFun := by
---   simp [satisfies_iff]
+theorem satisfies_neg {τ : PropAssignment Var} {l : ILit} :
+    τ ⊨ (-l).toPropFun ↔ τ ⊭ l.toPropFun := by
+  simp [satisfies_iff]
 
 theorem satisfies_set [DecidableEq ν] (τ : PropAssignment Var) (l : ILit) :
     τ.set l.var l.polarity ⊨ l.toPropFun := by
@@ -216,16 +215,16 @@ theorem eq_of_flip {τ : PropAssignment Var} {l : ILit} {x : Var} {p : Bool} :
     simp [hSet, hEq]
   . exfalso; exact h (τ.set_get_of_ne p hEq ▸ hSet)
 
--- theorem eq_of_flip' {τ : PropAssignment Var} {l : ILit} {x : Var} {p : Bool} :
---     τ ⊨ l.toPropFun → τ.set x p ⊭ l.toPropFun → l = mk x !p := by
---   simp only [satisfies_iff]
---   intro h hSet
---   by_cases hEq : x = var l
---   . rw [hEq, τ.set_get] at hSet
---     have : (!p) = l.polarity := by
---       simp [hSet]
---     simp [hEq, this]
---   . exfalso; exact hSet (τ.set_get_of_ne p hEq ▸ h)
+theorem eq_of_flip' {τ : PropAssignment Var} {l : ILit} {x : Var} {p : Bool} :
+    τ ⊨ l.toPropFun → τ.set x p ⊭ l.toPropFun → l = mk x !p := by
+  simp only [satisfies_iff]
+  intro h hSet
+  by_cases hEq : x = var l
+  . rw [hEq, τ.set_get] at hSet
+    have : (!p) = l.polarity := by
+      simp [Bool.bnot_eq, hSet]
+    simp [hEq, this]
+  . exfalso; exact hSet (τ.set_get_of_ne p hEq ▸ h)
 
 end ILit
 
@@ -250,16 +249,16 @@ instance : ToString IClause where
 --   rw [vars, Array.foldr_eq_foldr_data]
 --   induction C.data <;> aesop
 
--- def toPropForm (C : IClause) : PropForm Var :=
---   C.data.foldr (init := .fls) (fun l φ => l.toPropForm.disj φ)
+def toPropForm (C : IClause) : PropForm Var :=
+  C.data.foldr (init := .fls) (fun l φ => l.toPropForm.disj φ)
 
--- def toPropFun (C : IClause) : PropFun Var :=
---   C.data.foldr (init := ⊥) (fun l φ => l.toPropFun ⊔ φ)
+def toPropFun (C : IClause) : PropFun Var :=
+  C.data.foldr (init := ⊥) (fun l φ => l.toPropFun ⊔ φ)
 
--- @[simp]
--- theorem mk_toPropForm (C : IClause) : ⟦C.toPropForm⟧ = C.toPropFun := by
---   dsimp [toPropForm, toPropFun]
---   induction C.data <;> simp_all
+@[simp]
+theorem mk_toPropForm (C : IClause) : ⟦C.toPropForm⟧ = C.toPropFun := by
+  dsimp [toPropForm, toPropFun]
+  induction C.data <;> simp_all
 
 -- @[simp]
 -- theorem vars_toPropForm (C : IClause) : C.toPropForm.vars = C.vars.toFinset := by
@@ -269,193 +268,58 @@ instance : ToString IClause where
 
 open PropFun
 
--- theorem satisfies_iff {τ : PropAssignment Var} {C : IClause} :
---     τ ⊨ C.toPropFun ↔ ∃ l ∈ C.data, τ ⊨ l.toPropFun := by
---   rw [toPropFun]
---   induction C.data <;> simp_all
+theorem satisfies_iff {τ : PropAssignment Var} {C : IClause} :
+    τ ⊨ C.toPropFun ↔ ∃ l ∈ C.data, τ ⊨ l.toPropFun := by
+  rw [toPropFun]
+  induction C.data <;> simp_all
 
 -- theorem semVars_sub (C : IClause) : C.toPropFun.semVars ⊆ C.vars.toFinset := by
 --   rw [← vars_toPropForm, ← mk_toPropForm]
 --   apply PropForm.semVars_subset_vars
 
--- theorem tautology_iff (C : IClause) :
---     C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C.data, ∃ l₂ ∈ C.data, l₁ = -l₂ := by
---   refine ⟨?mp, ?mpr⟩
---   case mp =>
---     refine not_imp_not.mp ?_
---     simp only [not_exists, not_and]
---     unfold toPropFun -- :( have to do it because no induction principle for arrays
---     induction C.data with
---     | nil => simp
---     | cons l₀ ls ih =>
---       -- crazy list-array induction boilerplate
---       have : ls.foldr (init := ⊥) (fun l φ => l.toPropFun ⊔ φ) = toPropFun ls.toArray := by
---         simp [toPropFun]
---       simp only [List.foldr_cons, this] at *
---       -- end boilerplate
---       intro hCompl hEq
---       specialize ih fun l₁ h₁ l₂ h₂ => hCompl l₁ (by simp [h₁]) l₂ (by simp [h₂])
---       simp only [PropFun.eq_top_iff, satisfies_disj, not_forall] at hEq ih
---       have ⟨τ₀, h₀⟩ := ih
---       have := hEq τ₀
---       have : τ₀ ⊨ l₀.toPropFun := by tauto
---       let τ₁ := τ₀.set l₀.var !l₀.polarity
---       have : τ₁ ⊭ l₀.toPropFun := by simp [ILit.satisfies_iff]
---       have : τ₁ ⊭ toPropFun ls.toArray := fun h => by
---         have ⟨lₛ, hₛ, hτ⟩ := satisfies_iff.mp h
---         simp only [satisfies_iff, not_exists, not_and] at h₀
---         have : τ₀ ⊭ lₛ.toPropFun := h₀ lₛ hₛ
---         have : lₛ = ILit.mk l₀.var !l₀.polarity := ILit.eq_of_flip this hτ
---         have : lₛ = -l₀ := by simp [this]
---         simp at hₛ
---         apply hCompl lₛ (List.mem_cons_of_mem _ hₛ) l₀ (List.mem_cons_self _ _) this
---       have := hEq τ₁
---       tauto
---   case mpr =>
---     intro ⟨l₁, h₁, l₂, h₂, hEq⟩
---     ext τ
---     rw [satisfies_iff]
---     by_cases hτ : τ ⊨ l₂.toPropFun
---     . aesop
---     . have : τ ⊨ l₁.toPropFun := by
---         rw [hEq, ILit.satisfies_neg]
---         assumption
---       tauto
-
--- /-! Tautology decision procedure -/
-
--- /-- `encodes enc C` says that the hashmap `enc` encodes the (non-tautological) clause `C`.
--- More generally, `encodes enc C i` says that `enc` encodes the disjunction of all but the
--- first `i` literals of `C`. -/
--- def encodes (enc : HashMap Var Bool) (C : IClause) (start : Nat := 0) : Prop :=
---   (∀ j : Fin C.size, start ≤ j → enc.find? C[j].var = .some C[j].polarity) ∧
---     ∀ x : Var, enc.contains x ↔ ∃ j : Fin C.size, start ≤ j ∧ C[j].var = x
-
--- theorem encodes_empty (C : IClause) : encodes HashMap.empty C (Array.size C) := by
---   simp [encodes]; intro j; exact not_le_of_lt j.isLt
-
--- theorem not_tautology_of_encodes (C : IClause) (enc : HashMap Var Bool) (h : encodes enc C) :
---     ¬ (toPropFun C = ⊤) := by
---   rw [tautology_iff]; simp only [not_exists, not_and]
---   intros l₁ hl₁ l₂ hl₂ heq
---   have ⟨i, hi⟩ := C.get_of_mem_data hl₁
---   have ⟨j, hj⟩ := C.get_of_mem_data hl₂
---   simp only [encodes, zero_le, forall_true_left, true_and] at h
---   have hi' := h.1 i
---   rw [hi, heq, ILit.var_negate, ILit.polarity_negate] at hi'
---   have hj' := h.1 j
---   rw [hj, hi'] at hj'
---   simp at hj'
-
--- theorem encodes_insert_of_find?_eq_none {C : IClause} {i : Nat} {enc : HashMap Var Bool}
---       (ilt: i < C.size)
---       (henc : encodes enc C (i + 1))
---       (h: HashMap.find? enc C[i].var = none) :
---     encodes (HashMap.insert enc C[i].var C[i].polarity) C i := by
---   constructor
---   . intro j hile
---     cases lt_or_eq_of_le hile
---     case inl h' =>
---       have := henc.1 _ (Nat.succ_le_of_lt h')
---       rw [HashMap.find?_insert_of_ne, this]
---       rw [bne_iff_ne, ne_eq]
---       intro hc
---       rw [←hc, h] at this; contradiction
---     case inr h' =>
---       cases h'
---       simp [HashMap.find?_insert]
---   . intro x
---     rw [HashMap.contains_insert, henc.2 x, beq_iff_eq]; simp only [getElem_fin]
---     constructor
---     . rintro (⟨j, hile, rfl⟩ | rfl)
---       . use j, (Nat.le_succ i).trans hile
---       . use ⟨i, ilt⟩
---     . rintro ⟨j, hile, rfl⟩
---       cases lt_or_eq_of_le hile
---       case inl h' =>
---         left; use j, Nat.succ_le_of_lt h'
---       case inr h' =>
---         right; simp [h']
-
--- theorem tautology_of_encodes_of_find?_eq_some
---       {C : IClause} {i : Nat} {enc : HashMap Var Bool} {p : Bool}
---       (ilt: i < C.size)
---       (henc : encodes enc C (i + 1))
---       (h : HashMap.find? enc C[i].var = some p)
---       (hpne : p ≠ C[i].polarity) :
---     toPropFun C = ⊤ := by
---   rw [tautology_iff]
---   use C[i], C.get_mem_data ⟨i, ilt⟩
---   have : enc.contains C[i].var := by
---     rw [HashMap.contains_iff]; use p
---   rw [henc.2] at this
---   rcases this with ⟨j, hj, h'⟩
---   use C[j], C.get_mem_data j
---   ext; rw [ILit.var_negate, h']
---   have := henc.1 j hj
---   rw [h', h, Option.some.injEq] at this
---   rw [ILit.polarity_negate, Bool.eq_bnot_to_not_eq, ←this]
---   exact hpne.symm
-
--- theorem encode_of_encodes_of_find?_eq_some
---       {C : IClause} {i : Nat} {enc : HashMap Var Bool} {p : Bool}
---       (ilt: i < C.size)
---       (henc : encodes enc C (i + 1))
---       (h : HashMap.find? enc C[i].var = some p)
---       (hpeq : p = C[i].polarity) :
---     encodes enc C i := by
---   constructor
---   . intro j hile
---     cases lt_or_eq_of_le hile
---     case inl h' =>
---       exact henc.1 _ (Nat.succ_le_of_lt h')
---     case inr h' => cases h'; simp [h, hpeq]
---   . intro x
---     rw [henc.2]
---     constructor
---     . rintro ⟨j, hile, rfl⟩
---       use j, (Nat.le_succ i).trans hile
---     . rintro ⟨j, hile, rfl⟩
---       cases lt_or_eq_of_le hile
---       case inl h' => use j, Nat.succ_le_of_lt h'
---       case inr h' =>
---         have : enc.contains C[i].var := by
---           rw [HashMap.contains_iff]; use p
---         rw [henc.2] at this
---         rcases this with ⟨j', hj', h''⟩
---         use j', hj'
---         rw [h'']; cases h'; simp
-
--- def checkTautoAux (C : IClause) : { b : Bool // b ↔ toPropFun C = ⊤ } :=
---   go C.size (le_refl _) .empty C.encodes_empty
--- where
---   go : (i : Nat) → i ≤ C.size → (acc : HashMap Var Bool) → encodes acc C i →
---       { b : Bool // b ↔ toPropFun C = ⊤ }
---     | 0,   _,  acc, hinv => ⟨false, by simp [C.not_tautology_of_encodes acc hinv]⟩
---     | i+1, hi, acc, hinv =>
---         have ilt := Nat.lt_of_succ_le hi
---         match h: acc.find? C[i].var with
---           | .none   => go i (le_of_lt ilt) _ (encodes_insert_of_find?_eq_none ilt hinv h)
---           | .some p =>
---               if hp: p = C[i].polarity then
---                 go i (le_of_lt ilt) _ (encode_of_encodes_of_find?_eq_some ilt hinv h hp)
---               else
---                 ⟨true, by simp [tautology_of_encodes_of_find?_eq_some ilt hinv h hp]⟩
-
--- -- slow instance boo
--- -- instance : DecidablePred (IClause.toPropFun · = ⊤) :=
--- --   fun C => match checkTautoAux C with
--- --     | ⟨true, h⟩  => .isTrue (h.mp rfl)
--- --     | ⟨false, h⟩ => .isFalse fun hC => nomatch h.mpr hC
-
--- /-- Check whether a clause is a tautology. The type is a hack for early-return. The clause is
--- tautological iff `none` is returned. -/
--- @[deprecated checkTautoAux]
--- def checkTautoAux' (C : IClause) : Option (HashMap Var Bool) :=
---   C.foldlM (init := .empty) fun acc l => do
---     match acc.find? l.var with
---     | .none => acc.insert l.var l.polarity
---     | .some p => if p ≠ l.polarity then none else acc
+theorem tautology_iff (C : IClause) :
+    C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C.data, ∃ l₂ ∈ C.data, l₁ = -l₂ := by
+  refine ⟨?mp, ?mpr⟩
+  case mp =>
+    refine not_imp_not.mp ?_
+    simp only [not_exists, not_and]
+    unfold toPropFun -- :( have to do it because no induction principle for arrays
+    induction C.data with
+    | nil => simp
+    | cons l₀ ls ih =>
+      -- crazy list-array induction boilerplate
+      have : ls.foldr (init := ⊥) (fun l φ => l.toPropFun ⊔ φ) = toPropFun ls.toArray := by
+        simp [toPropFun]
+      simp only [List.foldr_cons, this] at *
+      -- end boilerplate
+      intro hCompl hEq
+      specialize ih fun l₁ h₁ l₂ h₂ => hCompl l₁ (by simp [h₁]) l₂ (by simp [h₂])
+      simp only [PropFun.eq_top_iff, satisfies_disj, not_forall] at hEq ih
+      have ⟨τ₀, h₀⟩ := ih
+      have := hEq τ₀
+      have : τ₀ ⊨ l₀.toPropFun := by tauto
+      let τ₁ := τ₀.set l₀.var !l₀.polarity
+      have : τ₁ ⊭ l₀.toPropFun := by simp [ILit.satisfies_iff]
+      have : τ₁ ⊭ toPropFun ls.toArray := fun h => by
+        have ⟨lₛ, hₛ, hτ⟩ := satisfies_iff.mp h
+        simp only [satisfies_iff, not_exists, not_and] at h₀
+        have : τ₀ ⊭ lₛ.toPropFun := h₀ lₛ hₛ
+        have : lₛ = ILit.mk l₀.var !l₀.polarity := ILit.eq_of_flip this hτ
+        have : lₛ = -l₀ := by simp [this]
+        simp at hₛ
+        apply hCompl lₛ (List.mem_cons_of_mem _ hₛ) l₀ (List.mem_cons_self _ _) this
+      have := hEq τ₁
+      tauto
+  case mpr =>
+    intro ⟨l₁, h₁, l₂, h₂, hEq⟩
+    ext τ
+    rw [satisfies_iff]
+    by_cases hτ : τ ⊨ l₂.toPropFun
+    . aesop
+    . have : τ ⊨ l₁.toPropFun := by
+        rw [hEq, ILit.satisfies_neg]
+        assumption
+      tauto
 
 end IClause
 
@@ -471,13 +335,12 @@ namespace ICnf
 instance : ToString ICnf where
   toString C := s!"{String.intercalate " ∧ " (C.map toString).toList}"
 
-#exit 
 /-! Theorems about `ICnf` -/
 
-theorem mem_vars (φ : ICnf) (x : Var) : x ∈ φ.vars.toFinset ↔ ∃ C ∈ φ.data, x ∈ C.vars.toFinset :=
-by
-  simp only [vars, Array.foldr_eq_foldr_data]
-  induction φ.data <;> aesop
+-- theorem mem_vars (φ : ICnf) (x : Var) : x ∈ φ.vars.toFinset ↔ ∃ C ∈ φ.data, x ∈ C.vars.toFinset :=
+-- by
+--   simp only [vars, Array.foldr_eq_foldr_data]
+--   induction φ.data <;> aesop
 
 def toPropForm (φ : ICnf) : PropForm Var :=
   φ.data.foldr (init := .tr) (fun l φ => l.toPropForm.conj φ)
@@ -490,11 +353,11 @@ theorem mk_toPropForm (φ : ICnf) : ⟦φ.toPropForm⟧ = φ.toPropFun := by
   simp only [toPropForm, toPropFun]
   induction φ.data <;> simp_all
 
-@[simp]
-theorem vars_toPropForm (φ : ICnf) : φ.toPropForm.vars = φ.vars.toFinset := by
-  ext x
-  simp only [mem_vars, toPropForm]
-  induction φ.data <;> simp_all [PropForm.vars]
+-- @[simp]
+-- theorem vars_toPropForm (φ : ICnf) : φ.toPropForm.vars = φ.vars.toFinset := by
+--   ext x
+--   simp only [mem_vars, toPropForm]
+--   induction φ.data <;> simp_all [PropForm.vars]
 
 open PropFun
 
@@ -503,11 +366,151 @@ theorem satisfies_iff {τ : PropAssignment Var} {φ : ICnf} :
   rw [toPropFun]
   induction φ.data <;> simp_all
 
-theorem semVars_sub (φ : ICnf) : φ.toPropFun.semVars ⊆ φ.vars.toFinset := by
-  rw [← vars_toPropForm, ← mk_toPropForm]
-  apply PropForm.semVars_subset_vars
+-- theorem semVars_sub (φ : ICnf) : φ.toPropFun.semVars ⊆ φ.vars.toFinset := by
+--   rw [← vars_toPropForm, ← mk_toPropForm]
+--   apply PropForm.semVars_subset_vars
 
 end ICnf
+
+-- NOTE: The procedures below are intended to be implemented more efficiently
+-- in PersistentPartialAssignment.lean
+-- Kept here for reference for the time being
+#exit
+
+/-! Tautology decision procedure -/
+
+/-- `encodes enc C` says that the hashmap `enc` encodes the (non-tautological) clause `C`.
+More generally, `encodes enc C i` says that `enc` encodes the disjunction of all but the
+first `i` literals of `C`. -/
+def encodes (enc : HashMap Var Bool) (C : IClause) (start : Nat := 0) : Prop :=
+  (∀ j : Fin C.size, start ≤ j → enc.find? C[j].var = .some C[j].polarity) ∧
+    ∀ x : Var, enc.contains x ↔ ∃ j : Fin C.size, start ≤ j ∧ C[j].var = x
+
+theorem encodes_empty (C : IClause) : encodes HashMap.empty C (Array.size C) := by
+  simp [encodes]; intro j; exact not_le_of_lt j.isLt
+
+theorem not_tautology_of_encodes (C : IClause) (enc : HashMap Var Bool) (h : encodes enc C) :
+    ¬ (toPropFun C = ⊤) := by
+  rw [tautology_iff]; simp only [not_exists, not_and]
+  intros l₁ hl₁ l₂ hl₂ heq
+  have ⟨i, hi⟩ := C.get_of_mem_data hl₁
+  have ⟨j, hj⟩ := C.get_of_mem_data hl₂
+  simp only [encodes, zero_le, forall_true_left, true_and] at h
+  have hi' := h.1 i
+  rw [hi, heq, ILit.var_negate, ILit.polarity_negate] at hi'
+  have hj' := h.1 j
+  rw [hj, hi'] at hj'
+  simp at hj'
+
+theorem encodes_insert_of_find?_eq_none {C : IClause} {i : Nat} {enc : HashMap Var Bool}
+      (ilt: i < C.size)
+      (henc : encodes enc C (i + 1))
+      (h: HashMap.find? enc C[i].var = none) :
+    encodes (HashMap.insert enc C[i].var C[i].polarity) C i := by
+  constructor
+  . intro j hile
+    cases lt_or_eq_of_le hile
+    case inl h' =>
+      have := henc.1 _ (Nat.succ_le_of_lt h')
+      rw [HashMap.find?_insert_of_ne, this]
+      rw [bne_iff_ne, ne_eq]
+      intro hc
+      rw [←hc, h] at this; contradiction
+    case inr h' =>
+      cases h'
+      simp [HashMap.find?_insert]
+  . intro x
+    rw [HashMap.contains_insert, henc.2 x, beq_iff_eq]; simp only [getElem_fin]
+    constructor
+    . rintro (⟨j, hile, rfl⟩ | rfl)
+      . use j, (Nat.le_succ i).trans hile
+      . use ⟨i, ilt⟩
+    . rintro ⟨j, hile, rfl⟩
+      cases lt_or_eq_of_le hile
+      case inl h' =>
+        left; use j, Nat.succ_le_of_lt h'
+      case inr h' =>
+        right; simp [h']
+
+theorem tautology_of_encodes_of_find?_eq_some
+      {C : IClause} {i : Nat} {enc : HashMap Var Bool} {p : Bool}
+      (ilt: i < C.size)
+      (henc : encodes enc C (i + 1))
+      (h : HashMap.find? enc C[i].var = some p)
+      (hpne : p ≠ C[i].polarity) :
+    toPropFun C = ⊤ := by
+  rw [tautology_iff]
+  use C[i], C.get_mem_data ⟨i, ilt⟩
+  have : enc.contains C[i].var := by
+    rw [HashMap.contains_iff]; use p
+  rw [henc.2] at this
+  rcases this with ⟨j, hj, h'⟩
+  use C[j], C.get_mem_data j
+  ext; rw [ILit.var_negate, h']
+  have := henc.1 j hj
+  rw [h', h, Option.some.injEq] at this
+  rw [ILit.polarity_negate, Bool.eq_bnot_to_not_eq, ←this]
+  exact hpne.symm
+
+theorem encode_of_encodes_of_find?_eq_some
+      {C : IClause} {i : Nat} {enc : HashMap Var Bool} {p : Bool}
+      (ilt: i < C.size)
+      (henc : encodes enc C (i + 1))
+      (h : HashMap.find? enc C[i].var = some p)
+      (hpeq : p = C[i].polarity) :
+    encodes enc C i := by
+  constructor
+  . intro j hile
+    cases lt_or_eq_of_le hile
+    case inl h' =>
+      exact henc.1 _ (Nat.succ_le_of_lt h')
+    case inr h' => cases h'; simp [h, hpeq]
+  . intro x
+    rw [henc.2]
+    constructor
+    . rintro ⟨j, hile, rfl⟩
+      use j, (Nat.le_succ i).trans hile
+    . rintro ⟨j, hile, rfl⟩
+      cases lt_or_eq_of_le hile
+      case inl h' => use j, Nat.succ_le_of_lt h'
+      case inr h' =>
+        have : enc.contains C[i].var := by
+          rw [HashMap.contains_iff]; use p
+        rw [henc.2] at this
+        rcases this with ⟨j', hj', h''⟩
+        use j', hj'
+        rw [h'']; cases h'; simp
+
+def checkTautoAux (C : IClause) : { b : Bool // b ↔ toPropFun C = ⊤ } :=
+  go C.size (le_refl _) .empty C.encodes_empty
+where
+  go : (i : Nat) → i ≤ C.size → (acc : HashMap Var Bool) → encodes acc C i →
+      { b : Bool // b ↔ toPropFun C = ⊤ }
+    | 0,   _,  acc, hinv => ⟨false, by simp [C.not_tautology_of_encodes acc hinv]⟩
+    | i+1, hi, acc, hinv =>
+        have ilt := Nat.lt_of_succ_le hi
+        match h: acc.find? C[i].var with
+          | .none   => go i (le_of_lt ilt) _ (encodes_insert_of_find?_eq_none ilt hinv h)
+          | .some p =>
+              if hp: p = C[i].polarity then
+                go i (le_of_lt ilt) _ (encode_of_encodes_of_find?_eq_some ilt hinv h hp)
+              else
+                ⟨true, by simp [tautology_of_encodes_of_find?_eq_some ilt hinv h hp]⟩
+
+-- slow instance boo
+-- instance : DecidablePred (IClause.toPropFun · = ⊤) :=
+--   fun C => match checkTautoAux C with
+--     | ⟨true, h⟩  => .isTrue (h.mp rfl)
+--     | ⟨false, h⟩ => .isFalse fun hC => nomatch h.mpr hC
+
+/-- Check whether a clause is a tautology. The type is a hack for early-return. The clause is
+tautological iff `none` is returned. -/
+@[deprecated checkTautoAux]
+def checkTautoAux' (C : IClause) : Option (HashMap Var Bool) :=
+  C.foldlM (init := .empty) fun acc l => do
+    match acc.find? l.var with
+    | .none => acc.insert l.var l.polarity
+    | .some p => if p ≠ l.polarity then none else acc
 
 /-! Partial assignments -/
 
