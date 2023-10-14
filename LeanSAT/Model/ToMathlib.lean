@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki
 -/
 
+import Mathlib.Tactic.Linarith
+
 /-! Stuff that seems like it should be in std or mathlib. -/
 
 /-! Std.Logic or Std.Bool? -/
@@ -26,3 +28,11 @@ class SemanticEntails (α : Type u) (β : outParam $ Type v) where
 
 infix:51 " ⊨ " => SemanticEntails.entails
 infix:51 " ⊭ " => fun M φ => ¬(M ⊨ φ)
+
+/-! Int -/
+
+theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 := by
+  intro h
+  by_cases hLt : 0 < i
+  . have := h.mpr hLt; linarith
+  . have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); linarith
