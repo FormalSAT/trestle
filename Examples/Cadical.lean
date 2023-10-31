@@ -6,9 +6,11 @@ namespace Examples.Cadical
 
 instance : Solver IO := Solver.Impl.DimacsCommand "cadical"
 
-open Notation in
 def main : IO Unit := do
-  let formula : Formula :=
-    (0 ∨ 1 ∨ 2) ∧ (¬0) ∧ (¬ 1)
+  let x : IVar := 1
+  let y : IVar := 2
+  let z : IVar := 3
+  let formula : ICnf :=
+    #[ #[x, y, z], #[ -x ], #[ -y ] ]
   let res ← Solver.solve formula
   IO.println res

@@ -42,27 +42,27 @@ def AkariProblem.ofString (s : String) : Except String AkariProblem := do
     return ⟨height, width, fun i j => let ⟨A,h⟩ := arr.get (this ▸ i); A.get (h ▸ j)⟩
 
 structure AkariVars extends AkariProblem where
-  isLight : Fin height → Fin width → Var
+  isLight : Fin height → Fin width → IVar
 deriving Inhabited
 
 def encode : AkariProblem → EncCNF AkariVars
 | ⟨height, width, board⟩ =>
-  open EncCNF Notation in do
+  open EncCNF in do
   let varArr ←
     Array.initM height fun r =>
       Array.initM width fun c =>
         mkVar s!"{r},{c} lit"
   let isLight (i : Fin height) (j : Fin width) := varArr[i]![j]!
-  
+
   /- For each row/column, at most one of each contiguous line
     of `space`s can be a light -/
   for r in List.fins height do
     for cs in List.fins width |>.splitOnP (board r · ≠ .space) do
-      atMostOne (cs.map (isLight r ·))
+      atMostOne (cs.map (LitVar.mkPos <| isLight r ·)).toArray
   for c in List.fins width do
     for rs in List.fins height |>.splitOnP (board · c ≠ .space) do
-      atMostOne (rs.map (isLight · c))
-  
+      atMostOne (rs.map (LitVar.mkPos <| isLight · c)).toArray
+
   for r in List.fins height do
     for c in List.fins width do
       match board r c with
@@ -72,18 +72,20 @@ def encode : AkariProblem → EncCNF AkariVars
         /- find rows "adjacent" to r,c -/
         let rs := List.fins height  |>.splitOnP (board · c ≠ .space)
                                     |>.find? (·.contains r) |>.getD []
+                                    |>.toArray
         /- sim for columns -/
-        let cs := List.fins width  |>.splitOnP (board r · ≠ .space)
+        let cs := List.fins width   |>.splitOnP (board r · ≠ .space)
                                     |>.find? (·.contains c) |>.getD []
+                                    |>.toArray
         /- at least one of these spaces must be light (note the list
           contains `isLight r c` twice, but that is fine) -/
         addClause (
-          rs.map (Literal.pos <| isLight · c) ∨
-            cs.map (Literal.pos <| isLight r ·)
+          rs.map (LitVar.mkPos <| isLight · c) ++
+            cs.map (LitVar.mkPos <| isLight r ·)
         )
       | .filled num =>
         /- filled is not light -/
-        addClause <| ¬ isLight r c
+        addClause #[ -isLight r c ]
         /- if `num = some k` then `k` of `r,c`'s neighbors should
           be light -/
         match num with
@@ -94,7 +96,7 @@ def encode : AkariProblem → EncCNF AkariVars
               r.succ?.map (isLight · c),
               c.pred?.map (isLight r ·),
               c.succ?.map (isLight r ·)
-            ].map (·.toList.map .pos) |>.join
+            ].map (·.toList.map LitVar.mkPos) |>.join
           equalK nbrs.toArray k
 
   return ⟨⟨height, width, board⟩, isLight⟩
