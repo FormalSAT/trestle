@@ -1,6 +1,6 @@
 import LeanSAT
 
-open LeanSAT Encode Notation
+open LeanSAT Encode
 
 namespace Examples.NumberLink
 
@@ -13,7 +13,7 @@ deriving Inhabited
 
 structure NumberLinkVars where
   problem : NumberLinkProblem
-  piece_var : Fin problem.height → Fin problem.width → Fin problem.nums → Var
+  piece_var : Fin problem.height → Fin problem.width → Fin problem.nums → IVar
 deriving Inhabited
 
 def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
@@ -25,7 +25,7 @@ def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
         mkVar s!"pos {i} {j} numbered {n}"
 
   /- helper function to get the i,j,n variable -/
-  let piece_var : Fin prob.height → Fin prob.width → Fin prob.nums → Var := fun i j n =>
+  let piece_var : Fin prob.height → Fin prob.width → Fin prob.nums → IVar := fun i j n =>
     arr[i]![j]![n]!
 
   /- helper function to get the neighbors of i j -/
@@ -42,11 +42,11 @@ def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
       match prob.poses.find? (fun elem => (i,j) = elem.2) with
       | none =>
         /- assign at most one color to square i,j -/
-        atMostOne (List.fins _ |>.map fun n => piece_var i j n)
+        atMostOne (Array.ofFn fun n => piece_var i j n)
         /- if a color assigned to this square, exactly two neighbors
           must share that color -/
         for n in List.fins _ do
-          assuming [piece_var i j n] <|
+          assuming #[piece_var i j n] <|
             equalK
               (neighbors i j |>.map fun (i',j') => piece_var i' j' n).toArray
               2
@@ -54,9 +54,9 @@ def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
         /- assign the square to n -/
         for n' in List.fins _ do
           if n = n' then
-            addClause <| piece_var i j n
+            addClause #[ piece_var i j n ]
           else
-            addClause <| ¬ piece_var i j n'
+            addClause #[ piece_var i j n' ]
         /- exactly one neighbor must share this color -/
         equalK (neighbors i j |>.map fun (i',j') => piece_var i' j' n).toArray 1
 
