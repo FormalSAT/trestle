@@ -1,12 +1,14 @@
 import Std.Data.HashMap
-import LeanSAT.CNF
+import LeanSAT.Data.Cnf
+import LeanSAT.Data.HashAssn
+import LeanSAT.Data.ICnf
 
 open Std
 
 namespace LeanSAT.Solver
 
 inductive Res
-| sat (assn : Assn)
+| sat (assn : PAssnHash ILit)
 | unsat
 | error
 
@@ -19,21 +21,21 @@ def Res.isSat : Res → Bool
 | .sat _  => true
 | _       => false
 
-def Res.getAssn? : Res → Option Assn
+def Res.getAssn? : Res → Option (PAssnHash ILit)
 | .sat assn => some assn
 | _         => none
 
 end Solver
 
 class Solver (m : Type → Type v) where
-  solve : [Monad m] → Formula → m Solver.Res
+  solve : [Monad m] → Cnf ILit → m Solver.Res
 
 namespace Solver
 
-def Solutions (_f : Formula) (_varsToBlock : List Var) : Type := Unit
+def Solutions (_f : Cnf ILit) (_varsToBlock : List IVar) : Type := Unit
 def solutions (f vars) : Solutions f vars := ()
 
-instance [Solver m] : ForIn m (Solutions f vars) Assn where
+instance [Solver m] : ForIn m (Solutions f vars) (PAssnHash ILit) where
   forIn _ b perItem := do
     let mut b := b
     let mut state := some f
@@ -51,16 +53,15 @@ instance [Solver m] : ForIn m (Solutions f vars) Assn where
         return b'
       | .yield b' =>
         b := b'
-        let blocking_clause : List Literal :=
+        let blocking_clause : List ILit :=
           vars.filterMap (fun v =>
-            assn.find? v |>.map (if · then .neg v else .pos v))
-        let f' :=
-          ⟨blocking_clause :: f.clauses⟩
+            assn.find? v |>.map (if · then LitVar.mkNeg v else LitVar.mkPos v))
+        let f' := f.push blocking_clause.toArray
         state := some f'
     return b
 
-def allSolutions [Monad m] [Solver m] (f : Formula) (varsToBlock : List Var)
-  : m (List Assn) := do
+def allSolutions [Monad m] [Solver m] (f : Cnf ILit) (varsToBlock : List IVar)
+  : m (List (PAssnHash ILit)) := do
   let mut sols := []
   for assn in solutions f varsToBlock do
     sols := assn :: sols
@@ -69,17 +70,17 @@ def allSolutions [Monad m] [Solver m] (f : Formula) (varsToBlock : List Var)
 
 class IpasirSolver (S : outParam Type) (m : Type → Type v) where
   new : m S
-  addClause : Clause → S → m S
+  addClause : IClause → S → m S
   solve : S → m SolveRes
 
 instance [Monad m] [IpasirSolver S m] : Solver m where
   solve f := do
     let s : S ← IpasirSolver.new
-    let s ← f.clauses.foldlM (fun s c => IpasirSolver.addClause c s) s
+    let s ← f.foldlM (fun s c => IpasirSolver.addClause c s) s
     IpasirSolver.solve s
 
 class ModelCount (m : Type → Type v) [outParam (Monad m)] where
-  modelCount : Formula → Option (List Var) → m Nat
+  modelCount : ICnf → Option (List IVar) → m Nat
 
 class ModelSample (m : Type → Type v) where
-  modelSample : Formula → Option (List Var) → Nat → m (List Assn)
+  modelSample : ICnf → Option (List IVar) → Nat → m (List (PAssnHash ILit))

@@ -5,35 +5,31 @@ open Std
 
 namespace LeanSAT.Solver.Dimacs
 
-def formatVar : Var → String
-| (n : Nat) => s!"{n + 1}"
+def formatVar : IVar → String
+| n => s!"{n}"
 
-def formatLit : Literal → String
-| .pos v => formatVar v
-| .neg v => "-" ++ formatVar v
+def formatLit (l : ILit) : String :=
+  if LitVar.polarity l then
+    formatVar (LitVar.toVar l)
+  else "-" ++ formatVar (LitVar.toVar l)
 
-def formatClause : Clause → String
+def formatClause : IClause → String
 | ⟨lits⟩ => lits.map (formatLit ·) ++ ["0"] |> String.intercalate " "
 
-def formatFormula (f : Formula) : String :=
-  let (vars,clauses) := (f.numVars, f.clauses.length)
+def formatFormula (f : ICnf) : String :=
+  let vars := f.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
+  let clauses := f.size
   s!"p cnf {vars} {clauses}\n" ++ (
-    f.clauses.map formatClause |> String.intercalate "\n" )
+    f.map formatClause |>.toList |> String.intercalate "\n" )
 
-def printFormula [Monad m] (print : String → m Unit) (f : Formula) : m Unit := do
-  let (vars,clauses) := (f.numVars, f.clauses.length)
+def printFormula [Monad m] (print : String → m Unit) (f : ICnf) : m Unit := do
+  let vars := f.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
+  let clauses := f.size
   print <| s!"p cnf {vars} {clauses}\n"
-  for c in f.clauses do
+  for c in f do
     print <| formatClause c ++ "\n"
 
-open Notation in
-example : (printFormula PrinterM.putStr ((0 ∨ 1) ∧ 5) |>.run) =
-"p cnf 6 2
-1 2 0
-6 0
-" := rfl
-
-def formatAssn (a : Assn) : String :=
+def formatAssn (a : PAssnHash ILit) : String :=
   a.fold (fun str v b =>
     if b then
       str.append s!" {v}"
@@ -50,37 +46,36 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 
 
 def printEnc [Monad m] (print : String → m Unit) (s : Encode.EncCNF.State) : m Unit := do
-  for i in [0:s.nextVar] do
-    for name in s.names.find? i do
-      print s!"c {Dimacs.formatVar i} {name}\n"
+  for h : i in [1:s.nextVar] do
+    let var := ⟨i,h.1⟩
+    for name in s.names.find? var do
+      print s!"c {Dimacs.formatVar var} {name}\n"
 
   Dimacs.printFormula print ⟨s.clauses.reverse⟩
 
 
 
-
-
 structure DimacsParseRes where
   vars : Nat
-  clauses : List Clause
+  clauses : List IClause
 
-def parseVar (maxVar : Nat) (s : String) : Except String Var := do
-  let n ← s.toNat?.expectSome fun () => s!"Expected variable; got non-Nat: `{s}`"
-  match n with
-  | 0   => throw s!"Expected variable; got zero: `{s}`"
-  | v+1 =>
-    if v < maxVar then
-      return v
+def parseVar (maxVar : Nat) (s : String) : Except String IVar := do
+  let n ← liftM <| s.toNat?.expectSome fun () => s!"Expected variable; got non-Nat: `{s}`"
+  if h : n > 0 then
+    if n ≤ maxVar then
+      return ⟨n,h⟩
     else
-      throw s!"Variable {v} higher than max var {maxVar}"
+      throw s!"Variable {n} higher than max var {maxVar}"
+  else
+    throw s!"Expected variable; got zero: `{s}`"
 
-def parseLit (maxVar : Nat) (s : String) : Except String Literal := do
+def parseLit (maxVar : Nat) (s : String) : Except String ILit := do
   if s.startsWith "-" then
-    parseVar maxVar (s.drop 1) |>.map Literal.not
+    parseVar maxVar (s.drop 1) |>.map (- ·)
   else
     parseVar maxVar s
 
-def parseClause (maxVar : Nat) (s : String) : Except String Clause := do
+def parseClause (maxVar : Nat) (s : String) : Except String IClause := do
   let lits ← s.splitOn " " |>.mapM (parseLit maxVar)
   return ⟨lits⟩
 
@@ -104,7 +99,7 @@ def parseFormula (s : String) : Except String DimacsParseRes := do
     clauses := clauses
   }
 
-def parseVLines (maxVar : Var) (assn : Assn) (s : String) : Except String Assn := do
+def parseVLines (maxVar : Nat) (assn : PAssnHash ILit) (s : String) : Except String (PAssnHash ILit) := do
   match ← (s.splitOn " " |>.expectNonempty fun () => panic! "splitOn returned empty?? 645") with
   | ⟨"v", vars⟩ => do
     let forAssn ← vars.foldlM (fun assn x => do
@@ -113,13 +108,13 @@ def parseVLines (maxVar : Var) (assn : Assn) (s : String) : Except String Assn :
           return ForInStep.done assn
         else
           let l ← parseLit maxVar x
-          return ForInStep.yield <| assn.insertLit l
+          return ForInStep.yield <| assn.set l
     ) (ForInStep.yield assn)
     return ForInStep.run forAssn
   | _ =>
     .error s!"Expected `v <lits>`, got `{s}`"
 
-def parseResult (maxVar : Var) (s : String) : Except String Solver.Res := do
+def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
   let lines :=
     s.splitOn "\n"
     |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
@@ -138,20 +133,20 @@ def fromFileEnc (cnfFile : String) : IO Encode.EncCNF.State := do
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
   let {vars, clauses} ← IO.ofExcept <| Dimacs.parseFormula contents
   return {
-    nextVar := vars
+    nextVar := vars.succPNat
     clauses := clauses
     names := Id.run do
-      let mut map : HashMap Var String := HashMap.empty
-      for i in [0:vars] do
-        map := map.insert i s!"DIMACS var {i}"
+      let mut map : HashMap IVar String := HashMap.empty
+      for h : i in [1:vars+1] do
+        map := map.insert ⟨i,h.1⟩ s!"DIMACS var {i}"
       return map
     varCtx := ""
-    conditionCtx := []
+    conditionCtx := #[]
   }
 
-def parseAssnLine (maxVar : Var) (s : String) : Except String Assn := do
+def parseAssnLine (maxVar : Nat) (s : String) : Except String (PAssnHash ILit) := do
   let nums := s.splitOn " "
-  let mut assn : Assn := .empty
+  let mut assn : PAssnHash ILit := .empty
   let mut seenZero := false
   for n in nums do
     if seenZero then throw s!"Expected end of line after 0, but got `{n}`"
@@ -160,12 +155,12 @@ def parseAssnLine (maxVar : Var) (s : String) : Except String Assn := do
       seenZero := true
     else
       let lit ← parseLit maxVar n
-      assn := assn.insertLit lit
+      assn := assn.set lit
 
   if !seenZero then throw s!"Expected `0`, got end of line"
   else return assn
 
-def parseAssnLines (maxVar : Var) (s : String) : Except String (List Assn) := do
+def parseAssnLines (maxVar : Nat) (s : String) : Except String (List (PAssnHash ILit)) := do
   let lines :=
       s.splitOn "\n"
     |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
