@@ -29,7 +29,7 @@ def mkLit (L : Type u) {ν : Type v} [LitVar L ν] (x : ν) (p : Bool) : L :=
   if p then mkPos x else mkNeg x
 
 variable {L : Type u} {ν : Type v} [LitVar L ν]
-    
+
 -- controversial maybe?
 instance : Coe ν L :=
   ⟨mkPos⟩
@@ -62,11 +62,11 @@ open LitVar in
 class LawfulLitVar (L : Type u) (ν : Type v) [LitVar L ν] where
   toVar_negate (l : L) : toVar (negate l) = toVar l
   toVar_mkPos (x : ν) : toVar (mkPos (L := L) x) = x
-  toVar_mkNeg (x : ν) : toVar (mkNeg (L := L) x) = x 
+  toVar_mkNeg (x : ν) : toVar (mkNeg (L := L) x) = x
   polarity_negate (l : L) : polarity (negate l) = !polarity l
   polarity_mkPos (x : ν) : polarity (mkPos (L := L) x) = true
   polarity_mkNeg (x : ν) : polarity (mkNeg (L := L) x) = false
-  protected ext (l₁ l₂ : L) : toVar l₁ = toVar l₂ → polarity l₁ = polarity l₂ → l₁ = l₂ 
+  protected ext (l₁ l₂ : L) : toVar l₁ = toVar l₂ → polarity l₁ = polarity l₂ → l₁ = l₂
 
 namespace LitVar
 variable {L : Type u} {ν : Type v} [LitVar L ν] [LawfulLitVar L ν]
@@ -106,7 +106,7 @@ theorem mkPos_or_mkNeg (l : L) : l = mkPos (toVar l) ∨ l = mkNeg (toVar l) := 
 @[simp] theorem mk_toPropForm (l : L) : ⟦toPropForm l⟧ = toPropFun l := by
   dsimp [toPropForm, toPropFun]
   cases polarity l <;> simp
-  
+
 @[simp] theorem toPropFun_mkPos (x : ν) : toPropFun (mkPos (L := L) x) = .var x := by
   simp [toPropFun]
 @[simp] theorem toPropFun_mkNeg (x : ν) : toPropFun (mkNeg (L := L) x) = (.var x)ᶜ := by
@@ -125,12 +125,12 @@ variable [DecidableEq ν]
   dsimp [toPropFun]
   cases polarity l <;> simp
 
-open PropFun 
+open PropFun
 
 theorem satisfies_neg {τ : PropAssignment ν} {l : L} :
     τ ⊨ toPropFun (-l) ↔ τ ⊭ toPropFun l := by
   simp [satisfies_iff]
- 
+
 theorem satisfies_set (τ : PropAssignment ν) (l : L) :
     τ.set (toVar l) (polarity l) ⊨ toPropFun l := by
   simp [satisfies_iff, τ.set_get]
@@ -165,7 +165,7 @@ namespace Clause
 
 instance [ToString L] : ToString (Clause L) where
   toString C := s!"({String.intercalate " ∨ " (C.map toString).toList})"
-  
+
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
 def toPropForm (C : Clause L) : PropForm ν :=
@@ -184,7 +184,7 @@ theorem satisfies_iff {τ : PropAssignment ν} {C : Clause L} :
     τ ⊨ C.toPropFun ↔ ∃ l ∈ C.data, τ ⊨ LitVar.toPropFun l := by
   rw [toPropFun]
   induction C.data <;> simp_all
-  
+
 theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C.data, ∃ l₂ ∈ C.data, l₁ = -l₂ := by
   refine ⟨?mp, ?mpr⟩

@@ -81,19 +81,15 @@ inductive PropForm (ν : Type u)
   | var (x : ν)
   | tr
   | fls
-  | neg (φ : PropForm ν)
-  | conj (φ₁ φ₂ : PropForm ν)
-  | disj (φ₁ φ₂ : PropForm ν)
-  | impl (φ₁ φ₂ : PropForm ν)
+  | neg    (φ : PropForm ν)
+  | conj   (φ₁ φ₂ : PropForm ν)
+  | disj   (φ₁ φ₂ : PropForm ν)
+  | impl   (φ₁ φ₂ : PropForm ν)
   | biImpl (φ₁ φ₂ : PropForm ν)
   deriving Repr, DecidableEq, Inhabited
 
 namespace PropForm
 
--- HACK: a `let` doesn't work with structural recursion
-local macro "go " n:ident : term =>
-  `(let s := $(Lean.mkIdent `PropForm.toString) $n
-    if s.contains ' ' then s!"({s})" else s)
 protected def toString [ToString ν] : PropForm ν → String
   | var x        => toString x
   | tr           => "⊤"
@@ -103,13 +99,35 @@ protected def toString [ToString ν] : PropForm ν → String
   | disj φ₁ φ₂   => s!"{go φ₁} ∨ {go φ₂}"
   | impl φ₁ φ₂   => s!"{go φ₁} → {go φ₂}"
   | biImpl φ₁ φ₂ => s!"{go φ₁} ↔ {go φ₂}"
+where go n :=
+  let s := PropForm.toString n
+  if s.contains ' ' then s!"({s})" else s
+termination_by
+  toString f => 2 * sizeOf f
+  go f => 1 + 2 * sizeOf f
 
 instance [ToString ν] : ToString (PropForm ν) :=
   ⟨PropForm.toString⟩
 
-end PropForm
+instance : Coe L (PropForm L) := ⟨.var⟩
 
-namespace PropForm
+def conj' (fs : List (PropForm L)) : PropForm L :=
+  match fs.foldr (init := none) (fun f =>
+    fun
+    | none => some f
+    | some f' => some <| .conj f f'
+  ) with
+  | none => .tr
+  | some f => f
+
+def disj' (fs : List (PropForm L)) : PropForm L :=
+  match fs.foldr (init := none) (fun f =>
+    fun
+    | none => some f
+    | some f' => some <| .disj f f'
+  ) with
+  | none => .fls
+  | some f => f
 
 /-- The unique extension of `τ` from variables to formulas. -/
 @[simp]

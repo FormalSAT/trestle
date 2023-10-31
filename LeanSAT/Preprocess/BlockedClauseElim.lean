@@ -1,4 +1,4 @@
-import LeanSAT.CNF
+import LeanSAT.Data.Cnf
 import Std.Data.HashMap
 import LeanSAT.AuxDefs
 
@@ -7,48 +7,53 @@ namespace LeanSAT.Preprocess.BlockedClauseElim
 open List
 
 /-- Assuming x ∈ C1, returns (¬x ∈ C2 ∨ (resolving C1+C2 gives a tautology)) -/
-def resolvesTaut (x : Literal) (C1 C2 : Clause) : Bool :=
-  !(List.contains C2.lits x.not) ||
-  List.any C1.lits (fun a =>
-    x.var ≠ a.var ∧
-    List.any C2.lits (fun b =>
-      a = b.not))
+def resolvesTaut [LitVar L ν] [BEq L] [BEq ν] (x : L) (C1 C2 : Clause L) : Bool :=
+  !(Array.contains C2 (-x)) ||
+  Array.any C1 (fun a =>
+    !(LitVar.toVar x == LitVar.toVar a) &&
+    Array.any C2 (fun b =>
+      a == (-b)))
 
-private structure State where
-  clauses : List Clause
-  litMap : Std.HashMap Literal (List Clause)
-  h_litMap_some : ∀ l, litMap.find? l = some CS → CS = clauses.filter (·.lits.contains l)
-  h_litMap_none : ∀ l, litMap.find? l = none → [] = clauses.filter (·.lits.contains l)
+private structure State (L) [BEq L] [Hashable L] where
+  clauses : List (Clause L)
+  litMap : Std.HashMap L (List (Clause L))
+  h_litMap_some : ∀ l, litMap.find? l = some CS →
+                      CS = clauses.filter (·.contains l)
+  h_litMap_none : ∀ l, litMap.find? l = none →
+                      [] = clauses.filter (·.contains l)
 
-private def stateOfFormula (f : Formula) : State :=
-  let clauses := f.clauses
-  let litMap := clauses.foldl (fun m c =>
-    c.lits.foldl (fun m l =>
+variable {L} [BEq L] [Hashable L] [LitVar L ν] [BEq ν]
+
+private def stateOfFormula (f : Cnf L) : State L :=
+  let litMap := f.foldl (fun m c =>
+    c.foldl (fun m l =>
         match m.find? l with
         | none => m.insert l [c]
         | some c' => m.insert l (c::c'))
       m)
     Std.HashMap.empty
-  ⟨clauses, litMap, sorry, sorry⟩
+  { clauses := f.toList, litMap
+    h_litMap_some := sorry
+    h_litMap_none := sorry }
 
-private def removeClause (c : Clause) (m : Std.HashMap Literal (List Clause)) :=
-  c.lits.foldl (fun m l =>
+private def removeClause (c : Clause L) (m : Std.HashMap L (List (Clause L))) :=
+  c.foldl (init := m) (fun m l =>
     match m.find? l with
     | none => panic! "invariant violated: 1249850198"
     | some cs =>
-      m.insert l (cs.filter (· ≠ c))) m
+      m.insert l (cs.filter (! · == c)))
 
 /-- Find and removed blocked clauses from the formula.
   Returns updated formula with no blocked clauses, and a list of eliminated (variable,clause) pairs -/
-def blockedClauseElim (F : Formula) : Formula × List (Literal × Clause) :=
-  let rec remBlocked (s : State) (acc : List (Literal × Clause))
-    : List Clause × List (Literal × Clause) :=
+def blockedClauseElim (F : Cnf L) : Cnf L × List (L × Clause L) :=
+  let rec remBlocked (s : State L) (acc : List (L × Clause L))
+    : List (Clause L) × List (L × Clause L) :=
     -- Find blocked clause & its blocked variable
     match s.clauses.partitionMap (fun C =>
         -- For a given clause, find an atom such that resolution is always taut
-        match C.lits.find? (fun x =>
-          s.litMap.find! x.not |>.all (fun C' =>
-            C = C' ∨ resolvesTaut x C C'))
+        match C.find? (fun x =>
+          s.litMap.find! (-x) |>.all (fun C' =>
+            C == C' || resolvesTaut x C C'))
         with
         -- If such an atom doesn't exist, put clause in left group
         | none => Sum.inl C
@@ -61,7 +66,7 @@ def blockedClauseElim (F : Formula) : Formula × List (Literal × Clause) :=
     | (CS', blocked) =>
       assert! CS'.length + blocked.length = s.clauses.length
       assert! CS'.length < s.clauses.length
-      let s : State := {
+      let s : State L := {
         clauses := CS'
       , litMap := blocked.foldl (fun m (_,c) => removeClause c m) s.litMap
       , h_litMap_none := sorry

@@ -27,5 +27,5 @@ def CMSGenCommand
   stdin.flush
   let _ ← child.wait
   let sampleOutput ← IO.FS.readFile temp
-  IO.ofExcept <| Dimacs.parseAssnLines fml.numVars sampleOutput
+  IO.ofExcept <| Dimacs.parseAssnLines (fml.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0) sampleOutput
   )⟩

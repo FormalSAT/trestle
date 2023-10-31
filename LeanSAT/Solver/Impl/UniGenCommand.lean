@@ -26,5 +26,5 @@ def UniGenCommand
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
   let _ ← child.wait
   let sampleOutput ← IO.ofExcept output.get
-  IO.ofExcept <| Dimacs.parseAssnLines fml.numVars sampleOutput
+  IO.ofExcept <| Dimacs.parseAssnLines (fml.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0) sampleOutput
   ⟩
