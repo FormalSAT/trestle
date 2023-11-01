@@ -76,7 +76,7 @@ termination_by
   reduceConj x y neg => reduceSize x + reduceSize y
   reduceDisj x y neg => reduceSize x + reduceSize y
 
-partial def tseitin (f : PropForm ILit) : EncCNF Unit := do
+def tseitin (f : PropForm ILit) : EncCNF Unit := do
   let red := reduce f true
   topAnd red
 where
