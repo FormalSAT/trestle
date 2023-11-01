@@ -35,6 +35,7 @@ def atMostOne (lits : Array ILit) : EncCNF Unit :=
   else
     amoCut4 lits
 
+open Model.PropForm.Notation in
 def partialSumsBlock (lits : Array ILit) (k : Nat) (hk : k > 1)
   : EncCNF (IVarBlock [k, lits.size]) := do
   -- `temps[i][j]` ↔ i < ∑ j' ≤ j, `lits[j']`
@@ -47,19 +48,15 @@ def partialSumsBlock (lits : Array ILit) (k : Nat) (hk : k > 1)
       match j.pred? with
       | none => -- `j = 0`
         if i = ⟨0,this⟩ then
-          tseitin (.biImpl temps[i][j] lits[j])
+          tseitin (temps[i][j] ↔ lits[j])
         else
           addClause #[-temps[i][j]]
       | some j' =>
         match i.pred? with
         | none =>
-          tseitin
-            (.biImpl temps[i][j]
-              (.disj temps[i][j'] lits[j]))
+          tseitin (temps[i][j] ↔ temps[i][j'] ∨ lits[j])
         | some i' =>
-          tseitin
-            (.biImpl temps[i][j]
-              (.disj temps[i][j'] (.conj temps[i'][j'] lits[j])))
+          tseitin (temps[i][j] ↔ temps[i][j'] ∨ temps[i'][j'] ∧ lits[j])
 
   return temps
 
@@ -86,6 +83,7 @@ def partialSumsAtLeastK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk :
   -- <=> k ≤ ∑ j, lits[j]
   addClause #[ sumsBlock[k-1][lits.size-1] ]
 
+open Model.PropForm.Notation in
 def partialSumsEqualK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
   newCtx s!"pSums={k}" do
   have : lits.size-1 < lits.size := Nat.sub_lt ‹_› (by simp)
@@ -95,12 +93,12 @@ def partialSumsEqualK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk : k
   -- `¬sumsBlock[k][lits.size-1]`
   -- <=> ¬(k < ∑ j, lits[j])
   -- <=> k ≥ ∑ j, lits[j]
-  tseitin (-sumsBlock[k][lits.size-1] : ILit)
+  tseitin (¬sumsBlock[k][lits.size-1])
 
   -- `sumsBlock[k-1][lits.size-1]`
   -- <=> k-1 < ∑ j, lits[j]
   -- <=> k ≤ ∑ j, lits[j]
-  tseitin (sumsBlock[k-1][lits.size-1] : ILit)
+  tseitin (sumsBlock[k-1][lits.size-1])
 
 mutual
 def atMostK (lits : Array ILit) k :=
