@@ -87,6 +87,7 @@ def fillVarsInDir (b : BoardVars) (i : Fin b.height) (j : Fin b.width) (d : Dir)
           _ < b.width := Nat.sub_lt (Nat.zero_lt_of_lt j.isLt) (Nat.succ_le_succ (Nat.zero_le _))
       b.isFilled i ⟨b.width-1-n, this⟩)
 
+open Model.PropForm.Notation in
 def encode (b : Board) : EncCNF BoardVars := do
   let b ← mkVars b
 
@@ -135,9 +136,9 @@ def encode (b : Board) : EncCNF BoardVars := do
 
       match lexPrev with
       | none =>
-        tseitin (.biImpl (b.isLTRoot i j) (-b.isInPath i j : ILit))
+        tseitin (b.isLTRoot i j ↔ ¬ b.isInPath i j)
       | some (i',j') =>
-        tseitin (.biImpl (b.isLTRoot i j) (.conj (b.isLTRoot i' j') (-b.isInPath i j : ILit)))
+        tseitin (b.isLTRoot i j ↔ b.isLTRoot i' j' ∧ ¬ b.isInPath i j)
 
       /- then we constrain rootDist -/
 
@@ -147,27 +148,27 @@ def encode (b : Board) : EncCNF BoardVars := do
       /- rootDist[i][j] < pathLengthCap -/
       tseitin <| ← (b.rootDist i j).lt pathLengthCap
 
-      let isRoot : PropForm _ :=
+      let isRoot :=
         match lexPrev with
-        | none => (-b.isLTRoot i j : ILit)
-        | some (i',j') => .conj (-b.isLTRoot i j : ILit) (b.isLTRoot i' j')
+        | none => ¬ b.isLTRoot i j
+        | some (i',j') => ¬ b.isLTRoot i j ∧ b.isLTRoot i' j'
 
       /- if (i,j) is root, then rootDist[i][j] = 0 -/
-      tseitin <| .impl isRoot (BinNumber.eqConst (b.rootDist i j) 0)
+      tseitin <| isRoot → BinNumber.eqConst (b.rootDist i j) 0
 
       /- otherwise, for some neighbor (i',j'),
             the path connects (i,j) <-> (i',j')
             AND rootDist[i][j] = rootDist[i'][j'] + 1 -/
-      tseitin <| .impl (.conj (.neg isRoot) (b.isInPath i j))
+      tseitin <| ¬ isRoot ∧ b.isInPath i j →
           (.disj'
             (← neighbors b i j
             |>.mapM (fun (i',j',v) => do
-              return .conj v (← BinNumber.eqSucc (b.rootDist i j) (b.rootDist i' j')))
+              return v ∧ (← BinNumber.eqSucc (b.rootDist i j) (b.rootDist i' j')))
             ).toList)
 
   return b
 
-def printAssn (vars : BoardVars) (assn : PAssnHash ILit) : String := Id.run do
+def printAssn (vars : BoardVars) (assn : HashAssn ILit) : String := Id.run do
   let mut s := s!"{vars.height}x{vars.width}\n"
   for i in List.fins vars.height do
     for j in List.fins vars.width do
