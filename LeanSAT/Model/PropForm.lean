@@ -277,4 +277,19 @@ theorem equivalent.trans : equivalent φ₁ φ₂ → equivalent φ₂ φ₃ →
 theorem entails.antisymm : entails φ₁ φ₂ → entails φ₂ φ₁ → equivalent φ₁ φ₂ :=
   fun h₁ h₂ => equivalent_iff_entails.mpr ⟨h₁, h₂⟩
 
-end PropForm
+/-! ## Define notation for `PropForm`s -/
+
+namespace Notation
+
+-- The notation for `Prop` has default priority (1000).
+-- When open, we want to always supercede `Prop` notation.
+scoped notation:max (priority := 1100) " ¬ " b:40 => neg b
+scoped infixr:35    (priority := 1100) " ∧ "      => conj
+scoped infixr:30    (priority := 1100) " ∨ "      => disj
+scoped infixr:25    (priority := 1100) " → "      => impl
+scoped infix:20     (priority := 1100) " ↔ "      => biImpl
+
+example (a b c d : ν) : PropForm ν :=
+  a ∧ b ∨ c → d  ↔  (¬a ∨ ¬b) ∧ ¬c ∨ d
+
+end Notation
