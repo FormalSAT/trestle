@@ -7,14 +7,13 @@ namespace Examples.ApproxMC
 instance : Solver IO := Solver.Impl.DimacsCommand "cadical"
 instance : Solver.ModelCount IO := Solver.Impl.ApproxMCCommand
 
-open Encode in
+open Encode Model.PropForm.Notation in
 def main : IO Unit := do
   let ((x,y,z), enc) := EncCNF.new! do
     let x ← EncCNF.mkVar "x"
     let y ← EncCNF.mkVar "y"
     let z ← EncCNF.mkVar "z"
-    Tseitin.tseitin
-      (.disj (.conj x (.conj y z)) (.conj (-x : ILit) (-y : ILit)))
+    Tseitin.tseitin (x ∧ y ∧ z ∨ ¬x ∧ ¬y)
     return (x,y,z)
   let formula : ICnf := enc.toFormula
 
