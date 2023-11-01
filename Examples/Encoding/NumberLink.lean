@@ -56,7 +56,7 @@ def numberLink (prob : NumberLinkProblem) : EncCNF NumberLinkVars :=
           if n = n' then
             addClause #[ piece_var i j n ]
           else
-            addClause #[ piece_var i j n' ]
+            addClause #[ -piece_var i j n' ]
         /- exactly one neighbor must share this color -/
         equalK (neighbors i j |>.map fun (i',j') => piece_var i' j' n).toArray 1
 
