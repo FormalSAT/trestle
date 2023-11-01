@@ -5,6 +5,7 @@ Authors: Wojciech Nawrocki
 -/
 
 import LeanSAT.Data.Cnf
+import LeanSAT.Upstream.ToStd
 
 namespace LeanSAT
 
@@ -84,3 +85,7 @@ instance : LawfulLitVar ILit IVar where
 
 abbrev IClause := Clause ILit
 abbrev ICnf := Cnf ILit
+
+/-- Find the max variable in the CNF. WARNING: very expensive; result not cached. -/
+def ICnf.maxVar (fml : ICnf) : Nat :=
+  fml.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0

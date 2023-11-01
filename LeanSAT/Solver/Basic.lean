@@ -28,11 +28,11 @@ def Res.getAssn? : Res → Option (HashAssn ILit)
 end Solver
 
 class Solver (m : Type → Type v) where
-  solve : [Monad m] → Cnf ILit → m Solver.Res
+  solve : [Monad m] → ICnf → m Solver.Res
 
 namespace Solver
 
-def Solutions (_f : Cnf ILit) (_varsToBlock : List IVar) : Type := Unit
+def Solutions (_f : ICnf) (_varsToBlock : List IVar) : Type := Unit
 def solutions (f vars) : Solutions f vars := ()
 
 instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
@@ -60,7 +60,7 @@ instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
         state := some f'
     return b
 
-def allSolutions [Monad m] [Solver m] (f : Cnf ILit) (varsToBlock : List IVar)
+def allSolutions [Monad m] [Solver m] (f : ICnf) (varsToBlock : List IVar)
   : m (List (HashAssn ILit)) := do
   let mut sols := []
   for assn in solutions f varsToBlock do
