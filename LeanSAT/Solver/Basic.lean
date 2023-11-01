@@ -8,7 +8,7 @@ open Std
 namespace LeanSAT.Solver
 
 inductive Res
-| sat (assn : PAssnHash ILit)
+| sat (assn : HashAssn ILit)
 | unsat
 | error
 
@@ -21,7 +21,7 @@ def Res.isSat : Res → Bool
 | .sat _  => true
 | _       => false
 
-def Res.getAssn? : Res → Option (PAssnHash ILit)
+def Res.getAssn? : Res → Option (HashAssn ILit)
 | .sat assn => some assn
 | _         => none
 
@@ -35,7 +35,7 @@ namespace Solver
 def Solutions (_f : Cnf ILit) (_varsToBlock : List IVar) : Type := Unit
 def solutions (f vars) : Solutions f vars := ()
 
-instance [Solver m] : ForIn m (Solutions f vars) (PAssnHash ILit) where
+instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
   forIn _ b perItem := do
     let mut b := b
     let mut state := some f
@@ -61,7 +61,7 @@ instance [Solver m] : ForIn m (Solutions f vars) (PAssnHash ILit) where
     return b
 
 def allSolutions [Monad m] [Solver m] (f : Cnf ILit) (varsToBlock : List IVar)
-  : m (List (PAssnHash ILit)) := do
+  : m (List (HashAssn ILit)) := do
   let mut sols := []
   for assn in solutions f varsToBlock do
     sols := assn :: sols
@@ -83,4 +83,4 @@ class ModelCount (m : Type → Type v) [outParam (Monad m)] where
   modelCount : ICnf → Option (List IVar) → m Nat
 
 class ModelSample (m : Type → Type v) where
-  modelSample : ICnf → Option (List IVar) → Nat → m (List (PAssnHash ILit))
+  modelSample : ICnf → Option (List IVar) → Nat → m (List (HashAssn ILit))

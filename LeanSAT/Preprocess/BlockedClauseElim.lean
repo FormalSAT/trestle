@@ -1,6 +1,6 @@
 import LeanSAT.Data.Cnf
 import Std.Data.HashMap
-import LeanSAT.AuxDefs
+import LeanSAT.Upstream.ToStd
 
 namespace LeanSAT.Preprocess.BlockedClauseElim
 

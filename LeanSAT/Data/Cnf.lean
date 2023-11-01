@@ -4,11 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki, Jeremy Avigad
 -/
 
--- import ProofChecker.Data.HashMap.Lemmas
--- import ProofChecker.Data.HashSet
-import LeanSAT.Model.ToMathlib
+import LeanSAT.Upstream.ToMathlib
 import LeanSAT.Model.PropFun
 import LeanSAT.Model.PropVars
+
+namespace LeanSAT
+
+open Model
 
 /-! ### Literals -/
 

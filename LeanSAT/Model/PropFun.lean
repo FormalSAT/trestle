@@ -6,11 +6,18 @@ Authors: Wojciech Nawrocki
 
 import LeanSAT.Model.PropForm
 
-/-! Formulas of propositional logic over a set `ν` of variables
-quotiented by strong equivalence.
+namespace LeanSAT.Model
+
+/-! # Propositional Formulas mod Equivalence
+
+This file defines the type of propositional formulas over
+a set `ν` of variables, quotiented by strong equivalence.
 
 We show that they form a Boolean algebra
-with ordering given by semantic entailment. -/
+with ordering given by semantic entailment.
+This allows us to use Mathlib's lattice notation & lemmas.
+
+-/
 
 open PropForm in
 instance PropFun.setoid (ν : Type u) : Setoid (PropForm ν) where
@@ -316,5 +323,3 @@ theorem mk_disj (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.disj φ₁ φ
 
 @[simp]
 theorem mk_impl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.impl φ₁ φ₂⟧ (⟦φ₁⟧ ⇨ ⟦φ₂⟧) := rfl
-
-end PropFun
