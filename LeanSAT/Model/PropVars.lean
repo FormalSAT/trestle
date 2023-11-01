@@ -10,6 +10,8 @@ import Mathlib.Tactic.ByContra
 
 import LeanSAT.Model.PropFun
 
+namespace LeanSAT.Model
+
 /-! Definitions and theorems relating propositional formulas and functions to variables
 
 ## Main definitions
@@ -98,7 +100,7 @@ where
       by_cases h₁' : σ₁' ⊨ φ
       case neg =>
         -- If σ₁' no longer satisfies φ, we're done.
-        use x₀, σ₁ 
+        use x₀, σ₁
         simp [h₁, h₁']
       case pos =>
         -- If σ₁' still satisfies φ, proceed by induction.
@@ -115,7 +117,7 @@ where
             simp only [σ₁.set_get_of_ne _ hX]
             aesop
         have ⟨x, τ, hx, H⟩ := ih h₁' hS' hSC'
-        exact ⟨x, τ, Finset.mem_insert_of_mem hx, H⟩ 
+        exact ⟨x, τ, Finset.mem_insert_of_mem hx, H⟩
 
 end PropForm
 
@@ -312,7 +314,7 @@ def hasUniqueExtension (X Y : Set ν) (φ : PropFun ν) :=
 
 theorem hasUniqueExtension_refl (X : Set ν) (φ : PropFun ν) : hasUniqueExtension X X φ :=
   by simp [hasUniqueExtension]
-  
+
 theorem hasUniqueExtension.subset_left : X ⊆ X' → hasUniqueExtension X Y φ →
     hasUniqueExtension X' Y φ :=
   fun hSub h _ _ h₁ h₂ hAgree => h h₁ h₂ (hAgree.subset hSub)
@@ -324,7 +326,7 @@ theorem hasUniqueExtension.subset_right : Y' ⊆ Y → hasUniqueExtension X Y φ
 theorem hasUniqueExtension.trans : hasUniqueExtension X Y φ → hasUniqueExtension Y Z φ →
     hasUniqueExtension X Z φ :=
   fun hXY hYZ _ _ h₁ h₂ hAgree => hAgree |> hXY h₁ h₂ |> hYZ h₁ h₂
-  
+
 theorem hasUniqueExtension.conj_right (ψ : PropFun ν) :
     hasUniqueExtension X Y φ → hasUniqueExtension X Y (φ ⊓ ψ) :=
   fun hXY _ _ h₁ h₂ hAgree => hXY (satisfies_conj.mp h₁).left (satisfies_conj.mp h₂).left hAgree
@@ -332,7 +334,7 @@ theorem hasUniqueExtension.conj_right (ψ : PropFun ν) :
 theorem hasUniqueExtension.conj_left (ψ : PropFun ν) :
     hasUniqueExtension X Y φ → hasUniqueExtension X Y (ψ ⊓ φ) :=
   fun hXY _ _ h₁ h₂ hAgree => hXY (satisfies_conj.mp h₁).right (satisfies_conj.mp h₂).right hAgree
-  
+
 theorem hasUniqueExtension_to_empty (X : Set ν) (φ : PropFun ν) : hasUniqueExtension X ∅ φ :=
   hasUniqueExtension_refl X φ |>.subset_right (Set.empty_subset X)
 

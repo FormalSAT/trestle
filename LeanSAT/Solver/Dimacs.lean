@@ -29,7 +29,7 @@ def printFormula [Monad m] (print : String → m Unit) (f : ICnf) : m Unit := do
   for c in f do
     print <| formatClause c ++ "\n"
 
-def formatAssn (a : PAssnHash ILit) : String :=
+def formatAssn (a : HashAssn ILit) : String :=
   a.fold (fun str v b =>
     if b then
       str.append s!" {v}"
@@ -99,7 +99,7 @@ def parseFormula (s : String) : Except String DimacsParseRes := do
     clauses := clauses
   }
 
-def parseVLines (maxVar : Nat) (assn : PAssnHash ILit) (s : String) : Except String (PAssnHash ILit) := do
+def parseVLines (maxVar : Nat) (assn : HashAssn ILit) (s : String) : Except String (HashAssn ILit) := do
   match ← (s.splitOn " " |>.expectNonempty fun () => panic! "splitOn returned empty?? 645") with
   | ⟨"v", vars⟩ => do
     let forAssn ← vars.foldlM (fun assn x => do
@@ -144,9 +144,9 @@ def fromFileEnc (cnfFile : String) : IO Encode.EncCNF.State := do
     conditionCtx := #[]
   }
 
-def parseAssnLine (maxVar : Nat) (s : String) : Except String (PAssnHash ILit) := do
+def parseAssnLine (maxVar : Nat) (s : String) : Except String (HashAssn ILit) := do
   let nums := s.splitOn " "
-  let mut assn : PAssnHash ILit := .empty
+  let mut assn : HashAssn ILit := .empty
   let mut seenZero := false
   for n in nums do
     if seenZero then throw s!"Expected end of line after 0, but got `{n}`"
@@ -160,7 +160,7 @@ def parseAssnLine (maxVar : Nat) (s : String) : Except String (PAssnHash ILit) :
   if !seenZero then throw s!"Expected `0`, got end of line"
   else return assn
 
-def parseAssnLines (maxVar : Nat) (s : String) : Except String (List (PAssnHash ILit)) := do
+def parseAssnLines (maxVar : Nat) (s : String) : Except String (List (HashAssn ILit)) := do
   let lines :=
       s.splitOn "\n"
     |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))

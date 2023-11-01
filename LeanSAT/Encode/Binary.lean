@@ -4,7 +4,7 @@ import LeanSAT.Preprocess.BlockedClauseElim
 
 namespace LeanSAT.Encode
 
-open EncCNF Tseitin
+open Model EncCNF Tseitin
 
 /-- binary number represented as `width` variables.
     the least significant bit is index 0. -/
@@ -14,9 +14,11 @@ namespace BinNumber
 
 instance : Inhabited (BinNumber w) := inferInstanceAs (Inhabited (EncCNF.IVarBlock _))
 
+open PropForm.Notation
+
 /-- formula stating that `res = x` -/
 def eq (res x : BinNumber width) : PropForm ILit :=
-  .conj' <| (List.fins _).map (fun i => .biImpl (res.get i) (x.get i))
+  .conj' <| (List.fins _).map (fun i => (res.get i) ↔ (x.get i))
 
 /-- encode constraint that `res = n (mod 2^width)`. -/
 def eqConst (res : BinNumber width) (n : Nat) : PropForm ILit :=
@@ -36,11 +38,11 @@ def eqSucc (res x : BinNumber width) : EncCNF (PropForm ILit) :=
     (List.fins width).bind (fun i =>
     match i.pred? with
     | none =>
-      [ .biImpl (res.get i) (-x.get i : ILit)
-      , .biImpl (carries.get i) (x.get i) ]
+      [ res.get i ↔ ¬x.get i
+      , carries.get i ↔ x.get i ]
     | some i' =>
-      [ .biImpl (res.get i) (.biImpl (x.get i) (-carries.get i' : ILit))
-      , .biImpl (carries.get i) (.conj (x.get i) (carries.get i')) ]
+      [ res.get i ↔ (x.get i ↔ ¬ carries.get i')
+      , carries.get i ↔ (x.get i ∧ carries.get i') ]
     )
 
 /-- encode constraint `x < y` -/
@@ -52,11 +54,9 @@ def lt (x y : BinNumber width) : EncCNF (PropForm ILit) :=
       match i.succ? with
       | none => higherBitsEq.get i
       | some i' =>
-        .biImpl (higherBitsEq.get i)
-          (.conj (higherBitsEq.get i')
-            (.biImpl (x.get i') (y.get i')))
+        higherBitsEq.get i ↔ higherBitsEq.get i' ∧ (x.get i' ↔ y.get i')
     )
   return .conj eqSetup <| .disj' <|
     (List.fins width).map (fun i =>
-      .conj (higherBitsEq.get i) (.conj (-x.get i : ILit) (y.get i))
+      higherBitsEq.get i ∧ ¬x.get i ∧ y.get i
     )

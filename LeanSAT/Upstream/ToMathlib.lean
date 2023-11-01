@@ -36,3 +36,6 @@ theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 :=
   by_cases hLt : 0 < i
   . have := h.mpr hLt; linarith
   . have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); linarith
+
+instance : HAdd PNat Nat PNat where
+  hAdd | ⟨a,h⟩, b => ⟨a+b, Nat.add_pos_left h _⟩

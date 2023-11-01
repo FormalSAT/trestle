@@ -6,6 +6,8 @@ Authors: Wojciech Nawrocki
 
 import LeanSAT.Data.Cnf
 
+namespace LeanSAT
+
 /-! Defines (non-zero) integer literals
 over (non-zero) natural number variables
 and proves that they are lawful. -/
@@ -31,7 +33,7 @@ end IVar
 
 def ILit := { i : Int // i ≠ 0 }
   deriving DecidableEq, Repr
-  
+
 instance : LitVar ILit IVar where
   negate l := ⟨-l.val, Int.neg_ne_zero.mpr l.property⟩
   mkPos x := ⟨Int.ofNat x.val, by simp⟩
@@ -79,6 +81,6 @@ instance : LawfulLitVar ILit IVar where
       rw [h] at h₂
       have : l₂ = 0 := Int.eq_zero_of_lt_neg_iff_lt l₂ h₂
       simp [this, h]
-  
+
 abbrev IClause := Clause ILit
 abbrev ICnf := Cnf ILit

@@ -2,7 +2,7 @@ import LeanSAT.Encode.EncCNF
 
 namespace LeanSAT.Encode.Tseitin
 
-open EncCNF
+open Model EncCNF
 
 inductive ReducedForm (L : Type u) : Bool → Type u
 | and (fs : Array (ReducedForm L false)) : ReducedForm L true

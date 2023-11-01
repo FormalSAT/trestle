@@ -2,8 +2,7 @@ import Std
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
 import LeanSAT.Data.HashAssn
-import LeanSAT.AuxDefs
-import LeanSAT.Upstream.PNat
+import LeanSAT.Upstream.ToStd
 
 open Std
 
@@ -159,8 +158,8 @@ def mkTempBlock (dims : List Nat) (h : dims.length > 0 := by simp)
   : EncCNF (IVarBlock dims) := do
   return ← mkVarBlock ("tmp" ++ toString (← get).nextVar) dims h
 
-def blockAssn (a : PAssnHash ILit) : EncCNF Unit := addClause (a.toLitArray.map (- ·))
+def blockAssn (a : HashAssn ILit) : EncCNF Unit := addClause (a.toLitArray.map (- ·))
 
-def addAssn (a : PAssnHash ILit) : EncCNF Unit := do
+def addAssn (a : HashAssn ILit) : EncCNF Unit := do
   for l in a.toLitArray do
     addClause #[l]
