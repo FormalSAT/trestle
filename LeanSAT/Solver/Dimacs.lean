@@ -23,7 +23,7 @@ def formatFormula (f : ICnf) : String :=
     f.map formatClause |>.toList |> String.intercalate "\n" )
 
 def printFormula [Monad m] (print : String → m Unit) (f : ICnf) : m Unit := do
-  let vars := f.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
+  let vars := f.maxVar
   let clauses := f.size
   print <| s!"p cnf {vars} {clauses}\n"
   for c in f do
