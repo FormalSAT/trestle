@@ -232,23 +232,6 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
         assumption
       tauto
 
--- def vars (C : IClause) : HashSet Var :=
---   C.foldr (init := .empty Var) fun l acc => acc.insert l.var
-
--- theorem mem_vars (C : IClause) (x : Var) : x ∈ C.vars.toFinset ↔ ∃ l ∈ C.data, x = l.var := by
---   rw [vars, Array.foldr_eq_foldr_data]
---   induction C.data <;> aesop
-
--- @[simp]
--- theorem vars_toPropForm (C : IClause) : C.toPropForm.vars = C.vars.toFinset := by
---   ext x
---   simp [mem_vars, toPropForm]
---   induction C.data <;> simp_all [PropForm.vars]
-
--- theorem semVars_sub (C : IClause) : C.toPropFun.semVars ⊆ C.vars.toFinset := by
---   rw [← vars_toPropForm, ← mk_toPropForm]
---   apply PropForm.semVars_subset_vars
-
 end Clause
 
 /-! ### CNF -/
@@ -278,23 +261,5 @@ theorem satisfies_iff {τ : PropAssignment ν} {φ : Cnf L} :
     τ ⊨ φ.toPropFun ↔ ∀ C ∈ φ.data, τ ⊨ C.toPropFun := by
   rw [toPropFun]
   induction φ.data <;> simp_all
-
--- def vars (φ : ICnf) : HashSet Var :=
---   φ.foldr (init := .empty Var) fun C acc => acc.union C.vars
-
--- theorem mem_vars (φ : ICnf) (x : Var) : x ∈ φ.vars.toFinset ↔ ∃ C ∈ φ.data, x ∈ C.vars.toFinset :=
--- by
---   simp only [vars, Array.foldr_eq_foldr_data]
---   induction φ.data <;> aesop
-
--- @[simp]
--- theorem vars_toPropForm (φ : ICnf) : φ.toPropForm.vars = φ.vars.toFinset := by
---   ext x
---   simp only [mem_vars, toPropForm]
---   induction φ.data <;> simp_all [PropForm.vars]
-
--- theorem semVars_sub (φ : ICnf) : φ.toPropFun.semVars ⊆ φ.vars.toFinset := by
---   rw [← vars_toPropForm, ← mk_toPropForm]
---   apply PropForm.semVars_subset_vars
 
 end Cnf
