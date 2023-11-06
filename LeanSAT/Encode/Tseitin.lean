@@ -2,164 +2,120 @@ import LeanSAT.Encode.EncCNF
 
 namespace LeanSAT.Encode.Tseitin
 
-open EncCNF
+open Model EncCNF
 
-inductive Formula
-| lit (l : Literal)
-| not (f : Formula)
-| and (fs : List Formula)
-| or  (fs : List Formula)
-deriving Repr, Inhabited
+inductive ReducedForm (L : Type u) : Bool → Type u
+| and (fs : Array (ReducedForm L false)) : ReducedForm L true
+| or  (fs : Array (ReducedForm L true )) : ReducedForm L false
+| lit (l : L) : ReducedForm L b
 
-namespace Formula
+private def ReducedForm.disjuncts : ReducedForm L false → Array (ReducedForm L true)
+| .or fs => fs
+| .lit l => #[.lit l]
 
-def toString : Formula → String
-| .lit l  => ToString.toString l
-| .not f  => "¬" ++ toString f
-| .and fs => "(" ++ (fs.subtypeSize.map (fun ⟨f,_⟩ => toString f) |> String.intercalate " ∧ ") ++ ")"
-| .or fs  => "(" ++ (fs.subtypeSize.map (fun ⟨f,_⟩ => toString f) |> String.intercalate " ∨ ") ++ ")"
-termination_by _ f => f
-decreasing_by simp_wf; simp [Nat.add_comm 1]; try (apply Nat.le_step; assumption)
+private def ReducedForm.conjuncts : ReducedForm L true → Array (ReducedForm L false)
+| .and fs => fs
+| .lit l => #[.lit l]
 
-instance : ToString Formula := ⟨toString⟩
+def const (val : Bool) : ReducedForm L b :=
+  match b, val with
+  | true , true  => .and #[]
+  | true , false => .and #[.or #[]]
+  | false, true  => .or #[.and #[]]
+  | false, false => .or #[]
 
-@[simp] def height : Formula → Nat
-| .lit _ => 0
-| .not f => height f + 1
-| .and fs =>  fs.subtypeSize.map (fun ⟨f,h⟩ =>
-      have := Nat.le_trans h (Nat.le_add_left _ 1)
-      height f
-    ) |>.maximum?.getD 0
-| .or fs  =>  fs.subtypeSize.map (fun ⟨f,h⟩ =>
-      have := Nat.le_trans h (Nat.le_add_left _ 1)
-      height f
-    ) |>.maximum?.getD 0
-termination_by _ f => f
+@[simp] noncomputable def reduceSize : PropForm L → Nat
+| .var _ | .tr | .fls => 1
+| .neg x => 1 + reduceSize x
+| .conj x y | .disj x y => 1 + reduceSize x + reduceSize y
+| .impl x y   => 3 + reduceSize x + reduceSize y
+| .biImpl x y => 8 + 2 * (reduceSize x + reduceSize y)
 
-inductive NegNorm
-| lit (l : Literal)
-| and (fs : List NegNorm)
-| or (fs : List NegNorm)
+@[simp] theorem reduceSize_pos : reduceSize f > 0 := by
+  cases f <;> simp
 
-/-- logically equivalent to `.and fs` node,
-    but absorbs any `and` nodes in `fs` -/
-def NegNorm.and' (fs : List NegNorm) : NegNorm :=
-  match aux fs with
-  | [f'] => f'
-  | fs' => .and fs'
-where aux fs :=
-  fs.subtypeSize.bind (fun
-    | ⟨.and fs', h⟩ =>
-      have : sizeOf fs' < sizeOf fs := by
-        simp [Nat.add_comm 1] at h; apply Nat.le_of_lt h
-      aux fs'
-    | ⟨f,_⟩ => [f])
-termination_by aux fs => sizeOf fs
+variable {L : Type u} {ν : Type v} [LitVar L ν] in
+mutual
+def reduce : PropForm L → Bool → ReducedForm L b
+| .neg f, neg =>
+    have : sizeOf f < 1 + sizeOf f := by simp
+    reduce f (!neg)
+| .var l, neg =>
+    .lit (if neg then (-l) else l)
+| .tr, neg =>
+    const (!neg)
+| .fls, neg =>
+    const ( neg)
+| .conj x y, neg =>
+    if neg
+    then reduceDisj x y true
+    else reduceConj x y false
+| .disj x y, neg =>
+    if neg
+    then reduceConj x y true
+    else reduceDisj x y false
+| .impl h c, neg =>
+    reduce (.disj (.neg h) c) neg
+| .biImpl l r, neg =>
+    reduce (.conj (.impl l r) (.impl r l)) neg
 
-/-- logically equivalent to `.or fs` node,
-    but absorbs any `or` nodes in `fs` -/
-def NegNorm.or' (fs : List NegNorm) : NegNorm :=
-  match aux fs with
-  | [f'] => f'
-  | fs' => .or fs'
-where aux fs :=
-  fs.subtypeSize.bind (fun
-    | ⟨.or fs', h⟩ =>
-      have : sizeOf fs' < sizeOf fs := by
-        simp [Nat.add_comm 1] at h; apply Nat.le_of_lt h
-      aux fs'
-    | ⟨f,_⟩ => [f])
-termination_by aux fs => sizeOf fs
+def reduceConj [LitVar L ν] (x y : PropForm L) (neg : Bool) : ReducedForm L b :=
+  let blah := .and <| (reduce x neg).conjuncts ++ (reduce y neg).conjuncts
+  match b with
+  | true  => blah
+  | false => .or #[blah]
 
-/-- negation normal form of formula `f`. also compresses nested and/ors
-  where possible (so all children of each and should be ors). -/
-def toNegNorm (f : Formula) : NegNorm :=
-  match f with
-  | .not (.not f) => toNegNorm f
-  | .lit l        => .lit l
-  | .not (.lit l) => .lit l.not
-  | .and fs =>
-      .and' (fs.subtypeSize.map (fun ⟨f,_h⟩ =>
-        toNegNorm f
-      ))
-  | .not (.and fs) =>
-      .or' (fs.subtypeSize.map (fun ⟨f,_h⟩ =>
-        toNegNorm (.not f)
-      ))
-  | .or fs =>
-      .or' (fs.subtypeSize.map (fun ⟨f,_h⟩ =>
-        toNegNorm f
-      ))
-  | .not (.or fs) =>
-      .and' (fs.subtypeSize.map (fun ⟨f,_h⟩ =>
-        toNegNorm (.not f)
-      ))
-termination_by _ f => sizeOf f + match f with | .not _ => 1 | _ => 0
-decreasing_by
-  simp_wf; try split
-  all_goals {
-    simp [Nat.add_comm 1, Nat.lt_succ, Nat.succ_le_succ_iff] at *
-    first
-    | apply Nat.le_add_right
-    | assumption
-    | apply Nat.le_of_lt; assumption
-  }
-
-def implies (hyp con : Formula) : Formula := .or [hyp.not, con]
-def iff (a b : Formula) : Formula := .and [.implies a b, .implies b a]
-def false : Formula := .or []
-def true : Formula := .and []
-
-end Formula
-
-namespace Notation
-scoped instance : Coe Literal Formula := ⟨.lit⟩
-scoped instance : OfNat Formula n := ⟨OfNat.ofNat (α := Literal) n⟩
-scoped notation:max "¬" a:40 => Formula.not a
-scoped notation:35 a:36 " ∧ " b:35 => Formula.and [a, b]
-scoped notation:30 a:31 " ∨ " b:30 => Formula.or [a,b]
-scoped notation:25 a:26 " → " b:25 => Formula.implies a b
-scoped notation:20 a:21 " ↔ " b:21 => Formula.iff a b
-end Notation
-
-open LeanSAT.Notation in
-def tseitin (f : Formula) : EncCNF Unit :=
-  let f := f.toNegNorm
-  toplevel f
-where
-toplevel : Formula.NegNorm → EncCNF Unit
-  | .lit l => addClause l
-  | .and fs => newCtx "and." do
-    for (i,⟨f,h⟩) in fs.subtypeSize.enum do
-      have := Nat.le_trans h (Nat.le_add_left _ 1)
-      newCtx s!"[{i}]." <| toplevel f
-  | .or fs => newCtx "or." do
-    let ls ← fs.enum.mapM (fun (i,f) => newCtx s!"[{i}]." <| aux f)
-    addClause ls
-aux : Formula.NegNorm → EncCNF Literal
-  | .lit l => pure l
-  | .and fs => newCtx "and." do
-    let ls : List Literal ← fs.subtypeSize.enum.mapM (fun (i, ⟨f,h⟩) =>
-      have := Nat.le_trans h (Nat.le_add_left _ 1)
-      newCtx s!"[{i}]." <| aux f)
-    let t ← mkTemp
-    -- t ↔ ⋀ ls
-    for l in ls do
-      addClause (¬ t ∨ l)
-    addClause (ls.map (·.not) ∨ t)
-    return t
-  | .or  fs => newCtx "or." do
-    let ls ← fs.subtypeSize.enum.mapM (fun (i, ⟨f,h⟩) =>
-      have := Nat.le_trans h (Nat.le_add_left _ 1)
-      newCtx s!"[{i}]." <| aux f)
-    let t ← mkTemp
-    -- t ↔ ⋁ ls
-    addClause (¬ t ∨ ls)
-    for l in ls do
-      addClause (¬l ∨ t)
-    return t
+def reduceDisj [LitVar L ν] (x y : PropForm L) (neg : Bool) : ReducedForm L b :=
+  let blah := .or <| (reduce x neg).disjuncts ++ (reduce y neg).disjuncts
+  match b with
+  | true  => .and #[blah]
+  | false => blah
+end
 termination_by
-  toplevel f => f
-  aux f => f
+  reduce f neg => reduceSize f
+  reduceConj x y neg => reduceSize x + reduceSize y
+  reduceDisj x y neg => reduceSize x + reduceSize y
+
+def tseitin (f : PropForm ILit) : EncCNF Unit := do
+  let red := reduce f true
+  topAnd red
+where
+  topAnd : ReducedForm ILit true → EncCNF Unit
+    | .and fs => do
+      let cs : Array IClause ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
+        have := Nat.le_trans h (Nat.le_add_left _ 1)
+        topOr f)
+      for c in cs do
+        addClause c
+    | .lit l => addClause #[l]
+  topOr : ReducedForm ILit false → EncCNF IClause
+    | .or fs => do
+      let cs : Array ILit ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
+        have := Nat.le_trans h (Nat.le_add_left _ 1)
+        aux f)
+      return cs
+    | .lit l => return #[l]
+  aux {b} : ReducedForm ILit b → EncCNF ILit
+    | .lit l => pure l
+    | .and fs => do
+      let ls : Array ILit ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
+        have := Nat.le_trans h (Nat.le_add_left _ 1)
+        aux f)
+      let t ← mkTemp
+      -- t ↔ ⋀ ls
+      for l in ls do
+        addClause #[ -t, l]
+      assuming ls <| addClause #[t]
+      return t
+    | .or fs => do
+      let ls ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
+        have := Nat.le_trans h (Nat.le_add_left _ 1)
+        aux f)
+      let t ← mkTemp
+      -- t ↔ ⋁ ls
+      assuming #[t] <| addClause ls
+      for l in ls do
+        addClause #[-l, t]
+      return t
 
 end Tseitin

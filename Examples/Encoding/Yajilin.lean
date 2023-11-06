@@ -15,20 +15,20 @@ deriving Inhabited
 
 structure BoardVars extends Board where
   pathLengthBits : Nat
-  isNumber : Fin height → Fin width → Var
-  isFilled : Fin height → Fin width → Var
-  isInPath : Fin height → Fin width → Var
+  isNumber : Fin height → Fin width → IVar
+  isFilled : Fin height → Fin width → IVar
+  isInPath : Fin height → Fin width → IVar
   /-- `vertLine i j` iff there is a connection between `(i,j)` and `(i+1,j)` -/
-  vertLine : Fin height.pred → Fin width → Var
+  vertLine : Fin height.pred → Fin width → IVar
   /-- `horzLine i j` iff there is a connection between `(i,j)` and `(i,j+1)` -/
-  horzLine : Fin height → Fin width.pred → Var
+  horzLine : Fin height → Fin width.pred → IVar
   /-- whether `(i,j)` is lex-before the first path cell -/
-  isLTRoot : Fin height → Fin width → Var
+  isLTRoot : Fin height → Fin width → IVar
   /-- whether `(i,j)` is connected to the root in `n` steps -/
   rootDist : Fin height → Fin width → BinNumber pathLengthBits
 deriving Inhabited
 
-open EncCNF Tseitin Tseitin.Notation
+open EncCNF Tseitin
 
 def mkVars (b : Board) : EncCNF BoardVars := do
   /- the farthest a path can be to the root is ⌊b.height * b.width / 2⌋,
@@ -54,19 +54,19 @@ def mkVars (b : Board) : EncCNF BoardVars := do
   }
 
 /-- each neighbor square & the line var that goes to it -/
-def neighbors (b : BoardVars) (i : Fin b.height) (j : Fin b.width) : Array (Fin b.height × Fin b.width × Var) := Id.run do
+def neighbors (b : BoardVars) (i : Fin b.height) (j : Fin b.width) : Array (Fin b.height × Fin b.width × IVar) := Id.run do
   let mut res : Array _ := #[]
   for i' in i.predCast do
     res := res.push (⟨i', Nat.lt_of_lt_of_le i'.isLt (Nat.pred_le _)⟩, j, b.vertLine i' j)
-  for i' in i.castPred do
+  for i' in i.castPred' do
     res := res.push (cast (congrArg Fin <| Nat.succ_pred (· ▸ i |>.elim0)) i'.succ, j, b.vertLine i' j)
   for j' in j.predCast do
     res := res.push (i, ⟨j', Nat.lt_of_lt_of_le j'.isLt (Nat.pred_le _)⟩, b.horzLine i j')
-  for j' in j.castPred do
+  for j' in j.castPred' do
     res := res.push (i, cast (congrArg Fin <| Nat.succ_pred (· ▸ j |>.elim0)) j'.succ, b.horzLine i j')
   return res
 
-def fillVarsInDir (b : BoardVars) (i : Fin b.height) (j : Fin b.width) (d : Dir) : Array Literal :=
+def fillVarsInDir (b : BoardVars) (i : Fin b.height) (j : Fin b.width) (d : Dir) : Array ILit :=
   match d with
   | .up => Array.ofFn (n := i) (fun n =>
       have : n < b.height := Nat.lt_trans n.isLt i.isLt
@@ -87,12 +87,13 @@ def fillVarsInDir (b : BoardVars) (i : Fin b.height) (j : Fin b.width) (d : Dir)
           _ < b.width := Nat.sub_lt (Nat.zero_lt_of_lt j.isLt) (Nat.succ_le_succ (Nat.zero_le _))
       b.isFilled i ⟨b.width-1-n, this⟩)
 
+open Model.PropForm.Notation in
 def encode (b : Board) : EncCNF BoardVars := do
   let b ← mkVars b
 
   let pathLengthCap : BinNumber b.pathLengthBits ←
     mkVarBlock "pathLengthCap" [_]
-  
+
   tseitin <| BinNumber.eqConst pathLengthCap <| b.height * b.width / 2 + 1
 
   for i in List.fins b.height do
@@ -103,28 +104,28 @@ def encode (b : Board) : EncCNF BoardVars := do
       /- encode number squares -/
       match b.board i j with
       | some (d,n) =>
-        addClause <| b.isNumber i j
+        addClause #[ b.isNumber i j ]
         /- there should be `n` filled squares in direction d -/
         equalK (fillVarsInDir b i j d) n
       | none =>
-        tseitin <| ¬b.isNumber i j
+        addClause #[ -b.isNumber i j ]
 
       /- if a square is filled, its neighbors can't be.
         since this clause is symmetric up/down and left/right.
         we only add the clause down or right. -/
       for i' in i.succ? do
-        tseitin (¬ b.isFilled i j ∨ ¬ b.isFilled i' j)
+        addClause #[ -b.isFilled i j, -b.isFilled i' j ]
       for j' in j.succ? do
-        tseitin (¬ b.isFilled i j ∨ ¬ b.isFilled i j')
+        addClause #[ -b.isFilled i j, -b.isFilled i j' ]
 
       /- if a square is not in path, it can't have any lines connected -/
-      assuming [.not <| b.isInPath i j]
+      assuming #[ -b.isInPath i j ]
         <| equalK (neighbors b i j |>.map (·.2.2)) 0
 
       /- if a square is in path, it should have 2 lines connected -/
-      assuming [b.isInPath i j]
+      assuming #[ b.isInPath i j ]
         <| equalK (neighbors b i j |>.map (·.2.2)) 2
-      
+
       /- now we constrain the root of the path -/
 
       let lexPrev :=
@@ -135,9 +136,9 @@ def encode (b : Board) : EncCNF BoardVars := do
 
       match lexPrev with
       | none =>
-        tseitin (b.isLTRoot i j ↔ ¬b.isInPath i j)
+        tseitin (b.isLTRoot i j ↔ ¬ b.isInPath i j)
       | some (i',j') =>
-        tseitin (b.isLTRoot i j ↔ (b.isLTRoot i' j' ∧ ¬b.isInPath i j))
+        tseitin (b.isLTRoot i j ↔ b.isLTRoot i' j' ∧ ¬ b.isInPath i j)
 
       /- then we constrain rootDist -/
 
@@ -147,26 +148,27 @@ def encode (b : Board) : EncCNF BoardVars := do
       /- rootDist[i][j] < pathLengthCap -/
       tseitin <| ← (b.rootDist i j).lt pathLengthCap
 
-      let isRoot : Tseitin.Formula :=
+      let isRoot :=
         match lexPrev with
-        | none => ¬b.isLTRoot i j
-        | some (i',j') => ¬b.isLTRoot i j ∧ b.isLTRoot i' j'
+        | none => ¬ b.isLTRoot i j
+        | some (i',j') => ¬ b.isLTRoot i j ∧ b.isLTRoot i' j'
 
       /- if (i,j) is root, then rootDist[i][j] = 0 -/
-      tseitin <| isRoot → (BinNumber.eqConst (b.rootDist i j) 0)
+      tseitin <| isRoot → BinNumber.eqConst (b.rootDist i j) 0
 
       /- otherwise, for some neighbor (i',j'),
             the path connects (i,j) <-> (i',j')
             AND rootDist[i][j] = rootDist[i'][j'] + 1 -/
-      tseitin <| ¬isRoot ∧ b.isInPath i j → .or (
-          (← neighbors b i j
-          |>.mapM (fun (i',j',v) => do
-            return v ∧ (← BinNumber.eqSucc (b.rootDist i j) (b.rootDist i' j')))
-          ).toList)
+      tseitin <| ¬ isRoot ∧ b.isInPath i j →
+          (.disj'
+            (← neighbors b i j
+            |>.mapM (fun (i',j',v) => do
+              return v ∧ (← BinNumber.eqSucc (b.rootDist i j) (b.rootDist i' j')))
+            ).toList)
 
   return b
 
-def printAssn (vars : BoardVars) (assn : Assn) : String := Id.run do
+def printAssn (vars : BoardVars) (assn : HashAssn ILit) : String := Id.run do
   let mut s := s!"{vars.height}x{vars.width}\n"
   for i in List.fins vars.height do
     for j in List.fins vars.width do
@@ -183,9 +185,9 @@ def printAssn (vars : BoardVars) (assn : Assn) : String := Id.run do
         s := s ++ "██"
       else
         match i.predCast.bind (assn.find? <| vars.vertLine · j)
-            , i.castPred.bind (assn.find? <| vars.vertLine · j)
+            , i.castPred'.bind (assn.find? <| vars.vertLine · j)
             , j.predCast.bind (assn.find? <| vars.horzLine i ·)
-            , j.castPred.bind (assn.find? <| vars.horzLine i ·) with
+            , j.castPred'.bind (assn.find? <| vars.horzLine i ·) with
         | some true, _, some true, _ =>
           s := s ++ "─┘"
         | some true, _, _, some true =>
@@ -297,4 +299,3 @@ def bigBoard2 : Except String Board :=
 def main [Solver IO] := do
   --solve (← IO.ofExcept smallBoard)
   solve (← IO.ofExcept bigBoard)
-

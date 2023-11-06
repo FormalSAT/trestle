@@ -21,7 +21,8 @@ def Fin.predCast : Fin n → Option (Fin n.pred)
 | ⟨i+1,h⟩ => some ⟨i, Nat.le_pred_of_lt h⟩
 
 /-- if i < Fin.last n then i, else none -/
-def Fin.castPred (i : Fin n) : Option (Fin n.pred) :=
+-- NOTE: in mathlib, castPred : Fin (n + 2) → Fin (n + 1)
+def Fin.castPred' (i : Fin n) : Option (Fin n.pred) :=
   match n with
   | 0 => i.elim0
   | n+1 =>
@@ -131,6 +132,24 @@ theorem Array.get_init {i : Nat} {h} : (Array.init n f)[i]'h = f ⟨i, @size_ini
       cases this
       congr
 
+def Array.pop? (A : Array α) :=
+  match A.back? with
+  | none => none
+  | some a => some (A.pop, a)
+
+@[simp] theorem Array.size_pop?
+  : A.pop? = some (A', a) → size A' + 1 = size A
+  := by rcases A with ⟨h,t⟩
+          <;> simp [pop?, back?, getElem?, pop]
+        rintro rfl
+        simp
+
+def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
+  if h : A.size > 0 then
+    let b0 := f A[0]
+    some <| A.foldl (start := 1) (max · <| f ·) b0
+  else
+    none
 
 def List.distinct [DecidableEq α] (L : List α) : List α :=
   L.foldl (·.insert ·) []
@@ -286,6 +305,13 @@ def List.subtypeSize [SizeOf α] : (L : List α) → List {a : α // sizeOf a < 
       calc sizeOf a
       _ < sizeOf xs := h
       _ ≤ 1 + sizeOf x + sizeOf xs := Nat.le_add_left _ _⟩)
+
+unsafe def Array.subtypeSizeUnsafe [SizeOf α] (A : Array α) : Array {a : α // sizeOf a < sizeOf A} :=
+  unsafeCast A
+
+@[implemented_by subtypeSizeUnsafe]
+def Array.subtypeSize [SizeOf α] : (A : Array α) → Array {a : α // sizeOf a < sizeOf A}
+| ⟨L⟩ => ⟨L.subtypeSize.map (fun ⟨x,h⟩ => ⟨x, by simp; rw [Nat.add_comm]; apply Nat.lt_add_right; exact h⟩)⟩
 
 @[simp] theorem List.find?_map (p : β → Bool) (f : α → β) (L : List α)
   : List.find? p (List.map f L) = Option.map f (List.find? (p ∘ f) L)

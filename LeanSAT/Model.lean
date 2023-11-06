@@ -1,2 +1,4 @@
+import LeanSAT.Model.PropAssn
 import LeanSAT.Model.PropForm
-import LeanSAT.Model.ToMathlib
+import LeanSAT.Model.PropFun
+import LeanSAT.Model.PropVars

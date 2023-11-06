@@ -5,33 +5,31 @@ Authors: Wojciech Nawrocki
 -/
 
 import Mathlib.Data.Set.Basic
-import Mathlib.Order.BooleanAlgebra
 
-import LeanSAT.Model.ToMathlib
+import LeanSAT.Upstream.ToMathlib
+import LeanSAT.Model.PropAssn
 
-/-! Formulas of propositional logic.
+namespace LeanSAT.Model
 
-This modules inductively defines the syntax of formulas.
+/-! ### Propositional formulas -/
+
+/-- A propositional formula over variables of type `ν`.
+
+This is the inductively defined syntax of formulas.
 Later on we can take a quotient to identify `x ∨ ¬x` with `⊤`, for example. -/
-
-/-- A propositional formula over variables of type `ν`. -/
 inductive PropForm (ν : Type u)
   | var (x : ν)
   | tr
   | fls
-  | neg (φ : PropForm ν)
-  | conj (φ₁ φ₂ : PropForm ν)
-  | disj (φ₁ φ₂ : PropForm ν)
-  | impl (φ₁ φ₂ : PropForm ν)
+  | neg    (φ : PropForm ν)
+  | conj   (φ₁ φ₂ : PropForm ν)
+  | disj   (φ₁ φ₂ : PropForm ν)
+  | impl   (φ₁ φ₂ : PropForm ν)
   | biImpl (φ₁ φ₂ : PropForm ν)
   deriving Repr, DecidableEq, Inhabited
 
 namespace PropForm
 
--- HACK: a `let` doesn't work with structural recursion
-local macro "go " n:ident : term =>
-  `(let s := $(Lean.mkIdent `PropForm.toString) $n
-    if s.contains ' ' then s!"({s})" else s)
 protected def toString [ToString ν] : PropForm ν → String
   | var x        => toString x
   | tr           => "⊤"
@@ -41,50 +39,37 @@ protected def toString [ToString ν] : PropForm ν → String
   | disj φ₁ φ₂   => s!"{go φ₁} ∨ {go φ₂}"
   | impl φ₁ φ₂   => s!"{go φ₁} → {go φ₂}"
   | biImpl φ₁ φ₂ => s!"{go φ₁} ↔ {go φ₂}"
+where go n :=
+  let s := PropForm.toString n
+  if s.contains ' ' then s!"({s})" else s
+termination_by
+  toString f => 2 * sizeOf f
+  go f => 1 + 2 * sizeOf f
 
 instance [ToString ν] : ToString (PropForm ν) :=
   ⟨PropForm.toString⟩
 
-end PropForm
+instance : Coe L (PropForm L) := ⟨.var⟩
 
-/-- An assignment of truth values to propositional variables. -/
-def PropAssignment (ν : Type u) := ν → Bool
+def conj' (fs : List (PropForm L)) : PropForm L :=
+  match fs.foldr (init := none) (fun f =>
+    fun
+    | none => some f
+    | some f' => some <| .conj f f'
+  ) with
+  | none => .tr
+  | some f => f
 
-namespace PropAssignment
+def disj' (fs : List (PropForm L)) : PropForm L :=
+  match fs.foldr (init := none) (fun f =>
+    fun
+    | none => some f
+    | some f' => some <| .disj f f'
+  ) with
+  | none => .fls
+  | some f => f
 
-@[ext] theorem ext (v1 v2 : PropAssignment ν) (h : ∀ x, v1 x = v2 x) : v1 = v2 := funext h
-
-def set [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v : Bool) :
-    PropAssignment ν :=
-  fun y => if y = x then v else τ y
-
-@[simp]
-theorem set_get [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v : Bool) :
-    τ.set x v x = v := by
-  simp [set]
-
-theorem set_get_of_ne [DecidableEq ν] {x y : ν} (τ : PropAssignment ν) (v : Bool) :
-    x ≠ y → τ.set x v y = τ y := by
-  intro h
-  simp [set, h.symm]
-
-@[simp]
-theorem set_set [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v v' : Bool) :
-    (τ.set x v).set x v' = τ.set x v' := by
-  ext x'
-  dsimp [set]; split <;> simp_all
-
-@[simp]
-theorem set_same [DecidableEq ν] (τ : PropAssignment ν) (x : ν) :
-    τ.set x (τ x) = τ := by
-  ext x'
-  dsimp [set]; split <;> simp_all
-
-end PropAssignment
-
-namespace PropForm
-
-/-- The unique extension of `τ` from just variables to formulas. -/
+/-- The unique extension of `τ` from variables to formulas. -/
 @[simp]
 def eval (τ : PropAssignment ν) : PropForm ν → Bool
   | var x => τ x
@@ -96,14 +81,14 @@ def eval (τ : PropAssignment ν) : PropForm ν → Bool
   | impl φ₁ φ₂ => (eval τ φ₁) ⇨ (eval τ φ₂)
   | biImpl φ₁ φ₂ => eval τ φ₁ = eval τ φ₂
 
-/-! Satisfying assignments -/
+/-! ### Satisfying assignments -/
 
 /-- An assignment satisfies a formula `φ` when `φ` evaluates to `⊤` at that assignment. -/
 def satisfies (τ : PropAssignment ν) (φ : PropForm ν) : Prop :=
   φ.eval τ = true
 
-/-- This instance is scoped so that `τ ⊨ φ : Prop` implies `φ : PropForm _` via the `outParam` only
-when `PropForm` is open. -/
+/-- This instance is scoped so that `τ ⊨ φ : Prop` implies `φ : PropForm _` via the `outParam`
+only when `PropForm` is open. -/
 scoped instance : SemanticEntails (PropAssignment ν) (PropForm ν) where
   entails := PropForm.satisfies
 
@@ -152,16 +137,13 @@ theorem satisfies_biImpl' : τ ⊨ biImpl φ₁ φ₂ ↔ ((τ ⊨ φ₁ ∧ τ 
   simp only [sEntails, satisfies, eval]
   cases (eval τ φ₁) <;> aesop
 
-/-! Semantic entailment and equivalence. -/
+/-! ### Semantic entailment and equivalence -/
 
 /-- A formula `φ₁` semantically entails `φ₂` when `τ ⊨ φ₁` implies `τ ⊨ φ₂`.
 
 This is actually defined in terms of the Boolean lattice
-and the above statement is a theorem.
-Note that the two-valued Boolean model is universal,
-meaning that this formulation of semantic entailment
-is equivalent to entailment in any Boolean algebra,
-and also (by completeness) to provability. -/
+to reuse various `le_blah` theorems,
+and the above statement is a theorem (`entails_ext`). -/
 def entails (φ₁ φ₂ : PropForm ν) : Prop :=
   ∀ (τ : PropAssignment ν), φ₁.eval τ ≤ φ₂.eval τ
 
@@ -235,4 +217,19 @@ theorem equivalent.trans : equivalent φ₁ φ₂ → equivalent φ₂ φ₃ →
 theorem entails.antisymm : entails φ₁ φ₂ → entails φ₂ φ₁ → equivalent φ₁ φ₂ :=
   fun h₁ h₂ => equivalent_iff_entails.mpr ⟨h₁, h₂⟩
 
-end PropForm
+/-! ## Define notation for `PropForm`s -/
+
+namespace Notation
+
+-- The notation for `Prop` has default priority (1000).
+-- When open, we want to always supercede `Prop` notation.
+scoped notation:max (priority := 1100) " ¬ " b:40 => neg b
+scoped infixr:35    (priority := 1100) " ∧ "      => conj
+scoped infixr:30    (priority := 1100) " ∨ "      => disj
+scoped infixr:25    (priority := 1100) " → "      => impl
+scoped infix:20     (priority := 1100) " ↔ "      => biImpl
+
+example (a b c d : ν) : PropForm ν :=
+  a ∧ b ∨ c → d  ↔  (¬a ∨ ¬b) ∧ ¬c ∨ d
+
+end Notation

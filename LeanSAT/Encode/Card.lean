@@ -3,33 +3,41 @@ import LeanSAT.Encode.Tseitin
 
 namespace LeanSAT.Encode
 
-open EncCNF Tseitin Tseitin.Notation
+open EncCNF Tseitin
 
-def amoPairwise (lits : List Literal) : EncCNF Unit := do
+def amoPairwise (lits : List ILit) : EncCNF Unit := do
   -- for every pair x,y of literals in `lits`, they can't both be true
-  lits.forPairsM (fun (x y : Literal) => do
-    tseitin (¬(x ∧ y))
+  lits.forPairsM (fun (x y : ILit) => do
+    addClause #[-x, -y]
   )
 
-def amoCut4 (lits : List Literal) : EncCNF Unit := do
-  match lits with
-  | []                      => return
-  | l1 :: []                => amoPairwise [l1]
-  | l1 :: l2 :: []          => amoPairwise [l1, l2]
-  | l1 :: l2 :: l3 :: rlits =>
-    let t ← mkTemp
-    amoPairwise [t, l1, l2, l3]
-    amoCut4 (.not t :: rlits)
-termination_by _ lits => lits.length
+def amoCut4 (lits : Array ILit) : EncCNF Unit :=
+  match h1 : lits.pop? with
+  | none => return
+  | some (lits', l1) =>
+  match h2 : lits'.pop? with
+  | none => amoPairwise [l1]
+  | some (lits'', l2) =>
+  match h3 : lits''.pop? with
+  | none => amoPairwise [l1, l2]
+  | some (lits''', l3) => do
+  let t ← mkTemp
+  amoPairwise [t, l1, l2, l3]
+  have : lits.size = lits'''.size + 1 + 1 + 1 := by
+    repeat rw [Array.size_pop? ‹_›]
+  have : lits'''.size + 1 < lits.size := by simp [*]
+  amoCut4 <| lits'''.push (-t)
+termination_by _ lits => lits.size
 
-def atMostOne (lits : List Literal) : EncCNF Unit :=
-  if lits.length ≤ 5 then
-    amoPairwise lits
+def atMostOne (lits : Array ILit) : EncCNF Unit :=
+  if lits.size ≤ 5 then
+    amoPairwise lits.toList
   else
     amoCut4 lits
 
-def partialSumsBlock (lits : Array Literal) (k : Nat) (hk : k > 1)
-  : EncCNF (VarBlock [k, lits.size]) := do
+open Model.PropForm.Notation in
+def partialSumsBlock (lits : Array ILit) (k : Nat) (hk : k > 1)
+  : EncCNF (IVarBlock [k, lits.size]) := do
   -- `temps[i][j]` ↔ i < ∑ j' ≤ j, `lits[j']`
   let temps ← mkTempBlock [k, lits.size]
 
@@ -42,17 +50,17 @@ def partialSumsBlock (lits : Array Literal) (k : Nat) (hk : k > 1)
         if i = ⟨0,this⟩ then
           tseitin (temps[i][j] ↔ lits[j])
         else
-          tseitin (¬temps[i][j])
+          addClause #[-temps[i][j]]
       | some j' =>
         match i.pred? with
         | none =>
-          tseitin (temps[i][j] ↔ (temps[i][j'] ∨ lits[j]))
+          tseitin (temps[i][j] ↔ temps[i][j'] ∨ lits[j])
         | some i' =>
-          tseitin (temps[i][j] ↔ (temps[i][j'] ∨ temps[i'][j'] ∧ lits[j]))
- 
+          tseitin (temps[i][j] ↔ temps[i][j'] ∨ temps[i'][j'] ∧ lits[j])
+
   return temps
 
-def partialSumsAtMostK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
+def partialSumsAtMostK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
   newCtx s!"pSums≤{k}" do
   let sumsBlock ← partialSumsBlock lits (k+1) (Nat.succ_le_succ hk)
 
@@ -61,9 +69,9 @@ def partialSumsAtMostK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk
   -- ¬`sumsBlock[k][lits.size-1]`
   -- <=> ¬(k < ∑ j, lits[j])
   -- <=> k ≥ ∑ j, lits[j]
-  tseitin (¬sumsBlock[k][lits.size-1])
+  addClause #[ -sumsBlock[k][lits.size-1] ]
 
-def partialSumsAtLeastK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk : k > 1) : EncCNF Unit :=
+def partialSumsAtLeastK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk : k > 1) : EncCNF Unit :=
   newCtx s!"pSums≥{k}" do
   let sumsBlock ← partialSumsBlock lits k hk
 
@@ -73,9 +81,10 @@ def partialSumsAtLeastK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (h
   -- `sumsBlock[k-1][lits.size-1]`
   -- <=> k-1 < ∑ j, lits[j]
   -- <=> k ≤ ∑ j, lits[j]
-  addClause (sumsBlock[k-1][lits.size-1])
+  addClause #[ sumsBlock[k-1][lits.size-1] ]
 
-def partialSumsEqualK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
+open Model.PropForm.Notation in
+def partialSumsEqualK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
   newCtx s!"pSums={k}" do
   have : lits.size-1 < lits.size := Nat.sub_lt ‹_› (by simp)
   have : k-1 < k+1 := Nat.le_step <| Nat.sub_lt ‹_› (by simp)
@@ -92,39 +101,39 @@ def partialSumsEqualK (lits : Array Literal) (hl : lits.size > 0) (k : Nat) (hk 
   tseitin (sumsBlock[k-1][lits.size-1])
 
 mutual
-def atMostK (lits : Array Literal) k :=
+def atMostK (lits : Array ILit) k :=
   newCtx s!"atMost{k}" do
   if hz : k = 0 then
     for l in lits do
-      addClause l.not
+      addClause #[ -l ]
   else if k = 1 then
-    atMostOne lits.data
+    atMostOne lits
   else if habove : k ≥ lits.size then
     -- trivially true
     return
   else if lits.size-k < k then
-    atLeastK (lits.map (·.not)) (lits.size-k)
+    atLeastK (lits.map (- ·)) (lits.size-k)
   else
     have : k > 0 := Nat.pos_of_ne_zero hz
     have : lits.size > 0 := Nat.lt_trans ‹_› (Nat.lt_of_not_le habove)
     partialSumsAtMostK lits ‹_› k ‹_›
 
-def atLeastK (lits : Array Literal) k :=
+def atLeastK (lits : Array ILit) k :=
   newCtx s!"atLeast{k}" do
   if hz : k = 0 then
     -- trivially true
     return
   else if k = 1 then
-    addClause lits.toList
+    addClause lits
   else if k = lits.size then
     -- ⋀{l ∈ lits} l
     for l in lits do
-      addClause l
+      addClause #[l]
   else if habove : k > lits.size then
     -- trivially false
-    tseitin .false
+    tseitin .fls
   else if lits.size-k < k then
-    atMostK (lits.map (·.not)) (lits.size-k)
+    atMostK (lits.map (- ·)) (lits.size-k)
   else
     have : k > 0 := Nat.pos_of_ne_zero hz
     have : lits.size > 0 := Nat.lt_of_lt_of_le ‹_› (Nat.ge_of_not_lt habove)
@@ -132,19 +141,19 @@ def atLeastK (lits : Array Literal) k :=
 end
 
 /-- ∑ᵢ lits[i] = k -/
-def equalK (lits : Array Literal) (k : Nat) : EncCNF Unit :=
+def equalK (lits : Array ILit) (k : Nat) : EncCNF Unit :=
   newCtx s!"equal{k}" <| do
   if hl : lits.size < k then
     -- trivially false
-    tseitin .false
+    tseitin .fls
   else if hk:k = 0 then
     for l in lits do
-      addClause l.not
+      addClause #[ -l ]
   else if k = 1 then
-    addClause lits.toList
-    atMostOne lits.toList
+    addClause lits
+    atMostOne lits
   else if lits.size - k < k then
-    equalK (lits.map (·.not)) (lits.size - k)
+    equalK (lits.map (- ·)) (lits.size - k)
   else
     have : k > 0 := Nat.pos_of_ne_zero hk
     have : lits.size > 0 := Nat.lt_of_lt_of_le this (Nat.ge_of_not_lt hl)
