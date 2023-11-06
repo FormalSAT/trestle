@@ -50,7 +50,6 @@ theorem polarity_eq {l₁ l₂ : ILit} :
 open LitVar in
 instance : LawfulLitVar ILit IVar where
   toVar_negate l := by
-    simp only [negate]
     apply Subtype.ext
     apply Int.natAbs_neg
   toVar_mkPos x :=

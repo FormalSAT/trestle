@@ -38,6 +38,8 @@ instance : Coe ν L :=
 
 instance : Neg L :=
   ⟨negate⟩
+  
+@[simp] theorem negate_eq (l : L) : negate l = -l := rfl
 
 instance [ToString ν] : ToString L where
   toString l := if polarity l then s!"{toVar l}" else s!"-{toVar l}"
@@ -62,10 +64,10 @@ end LitVar
 -- TODO: see if a shorter list of axioms implies this one
 open LitVar in
 class LawfulLitVar (L : Type u) (ν : Type v) [LitVar L ν] where
-  toVar_negate (l : L) : toVar (negate l) = toVar l
+  toVar_negate (l : L) : toVar (-l) = toVar l
   toVar_mkPos (x : ν) : toVar (mkPos (L := L) x) = x
   toVar_mkNeg (x : ν) : toVar (mkNeg (L := L) x) = x
-  polarity_negate (l : L) : polarity (negate l) = !polarity l
+  polarity_negate (l : L) : polarity (-l) = !polarity l
   polarity_mkPos (x : ν) : polarity (mkPos (L := L) x) = true
   polarity_mkNeg (x : ν) : polarity (mkNeg (L := L) x) = false
   protected ext (l₁ l₂ : L) : toVar l₁ = toVar l₂ → polarity l₁ = polarity l₂ → l₁ = l₂
@@ -76,11 +78,6 @@ open LawfulLitVar
 
 attribute [simp] toVar_negate toVar_mkPos toVar_mkNeg polarity_negate polarity_mkPos polarity_mkNeg
 attribute [ext] LawfulLitVar.ext
-
-@[simp] theorem var_neg (l : L) : toVar (-l) = toVar l :=
-  toVar_negate l
-@[simp] theorem polarity_neg (l : L) : polarity (-l) = !polarity l :=
-  polarity_negate l
 
 @[simp] theorem var_mkLit (x : ν) (p : Bool) : toVar (mkLit L x p) = x := by
   dsimp [mkLit]; split <;> simp
