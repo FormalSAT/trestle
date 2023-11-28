@@ -5,7 +5,10 @@ Authors: Wojciech Nawrocki
 -/
 
 import LeanSAT.Data.Cnf
+import LeanSAT.Model.PropAssn
+import LeanSAT.Model.PropFun
 import LeanSAT.Upstream.ToStd
+import LeanSAT.Upstream.ToMathlib
 
 namespace LeanSAT
 
@@ -88,3 +91,11 @@ abbrev ICnf := Cnf ILit
 /-- Find the max variable in the CNF. WARNING: very expensive; result not cached. -/
 def ICnf.maxVar (fml : ICnf) : Nat :=
   fml.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
+
+namespace ILit
+
+open LitVar in
+theorem exists_succ_toVar (l : ILit) : ∃ n, (toVar l).val = n + 1 := by
+  exact Nat.exists_eq_add_of_le' (toVar l).property
+
+end ILit

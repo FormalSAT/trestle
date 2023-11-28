@@ -1,4 +1,6 @@
 import Std
+import Mathlib.Tactic
+import Init.Data.Nat.Basic
 
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
@@ -40,6 +42,8 @@ def Fin.succ? : {n : Nat} → Fin n → Option (Fin n)
 def Function.iterate (f : α → α) : Nat → (α → α)
 | 0 => id
 | n+1 => iterate f n ∘ f
+
+/-! # Array -/
 
 def Array.init (n : Nat) (f : Fin n → α) : Array α := Id.run do
   let mut A := Array.mkEmpty n
@@ -116,7 +120,7 @@ theorem Array.size_init : (Array.init n f).size = n := by
 @[simp]
 theorem Array.get_init {i : Nat} {h} : (Array.init n f)[i]'h = f ⟨i, @size_init n _ f ▸ h⟩ := by
   induction n generalizing i with
-  | zero => simp at h; exact False.elim <| Nat.not_lt_zero _ h
+  | zero => simp at h
   | succ n ih =>
     simp [init_succ, get_push]
     split
@@ -150,6 +154,173 @@ def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
     some <| A.foldl (start := 1) (max · <| f ·) b0
   else
     none
+
+theorem Array.mem_data_iff {A : Array α} {a : α} : a ∈ A.data ↔ ∃ (i : Fin A.size), A[i] = a := by
+  constructor
+  · exact List.get_of_mem
+  · rintro ⟨i, rfl⟩
+    exact Array.getElem_mem_data A i.isLt
+
+@[simp] theorem Array.size_append (A B : Array α) : size (A ++ B) = size A + size B := by
+  simp [Array.size]
+
+theorem Array.push_eq_append_singleton (A : Array α) (a : α) : A.push a = A ++ #[a] := rfl
+
+theorem Array.append_assoc (A B C : Array α) : (A ++ B) ++ C = A ++ (B ++ C) := by
+  apply Array.ext'; simp only [append_data, List.append_assoc]
+
+theorem Array.mkArray_succ (n : Nat) (a : α) :
+    Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
+  apply Array.ext'
+  simp only [mkArray_data, List.replicate, Nat.add_eq, add_zero,
+    append_data, data_toArray, List.singleton_append]
+
+theorem Array.mkArray_succ' (n : Nat) (a : α) :
+    Array.mkArray (n + 1) a = (Array.mkArray n a).push a := by
+  apply Array.ext'
+  simp only [mkArray_data, List.replicate, Nat.add_eq, add_zero, push_data]
+  induction' n with n ih
+  · rfl
+  · simp only [List.replicate, List.cons_append, List.cons.injEq, true_and]
+    exact ih
+
+/-! # setF -/
+
+/- A new set operation that fills in with a provided default value until hitting the index -/
+
+/-
+Custom-written C++ code is yet to be written.
+Below is a functional implementation.
+
+One alternate implementation is to use Array.ofFn to copy over the array.
+In order to determine if it's better, profile it.
+
+Note: @implemented_by can refer to other Lean implementations!
+  That can help profile the different versions at runtime.
+-/
+
+def Array.setF (A : Array α) (i : Nat) (v default : α) : Array α :=
+  if hi : i < A.size then
+    A.set ⟨i, hi⟩ v
+  else
+    let rec go (j : Nat) (A' : Array α) : Array α :=
+      match j with
+      | 0 => A'.push v
+      | j + 1 => go j (A'.push default)
+    go (i - A.size) A
+
+theorem Array.setF_eq_set {A : Array α} {i : Nat} (hi : i < A.size) (v default : α) :
+    A.setF i v default = A.set ⟨i, hi⟩ v := by
+  simp [setF, hi]
+
+theorem Array.setF_eq_set' {A : Array α} (i : Fin A.size) :
+    ∀ (v default : α), A.setF i v default = A.set i v :=
+  Array.setF_eq_set i.isLt
+
+theorem Array.setF_eq_push {A : Array α} (v default : α) :
+    A.setF A.size v default = A.push v := by
+  simp [setF, setF.go]
+
+-- TODO: Private lemmas for the next two?
+theorem Array.setF_go_eq (A : Array α) (i : Nat) (v default : α) :
+    Array.setF.go v default i A = (A ++ Array.mkArray i default).push v := by
+  induction' i with i ih generalizing A
+  · rfl
+  · rw [setF.go, ih (push A default)]
+    apply congrArg₂
+    · rw [mkArray_succ, Array.push_eq_append_singleton, Array.append_assoc]
+    · rfl
+
+theorem Array.size_setF_go (A : Array α) (i : Nat) (v default : α) :
+    (Array.setF.go v default i A).size = A.size + i + 1 := by
+  rw [Array.setF_go_eq, Array.size_push, Array.size_append, Array.size_mkArray]
+
+theorem Array.size_setF (A : Array α) (i : Nat) (v default : α) :
+    (A.setF i v default).size = max A.size (i + 1) := by
+  rcases Nat.lt_trichotomy i A.size with (hi | rfl | hi)
+  · rw [Array.setF_eq_set hi, Array.size_set]
+    exact (Nat.max_eq_left hi).symm
+  · rw [Array.setF_eq_push, Array.size_push]
+    simp only [ge_iff_le, add_le_iff_nonpos_right, nonpos_iff_eq_zero,
+      le_add_iff_nonneg_right, zero_le, max_eq_right]
+  · simp [setF, Nat.lt_asymm hi, Array.setF_go_eq]
+    rw [max_eq_right (Nat.le_succ_of_le (le_of_lt hi)),
+      ← Nat.add_sub_assoc (le_of_lt hi), add_comm (size A) i, Nat.add_sub_cancel]
+
+theorem Array.lt_size_setF (A : Array α) (i : Nat) (v default : α) :
+    i < size (A.setF i v default) := by
+  rw [Array.size_setF]
+  exact lt_max_of_lt_right (Nat.lt_succ_self _)
+
+theorem Array.setF_eq_of_ge (A : Array α) {i : Nat} (hi : i > A.size) (v default : α) :
+    A.setF i v default = A ++ mkArray (i - A.size) default ++ #[v] := by
+  simp [setF, Nat.lt_asymm hi, Array.setF_go_eq]; rfl
+
+theorem Array.setF_eq_of_ge' (A : Array α) {i : Nat} (hi : i ≥ A.size) (v default : α) :
+    A.setF i v default = (A ++ mkArray (i - A.size) default).push v := by
+  simp [setF, Nat.not_lt.mpr hi, Array.setF_go_eq]
+
+theorem Array.setF_setF (A : Array α) (i : Nat) (v v' default : α) :
+    (A.setF i v default).setF i v' default = A.setF i v' default := by
+  by_cases hi : i < A.size
+  · rw [Array.setF_eq_set hi, Array.setF_eq_set hi]
+    rw [← Array.size_set A ⟨i, hi⟩ v] at hi
+    rw [Array.setF_eq_set hi]
+    exact Array.set_set _ _ _ _
+  · have : i < size (A.setF i v default) := by
+      rw [Array.size_setF, max_eq_right_of_lt (Nat.lt_succ_of_le (Nat.not_lt.mp hi))]
+      exact Nat.lt_succ_self _
+    simp [Array.setF, hi, this]
+    have : i < size (setF.go v default (i - size A) A) := by
+      rw [Array.size_setF_go A (i - A.size) v default, ← Nat.add_sub_assoc (Nat.not_lt.mp hi),
+        add_comm A.size i, Nat.add_sub_cancel]
+      exact Nat.lt_succ_self _
+    simp [this]
+    sorry
+    done
+  done
+
+/-
+#check Array.get_set
+∀ {α : Type u_1} (a : Array α) (i : Fin (Array.size a)) (j : ℕ) (hj : j < Array.size a) (v : α),
+  (Array.set a i v)[j] = if ↑i = j then v else a[j]
+-/
+
+-- TODO: Expand this into the upper definition later
+theorem Array.get_setF (A : Array α) (i : Nat) (v default : α) :
+    (A.setF i v default).get ⟨i, Array.lt_size_setF A i v default⟩ = v := by sorry
+
+theorem Array.getElem_setF (A : Array α) (i : Nat) (v default : α) :
+    (A.setF i v default)[i]'(Array.lt_size_setF A i v default) = v := by
+  sorry
+  done
+  /-
+  by_cases hi : i < A.size
+  · have := Array.setF_eq_set hi v default
+    have h := Array.get_set A ⟨i, hi⟩ i hi v
+    simp at h
+    sorry
+    --rw [← Array.get_eq_getElem] at h
+    --have : (set A ⟨i, hi⟩ v)[i] = (setF A i v default)[i] := by
+    --  sorry
+    --  done
+    --rw [← Array.get_eq_getElem] at this
+    done
+  sorry
+  done -/
+
+-- TODO: Match form of Array.get?_set
+theorem Array.getElem?_setF (A : Array α) (i : Nat) (v default : α) :
+    (A.setF i v default)[i]? = some v := by
+  sorry
+
+theorem Array.getElem?_setF' (A : Array α) {i j : Nat} (v default : α) :
+    i ≠ j → (A.setF i v default)[j]? = A[j]? := by
+  sorry
+  done
+
+
+/-! # List -/
 
 def List.distinct [DecidableEq α] (L : List α) : List α :=
   L.foldl (·.insert ·) []
@@ -265,7 +436,6 @@ theorem List.sizeOf_filter [SizeOf α] (f) (L : List α)
   induction L <;> simp [filter]
   split
   . simp
-    apply Nat.add_le_add_left
     assumption
   . apply Nat.le_trans ?_ (Nat.le_add_left _ _)
     assumption
@@ -280,9 +450,7 @@ theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
   next hHd =>
     simp [hHd] at h
     simp [_sizeOf_1]
-    apply Nat.add_lt_add_left
-    apply ih
-    assumption
+    exact ih h
   next hHd =>
     clear h hHd
     apply Nat.lt_of_le_of_lt (sizeOf_filter _ _)
