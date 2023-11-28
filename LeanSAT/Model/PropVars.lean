@@ -112,7 +112,8 @@ where
           by_cases hX : x₀ = x
           case pos =>
             have := hS _ (Finset.mem_insert_self _ _)
-            simp only [← hX, σ₁.set_get, Bool.bnot_eq, this]
+            simp only [← hX, PropAssignment.set_get, Bool.bnot_eq,
+                        this, not_false_eq_true]
           case neg =>
             simp only [σ₁.set_get_of_ne _ hX]
             aesop

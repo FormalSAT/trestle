@@ -286,7 +286,7 @@ instance : Nontrivial (PropFun ν) where
     use ⊤, ⊥
     intro h
     have : ∀ (τ : PropAssignment ν), τ ⊨ ⊥ ↔ τ ⊨ ⊤ := fun _ => h ▸ Iff.rfl
-    simp only [satisfies_tr, not_satisfies_fls] at this
+    simp only [not_satisfies_fls, satisfies_tr, iff_true] at this 
     apply this (fun _ => true)
 
 theorem eq_top_iff {φ : PropFun ν} : φ = ⊤ ↔ ∀ (τ : PropAssignment ν), τ ⊨ φ :=
