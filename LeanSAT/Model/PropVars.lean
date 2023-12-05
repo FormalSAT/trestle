@@ -32,8 +32,10 @@ namespace PropForm
 
 variable [DecidableEq ν]
 
+/-! ### Syntactic Variables -/
+
 /-- Variables appearing in the formula. Sometimes called its "support set". -/
-def vars : PropForm ν → Finset ν
+@[simp] def vars : PropForm ν → Finset ν
   | var y => {y}
   | tr | fls => ∅
   | neg φ => vars φ
@@ -125,6 +127,8 @@ end PropForm
 namespace PropFun
 
 variable [DecidableEq ν]
+
+/-! ### Semantic Variables -/
 
 /-- See `semVars`. -/
 private def semVars' (φ : PropFun ν) : Set ν :=
@@ -241,6 +245,8 @@ theorem semVars_biImpl (φ₁ φ₂ : PropFun ν) :
   . rw [Finset.union_comm]
     apply semVars_impl
 
+/-! ### Equivalence Over Sets -/
+
 /-- Two functions φ₁ and φ₂ are equivalent over X when for every assignment τ, models of φ₁
 extending τ over X are in bijection with models of φ₂ extending τ over X. -/
 -- This is `sequiv` here: https://github.com/ccodel/verified-encodings/blob/master/src/cnf/encoding.lean
@@ -304,11 +310,13 @@ theorem equivalentOver_semVars {X : Set ν} : φ₁.semVars ⊆ X → φ₂.semV
   have : σ₁ ⊨ φ₂ ↔ τ ⊨ φ₂ := agreeOn_semVars (hA.subset h₂)
   exact this.mp hS
 
+/-! ### Extension Over Sets -/
+
 /-- A function has the unique extension property from `X` to `Y` (both sets of variables) when any
 satisfying assignment, if it exists, is uniquely determined on `Y` by its values on `X`. Formally,
 any two satisfying assignments which agree on `X` must also agree on `Y`. -/
 /- TODO: Model equivalence is expected to follow from this. For example:
-equivalentOver φ₁.vars ⟦φ₁⟧ ⟦φ₂⟧ ∧ hasUniqueExtension ⟦φ₂⟧ φ₁.vars φ₂.vars →
+equivalentOver φ₁.vars ⟦φ₁⟧ ⟦φ₂⟧ ∧ hasUniqueExtension φ₁.vars φ₂.vars ⟦φ₂⟧ →
 { σ : { x // x ∈ φ₁.vars} → Bool | σ ⊨ φ₁ } ≃ { σ : { x // x ∈ φ₂.vars } → Bool | σ ⊨ φ₂ } -/
 def hasUniqueExtension (X Y : Set ν) (φ : PropFun ν) :=
   ∀ ⦃σ₁ σ₂ : PropAssignment ν⦄, σ₁ ⊨ φ → σ₂ ⊨ φ → σ₁.agreeOn X σ₂ → σ₁.agreeOn Y σ₂

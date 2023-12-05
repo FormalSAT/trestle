@@ -11,7 +11,7 @@ import LeanSAT.Model.PropAssn
 
 namespace LeanSAT.Model
 
-/-! ### Propositional formulas -/
+/-! ## Propositional formulas -/
 
 /-- A propositional formula over variables of type `ν`.
 
@@ -95,6 +95,8 @@ scoped instance : SemanticEntails (PropAssignment ν) (PropForm ν) where
 open SemanticEntails renaming entails → sEntails
 
 variable {τ : PropAssignment ν} {x : ν} {φ φ₁ φ₂ φ₃ : PropForm ν}
+
+instance : Decidable (τ ⊨ φ) := inferInstanceAs (Decidable (φ.eval τ))
 
 @[simp]
 theorem satisfies_var : τ ⊨ var x ↔ τ x := by

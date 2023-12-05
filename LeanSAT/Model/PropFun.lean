@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki
 -/
 
+import Mathlib.Data.Fintype.Basic
+
 import LeanSAT.Model.PropForm
 
 namespace LeanSAT.Model
@@ -152,6 +154,9 @@ theorem ext : (∀ (τ : PropAssignment ν), τ ⊨ φ₁ ↔ τ ⊨ φ₂) → 
 
 /-! Semantic entailment -/
 
+instance {τ : PropAssignment ν} : Decidable (τ ⊨ φ) :=
+  inferInstanceAs (Decidable (φ.eval τ = true))
+
 def entails (φ₁ φ₂ : PropFun ν) : Prop :=
   ∀ (τ : PropAssignment ν), φ₁.eval τ ≤ φ₂.eval τ
 
@@ -237,7 +242,7 @@ instance : BooleanAlgebra (PropFun ν) where
   himp_eq := impl_eq
 
 @[simp]
-theorem satisfies_mk {τ : PropAssignment ν} {φ : PropForm ν} : τ ⊨ ⟦φ⟧ ↔ PropForm.satisfies τ φ :=
+theorem satisfies_mk {τ : PropAssignment ν} {φ : PropForm ν} : τ ⊨ ⟦φ⟧ ↔ (open PropForm in τ ⊨ φ) :=
   ⟨id, id⟩
 
 @[simp]
@@ -286,7 +291,7 @@ instance : Nontrivial (PropFun ν) where
     use ⊤, ⊥
     intro h
     have : ∀ (τ : PropAssignment ν), τ ⊨ ⊥ ↔ τ ⊨ ⊤ := fun _ => h ▸ Iff.rfl
-    simp only [not_satisfies_fls, satisfies_tr, iff_true] at this 
+    simp only [not_satisfies_fls, satisfies_tr, iff_true] at this
     apply this (fun _ => true)
 
 theorem eq_top_iff {φ : PropFun ν} : φ = ⊤ ↔ ∀ (τ : PropAssignment ν), τ ⊨ φ :=
@@ -323,3 +328,24 @@ theorem mk_disj (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.disj φ₁ φ
 
 @[simp]
 theorem mk_impl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.impl φ₁ φ₂⟧ (⟦φ₁⟧ ⇨ ⟦φ₂⟧) := rfl
+
+@[simp]
+theorem mk_biImpl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.biImpl φ₁ φ₂⟧ (biImpl ⟦φ₁⟧ ⟦φ₂⟧) := rfl
+
+/-! ### Array combinators -/
+
+def all (a : Array (PropFun ν)) : PropFun ν :=
+  a.foldr (· ⊓ ·) ⊤
+
+def any (a : Array (PropFun ν)) : PropFun ν :=
+  a.foldr (· ⊔ ·) ⊥
+
+@[simp] theorem satisfies_all (a : Array (PropFun ν)) (τ : PropAssignment ν)
+  : τ ⊨ all a ↔ ∀ f ∈ a, τ ⊨ f
+  := by rcases a with ⟨L⟩; unfold all; rw [Array.foldr_eq_foldr_data]; simp [Array.mem_def]
+        induction L <;> simp [*]
+
+@[simp] theorem satisfies_any (a : Array (PropFun ν)) (τ : PropAssignment ν)
+  : τ ⊨ any a ↔ ∃ f ∈ a, τ ⊨ f
+  := by rcases a with ⟨L⟩; unfold any; rw [Array.foldr_eq_foldr_data]; simp [Array.mem_def]
+        induction L <;> simp [*]
