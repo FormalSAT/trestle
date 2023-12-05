@@ -1,10 +1,12 @@
 /-
 Copyright (c) the LeanSAT contributors.
 
-Authors: Wojciech Nawrocki
+Authors: Wojciech Nawrocki, James Gallicchio
 -/
 
 import Mathlib.Data.Set.Basic
+import Mathlib.Data.Finset.Basic
+import LeanSAT.Upstream.ToMathlib
 
 namespace LeanSAT.Model
 
@@ -14,6 +16,9 @@ namespace LeanSAT.Model
 def PropAssignment (ν : Type u) := ν → Bool
 
 namespace PropAssignment
+
+instance : Inhabited (PropAssignment ν) :=
+  inferInstanceAs (Inhabited (_ → _))
 
 @[ext] theorem ext (v1 v2 : PropAssignment ν) (h : ∀ x, v1 x = v2 x) : v1 = v2 := funext h
 
@@ -26,6 +31,7 @@ theorem set_get [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v : Bool) :
     τ.set x v x = v := by
   simp [set]
 
+@[simp]
 theorem set_get_of_ne [DecidableEq ν] {x y : ν} (τ : PropAssignment ν) (v : Bool) :
     x ≠ y → τ.set x v y = τ y := by
   intro h
@@ -42,6 +48,24 @@ theorem set_same [DecidableEq ν] (τ : PropAssignment ν) (x : ν) :
     τ.set x (τ x) = τ := by
   ext x'
   dsimp [set]; split <;> simp_all
+
+theorem set_comm [DecidableEq ν] (τ : PropAssignment ν) (x₁ b₁ x₂ b₂) (h : x₁ ≠ x₂)
+  : (τ.set x₂ b₂).set x₁ b₁ = (τ.set x₁ b₁).set x₂ b₂ := by
+  ext v
+  simp [set]; split <;> split <;> (subst_vars; simp at *)
+
+/-- Assignment which agrees with `τ'` on `xs` but `τ` everywhere else. -/
+def setMany [DecidableEq ν] (τ : PropAssignment ν) (xs : Finset ν) (τ' : PropAssignment ν)
+  : PropAssignment ν :=
+  fun v => if v ∈ xs then τ' v else τ v
+
+@[simp] theorem setMany_mem [DecidableEq ν] (τ : PropAssignment ν) (xs) (τ') (h : v ∈ xs)
+  : (setMany τ xs τ') v = τ' v := by
+  simp [setMany, h]
+
+@[simp] theorem setMany_not_mem [DecidableEq ν] (τ : PropAssignment ν) (xs) (τ') (h : ¬ v ∈ xs)
+  : (setMany τ xs τ') v = τ v := by
+  simp [setMany, h]
 
 -- TODO: is this defined in mathlib for functions in general?
 def agreeOn (X : Set ν) (σ₁ σ₂ : PropAssignment ν) : Prop :=
@@ -66,3 +90,27 @@ theorem agreeOn_set_of_not_mem {x : ν} {X : Set ν} (σ : PropAssignment ν) (v
     agreeOn X (σ.set x v) σ := by
   -- I ❤ A️esop
   aesop (add norm unfold agreeOn, norm unfold set)
+
+theorem agreeOn_setMany [DecidableEq ν] (τ : PropAssignment ν) (xs : Finset ν) (τ')
+  : agreeOn xs (τ.setMany xs τ') τ' := by
+  intro v hv
+  simp at hv
+  simp [setMany, hv]
+
+theorem agreeOn_setMany_compl [DecidableEq ν] (τ : PropAssignment ν) (xs : Finset ν) (τ')
+  : agreeOn xsᶜ (τ.setMany xs τ') τ := by
+  intro v hv
+  simp at hv
+  simp [setMany, hv]
+
+def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
+  τ ∘ f
+
+@[simp] theorem app_map : map f τ v = τ (f v) := rfl
+
+def setManyMap (τ : PropAssignment ν) (τ' : PropAssignment ν') (f : ν → Option ν')
+  : PropAssignment ν :=
+  fun v =>
+    match f v with
+    | none => τ v
+    | some v' => τ' v'
