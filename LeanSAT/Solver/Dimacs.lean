@@ -45,13 +45,13 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 | .error => throw default
 
 
-def printEnc [Monad m] (print : String → m Unit) (s : Encode.EncCNF.State) : m Unit := do
-  for h : i in [1:s.nextVar] do
-    let var := ⟨i,h.1⟩
-    for name in s.names.find? var do
-      print s!"c {Dimacs.formatVar var} {name}\n"
-
-  Dimacs.printFormula print ⟨s.clauses.reverse⟩
+--def printEnc [Monad m] (print : String → m Unit) (s : Encode.EncCNF.State V) : m Unit := do
+--  for h : i in [1:s.nextVar] do
+--    let var := ⟨i,h.1⟩
+--    for name in s.names.find? var do
+--      print s!"c {Dimacs.formatVar var} {name}\n"
+--
+--  Dimacs.printFormula print ⟨s.clauses.reverse⟩
 
 
 
@@ -129,19 +129,14 @@ def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
   | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
 
-def fromFileEnc (cnfFile : String) : IO Encode.EncCNF.State := do
+def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State ILit IVar) := do
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
   let {vars, clauses} ← IO.ofExcept <| Dimacs.parseFormula contents
   return {
     nextVar := vars.succPNat
-    clauses := clauses
-    names := Id.run do
-      let mut map : HashMap IVar String := HashMap.empty
-      for h : i in [1:vars+1] do
-        map := map.insert ⟨i,h.1⟩ s!"DIMACS var {i}"
-      return map
-    varCtx := ""
-    conditionCtx := #[]
+    cnf := clauses.toArray
+    vMap := id
+    assumeVars := #[]
   }
 
 def parseAssnLine (maxVar : Nat) (s : String) : Except String (HashAssn ILit) := do
