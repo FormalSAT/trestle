@@ -7,47 +7,53 @@ import LeanSAT.Model.PropVars
 
 namespace LeanSAT.Model
 
-/-! ## Quantification
+/-! ## Substitution
 
-This file defines operations on `PropForm` and `PropFun` for
-- substitution (replacing variables with formulas)
-- existential quantification over (sets of) variables
+This file defines operations on [PropForm] and [PropFun] for
+substituting the variables in a formula with other variables,
+or in general with other formulas.
+
+The main definitions are:
+- [PropForm.subst], [PropFun.subst]
+- [PropForm.substOne], [PropFun.substOne]
+- [PropForm.map], [PropFun.map]
+- [PropForm.pmap], [PropFun.pmap]
 -/
 
-/-! ### Bind -/
+/-! ### `subst` -/
 
-def PropForm.bind (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropForm ν₂ :=
+def PropForm.subst (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropForm ν₂ :=
   match p with
   | .var l => f l
   | .tr => .tr
   | .fls => .fls
-  | .neg φ => .neg (φ.bind f)
-  | .conj φ₁ φ₂ => .conj (φ₁.bind f) (φ₂.bind f)
-  | .disj φ₁ φ₂ => .disj (φ₁.bind f) (φ₂.bind f)
-  | .impl φ₁ φ₂ => .impl (φ₁.bind f) (φ₂.bind f)
-  | .biImpl φ₁ φ₂ => .biImpl (φ₁.bind f) (φ₂.bind f)
+  | .neg φ => .neg (φ.subst f)
+  | .conj φ₁ φ₂ => .conj (φ₁.subst f) (φ₂.subst f)
+  | .disj φ₁ φ₂ => .disj (φ₁.subst f) (φ₂.subst f)
+  | .impl φ₁ φ₂ => .impl (φ₁.subst f) (φ₂.subst f)
+  | .biImpl φ₁ φ₂ => .biImpl (φ₁.subst f) (φ₂.subst f)
 
-theorem PropForm.bind_assoc (p : PropForm ν₁) (f₁ : ν₁ → PropForm ν₂) (f₂ : ν₂ → PropForm ν₃)
-  : (p.bind f₁ |>.bind f₂) = p.bind (fun v => f₁ v |>.bind f₂)
+theorem PropForm.subst_assoc (p : PropForm ν₁) (f₁ : ν₁ → PropForm ν₂) (f₂ : ν₂ → PropForm ν₃)
+  : (p.subst f₁ |>.subst f₂) = p.subst (fun v => f₁ v |>.subst f₂)
   := by
-  induction p <;> simp [bind, *]
+  induction p <;> simp [subst, *]
 
-theorem PropForm.vars_bind [DecidableEq ν₁] [DecidableEq ν₂]
+theorem PropForm.vars_subst [DecidableEq ν₁] [DecidableEq ν₂]
     (p : PropForm ν₁) (f : ν₁ → PropForm ν₂)
-  : vars (p.bind f) = (vars p).biUnion (fun v1 => vars (f v1)) := by
-  induction p <;> simp [bind, Finset.biUnion_union, *]
+  : vars (p.subst f) = (vars p).biUnion (fun v1 => vars (f v1)) := by
+  induction p <;> simp [subst, Finset.biUnion_union, *]
 
 open PropFun in
 def PropAssignment.preimage (f : ν → PropFun ν') (τ : PropAssignment ν') : PropAssignment ν :=
   fun v => τ ⊨ f v
 
-@[simp] theorem PropForm.satisfies_bind [DecidableEq ν] (φ : PropForm ν) (f : ν → PropForm ν') {τ : PropAssignment ν'}
-  : τ ⊨ φ.bind f ↔ τ.preimage (⟦f ·⟧) ⊨ φ
-  := by induction φ <;> simp [bind, PropAssignment.preimage, *]; rw [PropFun.satisfies_mk]
+@[simp] theorem PropForm.satisfies_subst [DecidableEq ν] (φ : PropForm ν) (f : ν → PropForm ν') {τ : PropAssignment ν'}
+  : τ ⊨ φ.subst f ↔ τ.preimage (⟦f ·⟧) ⊨ φ
+  := by induction φ <;> simp [subst, PropAssignment.preimage, *]; rw [PropFun.satisfies_mk]
 
-noncomputable def PropFun.bind [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) : PropFun ν₂ :=
+noncomputable def PropFun.subst [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) : PropFun ν₂ :=
   φ.prod (Quotient.choice f)
-  |>.lift (fun (p,f) => ⟦ p.bind f ⟧) (by
+  |>.lift (fun (p,f) => ⟦ p.subst f ⟧) (by
     rintro ⟨p1,f1⟩ ⟨p2,f2⟩ hab
     simp at *
     rcases hab with ⟨hp,hf⟩
@@ -58,14 +64,14 @@ noncomputable def PropFun.bind [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν�
     apply PropForm.equivalent_ext.mp hp
   )
 
-@[simp] theorem PropFun.satisfies_bind [DecidableEq ν₁]
+@[simp] theorem PropFun.satisfies_subst [DecidableEq ν₁]
     (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) (τ : PropAssignment ν₂)
-  : τ ⊨ φ.bind f ↔ τ.preimage f ⊨ φ := by
-  unfold bind
+  : τ ⊨ φ.subst f ↔ τ.preimage f ⊨ φ := by
+  unfold subst
   generalize hq : φ.prod (Quotient.choice f) = q
   have ⟨(p,f'),h⟩ := q.exists_rep; cases h
   simp [Quotient.lift_mk (s := .prod _ _)]
-  rw [satisfies_mk, PropForm.satisfies_bind, ← satisfies_mk]
+  rw [satisfies_mk, PropForm.satisfies_subst, ← satisfies_mk]
   rw [Quotient.prod_eq_mk] at hq
   rcases hq with ⟨rfl,hq⟩
   apply iff_of_eq; congr; apply congrFun; apply congrArg
@@ -74,12 +80,12 @@ noncomputable def PropFun.bind [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν�
   simp at this
   exact this.symm
 
-theorem PropFun.semVars_bind [DecidableEq ν₁] [DecidableEq ν₂]
+theorem PropFun.semVars_subst [DecidableEq ν₁] [DecidableEq ν₂]
     {φ} {f : ν₁ → PropFun ν₂}
-  : semVars (PropFun.bind φ f) ⊆ (semVars φ).biUnion (fun v1 => semVars (f v1)) := by
+  : semVars (PropFun.subst φ f) ⊆ (semVars φ).biUnion (fun v1 => semVars (f v1)) := by
   intro v2 hv2
   -- dig through the quotients & definitions
-  unfold bind at hv2
+  unfold subst at hv2
   rw [Finset.mem_biUnion]
   have ⟨p,hp⟩ := φ.exists_rep; cases hp
   generalize hf' : Quotient.choice f = f' at hv2
@@ -87,7 +93,7 @@ theorem PropFun.semVars_bind [DecidableEq ν₁] [DecidableEq ν₂]
   simp [Quotient.lift_mk (s := .prod _ _)] at hv2
   -- get assignments for which v2 is meaningful
   rw [mem_semVars] at hv2; rcases hv2 with ⟨τ,hsat,hunsat⟩
-  -- now we can use `PropForm.satisfies_bind`
+  -- now we can use `PropForm.satisfies_subst`
   rw [satisfies_mk] at hsat hunsat
   simp at hsat hunsat
   -- eliminate references to f'' by rewriting back to f
@@ -109,20 +115,20 @@ theorem PropFun.semVars_bind [DecidableEq ν₁] [DecidableEq ν₂]
     simp [h]
 
 
-/-! ### Substitution -/
+/-! ### `substOne` -/
 
-def PropForm.subst [DecidableEq ν] (φ : PropForm ν) (v : ν) (φ' : PropForm ν) : PropForm ν :=
-  φ.bind (fun v' => if v' = v then φ' else .var v')
+def PropForm.substOne [DecidableEq ν] (φ : PropForm ν) (v : ν) (φ' : PropForm ν) : PropForm ν :=
+  φ.subst (fun v' => if v' = v then φ' else .var v')
 
-theorem PropForm.subst_congr [DecidableEq ν]
+theorem PropForm.substOne_congr [DecidableEq ν]
       (φ₁ φ₂ : PropForm ν) (v : ν) (ψ₁ ψ₂ : PropForm ν)
       (hφ : @Eq (PropFun _) ⟦φ₁⟧ ⟦φ₂⟧) (hψ : @Eq (PropFun _) ⟦ψ₁⟧ ⟦ψ₂⟧)
-  : (⟦ φ₁.subst v ψ₁ ⟧ : PropFun _) = ⟦ φ₂.subst v ψ₂ ⟧
+  : (⟦ φ₁.substOne v ψ₁ ⟧ : PropFun _) = ⟦ φ₂.substOne v ψ₂ ⟧
   := by
   apply PropFun.ext
   intro τ
   rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
-  simp [subst]
+  simp [substOne]
   rw [←PropFun.satisfies_mk, ←PropFun.satisfies_mk]
   rw [hφ]
   simp
@@ -132,20 +138,20 @@ theorem PropForm.subst_congr [DecidableEq ν]
   · rw [hψ]
   · simp
 
-theorem PropForm.satisfies_subst [DecidableEq ν] (φ : PropForm ν) (v : ν) (ψ : PropForm ν)
+theorem PropForm.satisfies_substOne [DecidableEq ν] (φ : PropForm ν) (v : ν) (ψ : PropForm ν)
         (τ : PropAssignment ν)
-  : τ ⊨ φ.subst v ψ ↔ τ.set v (τ ⊨ ψ) ⊨ φ := by
-  simp [subst]
+  : τ ⊨ φ.substOne v ψ ↔ τ.set v (τ ⊨ ψ) ⊨ φ := by
+  simp [substOne]
   apply iff_of_eq; congr
   ext v
   simp [PropAssignment.preimage, PropAssignment.set]
   split <;> simp
   exact PropFun.satisfies_mk
 
-theorem PropForm.vars_subst [DecidableEq ν] (v : ν) : (PropForm.subst φ v φ').vars ⊆ (φ.vars \ {v}) ∪ φ'.vars := by
+theorem PropForm.vars_substOne [DecidableEq ν] (v : ν) : (PropForm.substOne φ v φ').vars ⊆ (φ.vars \ {v}) ∪ φ'.vars := by
   induction φ with
   | var =>
-      intro v hv; simp [bind, subst] at hv ⊢
+      intro v hv; simp [subst, substOne] at hv ⊢
       split at hv
       · simp [hv]
       · simp at hv; subst_vars; simp [*]
@@ -163,8 +169,37 @@ theorem PropForm.vars_subst [DecidableEq ν] (v : ν) : (PropForm.subst φ v φ'
     · have := ih₂ ‹_›
       simp at this; rcases this with ⟨a,b⟩|c <;> simp [*]
 
+def PropFun.substOne [DecidableEq ν] (ψ : PropFun ν) (v : ν) (φ : PropFun ν) : PropFun ν :=
+  ψ.lift (fun ψ => φ.lift (fun φ => ⟦ψ.substOne v φ⟧) (by
+      intro a b h
+      ext τ
+      simp
+      rw [PropForm.substOne_congr]
+      · simp
+      · apply PropFun.sound h
+      )
+    ) (by
+    intro a b h
+    ext τ
+    simp
+    apply iff_of_eq; congr
+    ext φ
+    apply PropForm.substOne_congr
+    · apply PropFun.sound h
+    · simp
+    )
 
-/-! ### Map -/
+theorem PropFun.satisfies_substOne [DecidableEq ν] (ψ : PropFun ν)
+      (v : ν) (φ : PropFun ν) (τ : PropAssignment ν)
+  : τ ⊨ ψ.substOne v φ ↔ τ.set v (τ ⊨ φ) ⊨ ψ := by
+  have ⟨ψ,hψ⟩ := ψ.exists_rep; cases hψ
+  have ⟨φ,hφ⟩ := φ.exists_rep; cases hφ
+  simp [substOne]; rw [satisfies_mk, satisfies_mk]
+  rw [PropForm.satisfies_substOne]
+  rfl
+
+
+/-! ### `map` -/
 
 def PropForm.map (f : ν₁ → ν₂) : PropForm ν₁ → PropForm ν₂
 | .var l => .var (f l)
@@ -205,7 +240,7 @@ theorem PropFun.satisfies_map (f : ν → ν') (τ : PropAssignment ν') (φ : P
   rw [satisfies_mk, satisfies_mk]
   apply PropForm.satisfies_map
 
-/-! ### Partial map -/
+/-! ### `attach` and `pmap` -/
 
 namespace PropForm
 
@@ -284,12 +319,12 @@ theorem satisfies_pmap {φ} {f : (v : ν) → v ∈ φ.vars → ν'} {τ : PropA
 
 /-- Replace all non-semantic variables in `φ` with `.fls` -/
 noncomputable def restrict (φ : PropForm ν) : PropForm ν :=
-  φ.bind (fun v => if v ∈ PropFun.semVars ⟦φ⟧ then .var v else .fls)
+  φ.subst (fun v => if v ∈ PropFun.semVars ⟦φ⟧ then .var v else .fls)
 
 theorem vars_restrict (φ : PropForm ν)
   : vars φ.restrict = PropFun.semVars ⟦φ⟧
   := by
-  simp [restrict, vars_bind]
+  simp [restrict, vars_subst]
   ext v
   simp
   constructor
@@ -371,7 +406,7 @@ theorem satisfies_pmap [DecidableEq ν]
 end PropFun
 
 
-/-! ## `ofFun` -/
+/-! ### `ofFun` -/
 
 def PropForm.ofBool (b : Bool) : PropForm V :=
   if b then .tr else .fls
@@ -433,247 +468,3 @@ def ofFun {V : Type u} [DecidableEq V] [Fintype V]
     simp
 
 end PropFun
-
-
-/-! ### Existential Quantification -/
-
-def PropForm.existQuant [DecidableEq ν] (φ : PropForm ν) (v : ν) : PropForm ν :=
-  disj (φ.subst v .fls)
-       (φ.subst v .tr)
-
-theorem PropForm.satisfies_existQuant [DecidableEq ν] (φ : PropForm ν) (v : ν) {τ : PropAssignment ν}
-  : τ ⊨ φ.existQuant v ↔ τ ⊨ φ.subst v .fls ∨ τ ⊨ φ.subst v .tr
-  := by simp [existQuant]
-
-def PropFun.subst [DecidableEq ν] (ψ : PropFun ν) (v : ν) (φ : PropFun ν) : PropFun ν :=
-  ψ.lift (fun ψ => φ.lift (fun φ => ⟦ψ.subst v φ⟧) (by
-      intro a b h
-      ext τ
-      simp
-      rw [PropForm.subst_congr]
-      · simp
-      · apply PropFun.sound h
-      )
-    ) (by
-    intro a b h
-    ext τ
-    simp
-    apply iff_of_eq; congr
-    ext φ
-    apply PropForm.subst_congr
-    · apply PropFun.sound h
-    · simp
-    )
-
-theorem PropFun.satisfies_subst [DecidableEq ν] (ψ : PropFun ν)
-      (v : ν) (φ : PropFun ν) (τ : PropAssignment ν)
-  : τ ⊨ ψ.subst v φ ↔ τ.set v (τ ⊨ φ) ⊨ ψ := by
-  have ⟨ψ,hψ⟩ := ψ.exists_rep; cases hψ
-  have ⟨φ,hφ⟩ := φ.exists_rep; cases hφ
-  simp [subst]; rw [satisfies_mk, satisfies_mk]
-  rw [PropForm.satisfies_subst]
-  rfl
-
-open PropForm in
-def PropFun.existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν) : PropFun ν :=
-    (φ.subst v ⊥)
-  ⊔ (φ.subst v ⊤)
-
-theorem PropFun.satisfies_existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν) (τ : PropAssignment ν)
-  : τ ⊨ φ.existQuant v ↔ ∃ b, τ.set v b ⊨ φ := by
-  simp [existQuant, satisfies_subst]
-
-theorem PropFun.existQuant_comm [DecidableEq ν] (φ : PropFun ν) (v₁ v₂ : ν)
-  : (φ.existQuant v₁ |>.existQuant v₂) = (φ.existQuant v₂ |>.existQuant v₁)
-  := by
-  if h' : v₁ = v₂ then
-    cases h'; rfl
-  else
-  ext τ
-  simp [existQuant, satisfies_disj, satisfies_subst]
-  generalize eval τ ⊤ = _τ1
-  generalize eval τ ⊥ = _τ2
-  -- TODO: rewrite this to be a terminal aesop call
-  aesop <;> (
-    rw [PropAssignment.set_comm] at h
-    simp [h]
-    first | exact h' | exact ne_comm.mp h')
-
-theorem PropFun.semVars_existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν)
-  : semVars (φ.existQuant v) ⊆ semVars φ \ {v} := by
-  intro v'
-  simp [mem_semVars, existQuant, satisfies_subst]
-  push_neg
-  rintro τ h1 ⟨h2,h3⟩
-  if h:v = v' then
-    cases h
-    simp_all
-  else
-    simp [Ne.symm h]
-    rw [PropAssignment.set_comm] at h2 h3
-    · rcases h1 with h1|h1
-        <;> (
-        refine ⟨_,h1,?_⟩
-        rw [PropAssignment.set_get_of_ne]
-        repeat assumption)
-    repeat assumption
-
-def PropFun.existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν) : PropFun ν :=
-  vs.elim (fun L _ => L.foldl PropFun.existQuant φ) pf
-where
-  pf := by
-    intro a b ha hb
-    have h1 := ha
-    rw [←hb] at h1
-    have : a ~ b := Quotient.eq_rel.mp h1
-    simp; clear ha hb h1
-    induction this generalizing φ with
-    | nil         => simp at *
-    | cons _ _ ih => simp at *; apply ih
-    | swap        => simp; rw [existQuant_comm]
-    | trans _ _ ih1 ih2 =>
-      rw [ih1, ih2]
-
-theorem PropFun.satisfies_existQuantSet (φ : PropFun ν) [DecidableEq ν] [Fintype ν] (vs : Finset ν) (τ : PropAssignment ν)
-  : τ ⊨ φ.existQuantSet vs ↔ ∃ τ', τ.setMany vs τ' ⊨ φ := by
-  simp [existQuantSet]
-  apply Finset.elim_eq_forall (s := vs)
-    (f := fun L _ => List.foldl PropFun.existQuant φ L)
-    (h := existQuantSet.pf _ _)
-  intro L hL hs
-  rcases vs with ⟨vs,h⟩
-  cases hL
-  rw [hs]; clear hs
-  unfold PropAssignment.setMany; simp; clear h
-  induction L generalizing φ with
-  | nil =>
-    simp [PropAssignment.setMany]
-  | cons x xs ih =>
-    simp
-    rw [ih]; clear ih
-    simp only [satisfies_existQuant]
-    constructor
-    · rintro ⟨τ', b, h⟩; refine ⟨τ'.set x b, ?_⟩
-      convert h using 1; ext v
-      simp [PropAssignment.set]
-      aesop
-    · rintro ⟨τ', h⟩; refine ⟨τ', τ' x, ?_⟩
-      convert h using 1; ext v
-      simp [PropAssignment.set]
-      aesop
-
-def PropFun.semVars_existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν)
-  : semVars (φ.existQuantSet vs) ⊆ φ.semVars \ vs := by
-  simp [existQuantSet]
-  apply Finset.elim_eq_forall (s := vs)
-    (f := fun L _ => List.foldl PropFun.existQuant φ L)
-    (h := existQuantSet.pf _ _)
-  intro L hL hs
-  rcases vs with ⟨vs,h⟩
-  cases hL
-  rw [hs]; clear hs
-  induction L generalizing φ with
-  | nil => simp
-  | cons hd tl ih =>
-    simp
-    intro v hv
-    have := ih _ h.tail hv
-    simp at this
-    rcases this with ⟨hhd,htl⟩
-    have := semVars_existQuant φ hd hhd
-    simp at this
-    simp [*]
-
-/-- For every variable `v`, if `x ∈ xs` with `f x = v` then map `v` to `x`,
-and otherwise existentially quantify it.
-
-Useful for existentially quantifying temporaries out of a proposition. -/
-noncomputable def PropFun.invImage [DecidableEq ν'] (f : ν ↪ ν')
-      (xs : Finset ν) (φ : PropFun ν') : PropFun ν :=
-  let varsToQuant := φ.semVars \ xs.map f
-  let φ' := φ.existQuantSet varsToQuant
-  φ'.pmap fun v' h =>
-    xs.filter (f · = v') |>.getUnique (by
-      have := semVars_existQuantSet _ _ h
-      simp at this
-      rcases this with ⟨h1, v, h3, rfl⟩
-      refine ⟨v, ?_⟩
-      ext v''; simp (config := {contextual := true}) [h3]
-    )
-
-theorem PropFun.semVars_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
-      (xs : Finset ν) (φ : PropFun ν')
-  : semVars (φ.invImage f xs) ⊆ xs := by
-  simp [invImage]
-  apply Finset.Subset.trans (semVars_pmap ..)
-  intro v
-  simp
-  intro v' _ h
-  suffices v ∈ Finset.filter (f · = v') xs from
-    Finset.filter_subset _ _ this
-  rw [h]; simp
-
-def PropFun.invImage.invOption [D : DecidableEq ν'] (f : ν ↪ ν') (xs : Finset ν)
-  : ν' → Option ν :=
-  fun v' =>
-    xs.val.find? (f := fun v => f.toFun v = v') (by
-      intros; apply f.injective; simp_all)
-
-@[simp] theorem PropFun.invImage.invOption_eq_none [DecidableEq ν'] (f : ν ↪ ν') (xs)
-  : PropFun.invImage.invOption f xs v' = none ↔ ∀ v ∈ xs, f v ≠ v'
-  := by
-  simp [invOption]
-
-theorem PropFun.invImage.invOption_eq_some [DecidableEq ν'] (f : ν ↪ ν') (xs)
-  : PropFun.invImage.invOption f xs v' = some v → v ∈ xs ∧ v' = f v
-  := by
-  simp [invOption]
-  intro h
-  constructor
-  · exact Multiset.mem_of_find?_eq_some _ h
-  · have := Multiset.find?_some _ h
-    simp at this
-    rw [this]
-
-/-- Kind of a strange theorem but I use it later... -/
-theorem PropFun.invImage_setManyMap_map_idem (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
-  : PropAssignment.map f
-      (PropAssignment.setManyMap τ' τ
-        (PropFun.invImage.invOption ⟨f,h⟩ Finset.univ))
-    = τ
-  := by
-  ext v
-  simp [PropAssignment.setManyMap]
-  split
-  case _ hx =>
-    simp at hx
-    exfalso; exact hx v rfl
-  case _ v' hx =>
-    have := PropFun.invImage.invOption_eq_some _ _ hx
-    simp at this
-    rw [h this]
-
-theorem PropFun.invImage_setManyMap_of_map (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
-  : PropAssignment.setManyMap τ' (PropAssignment.map f τ)
-      (PropFun.invImage.invOption ⟨f,h⟩ Finset.univ)
-    |>.agreeOn (Set.range f) τ
-  := by
-  intro v' hv'
-  rw [Set.mem_range] at hv'
-  rcases hv' with ⟨v,hv⟩
-  simp [PropAssignment.setManyMap]
-  split
-  case _ hx =>
-    simp at hx
-    exfalso; exact hx v hv
-  case _ v2 hx =>
-    have := PropFun.invImage.invOption_eq_some _ _ hx
-    simp at this
-    rw [this]
-
-theorem PropFun.satisfies_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
-      (xs : Finset ν) (φ : PropFun ν') (τ : PropAssignment ν)
-  : τ ⊨ φ.invImage f xs ↔ ∃ τ' : PropAssignment ν',
-      τ'.setManyMap τ (invImage.invOption f xs) ⊨ φ := by
-  simp [invImage]
-  sorry
