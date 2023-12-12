@@ -7,6 +7,7 @@ Authors: Wojciech Nawrocki
 import Mathlib.Tactic.Linarith
 import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Setoid.Basic
 
 /-! Stuff that seems like it should be in std or mathlib. -/
 
@@ -188,3 +189,34 @@ theorem Multiset.find?_some (xs : Multiset α)
   have ⟨L,hL⟩ := xs.exists_rep; cases hL
   simp only [find?, Quotient.lift_mk, List.find?_eq_none, Bool.not_eq_true]
   simp only [quot_mk_to_coe, mem_coe]
+
+@[simp] theorem Setoid.prod.pair {a1 a2 : α} {b1 b2 : β} [sa : Setoid α] [sb : Setoid β]
+  : @HasEquiv.Equiv _ (@instHasEquiv _ (Setoid.prod sa sb)) (a1,b1) (a2,b2)
+    ↔ a1 ≈ a2 ∧ b1 ≈ b2 := by
+  constructor <;> (intro h; cases h; constructor <;> assumption)
+
+def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) :=
+  q1.lift
+    (fun a1 => q2.lift (fun a2 => ⟦(a1,a2)⟧) (by
+      intro a b hab; simp
+      rw [Quotient.eq (r := s1.prod s2)]
+      simp [hab]; rfl
+      ))
+    (by
+      have ⟨q1,hq1⟩ := q1.exists_rep; cases hq1
+      have ⟨q2,hq2⟩ := q2.exists_rep; cases hq2
+      intro a b hab
+      simp; rw [@Quotient.eq _ (.prod _ _)]
+      simp [hab]; rfl)
+
+@[simp] theorem Quotient.prod_mk [sa : Setoid α] [sb : Setoid β] (a : α) (b : β)
+  : Quotient.prod ⟦ a ⟧ ⟦ b ⟧ = Quotient.mk (s := sa.prod sb) (a,b) := by
+  simp [prod]
+
+@[simp] theorem Quotient.prod_eq_mk [sa : Setoid α] [sb : Setoid β]
+    (aa : Quotient sa) (bb : Quotient sb) (a : α) (b : β)
+  : Quotient.prod aa bb = Quotient.mk (s := sa.prod sb) (a,b) ↔ aa = ⟦ a ⟧ ∧ bb = ⟦ b ⟧ := by
+  rcases aa.exists_rep with ⟨a',rfl⟩
+  rcases bb.exists_rep with ⟨b',rfl⟩
+  simp [prod]; rw [Quotient.eq (r := sa.prod sb)]
+  simp [Setoid.prod]
