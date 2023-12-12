@@ -14,7 +14,7 @@ This file defines operations on `PropForm` and `PropFun` for
 - existential quantification over (sets of) variables
 -/
 
-/-! ### Substitution -/
+/-! ### Bind -/
 
 def PropForm.bind (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropForm ν₂ :=
   match p with
@@ -44,6 +44,72 @@ def PropAssignment.preimage (f : ν → PropFun ν') (τ : PropAssignment ν') :
 @[simp] theorem PropForm.satisfies_bind [DecidableEq ν] (φ : PropForm ν) (f : ν → PropForm ν') {τ : PropAssignment ν'}
   : τ ⊨ φ.bind f ↔ τ.preimage (⟦f ·⟧) ⊨ φ
   := by induction φ <;> simp [bind, PropAssignment.preimage, *]; rw [PropFun.satisfies_mk]
+
+noncomputable def PropFun.bind [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) : PropFun ν₂ :=
+  φ.prod (Quotient.choice f)
+  |>.lift (fun (p,f) => ⟦ p.bind f ⟧) (by
+    rintro ⟨p1,f1⟩ ⟨p2,f2⟩ hab
+    simp at *
+    rcases hab with ⟨hp,hf⟩
+    ext τ; rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
+    simp
+    have : ∀ x, ⟦f1 x⟧ = ⟦f2 x⟧ := fun x => Quotient.eq.mpr (hf x)
+    simp [this]
+    apply PropForm.equivalent_ext.mp hp
+  )
+
+@[simp] theorem PropFun.satisfies_bind [DecidableEq ν₁]
+    (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) (τ : PropAssignment ν₂)
+  : τ ⊨ φ.bind f ↔ τ.preimage f ⊨ φ := by
+  unfold bind
+  generalize hq : φ.prod (Quotient.choice f) = q
+  have ⟨(p,f'),h⟩ := q.exists_rep; cases h
+  simp [Quotient.lift_mk (s := .prod _ _)]
+  rw [satisfies_mk, PropForm.satisfies_bind, ← satisfies_mk]
+  rw [Quotient.prod_eq_mk] at hq
+  rcases hq with ⟨rfl,hq⟩
+  apply iff_of_eq; congr; apply congrFun; apply congrArg
+  funext x; simp [Quotient.choice] at hq
+  have := Quotient.sound (hq x)
+  simp at this
+  exact this.symm
+
+theorem PropFun.semVars_bind [DecidableEq ν₁] [DecidableEq ν₂]
+    {φ} {f : ν₁ → PropFun ν₂}
+  : semVars (PropFun.bind φ f) ⊆ (semVars φ).biUnion (fun v1 => semVars (f v1)) := by
+  intro v2 hv2
+  -- dig through the quotients & definitions
+  unfold bind at hv2
+  rw [Finset.mem_biUnion]
+  have ⟨p,hp⟩ := φ.exists_rep; cases hp
+  generalize hf' : Quotient.choice f = f' at hv2
+  have ⟨f'', hf''⟩ := f'.exists_rep; cases hf''
+  simp [Quotient.lift_mk (s := .prod _ _)] at hv2
+  -- get assignments for which v2 is meaningful
+  rw [mem_semVars] at hv2; rcases hv2 with ⟨τ,hsat,hunsat⟩
+  -- now we can use `PropForm.satisfies_bind`
+  rw [satisfies_mk] at hsat hunsat
+  simp at hsat hunsat
+  -- eliminate references to f'' by rewriting back to f
+  have : ∀ x, ⟦f'' x⟧ = f x := by
+    simp [Quotient.choice, piSetoid, instHasEquiv, Setoid.r] at hf'
+    intro x; have := sound (hf' x); simp at this; simp [this]
+  simp [this] at hsat hunsat; clear this hf' f''
+  -- any two disagreeing assignments give you a semantic variable
+  rw [← satisfies_mk] at hsat hunsat
+  have ⟨x,h1,h2⟩ := exists_semVar hsat hunsat; clear hsat hunsat
+  use x; simp [h2]; clear h2
+  -- push info around
+  rw [mem_semVars]
+  simp [PropAssignment.preimage] at h1
+  by_cases h : τ ⊨ f x
+  · use τ; simp [h] at h1; simp [*]
+  · simp [h] at h1
+    refine ⟨_, h1, ?_⟩
+    simp [h]
+
+
+/-! ### Substitution -/
 
 def PropForm.subst [DecidableEq ν] (φ : PropForm ν) (v : ν) (φ' : PropForm ν) : PropForm ν :=
   φ.bind (fun v' => if v' = v then φ' else .var v')
