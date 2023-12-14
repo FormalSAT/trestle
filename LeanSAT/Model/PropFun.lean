@@ -152,6 +152,10 @@ theorem ext : (∀ (τ : PropAssignment ν), τ ⊨ φ₁ ↔ τ ⊨ φ₂) → 
   apply Quotient.sound ∘ PropForm.equivalent_ext.mpr
   apply h
 
+theorem ext_iff {φ₁ φ₂ : PropFun ν}
+  : φ₁ = φ₂ ↔ (∀ (τ : PropAssignment ν), τ ⊨ φ₁ ↔ τ ⊨ φ₂) :=
+  ⟨fun h _ => iff_of_eq (congrArg _ h), ext⟩
+
 /-! Semantic entailment -/
 
 instance {τ : PropAssignment ν} : Decidable (τ ⊨ φ) :=

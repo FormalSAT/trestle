@@ -18,8 +18,10 @@ namespace LeanSAT.Encode
 open Model PropFun EncCNF
 
 def EncCNF.satisfiesProp [LitVar L ν] (e : EncCNF L α) (P : PropFun ν) : Prop :=
+  aux e.1
+where aux (e' : StateM _ α) :=
   ∀ s,
-    let (a,s') := (e.1 s)
+    let s' := (e' s).2
     s'.vMap = s.vMap ∧
     s'.assumeVars = s.assumeVars ∧
     s'.interp = (s.interp ⊓ ((s.assumeVars.toPropFun)ᶜ ⇨ P))
@@ -107,66 +109,95 @@ def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
 noncomputable def withTemps.prop [DecidableEq ν] [Fintype ν] (P : PropFun (ν ⊕ Fin n)) :=
   P.invImage ⟨Sum.inl,Sum.inl_injective⟩ Finset.univ
 
---theorem withTemps.prop_of_
-
 set_option pp.proofs.withType false in
 def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     (e : VEncCNF (WithTemps L n) α P) :
     VEncCNF L α (withTemps.prop P) :=
   ⟨EncCNF.withTemps _ e.1, by
     intro s
+    -- give various expressions names and specialize hypotheses
     rcases e with ⟨e,he⟩
-    generalize hs' : (EncCNF.withTemps n e).1 s = res
-    rcases res with ⟨a,s'⟩
-    simp [EncCNF.withTemps] at hs'
+    generalize h : (EncCNF.withTemps n e) = te
+    replace h := h.symm
+    simp [EncCNF.withTemps] at h
+    rcases te with ⟨te,hte⟩
+    rw [Subtype.mk_eq_mk] at h
     simp
-    split at hs'; next a s'' hs'' =>
-    cases hs'
-    have := he (LawfulState.withTemps s); clear he; have he := this; clear this
+    replace h := congrFun h s
+    replace hte := hte s
+    generalize hs''' : te s = s''' at h hte
+    replace hs''' := hs'''.symm
+    rcases s''' with ⟨a,s'''⟩
+    simp at h hte ⊢
+    clear hs''' te
+    split at h; next a s'' hs'' =>
+    replace he := he (LawfulState.withTemps s)
     rw [hs''] at he
-    simp at he ⊢
-    rcases s'' with ⟨⟨nv,cnf,vm,av⟩,cvlt,vmlt,vmi⟩
-    simp [LawfulState.withTemps, State.withTemps, LawfulState.interp] at he
-    rcases he with ⟨rfl,rfl,he⟩
-    simp [LawfulState.withoutTemps, State.withoutTemps, LawfulState.interp]
+    simp at he
+    generalize hs''' : LawfulState.withoutTemps .. = lswt at h
+    replace hs''' := hs'''.symm
+    cases h
+    -- we want to generalize `LawfulState.withTemps s` but need to
+    -- get rid of some dependent types first
+    rw [LawfulState.ext_iff] at hs'''
+    simp [LawfulState.withoutTemps, State.withoutTemps] at hs'''
+    clear hs''
+    generalize hs' : LawfulState.withTemps s = s' at he hs'''
+    replace hs' := hs'.symm
+    rw [LawfulState.ext_iff] at hs'
+    simp [LawfulState.withTemps, State.withTemps] at hs'
+    -- now we have all the info we should need.
+    simp_all
+    -- we want to clear out a bunch of un-helpful values
+    rcases s''' with ⟨⟨nextVar''', cnf''', vMap''', assumeVars'''⟩, cnfVars''', cnfVarsLt''', vMapInj'''⟩
+    rcases hs''' with ⟨rfl,rfl,rfl,rfl⟩
+    rcases s' with ⟨⟨nextVar', cnf', vMap', assumeVars'⟩, cnfVars', cnfVarsLt', vMapInj'⟩
+    rcases hs' with ⟨rfl,rfl,rfl,rfl⟩
+    simp [LawfulState.interp] at *
     ext τ
-    have : ∀ τ' : PropAssignment _, τ' ⊨ _ ↔ τ' ⊨ _ ⊓ _ :=
-        fun _ => iff_of_eq <| congrArg _ he
-    clear he
+    have := he.2.2; rw [PropFun.ext_iff] at this
     simp [PropFun.satisfies_invImage] at this ⊢
     constructor
-    · rintro ⟨τ',h⟩
-      have := this τ'
-    · rintro ⟨τ',h⟩
-      sorry⟩
+    · rintro ⟨τ', h⟩
+      sorry
+    · sorry
+    ⟩
 
-theorem bind_satisfiesProp (e1 : EncCNF L α) (e2 : α → EncCNF L β)
-  : e1.satisfiesProp P → (∀ s, (e2 (e1.1 s).1).satisfiesProp Q) →
-    (do let a ← e1.1; (e2 a).1).satisfiesProp (P ⊓ Q)
+theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
+  : e1.satisfiesProp P → (∀ s, (f (e1.1 s).1).satisfiesProp Q) →
+    (e1 >>= f).satisfiesProp (P ⊓ Q)
   := by
-  intro s
-  rcases ve1 with ⟨⟨s1,_⟩,he1⟩
-  have := he1 s
-  simp [Bind.bind, StateT.bind] at this ⊢
-  clear he1; have he1 := this; clear this
-  generalize hs' : s1 s = res' at he1 ⊢
-  rcases res' with ⟨a,s'⟩
-  simp at he1 ⊢
-  generalize ve2 a = ve2
-  rcases ve2 with ⟨⟨s2,_⟩,he2⟩
-  have := he2 s'
-  simp at this ⊢
-  clear he2; have he2 := this; clear this
-  generalize hs'' : s2 s' = res' at he2 ⊢
-  rcases res' with ⟨b,s''⟩
-  simp at he2 ⊢
-  simp [*]
-  rw [inf_assoc]; congr
-  exact (himp_inf_distrib ..).symm
+  intro hP hQ s
+  simp [satisfiesProp, satisfiesProp.aux] at hP hQ
+  -- specialize hypotheses to the first state `s`
+  rcases e1 with ⟨e1,he1⟩
+  replace hP := hP s
+  replace hQ := hQ s
+  simp [Bind.bind, StateT.bind] at hP hQ ⊢
+  replace he1 := he1 s
+  -- give name to the next state `s'`
+  generalize hs' : e1 s = s' at *
+  rcases s' with ⟨a,s'⟩
+  simp at *
+  -- give name to the next state machine
+  generalize he2 : (f a) = e2 at *
+  rcases e2 with ⟨e2,he2⟩
+  -- specialize hypotheses to this state `s'`
+  replace hQ := hQ s'
+  simp at *
+  -- give name to the next state `s''`
+  generalize hs'' : e2 s' = s'' at *
+  rcases s'' with ⟨b,s''⟩
+  simp at hQ ⊢
+  -- once again we ♥ aesop
+  aesop
 
 def seq (e1 : VEncCNF L α P) (e2 : VEncCNF L β Q) : VEncCNF L (α × β) (P ⊓ Q) :=
-  ⟨ do let a ← e1; let b ← e2; return (a,b)
-  , by
-    apply bind_satisfiesProp
-    sorry
+  VEncCNF.mapProp (show P ⊓ (Q ⊓ ⊤) = P ⊓ Q by simp)
+    ⟨ do let a ← e1; return (a, ← e2)
+    , by
+      apply bind_satisfiesProp _ _ e1.2
+      intro s
+      apply bind_satisfiesProp _ _ e2.2
+      simp [satisfiesProp, satisfiesProp.aux, pure, StateT.pure]
     ⟩
