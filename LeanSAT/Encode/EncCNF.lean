@@ -3,7 +3,7 @@ import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
 import LeanSAT.Data.HashAssn
 import LeanSAT.Upstream.ToStd
-import LeanSAT.Model.Quantification
+import LeanSAT.Model.Quantifiers
 
 open Std
 
@@ -15,7 +15,8 @@ namespace EncCNF
 
 We need to parameterize by literal type `L` (and variable `ν`),
 because otherwise we need to prove everywhere that clauses are "within range"
- -/
+-/
+@[ext]
 structure State (L ν : Type u) where
   nextVar : PNat
   cnf : ICnf
@@ -24,6 +25,7 @@ structure State (L ν : Type u) where
   assumeVars : Clause L
 
 /-- Lawfulness conditions on encoding state. -/
+@[ext]
 structure LawfulState (L ν) extends State L ν where
   cnfVarsLt : ∀ c ∈ cnf.data, ∀ l ∈ c.data, (LitVar.toVar l) < nextVar
   vMapLt : ∀ v, vMap v < nextVar
@@ -160,6 +162,7 @@ end LawfulState
 /-! ### Temporaries -/
 
 def WithTemps (L n) := L ⊕ Fin n × Bool
+
 instance : LitVar (WithTemps L n) (ν ⊕ Fin n) where
   negate | Sum.inl l => Sum.inl (LitVar.negate l)
          | Sum.inr (i,p) => Sum.inr (i,!p)
