@@ -172,17 +172,19 @@ def Multiset.find? (f : α → Bool) (xs : Multiset α)
     apply perm.find?_unique h
   )
 
-theorem Multiset.mem_of_find?_eq_some (xs : Multiset α)
-  : xs.find? f h = some x → x ∈ xs := by
+@[simp] theorem Multiset.find?_eq_some (xs : Multiset α)
+  : xs.find? f h = some x ↔ x ∈ xs ∧ f x := by
   have ⟨L,hL⟩ := xs.exists_rep; cases hL
   simp [-quot_mk_to_coe, find?]
-  simp; apply List.mem_of_find?_eq_some
-
-theorem Multiset.find?_some (xs : Multiset α)
-  : xs.find? f h = some x → f x := by
-  have ⟨L,hL⟩ := xs.exists_rep; cases hL
-  simp [-quot_mk_to_coe, find?]
-  apply List.find?_some
+  simp
+  constructor
+  · intro h
+    simp [List.find?_some h, List.find?_mem h]
+  · rintro ⟨h1,h2⟩
+    induction h1 <;> simp [List.find?, *]
+    split
+    · simp; apply h <;> assumption
+    · rfl
 
 @[simp] theorem Multiset.find?_eq_none (xs : Multiset α)
   : xs.find? f h = none ↔ ∀ x ∈ xs, f x = false := by
