@@ -114,3 +114,12 @@ def setManyMap (τ : PropAssignment ν) (τ' : PropAssignment ν') (f : ν → O
     match f v with
     | none => τ v
     | some v' => τ' v'
+
+theorem setManyMap_setManyMap
+      (τ1 : PropAssignment ν1) (τ2 : PropAssignment ν2) (τ3 : PropAssignment ν3)
+      (f1 : ν1 → Option ν2) (f2 : ν2 → Option ν3)
+  : setManyMap τ1 (setManyMap τ2 τ3 f2) f1 = setManyMap (setManyMap τ1 τ2 f1) τ3 (fun x => (f1 x).bind f2)
+  := by
+  ext v
+  simp [setManyMap]
+  split <;> simp [*]

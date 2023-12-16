@@ -181,14 +181,7 @@ def PropFun.invImage.invOption [D : DecidableEq ν'] (f : ν ↪ ν') (xs : Fins
 
 theorem PropFun.invImage.invOption_eq_some [DecidableEq ν'] (f : ν ↪ ν') (xs)
   : PropFun.invImage.invOption f xs v' = some v → v ∈ xs ∧ v' = f v
-  := by
-  simp [invOption]
-  intro h
-  constructor
-  · exact Multiset.mem_of_find?_eq_some _ h
-  · have := Multiset.find?_some _ h
-    simp at this
-    rw [this]
+  := by simp (config := {contextual := true}) [invOption]
 
 /-- Kind of a strange theorem but I use it later... -/
 lemma PropFun.invImage_setManyMap_map_idem (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
@@ -208,7 +201,7 @@ lemma PropFun.invImage_setManyMap_map_idem (f : ν → ν') (h : f.Injective) [D
     simp at this
     rw [h this]
 
-theorem PropFun.invImage_setManyMap_of_map (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
+theorem PropFun.invImage.setManyMap_of_map (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
   : PropAssignment.setManyMap τ' (PropAssignment.map f τ)
       (PropFun.invImage.invOption ⟨f,h⟩ Finset.univ)
     |>.agreeOn (Set.range f) τ
