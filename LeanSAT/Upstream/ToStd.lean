@@ -319,6 +319,18 @@ theorem Array.getElem?_setF' (A : Array α) {i j : Nat} (v default : α) :
   sorry
   done
 
+/-! # Fin -/
+
+-- TODO Move to AuxDefs
+lemma Fin.foldl_of_comm (n) (f : α → Fin n → α) (init : α) (i : Fin n)
+    (H : ∀ (acc : α) (i₁ i₂ : Fin n), f (f acc i₁) i₂ = f (f acc i₂) i₁) :
+    ∃ (acc : α), Fin.foldl n f init = f acc i := by
+  sorry
+
+lemma Fin.foldl_induction (n) (f : α → Fin n → α) (init : α) (P : α → Prop)
+    (hInit : P init) (hSucc : ∀ a i, P a → P (f a i)) :
+    P (Fin.foldl n f init) := by
+  sorry
 
 /-! # List -/
 
@@ -335,7 +347,6 @@ where
   finsAux : (i : Nat) → i ≤ n → List (Fin n) → List (Fin n)
   | 0, _, acc => acc
   | i+1, h, acc => finsAux i (Nat.le_of_lt h) (⟨i,h⟩ :: acc)
-
 
 /- Better parallelism primitive, that is actually like Scala's Future -/
 def TaskIO (α) := IO (Task (Except IO.Error α))

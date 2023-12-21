@@ -38,7 +38,7 @@ instance : Coe ν L :=
 
 instance : Neg L :=
   ⟨negate⟩
-  
+
 @[simp] theorem negate_eq (l : L) : negate l = -l := rfl
 
 instance [ToString ν] : ToString L where
@@ -165,6 +165,15 @@ namespace Clause
 instance [ToString L] : ToString (Clause L) where
   toString C := s!"({String.intercalate " ∨ " (C.map toString).toList})"
 
+@[simp]
+theorem of_append (l₁ l₂ : List L) : { data := l₁ ++ l₂ : Clause L } = { data := l₁ : Clause L } ++ { data := l₂ : Clause L } := by
+  show { data := l₁ ++ l₂ : Clause L } = { data := ({data := l₁ : Clause L } ++ { data := l₂ : Clause L }).data }
+  simp only [Array.append_data]
+
+@[simp]
+theorem of_singleton (l : L) : { data := [l] : Clause L } = #[l] := by
+  rfl
+
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
 def toPropForm (C : Clause L) : PropForm ν :=
@@ -184,7 +193,7 @@ theorem satisfies_iff {τ : PropAssignment ν} {C : Clause L} :
   rw [toPropFun]
   induction C.data <;> simp_all
 
-theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
+theorem tautology_iff' [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C.data, ∃ l₂ ∈ C.data, l₁ = -l₂ := by
   refine ⟨?mp, ?mpr⟩
   case mp =>
@@ -228,6 +237,30 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
         rw [hEq, LitVar.satisfies_neg]
         assumption
       tauto
+
+theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
+    C.toPropFun = ⊤ ↔ ∃ l ∈ C.data, -l ∈ C.data := by
+  rw [tautology_iff' C]
+  aesop
+
+@[simp]
+theorem toPropFun_append (C₁ C₂ : Clause L) : (C₁ ++ C₂).toPropFun = C₁.toPropFun ⊔ C₂.toPropFun := by
+  ext; aesop (add norm satisfies_disj, norm satisfies_iff)
+
+@[simp]
+theorem toPropFun_singleton (l : L) : Clause.toPropFun #[l] = LitVar.toPropFun l := by
+  ext; simp [satisfies_iff]
+
+theorem toPropFun_getElem_lt (C : Clause L) (i : Nat) (h : i < C.size) : LitVar.toPropFun (C[i]'h) ≤ C.toPropFun := by
+  apply PropFun.entails_ext.mpr
+  intro σ hσ
+  exact satisfies_iff.mpr ⟨C[i]'h, C.getElem_mem_data h, hσ⟩
+
+theorem toPropFun_take_lt (C : Clause L) (i : Nat) : toPropFun ⟨C.data.take i⟩ ≤ C.toPropFun := by
+  apply PropFun.entails_ext.mpr
+  intro σ hσ
+  have ⟨l, hl, hl'⟩ := satisfies_iff.mp hσ
+  refine satisfies_iff.mpr ⟨l, List.mem_of_mem_take hl, hl'⟩
 
 end Clause
 

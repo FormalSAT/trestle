@@ -6,7 +6,7 @@ import Mathlib.Data.Nat.Basic
 
 open LeanSAT LeanSAT.Model Nat
 
-/-- A partial assignment of truth values to propositional variables.
+/-- A persistent partial assignment of truth values to propositional variables.
 
 It is meant to be kept around persistently and used linearly.
 Assuming these restrictions are met,
@@ -18,23 +18,28 @@ structure PPA where
   /-- The generation counter is used to avoid clearing the assignment array.
   Instead, we just bump the counter and interpret values in the array
   below the counter as unassigned. -/
-  generation : { g : Nat // g > 0 }
+  generation : { g : Nat // 0 < g }
   /-- The maximum absolute value of any entry in `assignments`. -/
   maxGen : Nat
+  le_maxGen : ∀ i ∈ assignment.data, i.natAbs ≤ maxGen
+
+instance : ToString PPA where
+  toString τ := String.intercalate " ∧ "
+    (τ.assignment.foldl (init := []) (f := fun acc a => s!"{a}" :: acc))
+
+/-! ## Reading values from the PPA -/
 
 namespace PPA
-  open LitVar
+open LitVar PropFun
 
 @[reducible] def size (τ : PPA) : Nat := τ.assignment.size
 
-  /-- The value of the given literal in the current assignment, if assigned.
-  Otherwise `none`. -/
-def litValue? (τ : PPA) (l : ILit) : Option Bool :=
-  match τ.assignment.get? ((toVar l).val - 1) with
+def varValue? (τ : PPA) (v : IVar) : Option Bool :=
+  match τ.assignment.get? (v - 1) with
   | none => none
   | some n =>
     if τ.generation.val ≤ n.natAbs then
-      some <| xor (n < 0) (polarity l)
+      some (0 < n)
     else
       none
 
@@ -44,66 +49,183 @@ def litValue? (τ : PPA) (l : ILit) : Option Bool :=
   --  some <| xor (v < 0) (polarity l)
   --else none
 
-def varValue? (τ : PPA) (v : IVar) : Option Bool :=
-  τ.litValue? (mkPos v)
+/-- The value of the given literal in the current assignment, if assigned.
+Otherwise `none`. -/
+def litValue? (τ : PPA) (l : ILit) : Option Bool :=
+  τ.varValue? (toVar l) |>.map (fun b => xor (!b) (polarity l))
 
--- Cayden TODO: There's a far more elegant proof here
+/-! ### Lemmas about `litValue?`, `varValue?` -/
+
 theorem litValue?_negate (τ : PPA) (l : ILit) :
-    τ.litValue? l = Option.map Bool.not (τ.litValue? (-l)) := by
-  unfold litValue?
-  match hlit : Array.get? τ.assignment ((toVar l).val - 1) with
-  | none => simp [hlit, -Array.get?_eq_getElem?]
-  | some n =>
-    simp [hlit, -Array.get?_eq_getElem?]
-    by_cases hτ : τ.generation.val ≤ Int.natAbs n
-    <;> cases polarity l <;> by_cases hn : (n < 0) <;> simp [hτ, hn]
+    τ.litValue? (-l) = (τ.litValue? l).map Bool.not := by
+  aesop (add norm unfold litValue?)
 
 theorem litValue?_eq_varValue?_none {τ : PPA} {l : ILit} :
     τ.litValue? l = none → τ.varValue? (toVar l) = none := by
-  simp only [litValue?, varValue?]
-  cases hlit : Array.get? τ.assignment ((toVar l).val - 1)
-  <;> simp [hlit, -Array.get?_eq_getElem?]
+  aesop (add norm unfold litValue?)
 
 theorem litValue?_eq_varValue?_some {τ : PPA} {l : ILit} {b : Bool} :
     τ.litValue? l = some b → τ.varValue? (toVar l) = xor (!b) (polarity l) := by
-  simp only [litValue?, varValue?]
-  cases hlit : Array.get? τ.assignment ((toVar l).val - 1) with
-  | none => simp [hlit, -Array.get?_eq_getElem?]
-  | some n =>
-    simp [hlit, -Array.get?_eq_getElem?]
-    by_cases hτ : τ.generation.val ≤ Int.natAbs n
-    <;> cases polarity l <;> by_cases hn : (n < 0) <;> cases b <;> simp [hτ, hn]
+  aesop (add norm unfold litValue?)
 
-theorem lt_size_of_litValue?_eq_some {τ : PPA} {l : ILit} {b : Bool} :
-    τ.litValue? l = some b → ((toVar l).val - 1) < τ.size := by
+theorem lt_size_of_varValue?_eq_some {τ : PPA} {x : IVar} {b : Bool} :
+    τ.varValue? x = some b → x - 1 < τ.size := by
   sorry
   done
 
-def toPropFun_fun (τ : PPA) : PropFun IVar → Fin τ.size → ℤ → PropFun IVar :=
-  fun acc idx a => acc ⊓
-    (if τ.generation ≤ a then .var ⟨idx.val + 1, succ_pos _⟩
-     else (.var ⟨idx.val + 1, succ_pos _⟩)ᶜ)
+theorem lt_size_of_litValue?_eq_some {τ : PPA} {l : ILit} {b : Bool} :
+    τ.litValue? l = some b → ((toVar l) - 1) < τ.size := by
+  sorry
+  done
 
+/-! ### `toPropFun` model -/
+
+def varToPropFun (τ : PPA) (x : IVar) : PropFun IVar :=
+  τ.varValue? x |>.map (if · then .var x else (.var x)ᶜ) |>.getD ⊤
+
+def idxToPropFun (τ : PPA) (i : Fin τ.size) : PropFun IVar :=
+  τ.varToPropFun ⟨i + 1, succ_pos _⟩
+
+/-- We model the `PPA` as the conjunction of all its literals.
+Note that we cannot fully model the `PPA` as just one `PropAssignment`
+because those are required to be total. -/
 def toPropFun (τ : PPA) : PropFun IVar :=
-  τ.assignment.foldlIdx (init := ⊤) (toPropFun_fun τ)
+  Fin.foldl τ.size (· ⊓ τ.idxToPropFun ·) ⊤
 
-theorem toPropFun_fun_comm (τ : PPA) :
-  ∀ (acc : PropFun IVar) (idx₁ idx₂ : Fin τ.size),
-    (toPropFun_fun τ) ((toPropFun_fun τ) acc idx₁ (τ.assignment.get idx₁)) idx₂ (τ.assignment.get idx₂) =
-    (toPropFun_fun τ) ((toPropFun_fun τ) acc idx₂ (τ.assignment.get idx₂)) idx₁ (τ.assignment.get idx₁) := by
-  intro acc i j
-  simp only [toPropFun_fun, Array.get_eq_getElem, ge_iff_le, le_inf_iff, inf_right_comm]
+theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
+    σ ⊨ τ.toPropFun ↔ ∀ (i : Fin τ.size), σ ⊨ τ.idxToPropFun i := by
+  constructor
+  . intro hσ i
+    have ⟨ϕ, hϕ⟩ := Fin.foldl_of_comm τ.size (· ⊓ τ.idxToPropFun ·) ⊤ i (by intros; simp; ac_rfl)
+    rw [toPropFun, hϕ] at hσ
+    simp_all
+  . intro h
+    unfold toPropFun
+    apply Fin.foldl_induction (hInit := satisfies_tr)
+    intro ϕ i hϕ
+    simp [hϕ, h i]
 
-instance : ToString PPA where
-  toString τ := String.intercalate " ∧ "
-    (τ.assignment.foldl (init := []) (f := fun acc a => s!"{a}" :: acc))
+theorem satisfies_iff_vars {τ : PPA} {σ : PropAssignment IVar} :
+    σ ⊨ τ.toPropFun ↔ ∀ x b, τ.varValue? x = some b → σ x = b := by
+  constructor
+  . intro h x b h'
+    have := lt_size_of_varValue?_eq_some h'
+    let i : Fin τ.size := ⟨Subtype.val x - 1, this⟩
+    have h := satisfies_iff.mp h i
+    dsimp [idxToPropFun, varToPropFun] at h
+    have : 1 ≤ Subtype.val x := x.property
+    simp_rw [Nat.sub_add_cancel this, Subtype.eta, h'] at h
+    simp only [Option.map_some', Option.getD_some] at h
+    cases b <;> simp_all
+  . intro h
+    apply satisfies_iff.mpr
+    intro i
+    unfold idxToPropFun varToPropFun
+    cases' h' : (varValue? τ _) with b
+    . simp
+    . have := h _ _ h'
+      cases b <;> simp_all
+
+theorem satisfies_iff_lits {τ : PPA} {σ : PropAssignment IVar} :
+    σ ⊨ τ.toPropFun ↔ ∀ l, τ.litValue? l = some true → σ ⊨ LitVar.toPropFun l := by
+  simp_rw [LitVar.satisfies_iff, litValue?]
+  constructor
+  . intro h l h'
+    apply satisfies_iff_vars.mp h
+    simp_all
+  . intro h
+    apply satisfies_iff_vars.mpr
+    intro x b
+    have := h (mkPos x)
+    have := h (mkNeg x)
+    cases b <;> simp_all
+
+/-- A satisfying assignment for `toPropFun`.
+This is an arbitrary extension of `τ` from its domain to all of `IVar`. -/
+def toSatAssignment (τ : PPA) : PropAssignment IVar :=
+  fun x => τ.varValue? x |>.getD false
+
+theorem toSatAssignment_satisfies (τ : PPA) : τ.toSatAssignment ⊨ τ.toPropFun := by
+  aesop (add norm unfold toSatAssignment, norm satisfies_iff_vars)
+
+theorem toPropFun_ne_bot (τ : PPA) : τ.toPropFun ≠ ⊥ := by
+  intro
+  have := τ.toSatAssignment_satisfies
+  simp_all only [not_satisfies_fls]
+
+theorem varValue?_true (τ : PPA) (x : IVar) :
+    τ.varValue? x = some true → τ.toPropFun ≤ .var x := by
+  intro h
+  apply PropFun.entails_ext.mpr
+  simp_all [satisfies_iff_vars]
+
+theorem varValue?_false (τ : PPA) (x : IVar) :
+    τ.varValue? x = some false → τ.toPropFun ≤ (.var x)ᶜ := by
+  intro h
+  apply PropFun.entails_ext.mpr
+  simp_all [satisfies_iff_vars]
+
+theorem not_mem_semVars_of_varValue?_none (τ : PPA) (x : IVar) :
+    τ.varValue? x = none → x ∉ τ.toPropFun.semVars := by
+  rw [not_mem_semVars]
+  intro hx σ b hσ
+  rw [satisfies_iff_vars] at hσ ⊢
+  intro y b hy
+  have : x ≠ y := fun h => by rw [h, hy] at hx; contradiction
+  rw [PropAssignment.set_get_of_ne _ _ this]
+  apply hσ y b hy
+
+theorem varValue?_none (τ : PPA) (x : IVar) :
+    τ.varValue? x = none → ¬(τ.toPropFun ≤ .var x) := by
+  intro hNone hLt
+  let σ := τ.toSatAssignment.set x false
+  have : σ.agreeOn τ.toPropFun.semVars τ.toSatAssignment := fun y hMem =>
+    have : x ≠ y := fun h => τ.not_mem_semVars_of_varValue?_none x hNone (h ▸ hMem)
+    PropAssignment.set_get_of_ne _ _ this
+  have hσ : σ ⊨ τ.toPropFun := (agreeOn_semVars this).mpr τ.toSatAssignment_satisfies
+  have : σ ⊭ .var x := by
+    simp only [satisfies_var, PropAssignment.set_get, not_false_eq_true]
+  exact this (entails_ext.mp hLt σ hσ)
+
+theorem varValue?_none' (τ : PPA) (x : IVar) :
+    τ.varValue? x = none → ¬(τ.toPropFun ≤ (.var x)ᶜ) := by
+  intro hNone hLt
+  let σ := τ.toSatAssignment.set x true
+  have : σ.agreeOn τ.toPropFun.semVars τ.toSatAssignment := fun y hMem =>
+    have : x ≠ y := fun h => τ.not_mem_semVars_of_varValue?_none x hNone (h ▸ hMem)
+    PropAssignment.set_get_of_ne _ _ this
+  have hσ : σ ⊨ τ.toPropFun := (agreeOn_semVars this).mpr τ.toSatAssignment_satisfies
+  have : σ ⊭ (.var x)ᶜ := by
+    simp only [PropFun.satisfies_neg, satisfies_var, PropAssignment.set_get, not_true_eq_false,
+      not_false_eq_true]
+  exact this (entails_ext.mp hLt σ hσ)
+
+theorem litValue?_true (τ : PPA) (l : ILit) :
+    τ.litValue? l = some true → τ.toPropFun ≤ LitVar.toPropFun l := by
+  simp [litValue?, LitVar.toPropFun]
+  cases polarity l <;>
+    simp (config := {contextual := true}) [varValue?_false, varValue?_true]
+
+theorem litValue?_false (τ : PPA) (l : ILit) :
+    τ.litValue? l = some false → τ.toPropFun ≤ (LitVar.toPropFun l)ᶜ := by
+  simp [litValue?, LitVar.toPropFun]
+  cases polarity l <;>
+    simp (config := {contextual := true}) [varValue?_false, varValue?_true]
+
+theorem litValue?_none (τ : PPA) (l : ILit) :
+    τ.litValue? l = none → ¬(τ.toPropFun ≤ LitVar.toPropFun l) := by
+  simp [litValue?, LitVar.toPropFun]
+  cases (polarity l) <;>
+    simp (config := {contextual := true}) [varValue?_none, varValue?_none']
 
 end PPA
 
--- ??
+-- ?? folded into the `PPA` structure for now (forever?)
 --structure PPA.WF (ppa : PPA) where
   -- hGen: 0 < generation
   -- hMaxVal : ∀ x ∈ assignment, x.natAbs ≤ maxVal
+
+/-! ## Setting values in the PPA -/
 
 namespace PPA
   open LitVar PropFun
@@ -117,6 +239,7 @@ namespace PPA
     assignment := Array.mkArray maxVar 0
     generation := ⟨1, Nat.one_pos⟩
     maxGen := 0
+    le_maxGen i h := by simp_all [List.mem_replicate]
 
   /-- Reset the assignment to an empty one. -/
   def reset (τ : PPA) : PPA :=
@@ -126,31 +249,29 @@ namespace PPA
   def bump (τ : PPA) : PPA :=
     { τ with generation := ⟨τ.generation + 1, Nat.succ_pos _⟩ }
 
-  /-- Set the given literal to `true` for the current generation
-  in the assignment. -/
-  def setLit (τ : PPA) (l : ILit) : PPA :=
-    let v : Int := if polarity l then τ.generation else -τ.generation
+  /-- Set the given variable to `b` for the current generation. -/
+  def setVar (τ : PPA) (x : IVar) (b : Bool) : PPA :=
+    let v : Int := if b then τ.generation else -τ.generation
     { τ with
-      assignment := τ.assignment.setF ((toVar l).val - 1) v 0
-      maxGen := Nat.max τ.maxGen τ.generation }
+      assignment := τ.assignment.setF (x - 1) v 0
+      maxGen := Nat.max τ.maxGen τ.generation
+      le_maxGen := sorry }
+
+  /-- Set the given literal to `true` for the current generation. -/
+  def setLit (τ : PPA) (l : ILit) : PPA :=
+    τ.setVar (toVar l) (polarity l)
+
+  /-- Set the given variable to `b` for all generations until `gen`. -/
+  def setVarUntil (τ : PPA) (x : IVar) (b : Bool) (gen : Nat) : PPA :=
+    let v : Int := if b then gen else -gen
+    { τ with
+      assignment := τ.assignment.setF (x - 1) v 0
+      maxGen := Nat.max τ.maxGen gen
+      le_maxGen := sorry }
 
   /-- Set the given literal to `true` for all generations until `gen`. -/
   def setLitUntil (τ : PPA) (l : ILit) (gen : Nat) : PPA :=
-    let v : Int := if polarity l then gen else -gen
-    { τ with
-      assignment := τ.assignment.setF ((toVar l).val - 1) v 0
-      maxGen := Nat.max τ.maxGen gen }
-
-  /-- Check if the given clause is a tautology.
-  The current partial assignment is ignored,
-  and the assignment afterwards is unspecified. -/
-  def checkTauto (τ : PPA) (C : IClause) : PPA × Bool := Id.run do
-    let mut τ := τ.reset
-    for l in C do
-      if let some false := τ.litValue? l then
-        return (τ, true)
-      τ := τ.setLit l
-    return (τ, false)
+    τ.setVarUntil (toVar l) (polarity l) gen
 
   /-- Set `l ↦ ⊥` for each `l ∈ C` and leave the rest of the assignment untouched.
   If the current assignment contains literals appearing in `C`, they will be overwritten. -/
@@ -162,112 +283,191 @@ namespace PPA
   def setNegatedClauseUntil (τ : PPA) (C : IClause) (gen : Nat) : PPA :=
     C.foldl (init := τ) (fun τ l => τ.setLitUntil (-l) gen)
 
-  /-! # Lemmas -/
+  /-! ### Lemmas about `reset` -/
 
-  theorem setLit_pos (τ : PPA) (l : ILit) : (τ.setLit l).litValue? l = some true := by
-    rw [litValue?, setLit]
-    cases polarity l
-    <;> simp [Array.getElem?_setF]
-    exact τ.generation.property
+  theorem lt_reset_generation (τ : PPA) : ∀ i ∈ τ.reset.assignment.data, i.natAbs < τ.reset.generation := by
+    dsimp [reset]
+    intro i h
+    have := τ.le_maxGen i h
+    linarith
 
-  theorem setLit_neg (τ : PPA) {l l' : ILit} :
-      (toVar l) ≠ (toVar l') → (τ.setLit l).litValue? l' = τ.litValue? l' := by
-    intro hl
-    simp only [litValue?, setLit]
-    have : (toVar l).val - 1 ≠ (toVar l').val - 1 := by
-      rcases ILit.exists_succ_toVar l with ⟨n₁, hn₁⟩
-      rcases ILit.exists_succ_toVar l' with ⟨n₂, hn₂⟩
-      rw [hn₁, hn₂, Nat.add_sub_cancel, Nat.add_sub_cancel]
-      -- TODO: How to use ≠ instead of ¬( = )?
-      have := mt Subtype.ext hl
-      have : ↑(toVar l) ≠ (toVar l').val := this
-      simp [hn₁, hn₂] at this
-      exact this
-    cases polarity l
-    <;> simp [Array.getElem?_setF' _ _ _ this]
+  @[simp]
+  theorem varValue?_reset (τ : PPA) (x : IVar) : τ.reset.varValue? x = none := by
+    unfold varValue?
+    split
+    . rfl
+    . split
+      . next n hn h =>
+        have : n ∈ τ.reset.assignment.data := by
+          simp_rw [Array.get?_eq_getElem?, Array.getElem?_eq_data_get?, List.get?_eq_some] at hn
+          have ⟨_, hn⟩ := hn
+          rw [← hn]
+          apply List.get_mem
+        have := τ.lt_reset_generation n this
+        linarith
+      . rfl
 
-  theorem setLit_varValue_pos (τ : PPA) {l : ILit} {v : IVar} :
-      v = (toVar l) → (τ.setLit l).varValue? v = some (polarity l) := by
-    intro hv
-    rw [varValue?]
-    have h_setLit := setLit_pos τ l
-    cases hpol : polarity l
-    · have : (mkPos v) = -l := by rw [hv]; ext <;> simp [hpol]
-      rw [this]
-      rw [litValue?_negate] at h_setLit
-      match hlit : litValue? (setLit τ l) (-l) with
-      | none => simp [hlit] at h_setLit
-      | some b =>
-        cases b with
-        | true => simp [hlit] at h_setLit
-        | false => rfl
-    · have : (mkPos v) = l := by rw [hv]; ext <;> simp [hpol]
-      rw [this]
-      exact h_setLit
+  @[simp]
+  theorem litValue?_reset (τ : PPA) (l : ILit) : (τ.reset).litValue? l = none := by
+    simp [litValue?, varValue?_reset]
 
-  theorem setLit_varValue_neg (τ : PPA) {l : ILit} {v : IVar} :
-      (toVar l) ≠ v → (τ.setLit l).varValue? v = τ.varValue? v := by
-    intro hv
-    -- TODO: Why all the instances?
-    rw [← @LawfulLitVar.toVar_mkPos ILit IVar LeanSAT.instLitVarILitIVar
-      LeanSAT.instLawfulLitVarILitIVarInstLitVarILitIVar v] at hv
-    exact setLit_neg τ hv
+  @[simp]
+  theorem toPropFun_reset (τ : PPA) : τ.reset.toPropFun = ⊤ := by
+    ext; simp [satisfies_iff_vars]
 
-  #check PropFun.entails
+  /-! ### Lemmas about `setVar`, `setLit` -/
 
-  theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
-      σ ⊨ τ.toPropFun ↔ ∀ v b, τ.varValue? v = some b → σ v = b := by
-    constructor
-    · intro hσ v b hv
-      rw [toPropFun] at hσ
-      have := Array.foldlIdx_of_comm τ.assignment (toPropFun_fun τ) ⊤ (toPropFun_fun_comm τ)
-      --have ⟨a, ha⟩ := ⊤.fold_of_mapsTo_of_comm
-      --rw [toPropFun] at hσ
+  @[simp]
+  theorem varValue?_setVar (τ : PPA) (x : IVar) (b : Bool) : (τ.setVar x b).varValue? x = some b := by
+    unfold varValue? setVar
+    cases b <;> simp [Array.getElem?_setF, τ.generation.property]
 
-      --rw [satisfies_iff] at hσ
-      sorry
-      done
-    · sorry
+  @[simp]
+  theorem varValue?_setVar_of_ne (τ : PPA) {x x' : IVar} (b : Bool) :
+      x ≠ x' → (τ.setVar x b).varValue? x' = τ.varValue? x' := by
+    unfold varValue? setVar
+    intro hNe
+    have : x.val - 1 ≠ x'.val - 1 := by
+      intro h
+      have hx : 1 ≤ x.val := by cases x; assumption
+      have hx' : 1 ≤ x'.val := by cases x'; assumption
+      have : x.val - 1 + 1 = x'.val - 1 + 1 := by simp_rw [h]
+      rw [Nat.sub_add_cancel hx, Nat.sub_add_cancel hx'] at this
+      exact hNe (PNat.coe_inj.mp this)
+    simp [Array.getElem?_setF' _ _ _ this]
 
-    /-
-    where
-  mp := fun h => by
-    intro x p? hFind
-    have ⟨φ, hφ⟩ := τ.fold_of_mapsTo_of_comm
-      (init := ⊤) (f := fun acc x v => acc ⊓ if v then PropTerm.var x else (PropTerm.var x)ᶜ)
-      hFind ?comm
-    case comm =>
-      intros
-      dsimp
-      ac_rfl
-    rw [toPropTerm, hφ] at h
-    aesop
+  @[simp]
+  theorem varValue?_setLit (τ : PPA) (l : ILit) : (τ.setLit l).varValue? (toVar l) = some (polarity l) := by
+    simp [setLit, varValue?_setVar]
 
-  mpr := fun h => by
-    apply HashMap.foldRecOn (hInit := satisfies_tr)
-    intro φ x p hφ hFind
-    rw [satisfies_conj]
-    refine ⟨hφ, ?_⟩
-    have := h _ _ hFind
-    split <;> simp [*]
-    -/
+  @[simp]
+  theorem litValue?_setLit (τ : PPA) (l : ILit) : (τ.setLit l).litValue? l = some true := by
+    simp [litValue?, setLit, varValue?_setVar]
 
-  theorem satisfies_iff' {τ : PPA} {σ : PropAssignment IVar} :
-      σ ⊨ τ.toPropFun ↔ ∀ l b, τ.litValue? l = some b → σ (toVar l) = xor (!b) (polarity l) := by
-    constructor
-    · intro hσ l b hl
-      have := satisfies_iff.mp hσ (toVar l) (xor (!b) (polarity l))
-      cases b
-      · simp at this
-        simp
-        apply this
-        unfold varValue?
-        sorry
-      · sorry
-    · sorry
-    done
+  @[simp]
+  theorem varValue?_setLit_of_ne (τ : PPA) (l : ILit) (x : IVar) :
+      toVar l ≠ x → (τ.setLit l).varValue? x = τ.varValue? x := by
+    intro h
+    simp [setLit, varValue?_setVar_of_ne _ _ h]
 
-  /-! # Unit propagation -/
+  @[simp]
+  theorem litValue?_setLit_of_ne (τ : PPA) (l l' : ILit) :
+      toVar l ≠ toVar l' → (τ.setLit l).litValue? l' = τ.litValue? l' := by
+    intro h
+    simp [litValue?, varValue?_setLit_of_ne _ _ _ h]
+
+  /-! ### `toPropFun` model -/
+
+  theorem toPropFun_setVar_lt_of_none (τ : PPA) (x : IVar) (b : Bool) :
+      τ.varValue? x = none → (τ.setVar x b).toPropFun ≤ τ.toPropFun := by
+    intro h
+    apply entails_ext.mpr
+    intro σ hσ
+    rw [satisfies_iff_vars] at hσ ⊢
+    intro y b hy
+    apply hσ
+    rwa [varValue?_setVar_of_ne]
+    intro hEq
+    rw [hEq, hy] at h
+    contradiction
+
+  theorem toPropFun_setLit_lt_of_none (τ : PPA) (l : ILit) :
+      τ.litValue? l = none → (τ.setLit l).toPropFun ≤ τ.toPropFun := by
+    intro
+    simp_all only [litValue?, setLit, Option.map_eq_none', toPropFun_setVar_lt_of_none]
+
+  theorem toPropFun_setLit_lt (τ : PPA) (l : ILit) :
+      (τ.setLit l).toPropFun ≤ LitVar.toPropFun l := by
+    apply entails_ext.mpr
+    intro σ hσ
+    rw [satisfies_iff_lits] at hσ
+    apply hσ
+    apply litValue?_setLit
+
+  theorem lt_toPropFun_setLit (τ : PPA) (l : ILit) :
+      τ.toPropFun ⊓ LitVar.toPropFun l ≤ (τ.setLit l).toPropFun := by
+    apply entails_ext.mpr
+    intro σ hσ
+    have ⟨hσ, hσ'⟩ := satisfies_conj.mp hσ
+    rw [satisfies_iff_vars] at hσ ⊢
+    intro x b hx
+    by_cases h : toVar l = x
+    . simp_all [setLit, LitVar.satisfies_iff]
+    . apply hσ
+      rwa [τ.varValue?_setLit_of_ne _ _ h] at hx
+
+  theorem toPropFun_setLit_of_none (τ : PPA) (l : ILit) :
+      τ.litValue? l = none → (τ.setLit l).toPropFun = τ.toPropFun ⊓ LitVar.toPropFun l := by
+    intro h
+    refine le_antisymm ?_ (τ.lt_toPropFun_setLit l)
+    simp [toPropFun_setLit_lt_of_none _ _ h, toPropFun_setLit_lt]
+
+  /-! ## Tautology checking -/
+
+  /-- Check if the given clause is a tautology.
+  The current partial assignment is ignored,
+  and the returned assignment is unspecified. -/
+  def checkTauto (τ : PPA) (C : IClause) : PPA × { b : Bool // b ↔ C.toPropFun = ⊤ } :=
+    go 0 ⟨τ.reset, by simp [Clause.toPropFun]⟩
+  where
+    go (i : Nat) (τ : { τ : PPA // τ.toPropFunᶜ = Clause.toPropFun ⟨C.data.take i⟩ })
+      : PPA × { b : Bool // b ↔ C.toPropFun = ⊤ } :=
+    if hLt : i < C.size then
+      let l := C[i]'hLt
+      have hCl : Clause.toPropFun ⟨C.data.take (i+1)⟩ = Clause.toPropFun ⟨C.data.take i⟩ ⊔ LitVar.toPropFun l := by
+        simp [List.take_succ, List.get?_eq_get hLt, Array.getElem_eq_data_get]
+      match h : τ.val.litValue? l with
+      | some true =>
+        (τ.val, ⟨true, by
+          have : τ.val.toPropFun ≤ LitVar.toPropFun l := τ.val.litValue?_true l h
+          have : (LitVar.toPropFun l)ᶜ ≤ τ.val.toPropFunᶜ := compl_le_compl this
+          have : (LitVar.toPropFun l)ᶜ ≤ C.toPropFun := by
+            apply le_trans this
+            rw [τ.property]
+            apply C.toPropFun_take_lt
+          have : LitVar.toPropFun l ≤ C.toPropFun := C.toPropFun_getElem_lt i _
+          have : ⊤ ≤ C.toPropFun := by
+            rw [← sup_compl_eq_top (x := LitVar.toPropFun l)]
+            apply sup_le <;> assumption
+          simp only [top_le_iff.mp this]⟩)
+      | some false =>
+        go (i + 1) ⟨τ.val.setLit (-l), by
+          have : (τ.val.setLit (-l)).toPropFun ≤ τ.val.toPropFun := by
+            apply entails_ext.mpr
+            intro σ hσ
+            rw [satisfies_iff_vars] at hσ ⊢
+            intro x b hx
+            apply hσ
+            by_cases hEq : toVar (-l) = x
+            . aesop (add norm unfold litValue?, norm unfold setLit)
+            . rwa [τ.val.varValue?_setLit_of_ne _ _ hEq]
+          have := τ.val.toPropFun_setLit_lt (-l)
+          have : (τ.val.setLit (-l)).toPropFun = τ.val.toPropFun ⊓ LitVar.toPropFun (-l) := by
+            refine le_antisymm ?_ (τ.val.lt_toPropFun_setLit _)
+            simp_all only [le_inf_iff, and_self]
+          simp [*, τ.property]⟩
+      | none =>
+        go (i + 1) ⟨τ.val.setLit (-l), by
+          have : (τ.val.setLit (-l)).toPropFun = τ.val.toPropFun ⊓ LitVar.toPropFun (-l) := by
+            apply toPropFun_setLit_of_none
+            simp [τ.val.litValue?_negate l, h]
+          simp [*, τ.property]⟩
+    else
+      (τ.val, ⟨false, by
+        simp only [false_iff]
+        intro h
+        apply τ.val.toPropFun_ne_bot
+        have hEq := τ.property
+        have : C.data.length ≤ i := by rw [not_lt] at hLt; exact hLt
+        have that : C = { data := C.data } := rfl
+        simp_rw [C.data.take_length_le this, ← that, h, compl_eq_top] at hEq
+        assumption⟩)
+  termination_by go i τ => C.size - i
+
+-- TODO: below
+#exit
+
+  /-! ## Unit propagation -/
 
   -- Propagate Partial result
   inductive PPR where

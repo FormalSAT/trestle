@@ -176,6 +176,22 @@ theorem eval_of_agreeOn_semVars {φ : PropFun ν} {σ₁ σ₂ : PropAssignment 
   dsimp only [SemanticEntails.entails, satisfies] at this
   aesop
 
+theorem not_mem_semVars {φ : PropFun ν} {x : ν} :
+    x ∉ φ.semVars ↔ ∀ (τ : PropAssignment ν) (b : Bool), τ ⊨ φ → τ.set x b ⊨ φ := by
+  constructor
+  . intro h τ b hτ
+    have : τ.set x b ⊨ φ ↔ τ ⊨ φ := by
+      apply agreeOn_semVars
+      intro y hy
+      apply PropAssignment.set_get_of_ne
+      intro hMem
+      rw [hMem] at h
+      contradiction
+    rwa [this]
+  . rw [mem_semVars]
+    intro h ⟨τ, hτ, hτ'⟩
+    exact hτ' (h τ (!τ x) hτ)
+
 @[simp]
 theorem semVars_var (x : ν) : (var x).semVars = {x} := by
   ext y

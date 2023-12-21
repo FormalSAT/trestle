@@ -27,7 +27,7 @@ class SemanticEntails (α : Type u) (β : outParam $ Type v) where
   entails : α → β → Prop
 
 infix:51 " ⊨ " => SemanticEntails.entails
-infix:51 " ⊭ " => fun M φ => ¬(M ⊨ φ)
+notation:51 M:51 " ⊭ " φ:52 => ¬(M ⊨ φ)
 
 /-! Int -/
 
