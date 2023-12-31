@@ -21,7 +21,7 @@ structure PPA where
   generation : { g : Nat // 0 < g }
   /-- The maximum absolute value of any entry in `assignments`. -/
   maxGen : Nat
-  le_maxGen : ∀ i ∈ assignment.data, i.natAbs ≤ maxGen
+  le_maxGen : ∀ g ∈ assignment.data, g.natAbs ≤ maxGen
 
 instance : ToString PPA where
   toString τ := String.intercalate " ∧ "
@@ -70,13 +70,16 @@ theorem litValue?_eq_varValue?_some {τ : PPA} {l : ILit} {b : Bool} :
 
 theorem lt_size_of_varValue?_eq_some {τ : PPA} {x : IVar} {b : Bool} :
     τ.varValue? x = some b → x - 1 < τ.size := by
-  sorry
-  done
+  unfold varValue?
+  split <;> simp
+  intros
+  sorry -- should be apply Array.lt_size_of_get?_eq_some (or Array.some_lemma)
 
 theorem lt_size_of_litValue?_eq_some {τ : PPA} {l : ILit} {b : Bool} :
     τ.litValue? l = some b → ((toVar l) - 1) < τ.size := by
-  sorry
-  done
+  simp only [litValue?, Option.map_eq_some']
+  intro ⟨b, h⟩
+  exact lt_size_of_varValue?_eq_some h.1
 
 /-! ### `toPropFun` model -/
 
@@ -89,6 +92,16 @@ def idxToPropFun (τ : PPA) (i : Fin τ.size) : PropFun IVar :=
 /-- We model the `PPA` as the conjunction of all its literals.
 Note that we cannot fully model the `PPA` as just one `PropAssignment`
 because those are required to be total. -/
+/- NOTE: Possible alternative models:
+- A `PropSubst` which acts as the identity on all variables not in the PPA.
+  This has a natural notion of semantic entailment: substituting yields ⊤.
+- A finite set of literals. This however doesn't seem to have a natural entailment;
+  there are two, treating the set as either big conj or big disj.
+  Furthermore a set can be inconsistent/tautological
+  by containing complementary literals,
+  and this case has to be handled in such a model,
+  whereas the PPA cannot.
+  The same issue appears with PropFun; see `toPropFun_ne_bot`. -/
 def toPropFun (τ : PPA) : PropFun IVar :=
   Fin.foldl τ.size (· ⊓ τ.idxToPropFun ·) ⊤
 
@@ -101,7 +114,7 @@ theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
     simp_all
   . intro h
     unfold toPropFun
-    apply Fin.foldl_induction (hInit := satisfies_tr)
+    apply Fin.foldl_induction' (hInit := satisfies_tr)
     intro ϕ i hϕ
     simp [hϕ, h i]
 
@@ -249,13 +262,25 @@ namespace PPA
   def bump (τ : PPA) : PPA :=
     { τ with generation := ⟨τ.generation + 1, Nat.succ_pos _⟩ }
 
+  /-- Helper theorem for `setVar*`. -/
+  theorem setVar_le_maxGen (τ : PPA) (i : Nat) (b : Bool) (gen : Nat) :
+    let v : Int := if b then gen else -gen
+    ∀ g ∈ (τ.assignment.setF i v 0).data, g.natAbs ≤ Nat.max τ.maxGen gen := by
+  intro v g hg
+  have := Array.mem_setF _ _ _ _ g hg
+  rcases this with h | h | h
+  . exact le_max_of_le_left (τ.le_maxGen _ h)
+  . simp [h]
+  . cases b <;> simp [h]
+
   /-- Set the given variable to `b` for the current generation. -/
   def setVar (τ : PPA) (x : IVar) (b : Bool) : PPA :=
     let v : Int := if b then τ.generation else -τ.generation
     { τ with
       assignment := τ.assignment.setF (x - 1) v 0
       maxGen := Nat.max τ.maxGen τ.generation
-      le_maxGen := sorry }
+      le_maxGen := setVar_le_maxGen τ (x - 1) b τ.generation
+    }
 
   /-- Set the given literal to `true` for the current generation. -/
   def setLit (τ : PPA) (l : ILit) : PPA :=
@@ -267,7 +292,8 @@ namespace PPA
     { τ with
       assignment := τ.assignment.setF (x - 1) v 0
       maxGen := Nat.max τ.maxGen gen
-      le_maxGen := sorry }
+      le_maxGen := setVar_le_maxGen τ (x - 1) b gen
+    }
 
   /-- Set the given literal to `true` for all generations until `gen`. -/
   def setLitUntil (τ : PPA) (l : ILit) (gen : Nat) : PPA :=

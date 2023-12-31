@@ -2,6 +2,8 @@ import Std
 import Mathlib.Tactic
 import Init.Data.Nat.Basic
 
+/-! # List -/
+
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
               (h : i + rest.length = L.length) :=
@@ -12,6 +14,35 @@ def List.enum' (L : List α) : List (Fin L.length × α) :=
       :: go xs (i+1) (by
         simp [←h, Nat.add_succ, Nat.succ_add])
   go L 0 (by simp)
+
+def List.distinct [DecidableEq α] (L : List α) : List α :=
+  L.foldl (·.insert ·) []
+
+def List.isDistinct [BEq α] : List α → Bool
+| [] => true
+| x::xs => !xs.contains x && xs.isDistinct
+
+def List.fins (n : Nat) : List (Fin n) :=
+  finsAux n (Nat.le_refl _) []
+where
+  finsAux : (i : Nat) → i ≤ n → List (Fin n) → List (Fin n)
+  | 0, _, acc => acc
+  | i+1, h, acc => finsAux i (Nat.le_of_lt h) (⟨i,h⟩ :: acc)
+
+def List.mem_set : ∀ {l : List α} {i : Nat} {a a' : α},
+    a' ∈ l.set i a → a' ∈ l ∨ a' = a
+  | cons _ bs, 0, _, _, h => by
+    simp only [set, mem_cons] at h ⊢
+    tauto
+  | cons b bs, Nat.succ n, _, _, h => by
+    simp only [set, mem_cons] at h ⊢
+    cases' h with h h
+    . tauto
+    . have := mem_set h
+      tauto
+  | nil, _, _, _, h => Or.inl h
+
+/-! # Fin -/
 
 def Fin.pred? : Fin n → Option (Fin n)
 | ⟨0, _⟩ => none
@@ -38,6 +69,49 @@ def Fin.succ? : {n : Nat} → Fin n → Option (Fin n)
   if h : i < n
   then some ⟨i+1, Nat.succ_le_succ h⟩
   else none
+
+lemma Fin.foldl_induction (n) (f : α → Fin n → α) (init : α) (P : α → Fin (n+1) → Prop)
+    (hInit : P init 0)
+    (hSucc : ∀ a (i : Fin n), P a ⟨i.val, Nat.lt_succ_of_lt i.is_lt⟩ → P (f a i) ⟨i.val+1, Nat.succ_lt_succ i.is_lt⟩) :
+    P (Fin.foldl n f init) ⟨n, Nat.lt_succ_self n⟩ :=
+  loop init 0 hInit
+where
+  loop (x : α) (i : Fin (n+1)) (h : P x i) : P (Fin.foldl.loop n f x i.val) ⟨n, Nat.lt_succ_self n⟩ := by
+    unfold foldl.loop
+    split
+    next h =>
+      have := loop (f x ⟨i.val, h⟩) ⟨i.val+1, Nat.succ_lt_succ h⟩
+      apply this
+      apply hSucc
+      assumption
+    next h =>
+      have : i.val = n := Nat.eq_of_le_of_lt_succ (not_lt.mp h) i.is_lt
+      simp_rw [← this]
+      assumption
+  termination_by loop x i h => n - i
+
+lemma Fin.foldl_induction' (n) (f : α → Fin n → α) (init : α) (P : α → Prop)
+    (hInit : P init)
+    (hSucc : ∀ a i, P a → P (f a i)) :
+    P (Fin.foldl n f init) :=
+  Fin.foldl_induction n f init (fun a _ => P a) hInit hSucc
+
+lemma Fin.foldl_of_comm (n) (f : α → Fin n → α) (init : α) (i : Fin n)
+    (H : ∀ (acc : α) (i₁ i₂ : Fin n), f (f acc i₁) i₂ = f (f acc i₂) i₁) :
+    ∃ (acc : α), Fin.foldl n f init = f acc i :=
+  have : i.val < n → ∃ (acc : α), Fin.foldl n f init = f acc i :=
+    Fin.foldl_induction n f init (fun res j => i.val < j.val → ∃ (acc : α), res = f acc i)
+      (nomatch ·)
+      (by
+        intro a j ih h
+        cases' lt_or_eq_of_le (Nat.lt_succ.mp h) with h
+        . have ⟨acc, hAcc⟩ := ih h
+          use (f acc j)
+          rw [hAcc, H]
+        . have : i = j := by ext; assumption
+          use a
+          rw [this])
+  this i.is_lt
 
 def Function.iterate (f : α → α) : Nat → (α → α)
 | 0 => id
@@ -252,11 +326,11 @@ theorem Array.lt_size_setF (A : Array α) (i : Nat) (v default : α) :
   rw [Array.size_setF]
   exact lt_max_of_lt_right (Nat.lt_succ_self _)
 
-theorem Array.setF_eq_of_ge (A : Array α) {i : Nat} (hi : i > A.size) (v default : α) :
+theorem Array.setF_eq_of_gt (A : Array α) {i : Nat} (hi : i > A.size) (v default : α) :
     A.setF i v default = A ++ mkArray (i - A.size) default ++ #[v] := by
   simp [setF, Nat.lt_asymm hi, Array.setF_go_eq]; rfl
 
-theorem Array.setF_eq_of_ge' (A : Array α) {i : Nat} (hi : i ≥ A.size) (v default : α) :
+theorem Array.setF_eq_of_ge (A : Array α) {i : Nat} (hi : i ≥ A.size) (v default : α) :
     A.setF i v default = (A ++ mkArray (i - A.size) default).push v := by
   simp [setF, Nat.not_lt.mpr hi, Array.setF_go_eq]
 
@@ -279,6 +353,20 @@ theorem Array.setF_setF (A : Array α) (i : Nat) (v v' default : α) :
     sorry
     done
   done
+
+theorem Array.mem_setF (A : Array α) (i : Nat) (v default : α) :
+    ∀ a ∈ (A.setF i v default).data, a ∈ A.data ∨ a = default ∨ a = v := by
+  intro a ha
+  by_cases h : i < A.size
+  . rw [Array.setF_eq_set h] at ha
+    have ha := List.mem_set ha
+    tauto
+  . rw [not_lt] at h
+    simp only [A.setF_eq_of_ge h,  push_data, append_data, mkArray_data,
+      List.append_assoc, List.mem_append, List.mem_singleton] at ha
+    rcases ha with _ | ha | _ <;> try { tauto }
+    have := List.eq_of_mem_replicate ha
+    tauto
 
 /-
 #check Array.get_set
@@ -318,35 +406,6 @@ theorem Array.getElem?_setF' (A : Array α) {i j : Nat} (v default : α) :
     i ≠ j → (A.setF i v default)[j]? = A[j]? := by
   sorry
   done
-
-/-! # Fin -/
-
--- TODO Move to AuxDefs
-lemma Fin.foldl_of_comm (n) (f : α → Fin n → α) (init : α) (i : Fin n)
-    (H : ∀ (acc : α) (i₁ i₂ : Fin n), f (f acc i₁) i₂ = f (f acc i₂) i₁) :
-    ∃ (acc : α), Fin.foldl n f init = f acc i := by
-  sorry
-
-lemma Fin.foldl_induction (n) (f : α → Fin n → α) (init : α) (P : α → Prop)
-    (hInit : P init) (hSucc : ∀ a i, P a → P (f a i)) :
-    P (Fin.foldl n f init) := by
-  sorry
-
-/-! # List -/
-
-def List.distinct [DecidableEq α] (L : List α) : List α :=
-  L.foldl (·.insert ·) []
-
-def List.isDistinct [BEq α] : List α → Bool
-| [] => true
-| x::xs => !xs.contains x && xs.isDistinct
-
-def List.fins (n : Nat) : List (Fin n) :=
-  finsAux n (Nat.le_refl _) []
-where
-  finsAux : (i : Nat) → i ≤ n → List (Fin n) → List (Fin n)
-  | 0, _, acc => acc
-  | i+1, h, acc => finsAux i (Nat.le_of_lt h) (⟨i,h⟩ :: acc)
 
 /- Better parallelism primitive, that is actually like Scala's Future -/
 def TaskIO (α) := IO (Task (Except IO.Error α))
