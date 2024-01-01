@@ -1,8 +1,9 @@
+import Mathlib.Data.Nat.Basic
+
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
 import LeanSAT.AuxDefs
 import LeanSAT.Upstream.ToStd
-import Mathlib.Data.Nat.Basic
 
 open LeanSAT LeanSAT.Model Nat
 
