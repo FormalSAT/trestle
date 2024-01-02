@@ -302,8 +302,6 @@ namespace PPA
 
   /-- Set `l ↦ ⊥` for each `l ∈ C` and leave the rest of the assignment untouched.
   If the current assignment contains literals appearing in `C`, they will be overwritten. -/
-  -- NB: might be easier to verify if we make this always bump p.generation; it's only used before UP anyway
-  -- left without bump but might result in harder theorem
   def setNegatedClause (τ : PPA) (C : IClause) : PPA :=
     C.foldl (init := τ) (fun τ l => τ.setLit (-l))
 
@@ -429,6 +427,26 @@ namespace PPA
     refine le_antisymm ?_ (τ.lt_toPropFun_setLit l)
     simp [toPropFun_setLit_lt_of_none _ _ h, toPropFun_setLit_lt]
 
+  /-! ## Lemmas about `setNegatedClause` -/
+
+  @[simp]
+  theorem toPropFun_reset_setNegatedClause (τ : PPA) (C : IClause) :
+      -- NOTE: We only get an equality if `C.toPropFun ≠ ⊤`.
+      C.toPropFunᶜ ≤ (τ.reset.setNegatedClause C).toPropFun := by
+    suffices (Clause.toPropFun { data := C.data.take C.size : IClause })ᶜ ≤ (τ.reset.setNegatedClause C).toPropFun by
+      simpa using this
+    unfold setNegatedClause
+    apply Array.foldl_induction
+      (motive := fun n acc => (Clause.toPropFun { data := C.data.take n : IClause })ᶜ ≤ PPA.toPropFun acc)
+    . simp [Clause.toPropFun]
+    . intro i τ ih
+      refine le_trans (le_inf_iff.mpr ?_) (τ.lt_toPropFun_setLit (-C[i]))
+      simp only [List.take_succ, Clause.of_append, Clause.toPropFun_append, compl_sup]
+      constructor
+      . exact inf_le_of_left_le ih
+      . apply inf_le_of_right_le
+        simp [List.get?_eq_get, Array.getElem_eq_data_get]
+
   /-! ## Tautology checking -/
 
   /-- Check if the given clause is a tautology.
@@ -493,31 +511,32 @@ namespace PPA
 
   /-! ## Unit propagation -/
 
-  inductive PropagateResultDep (τ τ' : PPA) (C : IClause) where
+  inductive UPResult (τ τ' : PPA) (C : IClause) where
     | contradiction (h : C.toPropFun ⊓ τ.toPropFun = ⊥)
     /-- Under `τ`, `C` became a unit clause `[l]`.
     The assignment was extended by that literal, i.e., `τ' = τ ⊓ l`. -/
     -- Note: I didn't prove that `C' = [l]`.
     | extended      (l : ILit) (hl : l ∈ C.data)
-                    (h : τ'.toPropFun = LitVar.toPropFun l ⊓ τ.toPropFun)
+                    (h₁ : τ'.toPropFun = LitVar.toPropFun l ⊓ τ.toPropFun)
+                    (h₂ : τ.toPropFun ⊓ C.toPropFun ≤ LitVar.toPropFun l)
     /-- Clause became satisfied. -/
     | satisfied
     /-- Clause did not become unit, and was not satisfied. -/
     | notUnit
 
-  /-- If `C` is satisfied by `τ`, return `notUnit`.
+  /-- If `C` is satisfied by `τ`, return `satisfied`.
   Otherwise compute the reduced clause `C' = {l ∈ C | ¬l ∉ τ}`.
   If `C' = [u]` is a unit, extend `τ` by `u` and return `extended`.
   If `C'` has become empty (is falsified), return `contradiction`.
   If `C'` is not a unit and not falsified, return `notUnit`. -/
-  def propagateUnit_loop (τ : PPA) (C : IClause) : (τ' : PPA) × PropagateResultDep τ τ' C :=
+  def propagateUnit (τ : PPA) (C : IClause) : (τ' : PPA) × UPResult τ τ' C :=
     go 0 none Option.all_none (by simp only [not_lt_zero', IsEmpty.forall_iff, implies_true])
   where
     /-- If `unit? = some u`, then `u` is a literal in the clause that is not falsified by `τ`.
     It may therefore be the case that `C' = [u]` -/
     go (i : Nat) (unit? : Option ILit) (hUnit : unit?.all fun u => u ∈ C.data ∧ τ.litValue? u = none)
         (hLits : ∀ (j : Fin C.size), j.val < i → unit? = some C[j] ∨ τ.toPropFun ≤ (LitVar.toPropFun C[j])ᶜ) :
-        (τ' : PPA) × PropagateResultDep τ τ' C :=
+        (τ' : PPA) × UPResult τ τ' C :=
       if hi : i < C.size then
         let l := C[i]'hi
         match hl : τ.litValue? l with
@@ -570,9 +589,24 @@ namespace PPA
             rw [PropFun.satisfies_neg] at this
             exact this (hk ▸ hσl))⟩
         | some u =>
-          ⟨τ.setLit u, .extended u (by simp at hUnit; tauto) (by
+          ⟨τ.setLit u, .extended u
+            (by simp at hUnit; tauto)
+            (by
             simp at hUnit
-            simp [τ.toPropFun_setLit_of_none u hUnit.right, inf_comm])⟩
+              simp [τ.toPropFun_setLit_of_none u hUnit.right, inf_comm])
+            (by
+              apply entails_ext.mpr
+              intro σ hσ
+              have ⟨hστ, hσC⟩ := satisfies_conj.mp hσ
+              have ⟨l, hl, hσl⟩ := Clause.satisfies_iff.mp hσC
+              have ⟨i, hi⟩ := Array.mem_data_iff.mp hl
+              have := i.is_lt
+              have := hLits i (by linarith)
+              rcases this with hEq | hτl
+              . cases hEq
+                rwa [hi]
+              . exfalso
+                exact (satisfies_neg.mp <| entails_ext.mp hτl _ hστ) (hi ▸ hσl))⟩
     termination_by go i _ _ _ => C.size - i
 
 end PPA
