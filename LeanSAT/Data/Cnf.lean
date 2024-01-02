@@ -174,6 +174,10 @@ theorem of_append (l₁ l₂ : List L) : { data := l₁ ++ l₂ : Clause L } = {
 theorem of_singleton (l : L) : { data := [l] : Clause L } = #[l] := by
   rfl
 
+@[simp]
+theorem of_empty : { data := [] : Clause L } = #[] := by
+  rfl
+
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
 def toPropForm (C : Clause L) : PropForm ν :=
