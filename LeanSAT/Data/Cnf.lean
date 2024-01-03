@@ -76,6 +76,8 @@ namespace LitVar
 variable {L : Type u} {ν : Type v} [LitVar L ν] [LawfulLitVar L ν]
 open LawfulLitVar
 
+export LawfulLitVar (toVar_negate toVar_mkPos toVar_mkNeg polarity_negate polarity_mkPos polarity_mkNeg ext)
+
 attribute [simp] toVar_negate toVar_mkPos toVar_mkNeg polarity_negate polarity_mkPos polarity_mkNeg
 attribute [ext] LawfulLitVar.ext
 
@@ -266,6 +268,13 @@ theorem toPropFun_take_lt (C : Clause L) (i : Nat) : toPropFun ⟨C.data.take i�
   have ⟨l, hl, hl'⟩ := satisfies_iff.mp hσ
   refine satisfies_iff.mpr ⟨l, List.mem_of_mem_take hl, hl'⟩
 
+variable [DecidableEq ν]
+
+theorem mem_vars (C : Clause L) (x : ν) :
+    x ∈ C.toPropForm.vars ↔ ∃ l ∈ C.data, x = LitVar.toVar l := by
+  rw [toPropForm]
+  induction C.data <;> simp [*, PropForm.vars]
+
 end Clause
 
 /-! ### CNF -/
@@ -294,6 +303,14 @@ open PropFun
 theorem satisfies_iff {τ : PropAssignment ν} {φ : Cnf L} :
     τ ⊨ φ.toPropFun ↔ ∀ C ∈ φ.data, τ ⊨ C.toPropFun := by
   rw [toPropFun]
-  induction φ.data <;> simp_all
+  induction φ.data <;> simp [*]
+
+variable [DecidableEq ν]
+
+theorem mem_vars (φ : Cnf L) (x : ν) :
+    x ∈ φ.toPropForm.vars ↔ ∃ C ∈ φ.data, x ∈ C.toPropForm.vars := by
+  simp_rw [toPropForm]
+  induction φ.data <;>
+    simp_all [PropForm.vars, Clause.mem_vars]
 
 end Cnf
