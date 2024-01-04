@@ -81,9 +81,12 @@ theorem litValue?_eq_varValue?_some {τ : PPA} {l : ILit} {b : Bool} :
 theorem lt_size_of_varValue?_eq_some {τ : PPA} {x : IVar} {b : Bool} :
     τ.varValue? x = some b → x - 1 < τ.size := by
   unfold varValue?
-  split <;> simp
-  intros
-  sorry -- should be apply Array.lt_size_of_get?_eq_some (or Array.some_lemma)
+  split
+  . simp
+  next _ _ h =>
+    intros
+    rw [Array.get?_eq_data_get?] at h
+    exact List.get?_eq_some.mp h |>.fst
 
 theorem lt_size_of_litValue?_eq_some {τ : PPA} {l : ILit} {b : Bool} :
     τ.litValue? l = some b → ((toVar l) - 1) < τ.size := by
