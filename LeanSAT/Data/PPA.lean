@@ -7,16 +7,25 @@ import LeanSAT.Upstream.ToStd
 
 open LeanSAT LeanSAT.Model Nat
 
-/-- A persistent partial assignment of truth values to propositional variables.
+/-- A Persistent Partial Assignment of truth values to propositional variables.
 
-It is meant to be kept around persistently and used linearly.
-Assuming these restrictions are met,
-the structure provides a fast and allocation-free representation
-of partial assignments.
-It provides functions for unit propagation and tautology checking. -/
+Assuming the linearity restriction (see below) is met,
+the PPA provides a fast representation of partial assignments.
+The PPA is allocation-free as long as you initialize it
+with the actual maximum variable index in `PPA.new`.
+The PPA provides functions for unit propagation and tautology checking.
+
+The PPA is meant to be used persistently and linearly,
+i.e., you should keep around exactly one copy of this structure.
+Note that ensuring linearity in large functions can be tricky,
+especially when `do` notation is used.
+The only reliable method at the moment
+is to look at the dynamic behavior in a profiler
+and ensure that PPA code does not spend lots of time in `lean_copy_expand_array`. -/
 structure PPA where
   assignment : Array Int
-  /-- The generation counter is used to avoid clearing the assignment array.
+  /-- The generation counter is used to avoid clearing the assignment array
+  when the assignment is reset.
   Instead, we just bump the counter and interpret values in the array
   below the counter as unassigned. -/
   generation : { g : Nat // 0 < g }
@@ -592,7 +601,7 @@ namespace PPA
           ⟨τ.setLit u, .extended u
             (by simp at hUnit; tauto)
             (by
-            simp at hUnit
+              simp at hUnit
               simp [τ.toPropFun_setLit_of_none u hUnit.right, inf_comm])
             (by
               apply entails_ext.mpr
