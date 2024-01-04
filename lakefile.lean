@@ -1,8 +1,7 @@
 import Lake
 open Lake DSL
 
-package «lean-sat» where
-  moreLinkArgs := #["-L./.lake/packages/LeanCopilot/.lake/build/lib", "-lctranslate2"]
+package LeanSAT
 
 -- Note: `std` is not required so that Lake selects a version matching mathlib.
 require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "master"
