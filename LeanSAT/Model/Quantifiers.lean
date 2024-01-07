@@ -168,42 +168,24 @@ theorem PropFun.semVars_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ 
     Finset.filter_subset _ _ this
   rw [h]; simp
 
-def PropFun.invImage.invOption [D : DecidableEq ν'] (f : ν ↪ ν') (xs : Finset ν)
-  : ν' → Option ν :=
-  fun v' =>
-    xs.val.find? (f := fun v => f.toFun v = v') (by
-      intros; apply f.injective; simp_all)
-
-@[simp] theorem PropFun.invImage.invOption_eq_none [DecidableEq ν'] (f : ν ↪ ν') (xs)
-  : PropFun.invImage.invOption f xs v' = none ↔ ∀ v ∈ xs, f v ≠ v'
-  := by
-  simp [invOption]
-
-theorem PropFun.invImage.invOption_eq_some [DecidableEq ν'] (f : ν ↪ ν') (xs)
-  : PropFun.invImage.invOption f xs v' = some v → v ∈ xs ∧ v' = f v
-  := by simp (config := {contextual := true}) [invOption]
-
 /-- Kind of a strange theorem but I use it later... -/
-lemma PropFun.invImage_setManyMap_map_idem (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
+lemma PropFun.invImage_setManyMap_map_idem (f : ν ↪ ν') [DecidableEq ν'] [Fintype ν]
   : PropAssignment.map f
       (PropAssignment.setManyMap τ' τ
-        (PropFun.invImage.invOption ⟨f,h⟩ Finset.univ))
+        (f.invOption Finset.univ))
     = τ
   := by
   ext v
   simp [PropAssignment.setManyMap]
   split
-  case _ hx =>
-    simp at hx
-    exfalso; exact hx v rfl
-  case _ v' hx =>
-    have := PropFun.invImage.invOption_eq_some _ _ hx
-    simp at this
-    rw [h this]
+  next hx => simp at hx
+  next v' hx =>
+    have := Function.Embedding.invImage.invOption_eq_some _ _ hx
+    simp_all
 
-theorem PropFun.invImage.setManyMap_of_map (f : ν → ν') (h : f.Injective) [DecidableEq ν'] [Fintype ν]
+theorem PropFun.invImage.setManyMap_of_map (f : ν ↪ ν') [DecidableEq ν'] [Fintype ν]
   : PropAssignment.setManyMap τ' (PropAssignment.map f τ)
-      (PropFun.invImage.invOption ⟨f,h⟩ Finset.univ)
+      (f.invOption Finset.univ)
     |>.agreeOn (Set.range f) τ
   := by
   intro v' hv'
@@ -215,13 +197,52 @@ theorem PropFun.invImage.setManyMap_of_map (f : ν → ν') (h : f.Injective) [D
     simp at hx
     exfalso; exact hx v hv
   case _ v2 hx =>
-    have := PropFun.invImage.invOption_eq_some _ _ hx
-    simp at this
-    rw [this]
+    have := Function.Embedding.invImage.invOption_eq_some _ _ hx
+    simp_all
 
 theorem PropFun.satisfies_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
       (xs : Finset ν) (φ : PropFun ν') (τ : PropAssignment ν)
   : τ ⊨ φ.invImage f xs ↔ ∃ τ' : PropAssignment ν',
-      τ'.setManyMap τ (invImage.invOption f xs) ⊨ φ := by
+      τ'.setManyMap τ (f.invOption xs) ⊨ φ := by
   simp [invImage]
   sorry
+
+open Function.Embedding in
+theorem PropFun.invImage.bind_invOption [DecidableEq ν3] [DecidableEq ν2]
+      (f : ν1 ↪ ν2) (f' : ν2 ↪ ν3) (xs : Finset ν1) (xs' : Finset ν2)
+  : (f'.invOption xs' v).bind (f.invOption xs) =
+      (f.trans f').invOption (xs.filter (f · ∈ xs')) v
+  := by
+  simp [Option.bind]
+  split
+  next a b h =>
+    clear a b
+    simp at h
+    apply Eq.symm
+    simp (config := {contextual := true}) [h]
+  next a b v' h =>
+    clear a b
+    replace h := invImage.invOption_eq_some _ _ h
+    simp [invOption]
+    generalize ho : Multiset.find? .. = o
+    cases o <;> aesop
+
+theorem PropFun.invImage_invImage [DecidableEq ν1] [DecidableEq ν2] [DecidableEq ν3]
+      (f1 : ν1 ↪ ν2) (xs1 : Finset ν1)
+      (f2 : ν2 ↪ ν3) (xs2 : Finset ν2)
+      (φ : PropFun ν3)
+  : (φ.invImage f2 xs2).invImage f1 xs1 =
+      φ.invImage (f1.trans f2)
+        (xs1.filter (fun x => f1 x ∈ xs2))
+  := by
+  ext τ1
+  simp [PropFun.satisfies_invImage, PropAssignment.setManyMap_setManyMap,
+        PropFun.invImage.bind_invOption]
+  constructor
+  · rintro ⟨τ2, τ3, h⟩
+    exact ⟨_,h⟩
+  · rintro ⟨τ', h⟩
+    generalize hf : (f1.trans f2).invOption _ = f at h
+    refine ⟨sorry,sorry,?_⟩
+    convert h; clear h
+    sorry

@@ -270,6 +270,13 @@ def LawfulState.withoutTemps (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).assumeVars = av
   := by simp [LawfulState.withoutTemps]
 
+theorem LawfulState.interp_withoutTemps [DecidableEq ν] (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
+    {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
+    : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
+      Model.PropFun.invImage ⟨Sum.inl, Sum.inl_injective⟩ (LawfulState.withoutTemps s vMap vMapLt vMapInj av).fintype.elems s.interp
+  := by
+  simp [LawfulState.withoutTemps, State.withoutTemps, interp]
+
 def nextVar_mono_of_eq {e : EncCNF L α} (h : e.1 s = (a, s')) :
     s.nextVar ≤ s'.nextVar := by
   have := h ▸ e.2 s
