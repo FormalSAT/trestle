@@ -222,3 +222,19 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
   rcases bb.exists_rep with ⟨b',rfl⟩
   simp [prod]; rw [Quotient.eq (r := sa.prod sb)]
   simp [Setoid.prod]
+
+/-- Inverse -/
+def Function.Embedding.invOption [D : DecidableEq ν'] (f : ν ↪ ν') (xs : Finset ν)
+  : ν' → Option ν :=
+  fun v' =>
+    xs.val.find? (f := fun v => f.toFun v = v') (by
+      intros; apply f.injective; simp_all)
+
+@[simp] theorem Function.Embedding.invImage.invOption_eq_none [DecidableEq ν'] (f : ν ↪ ν') (xs)
+  : f.invOption xs v' = none ↔ ∀ v ∈ xs, f v ≠ v'
+  := by
+  simp [invOption]
+
+theorem Function.Embedding.invImage.invOption_eq_some [DecidableEq ν'] (f : ν ↪ ν') (xs)
+  : f.invOption xs v' = some v → v ∈ xs ∧ v' = f v
+  := by simp (config := {contextual := true}) [invOption]
