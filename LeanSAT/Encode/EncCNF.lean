@@ -9,6 +9,8 @@ open Std
 
 namespace LeanSAT.Encode
 
+open Model
+
 namespace EncCNF
 
 /-- State for an encoding.
@@ -21,8 +23,34 @@ structure State (L ν : Type u) where
   nextVar : PNat
   cnf : ICnf
   vMap : ν → IVar
-  /-- we are currently assuming `¬ assumeVars` -/
+  /-- assume `¬assumeVars` in each new clause -/
   assumeVars : Clause L
+
+namespace State
+
+def new (vars : PNat) (f : ν → IVar) : State L ν := {
+  nextVar := vars
+  cnf := #[]
+  vMap := f
+  assumeVars := #[]
+}
+
+def addClause [LitVar L ν] (C : Clause L) : State L ν → State L ν
+| {nextVar, cnf, vMap, assumeVars} => {
+  nextVar := nextVar
+  vMap := vMap
+  assumeVars := assumeVars
+  cnf := cnf.addClause ((Clause.or assumeVars C).map _ vMap)
+}
+
+@[simp] theorem toPropFun_addClause [LitVar L ν] (C : Clause L) (s)
+  : (addClause C s).cnf.toPropFun = s.cnf.toPropFun ⊓ PropFun.map s.vMap (s.assumeVarsᶜ ⇨ C)
+  := by
+  simp [addClause, BooleanAlgebra.himp_eq, sup_comm]
+
+instance : ToString (State L ν) := ⟨toString ∘ State.cnf⟩
+
+end State
 
 /-- Lawfulness conditions on encoding state. -/
 @[ext]
@@ -31,32 +59,109 @@ structure LawfulState (L ν) extends State L ν where
   vMapLt : ∀ v, vMap v < nextVar
   vMapInj : vMap.Injective
 
+namespace LawfulState
+
 instance : Coe (LawfulState L ν) (State L ν) := ⟨LawfulState.toState⟩
 
-def State.new (vars : PNat) (f : ν → IVar) : State L ν := {
-  nextVar := vars
-  cnf := #[]
-  vMap := f
-  assumeVars := #[]
-}
+/-- Thanks to `vInjLt` we know `V` is `Fintype`. -/
+noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
+  Fintype.ofInjective (β := Fin s.nextVar)
+    (fun v => ⟨s.vMap v, s.vMapLt ..⟩)
+    (by intro v1 v2 h
+        apply s.vMapInj
+        simpa [PNat.val, ← Subtype.ext_iff] using h)
 
-def LawfulState.new (vars : PNat) (f : ν → IVar)
-      (fInj : f.Injective) (h : ∀ v, f v < vars) : LawfulState L ν := {
+/-- The interpretation of an `EncCNF` state is the
+formula's interpretation, but with all temporaries
+existentially quantified away.
+-/
+noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
+  let φ := s.cnf.toPropFun
+  have := s.fintype
+  aux φ ⟨s.vMap, s.vMapInj⟩
+where aux (φ : PropFun IVar) [Fintype ν] (f : ν ↪ IVar) :=
+  φ |>.existQuantSet (φ.semVars \ Finset.univ.map f)
+    |>.invImage f Finset.univ (by
+      intro v hv
+      simp
+      replace hv := PropFun.semVars_existQuantSet _ _ hv
+      simp at hv
+      exact hv.2)
+
+open PropFun in
+set_option pp.proofs.withType false in
+
+theorem interp.aux_conj [DecidableEq ν] [Fintype ν] (f : ν ↪ IVar) : interp.aux (φ₁ ⊓ φ₂.map f) f = interp.aux φ₁ f ⊓ φ₂ := by
+  unfold aux
+  suffices ∀ φ h, φ = existQuantSet _ _ → invImage f Finset.univ φ h = _
+    from this _ _ rfl
+  intro φ h hφ
+  ext τ; simp [satisfies_invImage]
+  generalize hA : φ₁.semVars = A
+  generalize hB : Finset.univ.map f = B at hφ
+  generalize hC : (φ₂.map f).semVars = C
+  generalize hD : (φ₁ ⊓ φ₂.map f).semVars = D at hφ
+  have cb : C ⊆ B := by rw [←hC, ←hB]; apply _root_.trans; apply semVars_map; intro x; aesop
+  have dac : D ⊆ A ∪ C := by rw [←hA,←hC,←hD]; apply semVars_conj _ _
+  have dba : D \ B ⊆ A \ B := by
+    clear hφ; intro x
+    replace cb := @cb x
+    replace dac := @dac x
+    intro h
+    simp at *
+    aesop
+  have : Disjoint D ((A \ B) \ (D \ B)) := by
+    rw [Finset.disjoint_iff_ne]
+    intro x hx y hy
+    aesop
+  conv at this => arg 1; rw [← hD]
+  rw [← existQuantSet_union_of_disjoint_semVars_right _ _ _ this] at hφ
+  clear this
+  rw [PropFun.existQuantSet_conj] at hφ
+  · cases hφ; simp; intro
+    apply iff_of_eq; congr
+    exact Finset.union_eq_right.mpr dba
+  · rw [hC]; simp
+    constructor <;> (apply Finset.disjoint_of_subset_left cb; apply Finset.disjoint_sdiff)
+
+def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L ν := {
   State.new vars f with
   cnfVarsLt := by intro c hc _ _; simp [State.new] at hc
   vMapLt := h
-  vMapInj := fInj
+  vMapInj := f.injective
 }
 
-def State.scramble (s : State L ν) : IO (State L ν) := do
-  let clauseScrambled ← s.cnf.mapM fun clause => do
-    return (← IO.randPerm clause.toList).toArray
-  let cnf := (← IO.randPerm clauseScrambled.toList).toArray
-  return { s with
-    cnf
-  }
+@[simp] theorem interp_new [DecidableEq ν] (vars) (f : ν ↪ IVar) (h)
+  : interp (new (L := L) vars f h) = ⊤ := by
+  ext τ
+  simp [new, State.new, interp, interp.aux, PropFun.satisfies_invImage]
+  simp [Cnf.toPropFun]
 
-instance : ToString (State L ν) := ⟨toString ∘ State.cnf⟩
+def addClause [LitVar L ν] (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
+  toState := s.toState.addClause C
+  vMapLt := s.vMapLt
+  vMapInj := s.vMapInj
+  cnfVarsLt := by
+    intro c hc v hv
+    simp [State.addClause, Cnf.addClause, Clause.or, LitVar.map] at hc
+    cases hc
+    · apply cnfVarsLt; repeat assumption
+    · subst_vars; simp [Clause.map] at hv
+      rcases hv with ⟨a,_,rfl⟩ | ⟨a,_,rfl⟩
+      · simp [LitVar.map]; apply vMapLt
+      · simp [LitVar.map]; apply vMapLt
+
+@[simp] theorem interp_addClause [DecidableEq ν] [LitVar L ν]
+        (C : Clause L) (s : LawfulState L ν)
+  : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
+  simp [interp]
+  convert interp.aux_conj _ using 4
+  · simp [addClause, State.addClause, BooleanAlgebra.himp_eq]
+    rw [sup_comm]
+  · assumption
+  · exact s.fintype
+
+end LawfulState
 
 end EncCNF
 
@@ -93,22 +198,8 @@ def newCtx (name : String) (inner : EncCNF L α) : EncCNF L α := do
   return res
 
 def addClause (C : Clause L) : EncCNF L Unit :=
-  ⟨ fun {nextVar,cnf,vMap,assumeVars,cnfVarsLt,vMapLt,vMapInj} =>
-    ((), {
-      nextVar, vMap, assumeVars
-      vMapLt, vMapInj
-      cnf := cnf.addClause ((Clause.or assumeVars C).map _ vMap)
-      cnfVarsLt := by
-        intro c hc v hv
-        simp [Cnf.addClause, Clause.or, LitVar.map] at hc
-        cases hc
-        · apply cnfVarsLt; repeat assumption
-        · subst_vars; simp [Clause.map] at hv
-          rcases hv with ⟨a,_,rfl⟩ | ⟨a,_,rfl⟩
-          · simp [LitVar.map]; apply vMapLt
-          · simp [LitVar.map]; apply vMapLt
-    }),
-    by simp⟩
+  ⟨ fun s =>
+    ((), s.addClause C), by simp [LawfulState.addClause, State.addClause]⟩
 
 /-- runs `e`, adding `ls` to each generated clause -/
 def unlessOneOf (ls : Array L) (e : EncCNF L α) : EncCNF L α :=
@@ -133,30 +224,6 @@ def blockAssn [BEq ν] [Hashable ν] (a : HashAssn L) : EncCNF L Unit :=
 def addAssn [BEq ν] [Hashable ν] (a : HashAssn L) : EncCNF L Unit := do
   for l in a.toLitArray do
     addClause #[l]
-
-
-/-! ### Establishing interpretations of EncCNF -/
-
-namespace LawfulState
-
-/-- Thanks to `vInjLt` we know `V` is `Fintype`. -/
-noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
-  Fintype.ofInjective (β := Fin s.nextVar)
-    (fun v => ⟨s.vMap v, s.vMapLt ..⟩)
-    (by intro v1 v2 h
-        apply s.vMapInj
-        simpa [PNat.val, ← Subtype.ext_iff] using h)
-
-/-- The interpretation of an `EncCNF` state is the
-formula's interpretation, but with all temporaries
-existentially quantified away.
--/
-noncomputable def interp (s : LawfulState L ν) : Model.PropFun ν :=
-  let φ := s.cnf.toPropFun
-  have := s.fintype
-  φ.invImage ⟨s.vMap, s.vMapInj⟩ Finset.univ
-
-end LawfulState
 
 
 /-! ### Temporaries -/
@@ -270,12 +337,14 @@ def LawfulState.withoutTemps (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).assumeVars = av
   := by simp [LawfulState.withoutTemps]
 
-theorem LawfulState.interp_withoutTemps [DecidableEq ν] (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
-    {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
-    : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
-      Model.PropFun.invImage ⟨Sum.inl, Sum.inl_injective⟩ (LawfulState.withoutTemps s vMap vMapLt vMapInj av).fintype.elems s.interp
-  := by
-  simp [LawfulState.withoutTemps, State.withoutTemps, interp]
+--theorem LawfulState.interp_withoutTemps [DecidableEq ν]
+--    (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
+--    {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
+--    : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
+--      PropFun.invImage ⟨Sum.inl, Sum.inl_injective⟩
+--        (LawfulState.withoutTemps s vMap vMapLt vMapInj av).fintype.elems s.interp (by intro _ _; simp_all [interp])
+--  := by
+--  simp [LawfulState.withoutTemps, State.withoutTemps, interp]
 
 def nextVar_mono_of_eq {e : EncCNF L α} (h : e.1 s = (a, s')) :
     s.nextVar ≤ s'.nextVar := by

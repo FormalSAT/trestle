@@ -231,7 +231,7 @@ def PropFun.map (f : ν → ν') (φ : PropFun ν) : PropFun ν' :=
     rw [← PropFun.satisfies_mk, ← PropFun.satisfies_mk]
     rw [Quotient.eq.mpr h])
 
-theorem PropFun.satisfies_map (f : ν → ν') (τ : PropAssignment ν') (φ : PropFun ν)
+@[simp] theorem PropFun.satisfies_map (f : ν → ν') (τ : PropAssignment ν') (φ : PropFun ν)
   : τ ⊨ φ.map f ↔ (τ.map f) ⊨ φ
   := by
   let ⟨ϕ,hϕ⟩ := φ.toTrunc.out
@@ -239,6 +239,19 @@ theorem PropFun.satisfies_map (f : ν → ν') (τ : PropAssignment ν') (φ : P
   simp [map]
   rw [satisfies_mk, satisfies_mk]
   apply PropForm.satisfies_map
+
+theorem PropFun.semVars_map [DecidableEq ν] [DecidableEq ν']
+    (f : ν → ν') (φ : PropFun ν)
+  : (φ.map f).semVars ⊆ φ.semVars.image f := by
+  let ⟨ϕ,hϕ⟩ := φ.toTrunc.out; cases hϕ
+  intro v' hv'
+  simp [mem_semVars] at hv'
+  rcases hv' with ⟨τ, htrue, hfalse⟩
+  have ⟨v, h, hv⟩ := PropFun.exists_semVar htrue hfalse
+  simp [PropAssignment.set] at h
+  split at h <;> simp_all
+  use v
+
 
 /-! ### `attach` and `pmap` -/
 
@@ -466,5 +479,52 @@ def ofFun {V : Type u} [DecidableEq V] [Fintype V]
     intro L h1 h2 h'
     rw [h']
     simp
+
+/-- Replace every semantic variable `v'` in `φ` with its preimage under `f`.
+
+Useful for restricting the variable type after quantifying out a variable. -/
+noncomputable def invImage [DecidableEq ν'] (f : ν ↪ ν')
+      (vs : Finset ν) (φ : PropFun ν')
+      (h : φ.semVars ⊆ vs.map f) : PropFun ν :=
+  φ.pmap (fun v' hv' => (vs.mapEquiv f).symm ⟨v',h hv'⟩)
+
+theorem semVars_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
+      (xs : Finset ν) (φ : PropFun ν') (h)
+  : semVars (φ.invImage f xs h) ⊆ xs := by
+  simp [invImage]
+  apply Finset.Subset.trans (semVars_pmap ..)
+  intro v
+  simp
+  rintro v' _ rfl
+  simp
+
+@[simp] def invImage.assn [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
+      (xs : Finset ν)
+      (τ : PropAssignment ν) : PropAssignment ν' :=
+  fun v' =>
+    if h : v' ∈ xs.map f then
+      τ ((xs.mapEquiv f).symm ⟨v',h⟩)
+    else
+      false
+
+@[simp] theorem invImage.assn.map [DecidableEq ν] [DecidableEq ν'] [Fintype ν]
+      (f : ν ↪ ν') (τ)
+  : (invImage.assn f Finset.univ τ).map f = τ := by
+  ext v
+  simp; congr
+  rw [← @Subtype.mk.injEq _ _ (Subtype.val _), eq_comm, Equiv.eq_symm_apply]
+  rfl
+  · simp
+
+theorem satisfies_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
+      (xs) (φ : PropFun ν') (h)
+      (τ : PropAssignment ν)
+  : τ ⊨ φ.invImage f xs h ↔ invImage.assn f xs τ ⊨ φ := by
+  simp [invImage]
+  apply satisfies_pmap
+  rintro ⟨v',hv'⟩
+  replace h := h hv'
+  simp at h
+  simp [invImage.assn, h]
 
 end PropFun

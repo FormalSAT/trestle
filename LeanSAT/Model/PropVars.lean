@@ -7,6 +7,7 @@ Authors: Wojciech Nawrocki
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite
 import Mathlib.Tactic.ByContra
+import Std.Classes.SetNotation
 
 import LeanSAT.Model.PropFun
 
@@ -150,6 +151,20 @@ theorem mem_semVars (φ : PropFun ν) (x : ν) :
     x ∈ φ.semVars ↔ ∃ (τ : PropAssignment ν), τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ := by
   simp [Set.Finite.mem_toFinset, semVars, semVars']
 
+theorem not_mem_semVars (φ : PropFun ν) (x : ν) :
+    x ∉ φ.semVars ↔ ∀ (τ : PropAssignment ν) (b), τ.set x b ⊨ φ ↔ τ ⊨ φ := by
+  simp [mem_semVars, -Bool.forall_bool]
+  constructor
+  · intro h τ b
+    if b = τ x then
+      simp_all
+    else
+      have : b = !τ x := by apply Bool.eq_not_iff.mpr; assumption
+      constructor <;> convert h _ ; simp [*]
+  · intro h τ hτφ
+    have := h τ (!τ x)
+    simp [*]
+
 /-- Any two assignments with opposing evaluations on `φ` disagree on a semantic variable of `φ`. -/
 theorem exists_semVar {φ : PropFun ν} {σ₁ σ₂ : PropAssignment ν} : σ₁ ⊨ φ → σ₂ ⊭ φ →
     ∃ (x : ν), σ₁ x ≠ σ₂ x ∧ x ∈ φ.semVars := by
@@ -220,11 +235,32 @@ theorem semVars_neg (φ : PropFun ν) : φᶜ.semVars = φ.semVars := by
     exact hτ
   }
 
+/-- Semantic variable set of a conjunction is contained in
+the union of each sub-prop's semantic variables.
+
+Note that there aren't any obvious lower bounds on this set.
+Variables which are semantic in both sub-props may not be semantic:
+ - `φ₁ = a ∨ b` (`b` is semantic)
+ - `φ₂ = a ∨ ¬b` (`b` is semantic)
+ - `φ₁ ⊓ φ₂ = a` (`b` is NOT semantic)
+And variables in just one sub-prop may not be semantic:
+ - `φ₁ = a ∨ b` (`b` is semantic)
+ - `φ₂ = a` (`b` is NOT semantic)
+ - `φ₁ ⊓ φ₂ = a` (`b` is NOT semantic)
+
+TODO: prove equality holds if `Disjoint φ₁.semVars φ₂.semVars`
+-/
 theorem semVars_conj (φ₁ φ₂ : PropFun ν) : (φ₁ ⊓ φ₂).semVars ⊆ φ₁.semVars ∪ φ₂.semVars := by
   intro x
   simp only [Finset.mem_union, mem_semVars, satisfies_conj, not_and_or]
   aesop
 
+/-- Semantic variable set of a conjunction is contained in
+the union of each sub-prop's semantic variables.
+
+Note that there aren't any obvious lower bounds on this set.
+See [semVars_conj] for more details.
+-/
 theorem semVars_disj (φ₁ φ₂ : PropFun ν) : (φ₁ ⊔ φ₂).semVars ⊆ φ₁.semVars ∪ φ₂.semVars := by
   intro x
   simp only [Finset.mem_union, mem_semVars]
@@ -244,6 +280,25 @@ theorem semVars_biImpl (φ₁ φ₂ : PropFun ν) :
   . apply semVars_impl
   . rw [Finset.union_comm]
     apply semVars_impl
+
+theorem setMany_satisfies_iff_inter_semVars [DecidableEq ν]
+      (τ : PropAssignment ν) (vs τ' φ)
+  : τ.setMany vs τ' ⊨ φ ↔ τ.setMany (vs ∩ φ.semVars) τ' ⊨ φ := by
+  induction vs using Finset.induction generalizing τ
+  · simp
+  next x vs hx ih =>
+  if h : x ∈ φ.semVars then
+    rw [Finset.insert_eq, Finset.inter_distrib_right
+        , Finset.singleton_inter_of_mem h]
+    simp [PropAssignment.setMany_union]; apply ih
+  else
+  simp [Finset.insert_eq, Finset.inter_distrib_right
+      , Finset.singleton_inter_of_not_mem h
+      , PropAssignment.setMany_union]
+  rw [← ih _, ← τ.set_setMany_comm _ _ _ _ hx]
+  rw [not_mem_semVars] at h
+  rw [h]
+
 
 /-! ### Equivalence Over Sets -/
 
