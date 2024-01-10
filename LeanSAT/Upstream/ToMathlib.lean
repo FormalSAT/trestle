@@ -152,6 +152,12 @@ def Finset.getUnique (xs : Finset α) (h : ∃ x, xs = {x}) : α :=
   simp at hL; cases hL
   simp
 
+@[simp] theorem Finset.getUnique_mem (xs : Finset α) (h) (y : Finset α)
+  : Finset.getUnique xs h ∈ y ↔ xs ⊆ y := by
+  generalize hv : getUnique xs h = v
+  simp at hv
+  simp [hv]
+
 theorem List.Perm.find?_unique {f : α → Bool}
     (hunique : ∀ a1 a2, f a1 → f a2 → a1 = a2) (h : a ~ b)
   : a.find? f = b.find? f := by
@@ -223,18 +229,24 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
   simp [prod]; rw [Quotient.eq (r := sa.prod sb)]
   simp [Setoid.prod]
 
-/-- Inverse -/
-def Function.Embedding.invOption [D : DecidableEq ν'] (f : ν ↪ ν') (xs : Finset ν)
-  : ν' → Option ν :=
-  fun v' =>
-    xs.val.find? (f := fun v => f.toFun v = v') (by
-      intros; apply f.injective; simp_all)
+def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s.map f where
+  toFun := fun ⟨x,hx⟩ => ⟨f x, by simp [hx]⟩
+  invFun := fun ⟨x',hx'⟩ =>
+    ⟨ s.filter (f · = x') |>.getUnique (by
+        simp at hx'
+        have ⟨x,hx⟩ := hx'
+        use x
+        ext x₀; simp; aesop)
+    , by simp ⟩
+  left_inv := by
+    rintro ⟨x,hx⟩
+    simp; ext x₀; simp (config := {contextual := true}) [hx]
+  right_inv := by
+    rintro ⟨x',hx'⟩
+    simp at hx' ⊢
+    rcases hx' with ⟨x,hx,rfl⟩
+    congr; simp
+    ext x₀; simp (config := {contextual := true}) [hx]
 
-@[simp] theorem Function.Embedding.invImage.invOption_eq_none [DecidableEq ν'] (f : ν ↪ ν') (xs)
-  : f.invOption xs v' = none ↔ ∀ v ∈ xs, f v ≠ v'
-  := by
-  simp [invOption]
-
-theorem Function.Embedding.invImage.invOption_eq_some [DecidableEq ν'] (f : ν ↪ ν') (xs)
-  : f.invOption xs v' = some v → v ∈ xs ∧ v' = f v
-  := by simp (config := {contextual := true}) [invOption]
+@[simp] theorem Finset.mem_univ' (x : α) : x ∈ (@Finset.univ α I) :=
+  Fintype.complete x

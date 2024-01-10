@@ -7,6 +7,7 @@ Authors: Wojciech Nawrocki, Jeremy Avigad
 import LeanSAT.Upstream.ToMathlib
 import LeanSAT.Model.PropFun
 import LeanSAT.Model.PropVars
+import LeanSAT.Model.Subst
 
 namespace LeanSAT
 
@@ -48,8 +49,12 @@ instance [ToString ν] : ToString L where
 def toPropForm (l : L) : PropForm ν :=
   if polarity l then .var (toVar l) else .neg (.var $ toVar l)
 
+instance : CoeHead L (PropForm ν) := ⟨toPropForm⟩
+
 def toPropFun (l : L) : PropFun ν :=
   if polarity l then .var (toVar l) else (.var $ toVar l)ᶜ
+
+instance : CoeHead L (PropFun ν) := ⟨toPropFun⟩
 
 open PropFun
 
@@ -181,8 +186,12 @@ variable {L : Type u} {ν : Type v} [LitVar L ν]
 def toPropForm (C : Clause L) : PropForm ν :=
   C.data.foldr (init := .fls) (fun l φ => (LitVar.toPropForm l).disj φ)
 
+instance : CoeHead (Clause L) (PropForm ν) := ⟨toPropForm⟩
+
 def toPropFun (C : Clause L) : PropFun ν :=
   C.data.foldr (init := ⊥) (fun l φ => (LitVar.toPropFun l) ⊔ φ)
+
+instance : CoeHead (Clause L) (PropFun ν) := ⟨toPropFun⟩
 
 @[simp] theorem mk_toPropForm (C : Clause L) : ⟦C.toPropForm⟧ = C.toPropFun := by
   dsimp [toPropForm, toPropFun]
@@ -243,8 +252,9 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
 def or (c1 c2 : Clause L) : Clause L :=
   c1 ++ c2
 
-@[simp] theorem satisfies_or (c1 c2 : Clause L) (τ : PropAssignment ν)
-  : τ ⊨ (c1.or c2).toPropFun ↔ τ ⊨ c1.toPropFun ∨ τ ⊨ c2.toPropFun := by
+@[simp] theorem toPropFun_or (c1 c2 : Clause L)
+  : (c1.or c2).toPropFun = c1.toPropFun ⊔ c2.toPropFun := by
+  ext τ
   simp [or, satisfies_iff]
   apply Iff.intro
   · rintro ⟨l,h1,h2⟩
@@ -262,9 +272,10 @@ def or (c1 c2 : Clause L) : Clause L :=
 nonrec def map (L') [LitVar L' ν'] (f : ν → ν') (c : Clause L) : Clause L' :=
   c.map (LitVar.map f)
 
-@[simp] theorem satisfies_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Clause L) (τ : PropAssignment ν')
-  : τ ⊨ (c.map L' f).toPropFun ↔ τ.map f ⊨ c.toPropFun
+@[simp] theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Clause L)
+  : (c.map L' f).toPropFun = c.toPropFun.map f
   := by
+  ext τ
   simp [map, satisfies_iff]
 
 end Clause
@@ -283,8 +294,12 @@ variable {L : Type u} {ν : Type v} [LitVar L ν]
 def toPropForm (φ : Cnf L) : PropForm ν :=
   φ.data.foldr (init := .tr) (fun l φ => l.toPropForm.conj φ)
 
+instance : CoeHead (Cnf L) (PropForm ν) := ⟨toPropForm⟩
+
 def toPropFun (φ : Cnf L) : PropFun ν :=
   φ.data.map (·.toPropFun) |>.foldr (init := ⊤) (fun l φ => l ⊓ φ)
+
+instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
 
 @[simp] theorem mk_toPropForm (φ : Cnf L) : ⟦φ.toPropForm⟧ = φ.toPropFun := by
   simp only [toPropForm, toPropFun]
@@ -300,24 +315,27 @@ theorem satisfies_iff {τ : PropAssignment ν} {φ : Cnf L} :
 
 def addClause (C : Clause L) (f : Cnf L) : Cnf L := f.push C
 
-@[simp] theorem satisfies_addClause (C : Clause L) (f : Cnf L) (τ : PropAssignment _)
-  : τ ⊨ (f.addClause C).toPropFun ↔ τ ⊨ f.toPropFun ⊓ C.toPropFun
+@[simp] theorem toPropFun_addClause (C : Clause L) (f : Cnf L)
+  : (f.addClause C).toPropFun = f.toPropFun ⊓ C.toPropFun
   := by
+  ext τ
   simp [satisfies_iff, Array.mem_def, addClause]; aesop
 
 def and (f1 f2 : Cnf L) : Cnf L := f1 ++ f2
 
-@[simp] theorem satisfies_and (f1 f2 : Cnf L) (τ : PropAssignment _)
-  : τ ⊨ (f1.and f2).toPropFun ↔ τ ⊨ f1.toPropFun ⊓ f2.toPropFun
+@[simp] theorem toPropFun_and (f1 f2 : Cnf L)
+  : (f1.and f2).toPropFun = f1.toPropFun ⊓ f2.toPropFun
   := by
+  ext τ
   simp [satisfies_iff, Array.mem_def, and]; aesop
 
 def not (c : Clause L) : Cnf L :=
   Array.map (fun l => #[-l]) c
 
-@[simp] theorem satisfies_not (c : Clause L) (τ : PropAssignment _) [LawfulLitVar L ν]
-  : τ ⊨ (not c).toPropFun ↔ ¬ τ ⊨ c.toPropFun
+@[simp] theorem toPropFun_not (c : Clause L) [LawfulLitVar L ν]
+  : (not c).toPropFun = (c.toPropFun)ᶜ
   := by
+  ext τ
   simp [satisfies_iff, Clause.satisfies_iff, LitVar.satisfies_iff,
     not, Array.mem_def, Bool.eq_not_iff]
 

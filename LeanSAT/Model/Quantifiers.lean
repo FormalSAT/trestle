@@ -19,23 +19,31 @@ Quantifying over a *set* of variables is less straightforward.
 
 /-! ### Single Variable -/
 
-def PropForm.existQuant [DecidableEq ν] (φ : PropForm ν) (v : ν) : PropForm ν :=
+namespace PropForm
+
+def existQuant [DecidableEq ν] (φ : PropForm ν) (v : ν) : PropForm ν :=
   disj (φ.substOne v .fls)
        (φ.substOne v .tr)
 
-theorem PropForm.satisfies_existQuant [DecidableEq ν] (φ : PropForm ν) (v : ν) {τ : PropAssignment ν}
+theorem satisfies_existQuant [DecidableEq ν] (φ : PropForm ν) (v : ν) {τ : PropAssignment ν}
   : τ ⊨ φ.existQuant v ↔ τ ⊨ φ.substOne v .fls ∨ τ ⊨ φ.substOne v .tr
   := by simp [existQuant]
 
-def PropFun.existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν) : PropFun ν :=
+end PropForm
+
+namespace PropFun
+
+variable [DecidableEq ν] (φ : PropFun ν) (v : ν)
+
+def existQuant : PropFun ν :=
     (φ.substOne v ⊥)
   ⊔ (φ.substOne v ⊤)
 
-theorem PropFun.satisfies_existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν) (τ : PropAssignment ν)
+theorem satisfies_existQuant (τ : PropAssignment ν)
   : τ ⊨ φ.existQuant v ↔ ∃ b, τ.set v b ⊨ φ := by
   simp [existQuant, satisfies_substOne]
 
-theorem PropFun.existQuant_comm [DecidableEq ν] (φ : PropFun ν) (v₁ v₂ : ν)
+theorem existQuant_comm (v₁ v₂ : ν)
   : (φ.existQuant v₁ |>.existQuant v₂) = (φ.existQuant v₂ |>.existQuant v₁)
   := by
   if h' : v₁ = v₂ then
@@ -51,8 +59,7 @@ theorem PropFun.existQuant_comm [DecidableEq ν] (φ : PropFun ν) (v₁ v₂ : 
     simp [h]
     first | exact h' | exact ne_comm.mp h')
 
-theorem PropFun.semVars_existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν)
-  : semVars (φ.existQuant v) ⊆ semVars φ \ {v} := by
+theorem semVars_existQuant : semVars (φ.existQuant v) ⊆ semVars φ \ {v} := by
   intro v'
   simp [mem_semVars, existQuant, satisfies_substOne]
   push_neg
@@ -70,11 +77,26 @@ theorem PropFun.semVars_existQuant [DecidableEq ν] (φ : PropFun ν) (v : ν)
         repeat assumption)
     repeat assumption
 
+theorem existQuant_eq_of_not_mem_semVars
+  : ¬v ∈ φ.semVars → existQuant φ v = φ := by
+  intro h
+  ext τ
+  simp [satisfies_existQuant]
+  convert @or_self_iff (τ ⊨ φ) using 2 <;> (
+    apply PropFun.agreeOn_semVars
+    apply PropAssignment.agreeOn_set_of_not_mem
+    apply h
+  )
+
+@[simp] theorem existQuant_top : existQuant ⊤ v = ⊤ := by
+  ext τ
+  simp [satisfies_existQuant]
+
 
 /-! ### Sets of Variables -/
 
-def PropFun.existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν) : PropFun ν :=
-  vs.elim (fun L _ => L.foldl PropFun.existQuant φ) pf
+def existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν) : PropFun ν :=
+  vs.elim (fun L _ => L.foldl existQuant φ) pf
 where
   pf := by
     intro a b ha hb
@@ -89,11 +111,11 @@ where
     | trans _ _ ih1 ih2 =>
       rw [ih1, ih2]
 
-theorem PropFun.satisfies_existQuantSet (φ : PropFun ν) [DecidableEq ν] [Fintype ν] (vs : Finset ν) (τ : PropAssignment ν)
+theorem satisfies_existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν) (τ : PropAssignment ν)
   : τ ⊨ φ.existQuantSet vs ↔ ∃ τ', τ.setMany vs τ' ⊨ φ := by
   simp [existQuantSet]
   apply Finset.elim_eq_forall (s := vs)
-    (f := fun L _ => List.foldl PropFun.existQuant φ L)
+    (f := fun L _ => List.foldl existQuant φ L)
     (h := existQuantSet.pf _ _)
   intro L hL hs
   rcases vs with ⟨vs,h⟩
@@ -117,132 +139,70 @@ theorem PropFun.satisfies_existQuantSet (φ : PropFun ν) [DecidableEq ν] [Fint
       simp [PropAssignment.set]
       aesop
 
-def PropFun.semVars_existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν)
+def semVars_existQuantSet (φ : PropFun ν) [DecidableEq ν] (vs : Finset ν)
   : semVars (φ.existQuantSet vs) ⊆ φ.semVars \ vs := by
-  simp [existQuantSet]
-  apply Finset.elim_eq_forall (s := vs)
-    (f := fun L _ => List.foldl PropFun.existQuant φ L)
-    (h := existQuantSet.pf _ _)
-  intro L hL hs
   rcases vs with ⟨vs,h⟩
-  cases hL
-  rw [hs]; clear hs
+  have ⟨L,h⟩ := Quotient.exists_rep vs; cases h
+  simp [existQuantSet, Finset.elim]
+  rw [Multiset.elim_mk]
   induction L generalizing φ with
   | nil => simp
   | cons hd tl ih =>
-    simp
+    simp at h; simp_all
     intro v hv
-    have := ih _ h.tail hv
+    have := ih _ hv
     simp at this
     rcases this with ⟨hhd,htl⟩
     have := semVars_existQuant φ hd hhd
     simp at this
     simp [*]
 
-/-- For every variable `v`, if `x ∈ xs` with `f x = v` then map `v` to `x`,
-and otherwise existentially quantify it.
-
-Useful for existentially quantifying temporaries out of a proposition. -/
-noncomputable def PropFun.invImage [DecidableEq ν'] (f : ν ↪ ν')
-      (xs : Finset ν) (φ : PropFun ν') : PropFun ν :=
-  let varsToQuant := φ.semVars \ xs.map f
-  let φ' := φ.existQuantSet varsToQuant
-  φ'.pmap fun v' h =>
-    xs.filter (f · = v') |>.getUnique (by
-      have := semVars_existQuantSet _ _ h
-      simp at this
-      rcases this with ⟨h1, v, h3, rfl⟩
-      refine ⟨v, ?_⟩
-      ext v''; simp (config := {contextual := true}) [h3]
-    )
-
-theorem PropFun.semVars_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
-      (xs : Finset ν) (φ : PropFun ν')
-  : semVars (φ.invImage f xs) ⊆ xs := by
-  simp [invImage]
-  apply Finset.Subset.trans (semVars_pmap ..)
-  intro v
-  simp
-  intro v' _ h
-  suffices v ∈ Finset.filter (f · = v') xs from
-    Finset.filter_subset _ _ this
-  rw [h]; simp
-
-/-- Kind of a strange theorem but I use it later... -/
-lemma PropFun.invImage_setManyMap_map_idem (f : ν ↪ ν') [DecidableEq ν'] [Fintype ν]
-  : PropAssignment.map f
-      (PropAssignment.setManyMap τ' τ
-        (f.invOption Finset.univ))
-    = τ
+theorem existQuantSet_eq_of_semVars_disjoint
+  : Disjoint (φ.semVars) vs → existQuantSet φ vs = φ
   := by
-  ext v
-  simp [PropAssignment.setManyMap]
-  split
-  next hx => simp at hx
-  next v' hx =>
-    have := Function.Embedding.invImage.invOption_eq_some _ _ hx
-    simp_all
+  intro hdis
+  ext τ
+  simp [satisfies_existQuantSet]
+  have : ∀ τ', (τ.setMany vs τ').agreeOn φ.semVars τ := by
+    intro τ'
+    apply PropAssignment.agreeOn_setMany_of_disjoint
+    simp [hdis]
+  simp [PropFun.agreeOn_semVars (this _)]
 
-theorem PropFun.invImage.setManyMap_of_map (f : ν ↪ ν') [DecidableEq ν'] [Fintype ν]
-  : PropAssignment.setManyMap τ' (PropAssignment.map f τ)
-      (f.invOption Finset.univ)
-    |>.agreeOn (Set.range f) τ
+theorem existQuantSet_existQuantSet (φ : PropFun ν) (vs vs' : Finset ν)
+  : (φ.existQuantSet vs).existQuantSet vs' = φ.existQuantSet (vs' ∪ vs)
   := by
-  intro v' hv'
-  rw [Set.mem_range] at hv'
-  rcases hv' with ⟨v,hv⟩
-  simp [PropAssignment.setManyMap]
-  split
-  case _ hx =>
-    simp at hx
-    exfalso; exact hx v hv
-  case _ v2 hx =>
-    have := Function.Embedding.invImage.invOption_eq_some _ _ hx
-    simp_all
-
-theorem PropFun.satisfies_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
-      (xs : Finset ν) (φ : PropFun ν') (τ : PropAssignment ν)
-  : τ ⊨ φ.invImage f xs ↔ ∃ τ' : PropAssignment ν',
-      τ'.setManyMap τ (f.invOption xs) ⊨ φ := by
-  simp [invImage]
-  sorry
-
-open Function.Embedding in
-theorem PropFun.invImage.bind_invOption [DecidableEq ν3] [DecidableEq ν2]
-      (f : ν1 ↪ ν2) (f' : ν2 ↪ ν3) (xs : Finset ν1) (xs' : Finset ν2)
-  : (f'.invOption xs' v).bind (f.invOption xs) =
-      (f.trans f').invOption (xs.filter (f · ∈ xs')) v
-  := by
-  simp [Option.bind]
-  split
-  next a b h =>
-    clear a b
-    simp at h
-    apply Eq.symm
-    simp (config := {contextual := true}) [h]
-  next a b v' h =>
-    clear a b
-    replace h := invImage.invOption_eq_some _ _ h
-    simp [invOption]
-    generalize ho : Multiset.find? .. = o
-    cases o <;> aesop
-
-theorem PropFun.invImage_invImage [DecidableEq ν1] [DecidableEq ν2] [DecidableEq ν3]
-      (f1 : ν1 ↪ ν2) (xs1 : Finset ν1)
-      (f2 : ν2 ↪ ν3) (xs2 : Finset ν2)
-      (φ : PropFun ν3)
-  : (φ.invImage f2 xs2).invImage f1 xs1 =
-      φ.invImage (f1.trans f2)
-        (xs1.filter (fun x => f1 x ∈ xs2))
-  := by
-  ext τ1
-  simp [PropFun.satisfies_invImage, PropAssignment.setManyMap_setManyMap,
-        PropFun.invImage.bind_invOption]
+  ext τ
+  simp [satisfies_existQuantSet, PropAssignment.setMany_setMany]
   constructor
-  · rintro ⟨τ2, τ3, h⟩
+  · rintro ⟨τ1,τ2,h⟩
     exact ⟨_,h⟩
-  · rintro ⟨τ', h⟩
-    generalize hf : (f1.trans f2).invOption _ = f at h
-    refine ⟨sorry,sorry,?_⟩
-    convert h; clear h
-    sorry
+  · rintro ⟨τ1,h⟩
+    refine ⟨τ1,τ1,?_⟩
+    simp [h]
+
+theorem existQuantSet_union_of_disjoint_semVars_right (φ : PropFun ν) (vs vs' : Finset ν)
+  : Disjoint φ.semVars vs' → φ.existQuantSet (vs ∪ vs') = φ.existQuantSet vs := by
+  intro h; rw [← existQuantSet_existQuantSet, existQuantSet_eq_of_semVars_disjoint _ h]
+
+theorem existQuantSet_eq_of_inter_semVars_eq (φ : PropFun ν) (vs vs' : Finset ν)
+  : vs ∩ φ.semVars = vs' ∩ φ.semVars → φ.existQuantSet vs = φ.existQuantSet vs' := by
+  intro h
+  ext τ; simp [satisfies_existQuantSet]
+  conv => lhs; arg 1; ext; rw [PropFun.setMany_satisfies_iff_inter_semVars, h]
+  conv => rhs; arg 1; ext; rw [PropFun.setMany_satisfies_iff_inter_semVars]
+
+@[simp] theorem existQuantSet_top [DecidableEq ν] (vs : Finset ν)
+  : existQuantSet ⊤ vs = ⊤ := by
+  ext τ
+  simp [satisfies_existQuantSet]
+
+theorem existQuantSet_conj [DecidableEq ν] (a b : PropFun ν) (vs)
+  : Disjoint b.semVars vs → existQuantSet (a ⊓ b) vs = existQuantSet a vs ⊓ b
+  := by
+  intro h
+  ext τ
+  have := fun τ' =>
+    PropAssignment.agreeOn_setMany_of_disjoint
+      τ (semVars b) vs τ' (by simp; exact h)
+  simp [satisfies_existQuantSet, PropFun.agreeOn_semVars (this _)]

@@ -22,50 +22,79 @@ instance : Inhabited (PropAssignment ν) :=
 
 @[ext] theorem ext (v1 v2 : PropAssignment ν) (h : ∀ x, v1 x = v2 x) : v1 = v2 := funext h
 
-def set [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v : Bool) :
+variable [DecidableEq ν] (τ : PropAssignment ν)
+
+def set (x : ν) (v : Bool) :
     PropAssignment ν :=
   fun y => if y = x then v else τ y
 
 @[simp]
-theorem set_get [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v : Bool) :
+theorem set_get (x : ν) (v : Bool) :
     τ.set x v x = v := by
   simp [set]
 
 @[simp]
-theorem set_get_of_ne [DecidableEq ν] {x y : ν} (τ : PropAssignment ν) (v : Bool) :
+theorem set_get_of_ne {x y : ν} (τ : PropAssignment ν) (v : Bool) :
     x ≠ y → τ.set x v y = τ y := by
   intro h
   simp [set, h.symm]
 
 @[simp]
-theorem set_set [DecidableEq ν] (τ : PropAssignment ν) (x : ν) (v v' : Bool) :
+theorem set_set (x : ν) (v v' : Bool) :
     (τ.set x v).set x v' = τ.set x v' := by
   ext x'
   dsimp [set]; split <;> simp_all
 
 @[simp]
-theorem set_same [DecidableEq ν] (τ : PropAssignment ν) (x : ν) :
+theorem set_same (x : ν) :
     τ.set x (τ x) = τ := by
   ext x'
   dsimp [set]; split <;> simp_all
 
-theorem set_comm [DecidableEq ν] (τ : PropAssignment ν) (x₁ b₁ x₂ b₂) (h : x₁ ≠ x₂)
+theorem set_comm (x₁ b₁ x₂ b₂) (h : x₁ ≠ x₂)
   : (τ.set x₂ b₂).set x₁ b₁ = (τ.set x₁ b₁).set x₂ b₂ := by
   ext v
   simp [set]; split <;> split <;> (subst_vars; simp at *)
 
 /-- Assignment which agrees with `τ'` on `xs` but `τ` everywhere else. -/
-def setMany [DecidableEq ν] (τ : PropAssignment ν) (xs : Finset ν) (τ' : PropAssignment ν)
+def setMany (xs : Finset ν) (τ' : PropAssignment ν)
   : PropAssignment ν :=
   fun v => if v ∈ xs then τ' v else τ v
 
-@[simp] theorem setMany_mem [DecidableEq ν] (τ : PropAssignment ν) (xs) (τ') (h : v ∈ xs)
+@[simp] theorem setMany_mem (xs) (τ') (h : v ∈ xs)
   : (setMany τ xs τ') v = τ' v := by
   simp [setMany, h]
 
-@[simp] theorem setMany_not_mem [DecidableEq ν] (τ : PropAssignment ν) (xs) (τ') (h : ¬ v ∈ xs)
+@[simp] theorem setMany_not_mem (xs) (τ') (h : ¬ v ∈ xs)
   : (setMany τ xs τ') v = τ v := by
   simp [setMany, h]
+
+@[simp] theorem setMany_same (xs)
+  : setMany τ xs τ = τ := by
+  ext v; simp [setMany]
+
+theorem setMany_setMany (xs₁ τ₁ xs₂ τ₂)
+  : (setMany τ xs₁ τ₁).setMany xs₂ τ₂ = τ.setMany (xs₁ ∪ xs₂) (τ₁.setMany xs₂ τ₂) := by
+  ext v
+  simp [setMany]
+  aesop
+
+theorem setMany_union (xs₁ xs₂ τ')
+  : τ.setMany (xs₁ ∪ xs₂) τ' = (setMany τ xs₁ τ').setMany xs₂ τ' := by
+  ext v
+  simp [setMany]
+  aesop
+
+@[simp] theorem setMany_singleton (v : ν) (τ')
+  : τ.setMany {v} τ' = τ.set v (τ' v) := by
+  ext v
+  simp [setMany, set]
+  aesop
+
+theorem set_setMany_comm (xs τ' v b) (h : ¬ v ∈ xs)
+  : (τ.setMany xs τ').set v b = (τ.set v b).setMany xs τ' := by
+  ext v; simp [setMany, set]; aesop
+
 
 -- TODO: is this defined in mathlib for functions in general?
 def agreeOn (X : Set ν) (σ₁ σ₂ : PropAssignment ν) : Prop :=
@@ -84,42 +113,31 @@ theorem agreeOn.subset : X ⊆ Y → agreeOn Y σ₁ σ₂ → agreeOn X σ₁ �
 theorem agreeOn_empty (σ₁ σ₂ : PropAssignment ν) : agreeOn ∅ σ₁ σ₂ :=
   fun _ h => False.elim (Set.not_mem_empty _ h)
 
-variable [DecidableEq ν]
-
 theorem agreeOn_set_of_not_mem {x : ν} {X : Set ν} (σ : PropAssignment ν) (v : Bool) : x ∉ X →
     agreeOn X (σ.set x v) σ := by
   -- I ❤ A️esop
   aesop (add norm unfold agreeOn, norm unfold set)
 
-theorem agreeOn_setMany [DecidableEq ν] (τ : PropAssignment ν) (xs : Finset ν) (τ')
+theorem agreeOn_setMany (xs : Finset ν) (τ')
   : agreeOn xs (τ.setMany xs τ') τ' := by
   intro v hv
   simp at hv
   simp [setMany, hv]
 
-theorem agreeOn_setMany_compl [DecidableEq ν] (τ : PropAssignment ν) (xs : Finset ν) (τ')
-  : agreeOn xsᶜ (τ.setMany xs τ') τ := by
+theorem agreeOn_setMany_of_disjoint
+    (xs : Set ν) (xs' : Finset ν) (τ') (h : Disjoint xs xs')
+  : agreeOn xs (τ.setMany xs' τ') τ := by
   intro v hv
-  simp at hv
-  simp [setMany, hv]
+  simp [setMany]
+  intro hv'; exfalso
+  apply h.ne_of_mem hv hv' rfl
+
+theorem agreeOn_setMany_compl (xs : Finset ν) (τ')
+  : agreeOn xsᶜ (τ.setMany xs τ') τ := by
+  apply agreeOn_setMany_of_disjoint
+  exact disjoint_compl_left
 
 def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
   τ ∘ f
 
 @[simp] theorem app_map : map f τ v = τ (f v) := rfl
-
-def setManyMap (τ : PropAssignment ν) (τ' : PropAssignment ν') (f : ν → Option ν')
-  : PropAssignment ν :=
-  fun v =>
-    match f v with
-    | none => τ v
-    | some v' => τ' v'
-
-theorem setManyMap_setManyMap
-      (τ1 : PropAssignment ν1) (τ2 : PropAssignment ν2) (τ3 : PropAssignment ν3)
-      (f1 : ν1 → Option ν2) (f2 : ν2 → Option ν3)
-  : setManyMap τ1 (setManyMap τ2 τ3 f2) f1 = setManyMap (setManyMap τ1 τ2 f1) τ3 (fun x => (f1 x).bind f2)
-  := by
-  ext v
-  simp [setManyMap]
-  split <;> simp [*]

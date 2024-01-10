@@ -41,29 +41,15 @@ def mapProp {P P' : PropFun ν} (h : P = P') : VEncCNF L α P → VEncCNF L α P
 def newCtx (name : String) (inner : VEncCNF L α P) : VEncCNF L α P :=
   ⟨EncCNF.newCtx name inner, inner.2⟩
 
+set_option pp.proofs.withType false
+
 def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit (C.toPropFun) :=
   ⟨EncCNF.addClause C, by
     intro s
     generalize he : (EncCNF.addClause C).1 s = e
     rcases e with ⟨_,s'⟩
-    simp
-    simp [EncCNF.addClause] at he; cases he; simp
-    ext τ
-    simp [EncCNF.LawfulState.interp]
-    simp [PropFun.satisfies_invImage]
-    have : ∀ {_ _ _}, _ := @PropFun.invImage_setManyMap_map_idem (f := s.1.vMap) (h := s.vMapInj) (τ := τ)
-    constructor
-    · rintro ⟨τ',h1,h2⟩
-      refine ⟨⟨τ',h1⟩,?_⟩
-      rw [this] at h2
-      rcases h2 with (h2|h2)
-        <;> simp [h2]
-    · rintro ⟨⟨τ',h1⟩,h2⟩
-      refine ⟨τ',?_⟩
-      simp [*]
-      by_cases τ ⊨ s.assumeVars.toPropFun
-      · simp [*]
-      · simp [*]
+    simp [EncCNF.addClause] at he; cases he
+    simp; simp [LawfulState.addClause, State.addClause]
     ⟩
 
 /-- runs `e`, adding `ls` to each generated clause -/
@@ -93,11 +79,7 @@ def unlessOneOf [LawfulLitVar L ν] (ls : Array L) (ve : VEncCNF L α P)
     simp_all
     clear! s''f s''e s''d sf se sd
     ext τ
-    simp
-    apply Function.const
-    clear! sa sb sc s''a s''b
-    push_neg
-    exact and_imp⟩
+    simp⟩
 
 def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
     : VEncCNF L α ((Cnf.all ls).toPropFun ⇨ P) :=
@@ -107,7 +89,10 @@ def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
   )
 
 noncomputable def withTemps.prop [DecidableEq ν] [Fintype ν] (P : PropFun (ν ⊕ Fin n)) :=
-  P.invImage ⟨Sum.inl,Sum.inl_injective⟩ Finset.univ
+  P.existQuantSet (Finset.univ.map ⟨Sum.inr,Sum.inr_injective⟩)
+    |>.invImage ⟨Sum.inl,Sum.inl_injective⟩ Finset.univ (by
+      apply _root_.trans; apply semVars_existQuantSet
+      intro v; cases v <;> simp)
 
 set_option pp.proofs.withType false in
 def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
