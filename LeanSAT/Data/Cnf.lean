@@ -197,6 +197,15 @@ instance : CoeHead (Clause L) (PropFun ν) := ⟨toPropFun⟩
   dsimp [toPropForm, toPropFun]
   induction C.data <;> simp_all
 
+theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
+  : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
+  intro h
+  rcases C with ⟨data⟩
+  simp [Array.mem_def]
+  induction data <;> simp_all [toPropFun]
+  replace h := PropFun.semVars_disj _ _ h
+  aesop
+
 open PropFun
 
 theorem satisfies_iff {τ : PropAssignment ν} {C : Clause L} :
@@ -304,6 +313,15 @@ instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
 @[simp] theorem mk_toPropForm (φ : Cnf L) : ⟦φ.toPropForm⟧ = φ.toPropFun := by
   simp only [toPropForm, toPropFun]
   induction φ.data <;> simp_all
+
+theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (F : Cnf L)
+  : x ∈ F.toPropFun.semVars → ∃ C, C ∈ F ∧ x ∈ C.toPropFun.semVars := by
+  intro h
+  rcases F with ⟨data⟩
+  simp [Array.mem_def]
+  induction data <;> simp_all [toPropFun]
+  replace h := PropFun.semVars_conj _ _ h
+  aesop
 
 open PropFun
 
