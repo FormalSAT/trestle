@@ -147,6 +147,12 @@ Unlike `vars`, this set is stable under equivalence of formulas. -/
 noncomputable def semVars (φ : PropFun ν) : Finset ν :=
   Set.Finite.toFinset φ.semVars'_finite
 
+theorem semVars_mk (φ : PropForm ν)
+  : semVars ⟦φ⟧ ⊆ φ.vars := by
+  have := semVars'_subset_vars φ
+  unfold semVars
+  simp [this]
+
 theorem mem_semVars (φ : PropFun ν) (x : ν) :
     x ∈ φ.semVars ↔ ∃ (τ : PropAssignment ν), τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ := by
   simp [Set.Finite.mem_toFinset, semVars, semVars']

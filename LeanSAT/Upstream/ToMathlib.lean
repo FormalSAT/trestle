@@ -248,5 +248,26 @@ def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s
     congr; simp
     ext x₀; simp (config := {contextual := true}) [hx]
 
+@[simp] theorem Finset.mapEquiv_app [DecidableEq α'] (s : Finset α) (f : α ↪ α') (x : s)
+  : (Finset.mapEquiv s f) x = f x := rfl
+
+@[simp] theorem Finset.mapEquiv_symm_eq [DecidableEq α'] (s : Finset α) (f : α ↪ α') (x : s.map f) (y : α)
+  : (Finset.mapEquiv s f).symm x = y ↔ x.val = f y := by
+  rcases x with ⟨x,hx⟩
+  simp [mapEquiv]
+  simp at hx; rcases hx with ⟨y',h1,rfl⟩
+  simp [eq_singleton_iff_unique_mem]
+  aesop
+
+@[simp] theorem Finset.eq_mapEquiv_symm [DecidableEq α'] (s : Finset α) (f : α ↪ α') (x : s.map f) (y : α)
+  : y = (Finset.mapEquiv s f).symm x ↔ f y = x := by
+  rw [eq_comm]; simp; apply eq_comm
+
+@[simp] theorem Finset.app_mapEquiv_symm [DecidableEq α'] (s : Finset α) (f : α ↪ α') (x : s.map f) (x' : α')
+  : f ((Finset.mapEquiv s f).symm x) = x.val := by
+  rcases x with ⟨x,hx⟩
+  simp at hx; rcases hx with ⟨y,_,rfl⟩
+  simp
+
 @[simp] theorem Finset.mem_univ' (x : α) : x ∈ (@Finset.univ α I) :=
   Fintype.complete x
