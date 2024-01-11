@@ -55,13 +55,22 @@ end State
 /-- Lawfulness conditions on encoding state. -/
 @[ext]
 structure LawfulState (L ν) extends State L ν where
-  cnfVarsLt : ∀ c ∈ cnf.data, ∀ l ∈ c.data, (LitVar.toVar l) < nextVar
+  cnfVarsLt : ∀ c ∈ cnf, ∀ l ∈ c, (LitVar.toVar l) < nextVar
   vMapLt : ∀ v, vMap v < nextVar
   vMapInj : vMap.Injective
 
 namespace LawfulState
 
 instance : Coe (LawfulState L ν) (State L ν) := ⟨LawfulState.toState⟩
+
+theorem semVars_toPropFun_cnf_lt (s : LawfulState L ν)
+  : ∀ v ∈ s.cnf.toPropFun.semVars, v < s.nextVar := by
+  intro v h
+  replace h := Cnf.mem_semVars_toPropFun _ _ h
+  rcases h with ⟨C,hC,h⟩
+  replace h := Clause.mem_semVars_toPropFun _ _ h
+  rcases h with ⟨l,hl,rfl⟩
+  apply s.cnfVarsLt _ hC _ hl
 
 /-- Thanks to `vInjLt` we know `V` is `Fintype`. -/
 noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
@@ -78,55 +87,11 @@ existentially quantified away.
 noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
   let φ := s.cnf.toPropFun
   have := s.fintype
-  aux φ ⟨s.vMap, s.vMapInj⟩
-where aux (φ : PropFun IVar) [Fintype ν] (f : ν ↪ IVar) :=
-  φ |>.existQuantSet (φ.semVars \ Finset.univ.map f)
-    |>.invImage f Finset.univ (by
-      intro v hv
-      simp
-      replace hv := PropFun.semVars_existQuantSet _ _ hv
-      simp at hv
-      exact hv.2)
-
-open PropFun in
-set_option pp.proofs.withType false in
-
-theorem interp.aux_conj [DecidableEq ν] [Fintype ν] (f : ν ↪ IVar) : interp.aux (φ₁ ⊓ φ₂.map f) f = interp.aux φ₁ f ⊓ φ₂ := by
-  unfold aux
-  suffices ∀ φ h, φ = existQuantSet _ _ → invImage f Finset.univ φ h = _
-    from this _ _ rfl
-  intro φ h hφ
-  ext τ; simp [satisfies_invImage]
-  generalize hA : φ₁.semVars = A
-  generalize hB : Finset.univ.map f = B at hφ
-  generalize hC : (φ₂.map f).semVars = C
-  generalize hD : (φ₁ ⊓ φ₂.map f).semVars = D at hφ
-  have cb : C ⊆ B := by rw [←hC, ←hB]; apply _root_.trans; apply semVars_map; intro x; aesop
-  have dac : D ⊆ A ∪ C := by rw [←hA,←hC,←hD]; apply semVars_conj _ _
-  have dba : D \ B ⊆ A \ B := by
-    clear hφ; intro x
-    replace cb := @cb x
-    replace dac := @dac x
-    intro h
-    simp at *
-    aesop
-  have : Disjoint D ((A \ B) \ (D \ B)) := by
-    rw [Finset.disjoint_iff_ne]
-    intro x hx y hy
-    aesop
-  conv at this => arg 1; rw [← hD]
-  rw [← existQuantSet_union_of_disjoint_semVars_right _ _ _ this] at hφ
-  clear this
-  rw [PropFun.existQuantSet_conj] at hφ
-  · cases hφ; simp; intro
-    apply iff_of_eq; congr
-    exact Finset.union_eq_right.mpr dba
-  · rw [hC]; simp
-    constructor <;> (apply Finset.disjoint_of_subset_left cb; apply Finset.disjoint_sdiff)
+  φ.existQuantInv ⟨s.vMap, s.vMapInj⟩
 
 def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L ν := {
   State.new vars f with
-  cnfVarsLt := by intro c hc _ _; simp [State.new] at hc
+  cnfVarsLt := by intro c hc _ _; simp [State.new, Array.mem_def] at hc
   vMapLt := h
   vMapInj := f.injective
 }
@@ -134,7 +99,7 @@ def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L 
 @[simp] theorem interp_new [DecidableEq ν] (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
   ext τ
-  simp [new, State.new, interp, interp.aux, PropFun.satisfies_invImage]
+  simp [new, State.new, interp, PropFun.existQuantInv, PropFun.satisfies_invImage]
   simp [Cnf.toPropFun]
 
 def addClause [LitVar L ν] (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
@@ -147,7 +112,7 @@ def addClause [LitVar L ν] (C : Clause L) (s : LawfulState L ν) : LawfulState 
     cases hc
     · apply cnfVarsLt; repeat assumption
     · subst_vars; simp [Clause.map] at hv
-      rcases hv with ⟨a,_,rfl⟩ | ⟨a,_,rfl⟩
+      rcases hv with ⟨a,_|_,rfl⟩
       · simp [LitVar.map]; apply vMapLt
       · simp [LitVar.map]; apply vMapLt
 
@@ -155,10 +120,11 @@ def addClause [LitVar L ν] (C : Clause L) (s : LawfulState L ν) : LawfulState 
         (C : Clause L) (s : LawfulState L ν)
   : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
   simp [interp]
-  convert interp.aux_conj _ using 4
+  convert PropFun.existQuantInv_conj _ using 4
   · simp [addClause, State.addClause, BooleanAlgebra.himp_eq]
     rw [sup_comm]
   · assumption
+  · infer_instance
   · exact s.fintype
 
 end LawfulState
@@ -260,8 +226,12 @@ instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) where
 def State.withTemps (s : State L ν) : State (WithTemps L n) (ν ⊕ Fin n) where
   nextVar := ⟨s.nextVar + n, by simp⟩
   cnf := s.cnf
-  vMap := fun | Sum.inl v => s.vMap v | Sum.inr i => ⟨s.nextVar + i, by simp⟩
+  vMap := vMap
   assumeVars := s.assumeVars.map _ (Sum.inl ·)
+where vMap (x) :=
+  match x with
+  | Sum.inl v => s.vMap v
+  | Sum.inr i => ⟨s.nextVar + i, by simp⟩
 
 @[simp] theorem State.cnf_withTemps (s : State L ν) :
     (State.withTemps s (n := n)).cnf = s.cnf
@@ -288,11 +258,38 @@ def LawfulState.withTemps (s : LawfulState L ν)
     simp [State.withTemps]
     cases v1 <;> cases v2 <;> simp
     · apply s.vMapInj
-    · intro h; have := h ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
-    · intro h; have := h.symm ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
-    · rw [Subtype.mk_eq_mk]
+    · intro h; simp [State.withTemps.vMap] at h; have := h ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
+    · intro h; simp [State.withTemps.vMap] at h; have := h.symm ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
+    · simp [State.withTemps.vMap]; rw [Subtype.mk_eq_mk]
       intro h
       apply Fin.eq_of_veq; apply Nat.add_left_cancel h
+
+@[simp] theorem LawfulState.interp_withTemps [DecidableEq ν] (s : LawfulState L ν) (n)
+  : (s.withTemps (n := n)).interp = s.interp.map Sum.inl := by
+  simp [interp, withTemps, State.withTemps]
+  generalize hφ : s.cnf.toPropFun = φ
+  ext τ
+  simp [PropFun.existQuantInv]
+  rw [PropFun.satisfies_invImage, PropFun.satisfies_invImage]
+  convert PropFun.agreeOn_semVars _ using 3
+  · ext i; simp [State.withTemps.vMap, not_or]
+    intro hi _h t
+    replace hi := semVars_toPropFun_cnf_lt _ _ (hφ.symm ▸ hi)
+    apply ne_of_gt
+    apply Nat.lt_of_lt_of_le; apply hi
+    simp [← PNat.coe_le_coe]; exact Nat.le_add_right ↑s.nextVar ↑t
+  · infer_instance
+  · intro v hv
+    simp at hv; replace hv := PropFun.semVars_existQuantSet _ _ hv
+    simp at hv
+    rcases hv with ⟨hv,h⟩
+    have := semVars_toPropFun_cnf_lt _ _ (hφ.symm ▸ hv)
+    rcases h with (⟨v,rfl⟩|⟨t,rfl⟩)
+    · simp [State.withTemps.vMap]; congr
+      simp [State.withTemps.vMap]; congr
+      simp
+    · exfalso; simp [State.withTemps.vMap, ←PNat.coe_lt_coe] at this
+
 
 def State.withoutTemps (vMap : ν → IVar) (assumeVars : Array L) (s : State (WithTemps L n) (ν ⊕ Fin n)) : State L ν where
   nextVar := s.nextVar
@@ -337,14 +334,15 @@ def LawfulState.withoutTemps (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).assumeVars = av
   := by simp [LawfulState.withoutTemps]
 
---theorem LawfulState.interp_withoutTemps [DecidableEq ν]
---    (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
---    {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
---    : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
---      PropFun.invImage ⟨Sum.inl, Sum.inl_injective⟩
---        (LawfulState.withoutTemps s vMap vMapLt vMapInj av).fintype.elems s.interp (by intro _ _; simp_all [interp])
---  := by
---  simp [LawfulState.withoutTemps, State.withoutTemps, interp]
+theorem LawfulState.interp_withoutTemps [DecidableEq ν]
+    (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
+    {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
+    : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
+      @PropFun.existQuantInv _ _ _ ⟨Sum.inl, Sum.inl_injective⟩
+        ((LawfulState.withoutTemps s vMap vMapLt vMapInj av).fintype) s.interp
+  := by
+  simp [LawfulState.withoutTemps, State.withoutTemps, interp]
+  sorry
 
 def nextVar_mono_of_eq {e : EncCNF L α} (h : e.1 s = (a, s')) :
     s.nextVar ≤ s'.nextVar := by

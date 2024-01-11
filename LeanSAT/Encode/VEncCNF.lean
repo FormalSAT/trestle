@@ -142,11 +142,8 @@ def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     ext τ
     have := he.2.2; rw [PropFun.ext_iff] at this
     simp [PropFun.satisfies_invImage] at this ⊢
-    constructor
-    · rintro ⟨τ', h⟩
-      sorry
-    · sorry
-    ⟩
+    sorry
+  ⟩
 
 theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
   : e1.satisfiesProp P → (∀ s, (f (e1.1 s).1).satisfiesProp Q) →
