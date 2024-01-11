@@ -495,8 +495,9 @@ theorem semVars_invImage [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
   apply Finset.Subset.trans (semVars_pmap ..)
   intro v
   simp
-  rintro v' _ rfl
-  simp
+  intro h'
+  have := h h'
+  simpa using this
 
 @[simp] def invImage.assn [DecidableEq ν] [DecidableEq ν'] (f : ν ↪ ν')
       (xs : Finset ν)

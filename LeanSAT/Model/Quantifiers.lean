@@ -206,3 +206,46 @@ theorem existQuantSet_conj [DecidableEq ν] (a b : PropFun ν) (vs)
     PropAssignment.agreeOn_setMany_of_disjoint
       τ (semVars b) vs τ' (by simp; exact h)
   simp [satisfies_existQuantSet, PropFun.agreeOn_semVars (this _)]
+
+noncomputable def existQuantInv [DecidableEq ν'] (f : ν ↪ ν') [Fintype ν] (φ : PropFun ν') : PropFun ν :=
+  φ |>.existQuantSet (φ.semVars \ Finset.univ.map f)
+    |>.invImage f Finset.univ (by
+      intro v hv
+      simp
+      replace hv := PropFun.semVars_existQuantSet _ _ hv
+      simp at hv
+      exact hv.2)
+
+theorem existQuantInv_conj [DecidableEq ν'] (f : ν ↪ ν') [Fintype ν]
+  : existQuantInv f (φ₁ ⊓ φ₂.map f) = existQuantInv f φ₁ ⊓ φ₂ := by
+  unfold existQuantInv
+  suffices ∀ φ h, φ = existQuantSet _ _ → invImage f Finset.univ φ h = _
+    from this _ _ rfl
+  intro φ h hφ
+  ext τ; simp [satisfies_invImage]
+  generalize hA : φ₁.semVars = A
+  generalize hB : Finset.univ.map f = B at hφ
+  generalize hC : (φ₂.map f).semVars = C
+  generalize hD : (φ₁ ⊓ φ₂.map f).semVars = D at hφ
+  have cb : C ⊆ B := by rw [←hC, ←hB]; apply _root_.trans; apply semVars_map; intro x; aesop
+  have dac : D ⊆ A ∪ C := by rw [←hA,←hC,←hD]; apply semVars_conj _ _
+  have dba : D \ B ⊆ A \ B := by
+    clear hφ; intro x
+    replace cb := @cb x
+    replace dac := @dac x
+    intro h
+    simp at *
+    aesop
+  have : Disjoint D ((A \ B) \ (D \ B)) := by
+    rw [Finset.disjoint_iff_ne]
+    intro x hx y hy
+    aesop
+  conv at this => arg 1; rw [← hD]
+  rw [← existQuantSet_union_of_disjoint_semVars_right _ _ _ this] at hφ
+  clear this
+  rw [PropFun.existQuantSet_conj] at hφ
+  · cases hφ; simp; intro
+    apply iff_of_eq; congr
+    exact Finset.union_eq_right.mpr dba
+  · rw [hC]; simp
+    constructor <;> (apply Finset.disjoint_of_subset_left cb; apply Finset.disjoint_sdiff)
