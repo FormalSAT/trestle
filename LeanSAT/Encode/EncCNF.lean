@@ -337,10 +337,12 @@ def LawfulState.withoutTemps (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
 theorem LawfulState.interp_withoutTemps [DecidableEq ν]
     (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
+    (h : vMap = s.vMap ∘ Sum.inl)
     : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
       @PropFun.existQuantInv _ _ _ ⟨Sum.inl, Sum.inl_injective⟩
         ((LawfulState.withoutTemps s vMap vMapLt vMapInj av).fintype) s.interp
   := by
+  cases h
   simp [LawfulState.withoutTemps, State.withoutTemps, interp]
   sorry
 

@@ -269,5 +269,10 @@ def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s
   simp at hx; rcases hx with ⟨y,_,rfl⟩
   simp
 
+@[simp] theorem Finset.mapEquiv_of_app [DecidableEq α'] (s : Finset α) (f : α ↪ α') (x) (h)
+  : (Finset.mapEquiv s f).symm ⟨f x, h⟩ = ⟨x,by simp at h; exact h⟩ := by
+  simp [mapEquiv]; rw [eq_singleton_iff_unique_mem]
+  simpa using h
+
 @[simp] theorem Finset.mem_univ' (x : α) : x ∈ (@Finset.univ α I) :=
   Fintype.complete x
