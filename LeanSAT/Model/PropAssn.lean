@@ -141,3 +141,13 @@ def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂
   τ ∘ f
 
 @[simp] theorem app_map : map f τ v = τ (f v) := rfl
+
+def pmap {P : ν₂ → Prop} [DecidablePred P]
+    (f : { v : ν₂ // P v } → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
+  fun v =>
+    if h : P v then τ (f ⟨v,h⟩) else false
+
+@[simp] theorem pmap_subtype_val {P : ν₂ → Prop} [DecidablePred P]
+    (f : { v : ν₂ // P v } → ν₁) (τ) (x : Subtype P)
+  : pmap f τ (Subtype.val x) = τ (f x) := by
+  simp [pmap, Subtype.property]

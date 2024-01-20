@@ -207,6 +207,39 @@ theorem existQuantSet_conj [DecidableEq ν] (a b : PropFun ν) (vs)
       τ (semVars b) vs τ' (by simp; exact h)
   simp [satisfies_existQuantSet, PropFun.agreeOn_semVars (this _)]
 
+theorem existQuantSet_invImage [DecidableEq ν'] (f : ν' ↪ ν) (vs vs' : Finset ν') (hsem)
+    (h : vs' ⊆ vs)
+  : existQuantSet (invImage f vs φ hsem) vs' = invImage f vs (existQuantSet φ (vs'.map f)) (by
+    trans
+    · apply semVars_existQuantSet
+    · trans
+      · apply Finset.sdiff_subset
+      · exact hsem) := by
+  ext τ
+  simp [satisfies_existQuantSet, satisfies_invImage]
+  constructor
+  · rintro ⟨τ', hsat⟩
+    use (fun v =>
+      if h : v ∈ vs.map f then
+        τ' ((Finset.mapEquiv vs f).symm ⟨v,h⟩)
+      else
+        false)
+    refine (agreeOn_semVars ?_).mp hsat
+    · intro v hv
+      simp [invImage.assn, PropAssignment.setMany]
+      aesop
+  · rintro ⟨τ', hsat⟩
+    use (fun v' =>
+      if v' ∈ vs then
+        τ' (f v')
+      else
+        false)
+    refine (agreeOn_semVars ?_).mp hsat
+    · intro v hv
+      simp [invImage.assn, PropAssignment.setMany]
+      have : ∀ w, w ∈ vs' → w ∈ vs := h
+      aesop
+
 noncomputable def existQuantInv [DecidableEq ν'] (f : ν ↪ ν') [Fintype ν] (φ : PropFun ν') : PropFun ν :=
   φ |>.existQuantSet (φ.semVars \ Finset.univ.map f)
     |>.invImage f Finset.univ (by
@@ -249,3 +282,37 @@ theorem existQuantInv_conj [DecidableEq ν'] (f : ν ↪ ν') [Fintype ν]
     exact Finset.union_eq_right.mpr dba
   · rw [hC]; simp
     constructor <;> (apply Finset.disjoint_of_subset_left cb; apply Finset.disjoint_sdiff)
+
+set_option pp.proofs.withType false
+theorem existQuantInv_existQuantInv
+    [DecidableEq ν] [DecidableEq ν'] [DecidableEq ν'']
+    [Fintype ν] [Fintype ν'] [Fintype ν'']
+    (f : ν'' ↪ ν') (g : ν' ↪ ν)
+  : existQuantInv f (existQuantInv g φ) = existQuantInv (f.trans g) φ := by
+  ext τ
+  unfold Function.Embedding.trans
+  simp [existQuantInv]
+  conv => lhs; rw [satisfies_invImage]
+  conv => rhs; rw [satisfies_invImage]
+  rw [existQuantSet_invImage, satisfies_invImage]
+  · rw [existQuantSet_existQuantSet]
+    apply iff_of_eq; congr 1
+    · sorry
+    · congr 1
+      ext v; simp
+      constructor
+      · rintro (⟨v',⟨h1,h2⟩,rfl⟩|⟨h1,h2⟩)
+        · have := semVars_invImage_subset_preimage _ _ _ _ h1
+          simp at this
+          have := semVars_existQuantSet _ _ this
+          simp at this; simp [this]
+          intro v''; apply h2
+        · simp [h1, h2]
+      · rintro ⟨h1,h2⟩
+        simp [h1]
+        rw [Classical.or_iff_not_imp_right]
+        simp; intro x hx; use x; simp [*]
+        constructor
+        · apply semVars_invImage_subset_preimage; sorry
+        · intro v''; have := h2 v''; cases hx; simp at this; use this
+  · intro; simp
