@@ -263,9 +263,9 @@ def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s
   : y = (Finset.mapEquiv s f).symm x ↔ f y = x := by
   rw [eq_comm]; simp; apply eq_comm
 
-@[simp] theorem Finset.app_mapEquiv_symm [DecidableEq α'] (s : Finset α) (f : α ↪ α') (x : s.map f) (x' : α')
-  : f ((Finset.mapEquiv s f).symm x) = x.val := by
-  rcases x with ⟨x,hx⟩
+@[simp] theorem Finset.app_mapEquiv_symm [DecidableEq α'] (f') (s : Finset α) (f : α ↪ α') (x : s.map f)
+  : f' = f.1 → f' ((Finset.mapEquiv s f).symm x) = x.val := by
+  rintro rfl; rcases x with ⟨x,hx⟩
   simp at hx; rcases hx with ⟨y,_,rfl⟩
   simp
 
