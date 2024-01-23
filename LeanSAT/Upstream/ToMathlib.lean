@@ -276,3 +276,16 @@ def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s
 
 @[simp] theorem Finset.mem_univ' (x : α) : x ∈ (@Finset.univ α I) :=
   Fintype.complete x
+
+def Fintype.invFun [DecidableEq α'] [Fintype α] (f : α ↪ α') : Finset.univ.map f ≃ α :=
+  (Finset.mapEquiv Finset.univ f).symm.trans
+    ⟨Subtype.val, (Subtype.mk · <| by simp), by intro; simp, by intro; simp⟩
+
+@[simp] theorem Fintype.invFun_eq [Fintype α] [DecidableEq α'] (f : α ↪ α') (x : Finset.univ.map f) (y : α)
+  : Fintype.invFun f x = y ↔ x.val = f y := by simp [invFun]
+
+@[simp] theorem Fintype.eq_invFun [Fintype α] [DecidableEq α'] (f : α ↪ α') (x : Finset.univ.map f) (y : α)
+  : y = Fintype.invFun f x ↔ f y = x.val := by simp [invFun]
+
+@[simp] theorem Fintype.invFun_app [Fintype α] [DecidableEq α'] (f : α ↪ α') (x) (h)
+  : Fintype.invFun f ⟨f x, h⟩ = x := by simp
