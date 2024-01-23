@@ -222,8 +222,7 @@ theorem PropForm.satisfies_map (f : ν₂ → ν₁) (τ : PropAssignment ν₁)
   := by
   induction φ <;> (simp [map, PropAssignment.map] at *) <;> (simp [*])
 
-@[simp] theorem PropForm.semVars_map [DecidableEq ν₁] [DecidableEq ν₂]
-      [Fintype ν₁] [Fintype ν₂]
+@[simp] theorem PropForm.semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν₁]
       (f : ν₁ → ν₂) (hf : f.Injective) (φ : PropForm ν₁)
   : PropFun.semVars ⟦φ.map f⟧ = (PropFun.semVars ⟦φ⟧).map ⟨f,hf⟩ := by
   ext v2; simp
@@ -274,17 +273,12 @@ def PropFun.map (f : ν → ν') (φ : PropFun ν) : PropFun ν' :=
   rw [satisfies_mk, satisfies_mk]
   apply PropForm.satisfies_map
 
-theorem PropFun.semVars_map [DecidableEq ν] [DecidableEq ν']
-    (f : ν → ν') (φ : PropFun ν)
-  : (φ.map f).semVars ⊆ φ.semVars.image f := by
+theorem PropFun.semVars_map [DecidableEq ν] [DecidableEq ν'] [Fintype ν]
+    (f : ν → ν') (φ : PropFun ν) (hf : f.Injective)
+  : (φ.map f).semVars = φ.semVars.map ⟨f,hf⟩ := by
   let ⟨ϕ,hϕ⟩ := φ.toTrunc.out; cases hϕ
-  intro v' hv'
-  simp [mem_semVars] at hv'
-  rcases hv' with ⟨τ, htrue, hfalse⟩
-  have ⟨v, h, hv⟩ := PropFun.exists_semVar htrue hfalse
-  simp [PropAssignment.set] at h
-  split at h <;> simp_all
-  use v
+  simp [map, *, PropForm.semVars_map]
+
 
 /-! ### `attach` and `pmap` -/
 
@@ -335,7 +329,7 @@ theorem satisfies_attach (φ : PropForm ν) (τ : PropAssignment _)
   | disj φ1 φ2 ih1 ih2
   | impl φ1 φ2 ih1 ih2 => sorry
   | biImpl φ1 φ2 ih1 ih2 =>
-    simp [attach, satisfies_map, ih1, ih2]
+    simp [attach, satisfies_map]; rw [ih1, ih2]
     rw [PropAssignment.preimage_map]
     rw [  agreeOn_vars (σ₂ := τ.preimage _) (φ := φ1)
         , agreeOn_vars (σ₂ := τ.preimage _) (φ := φ2)]
