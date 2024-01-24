@@ -192,10 +192,3 @@ theorem get_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) {
 theorem map_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ → ν₂) (f') (τ)
     : f = f'.1 → map f (preimage f' τ) = τ := by
   rintro rfl; ext v1; simp [preimage]
-
-@[simp]
-theorem preimage_map [Fintype ν₁] [Fintype ν₃] [DecidableEq ν₂] [DecidableEq ν₃] (f : ν₁ ↪ ν₂) (f' : ν₁ ↪ ν₃) (τ)
-    : preimage f (map f' τ) = map (sorry) τ := by
-  simp [preimage]; rw [get_pmap]
-  simp [*]
-  assumption
