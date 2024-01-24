@@ -330,13 +330,7 @@ theorem satisfies_attach (φ : PropForm ν) (τ : PropAssignment _)
   | impl φ1 φ2 ih1 ih2 => sorry
   | biImpl φ1 φ2 ih1 ih2 =>
     simp [attach, satisfies_map]; rw [ih1, ih2]
-    rw [PropAssignment.preimage_map]
-    rw [  agreeOn_vars (σ₂ := τ.preimage _) (φ := φ1)
-        , agreeOn_vars (σ₂ := τ.preimage _) (φ := φ2)]
-      <;> (
-      intro v hv; simp at hv; simp [*, Subtype.map, PropAssignment.preimage]
-      congr; simp
-    )
+    sorry
 
 def pmap (φ : PropForm ν) (f : φ.vars → ν') : PropForm ν' :=
   φ.attach.map f
@@ -350,7 +344,7 @@ theorem satisfies_pmap {φ : PropForm ν} {f : φ.vars → ν'} {τ : PropAssign
   : τ ⊨ φ.pmap f ↔ τ.pmap f ⊨ φ
   := by
   simp [pmap, satisfies_map]
-  apply satisfies_attach
+  sorry
 
 set_option pp.proofs.withType false in
 theorem semVars_pmap [DecidableEq ν'] (φ : PropForm ν) (f : φ.vars → ν') (hf : f.Injective)
@@ -386,15 +380,13 @@ theorem semVars_pmap [DecidableEq ν'] (φ : PropForm ν) (f : φ.vars → ν') 
     simp [Subtype.impEmbedding]
     rw [PropFun.mem_semVars] at hv ⊢
     rcases hv with ⟨τ,hpos,hneg⟩
-    use τ.pmap f
-    simp
-    rw [PropFun.satisfies_mk, PropFun.satisfies_mk, satisfies_pmap, satisfies_pmap]
     sorry
 
 /-- Replace all non-semantic variables in `φ` with `.fls` -/
 noncomputable def restrict (φ : PropForm ν) : PropForm ν :=
   φ.subst (fun v => if v ∈ PropFun.semVars ⟦φ⟧ then .var v else .fls)
 
+@[simp]
 theorem vars_restrict (φ : PropForm ν)
   : vars φ.restrict = PropFun.semVars ⟦φ⟧
   := by
@@ -429,42 +421,37 @@ variable [DecidableEq ν]
 noncomputable def pmap (φ : PropFun ν)
       (f : φ.semVars → ν') : PropFun ν' :=
   φ.elim (fun ψ hψ =>
-      ⟦ ψ.restrict.pmap f ⟧
-    ) (by
+      ⟦ ψ.restrict.pmap (f ∘ Subtype.map id (by intros; simp_all)) ⟧
+  ) (by
     intro a b ha hb
     ext τ
     simp
-    let τ' : PropAssignment ν := fun v => if h : v ∈ φ.semVars then τ (f v h) else false
-    iterate 2 (
-      rw [satisfies_mk, PropForm.satisfies_pmap τ', PropForm.satisfies_restrict]
-    )
-    rw [← satisfies_mk, ← satisfies_mk, ha, hb]
-    iterate 2 (
-      rintro ⟨v,h⟩
-      simp [PropForm.vars_restrict, ha, hb] at h
-      simp [h]
-    ))
+    rw [satisfies_mk, satisfies_mk]
+    simp [PropForm.satisfies_pmap]
+    rw [← satisfies_mk, ← satisfies_mk]
+    apply iff_of_eq; congr 1
+    · ext v
+      simp [PropAssignment.pmap, ha, hb]
+      rfl
+    · simp_all
+  )
 
-theorem semVars_pmap [DecidableEq ν'] (φ) (f : (v : ν) → v ∈ φ.semVars → ν')
-  : semVars (pmap φ f) ⊆ φ.semVars.attach.image fun ⟨v,h⟩ => f v h
+theorem semVars_pmap [DecidableEq ν'] (φ : PropFun ν') (f : φ.semVars → ν')
+  : semVars (pmap φ f) ⊆ φ.semVars.attach.image f
   := by
   have ⟨φ,hφ⟩ := φ.exists_rep; cases hφ
-  intro v
-  simp [pmap, Quotient.elim_mk]
-  intro hv
-  have := PropForm.semVars_subset_vars _ hv; clear hv
-  rw [PropForm.vars_pmap] at this
-  simp at this
-  rcases this with ⟨a,h,eq⟩
-  rw [PropForm.vars_restrict] at h
+  intro v hv
+  simp [pmap, Quotient.elim_mk] at  hv ⊢
+  replace hv := PropForm.semVars_subset_vars _ hv
+  rw [PropForm.vars_pmap] at hv
+  simp at hv
+  rcases hv with ⟨a,h,eq⟩
   exact ⟨a,h,eq⟩
 
 set_option pp.proofs.withType false in
-theorem semVars_pmap_of_injective [DecidableEq ν'] (φ)
-    (f : (v : ν) → v ∈ φ.semVars → ν') (h : ∀ v1 hv1 v2 hv2, f v1 hv1 = f v2 hv2 → v1 = v2)
-  : semVars (pmap φ f) = φ.semVars.attach.map ⟨
-      fun ⟨v,h⟩ => f v h
-    , by rintro ⟨v1,hv1⟩ ⟨v2,hv2⟩; simp; apply h⟩
+theorem semVars_pmap_of_injective [DecidableEq ν'] (φ : PropFun ν')
+    (f : φ.semVars → ν') (hf : f.Injective)
+  : semVars (pmap φ f) = φ.semVars.attach.map ⟨f, hf⟩
   := by
   have ⟨φ,hφ⟩ := φ.exists_rep; cases hφ
   ext v'

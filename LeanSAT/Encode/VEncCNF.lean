@@ -4,6 +4,7 @@ Authors: James Gallicchio
 -/
 
 import LeanSAT.Encode.EncCNF
+import Mathlib.Tactic.LiftLets
 
 /-! # Verified Encodings
 
@@ -96,13 +97,42 @@ noncomputable def withTemps.prop [DecidableEq ν] [Fintype ν] (P : PropFun (ν 
 
 set_option pp.proofs.withType false in
 def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
-    (e : VEncCNF (WithTemps L n) α P) :
+    (ve : VEncCNF (WithTemps L n) α P) :
     VEncCNF L α (withTemps.prop P) :=
-  ⟨EncCNF.withTemps _ e.1, by
-    intro s
+  ⟨EncCNF.withTemps _ ve.1, by
+    intro ls_pre ls_post'
     -- give various expressions names and specialize hypotheses
-    rcases e with ⟨e,he⟩
-    generalize h : (EncCNF.withTemps n e) = te
+    have def_ls_post : ls_post' = Prod.snd _ := rfl
+    generalize ls_post' = ls_post at *; clear ls_post'
+    generalize def_ls_post_pair : (EncCNF.withTemps n ve.1).1 ls_pre = ls_post_pair
+      at def_ls_post
+    unfold EncCNF.withTemps at def_ls_post_pair
+    simp (config := {zeta := false}) at def_ls_post_pair
+    lift_lets at def_ls_post_pair
+    extract_lets vMap vMapInj assumeVars at def_ls_post_pair
+    split at def_ls_post_pair; next a ls_post_temps def_pair =>
+    generalize_proofs h
+    subst def_ls_post_pair
+    simp at def_ls_post; clear vMap assumeVars
+    generalize def_ls_pre_temps : LawfulState.withTemps ls_pre = ls_pre_temps
+    rw [def_ls_pre_temps] at def_pair
+    -- extract relationship between ls_pre_temps and ls_post_temps
+    have ls_temps_nextVar := ve.1.2 ls_pre_temps
+    simp [def_pair] at ls_temps_nextVar
+    have ls_temps_satisfies := ve.2 ls_pre_temps
+    simp [def_pair] at ls_temps_satisfies
+    clear def_pair
+    rcases ls_temps_satisfies with ⟨hvmap, hassume, h⟩
+    stop
+    generalize def_ls_post_pair : sh = ls_post_pair at def_ls_post
+    rcases ve with ⟨e,e_satisfies⟩
+    generalize def_wte : EncCNF.withTemps n e = wte at def_ls_post
+    generalize def_ls_post_temps : wte.val ls_pre = ls_post_temps at def_wte def_ls_post
+    rcases ls_post_temps with ⟨a,ls_post_temps⟩
+    simp at def_ls_post; cases def_ls_post
+    simp [EncCNF.withTemps] at def_wte
+    stop
+    -- give various expressions names and specialize hypotheses
     replace h := h.symm
     simp [EncCNF.withTemps] at h
     rcases te with ⟨te,hte⟩
@@ -118,6 +148,7 @@ def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     split at h; next a s'' hs'' =>
     replace he := he (LawfulState.withTemps s)
     rw [hs''] at he
+    stop
     simp at he
     generalize hs''' : LawfulState.withoutTemps .. = lswt at h
     replace hs''' := hs'''.symm
