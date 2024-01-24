@@ -456,12 +456,14 @@ theorem semVars_pmap_of_injective [DecidableEq ν'] (φ : PropFun ν')
   have ⟨φ,hφ⟩ := φ.exists_rep; cases hφ
   ext v'
   simp [pmap, Quotient.elim_mk]
-  have := PropForm.semVars_subset_vars _ hv; clear hv
-  have := PropForm.vars_pmap _ _ this
-  simp at this
-  rcases this with ⟨a,h,eq⟩
-  rw [PropForm.vars_restrict] at h
-  exact ⟨a,h,eq⟩
+  constructor
+  · intro h
+    have ⟨τ,hpos,hneg⟩ :=  (mem_semVars _ _).mp h
+    simp at hneg; rw [satisfies_mk] at hpos hneg
+    rw [PropForm.satisfies_pmap, PropForm.satisfies_restrict] at hpos hneg
+    sorry
+  · sorry
+  -- exact ⟨a,h,eq⟩
 
 
 theorem satisfies_pmap [DecidableEq ν]
