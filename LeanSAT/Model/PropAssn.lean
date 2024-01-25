@@ -146,43 +146,24 @@ def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂
     map f (set τ (f v) b) = set (map f τ) v b := by
   unfold map; unfold set; ext; simp [finj.eq_iff]
 
-def pmap {P : ν₂ → Prop} [DecidablePred P]
-    (f : Subtype P → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
+def pmap {vs : Finset ν₂} [DecidableEq ν₂]
+    (f : vs → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
   fun v =>
-    if h : P v then τ (f ⟨v,h⟩) else false
+    if h : v ∈ vs then τ (f ⟨v,h⟩) else false
 
-@[simp]
-theorem pmap_subtype_val {P : ν₂ → Prop} [DecidablePred P]
-    (f : Subtype P → ν₁) (τ) (x : Subtype P)
-  : pmap f τ (Subtype.val x) = τ (f x) := by
-  simp [pmap, Subtype.property]
-
-@[simp]
-theorem get_pmap {P : ν₂ → Prop} [DecidablePred P]
-    (f : Subtype P → ν₁) (τ) (x : ν₂) (h : P x)
-  : pmap f τ x = τ (f ⟨x,h⟩) := by
-  simp [pmap,h]
-
-@[simp]
-theorem pmap_map {P : ν₂ → Prop} [DecidablePred P]
-    (f : {v : ν₂ // P v} → ν₁) (g : ν₁ → ν₀) (τ)
-  : pmap f (map g τ) = pmap (g ∘ f) τ := rfl
-
-theorem pmap_pmap {P : ν₂ → Prop} [DecidablePred P] {Q : ν₁ → Prop} [DecidablePred Q]
-    (f : Subtype P → ν₁) (g : Subtype Q → ν₀) (τ : PropAssignment ν₀)
-  : pmap f (pmap g τ) =
-      pmap
-        (P := fun v2 => ∃ h, Q (f ⟨v2,h⟩))
-        (fun ⟨v2,h⟩ => g ⟨ f ⟨v2,h.1⟩, h.2⟩)
-        τ
-  := by
-  ext v2
-  simp [pmap]; split <;> simp_all
-
+theorem pmap_agreeOn_set {vs : Finset ν₂} [DecidableEq ν₁] [DecidableEq ν₂]
+      (f : vs → ν₁) (τ τ' : PropAssignment ν₁)
+  : agreeOn vs (pmap f τ) (pmap f τ') → agreeOn (vs.attach.image f) τ τ' := by
+  intro h v1 hv1
+  simp at hv1
+  rcases hv1 with ⟨v2,hv2,rfl⟩
+  have := h v2 hv2
+  simp [pmap, hv2] at this
+  exact this
 
 def preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) (τ : PropAssignment ν₁)
     : PropAssignment ν₂ :=
-  pmap (fun ⟨v2,h⟩ => Fintype.invFun f ⟨v2,h⟩) τ
+  pmap (Fintype.invFun f) τ
 
 theorem get_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) {τ v v'}
     : v = f.1 v' → (preimage f τ) v = τ v' := by
@@ -191,4 +172,4 @@ theorem get_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) {
 @[simp]
 theorem map_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ → ν₂) (f') (τ)
     : f = f'.1 → map f (preimage f' τ) = τ := by
-  rintro rfl; ext v1; simp [preimage]
+  rintro rfl; ext v1; simp [preimage, pmap]

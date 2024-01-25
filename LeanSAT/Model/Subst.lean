@@ -314,9 +314,10 @@ set_option maxHeartbeats 300000 in
     -- TODO: this aesop is very, very slow...
     <;> aesop
 
+open PropAssignment in
 theorem satisfies_attach (φ : PropForm ν) (τ : PropAssignment _)
   : τ ⊨ φ.attach ↔ τ.preimage ⟨Subtype.val,Subtype.val_injective⟩ ⊨ φ
-  := by
+  := set_option pp.proofs.withType false in by
   induction φ with
   | var =>
     simp [attach]; rw [PropAssignment.get_preimage]; simp
@@ -327,10 +328,23 @@ theorem satisfies_attach (φ : PropForm ν) (τ : PropAssignment _)
     simp [attach, ih]
   | conj φ1 φ2 ih1 ih2
   | disj φ1 φ2 ih1 ih2
-  | impl φ1 φ2 ih1 ih2 => sorry
+  | impl φ1 φ2 ih1 ih2
   | biImpl φ1 φ2 ih1 ih2 =>
     simp [attach, satisfies_map]; rw [ih1, ih2]
-    sorry
+    (first | apply and_congr
+           | apply or_congr
+           | apply iff_of_eq; apply implies_congr <;> apply propext
+           | apply iff_congr) <;> (
+      apply agreeOn_vars
+      intro v hv
+      simp at  hv; simp [preimage, pmap, hv]
+      congr
+      apply (Fintype.eq_invFun _ _ _).mpr
+      simp
+      rw [Subtype.val_inj (b := ⟨v,hv⟩)]
+      apply (Fintype.invFun_eq _ _ _).mpr
+      simp
+    )
 
 def pmap (φ : PropForm ν) (f : φ.vars → ν') : PropForm ν' :=
   φ.attach.map f
@@ -343,11 +357,17 @@ theorem vars_pmap [DecidableEq ν'] (φ : PropForm ν) (f : φ.vars → ν')
 theorem satisfies_pmap {φ : PropForm ν} {f : φ.vars → ν'} {τ : PropAssignment ν'}
   : τ ⊨ φ.pmap f ↔ τ.pmap f ⊨ φ
   := by
-  simp [pmap, satisfies_map]
-  sorry
+  simp [pmap, satisfies_map, satisfies_attach]
+  apply agreeOn_vars
+  intro v hv
+  simp at hv
+  simp [PropAssignment.preimage, PropAssignment.pmap, hv]
+  congr
+  apply (Fintype.invFun_eq ..).mpr
+  simp
 
 set_option pp.proofs.withType false in
-theorem semVars_pmap [DecidableEq ν'] (φ : PropForm ν) (f : φ.vars → ν') (hf : f.Injective)
+theorem semVars_pmap [Fintype ν] [DecidableEq ν'] (φ : PropForm ν) (f : φ.vars → ν') (hf : f.Injective)
   : PropFun.semVars ⟦φ.pmap f⟧ = (PropFun.semVars ⟦φ⟧).attach.image (f ∘ Subtype.impEmbedding _ _ (semVars_subset_vars φ))
   := by
   ext v'; simp
@@ -380,6 +400,7 @@ theorem semVars_pmap [DecidableEq ν'] (φ : PropForm ν) (f : φ.vars → ν') 
     simp [Subtype.impEmbedding]
     rw [PropFun.mem_semVars] at hv ⊢
     rcases hv with ⟨τ,hpos,hneg⟩
+    use τ.pmap f
     sorry
 
 /-- Replace all non-semantic variables in `φ` with `.fls` -/
