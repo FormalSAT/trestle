@@ -207,15 +207,14 @@ theorem existQuantSet_conj [DecidableEq ν] (a b : PropFun ν) (vs)
       τ (semVars b) vs τ' (by simp; exact h)
   simp [satisfies_existQuantSet, PropFun.agreeOn_semVars (this _)]
 
-theorem existQuantSet_invImage [DecidableEq ν'] (f : ν' ↪ ν) (vs vs' : Finset ν') (hsem)
-    (h : vs' ⊆ vs)
-  : existQuantSet (invImage f vs φ hsem) vs' = invImage f vs (existQuantSet φ (vs'.map f)) (by
-    trans
-    · apply semVars_existQuantSet
-    · trans
-      · apply Finset.sdiff_subset
-      · exact hsem) := by
+/-
+theorem existQuantSet_pmap [DecidableEq ν'] [Fintype ν] (f : φ.semVars → ν') (vs : Finset ν')
+  : existQuantSet (pmap φ f) vs =
+      pmap (existQuantSet φ (Finset.univ.filter (fun v =>
+          if h : _ then f ⟨v,h⟩ ∈ vs else false))) (fun ⟨v,h⟩ =>
+              f ⟨v, by have := semVars_existQuantSet _ _ h; simp at this; simp [*]⟩) := by
   ext τ
+  stop
   simp [satisfies_existQuantSet, satisfies_invImage]
   constructor
   · rintro ⟨τ', hsat⟩
@@ -239,18 +238,33 @@ theorem existQuantSet_invImage [DecidableEq ν'] (f : ν' ↪ ν) (vs vs' : Fins
       simp [invImage.assn, PropAssignment.setMany]
       have : ∀ w, w ∈ vs' → w ∈ vs := h
       aesop
+-/
 
 noncomputable def existQuantInv [DecidableEq ν'] (f : ν ↪ ν') [Fintype ν] (φ : PropFun ν') : PropFun ν :=
   φ |>.existQuantSet (φ.semVars \ Finset.univ.map f)
-    |>.invImage f Finset.univ (by
-      intro v hv
-      simp
-      replace hv := PropFun.semVars_existQuantSet _ _ hv
-      simp at hv
-      exact hv.2)
+    |>.preimage f
 
 theorem existQuantInv_conj [DecidableEq ν'] (f : ν ↪ ν') [Fintype ν]
   : existQuantInv f (φ₁ ⊓ φ₂.map f) = existQuantInv f φ₁ ⊓ φ₂ := by
+  simp [existQuantInv]
+  rw [existQuantSet_conj _ _ _ ?disj]
+  case disj =>
+    apply Finset.disjoint_of_subset_left (u := Finset.univ.map f)
+    · intro v' hv'
+      rw [semVars_map] at hv'
+      simp at hv' ⊢; rcases hv' with ⟨v,hv,h⟩; use v; apply h
+    · apply Finset.disjoint_sdiff
+  rw [existQuantSet_eq_of_inter_semVars_eq (vs' := semVars φ₁ \ Finset.univ.map f)]
+  · rw [preimage_conj _ _ _ ?hp ?hq]
+    case hp =>
+      trans; apply semVars_existQuantSet
+      simp; apply Finset.inter_subset_right
+    case hq =>
+      rw [semVars_map]
+      repeat sorry
+    simp
+  · sorry
+  stop
   unfold existQuantInv
   suffices ∀ φ h, φ = existQuantSet _ _ → invImage f Finset.univ φ h = _
     from this _ _ rfl
@@ -292,8 +306,8 @@ theorem existQuantInv_existQuantInv
   ext τ
   unfold Function.Embedding.trans
   simp [existQuantInv]
-  conv => lhs; rw [satisfies_invImage]
-  conv => rhs; rw [satisfies_invImage]
+  conv => lhs; rw [satisfies_preimage]
+  conv => rhs; rw [satisfies_preimage]
   rw [existQuantSet_invImage, satisfies_invImage]
   · rw [existQuantSet_existQuantSet]
     apply iff_of_eq; congr 1
