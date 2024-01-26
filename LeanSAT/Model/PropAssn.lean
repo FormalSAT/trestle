@@ -6,6 +6,7 @@ Authors: Wojciech Nawrocki, James Gallicchio
 
 import Mathlib.Data.Set.Basic
 import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Fintype.Pi
 import LeanSAT.Upstream.ToMathlib
 
 namespace LeanSAT.Model
@@ -19,6 +20,12 @@ namespace PropAssignment
 
 instance : Inhabited (PropAssignment ν) :=
   inferInstanceAs (Inhabited (_ → _))
+
+instance [DecidableEq V] [Fintype V] : DecidableEq (PropAssignment V) :=
+  inferInstanceAs (DecidableEq (_ → _))
+
+instance [DecidableEq V] [Fintype V] : Fintype (PropAssignment V) :=
+  inferInstanceAs (Fintype (_ → _))
 
 @[ext] theorem ext (v1 v2 : PropAssignment ν) (h : ∀ x, v1 x = v2 x) : v1 = v2 := funext h
 
@@ -146,6 +153,13 @@ def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂
     map f (set τ (f v) b) = set (map f τ) v b := by
   unfold map; unfold set; ext; simp [finj.eq_iff]
 
+@[simp] theorem map_eq_map [Fintype ν] (f : ν → _) (f' : ν → _)
+  : map f τ = map f' τ' ↔ ∀ v : ν, τ (f v) = τ' (f' v) := by
+  simp [map]
+  constructor <;> intro h
+  · intro v; have := congrFun h v; simp_all
+  · ext v; simp [*]
+
 def pmap {vs : Finset ν₂} [DecidableEq ν₂]
     (f : vs → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
   fun v =>
@@ -173,3 +187,9 @@ theorem get_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) {
 theorem map_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ → ν₂) (f') (τ)
     : f = f'.1 → map f (preimage f' τ) = τ := by
   rintro rfl; ext v1; simp [preimage, pmap]
+
+@[simp]
+theorem preimage_of_mem_image [Fintype ν] [DecidableEq ν₀]
+      (f : ν ↪ ν₀) (τ) (h : v0 ∈ Finset.univ.map f)
+    : preimage f τ v0 = τ (Fintype.invFun f ⟨v0,h⟩) := by
+  simp at h; simp [preimage, pmap, h]
