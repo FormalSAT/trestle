@@ -308,6 +308,22 @@ instance : CoeHead (Cnf L) (PropForm ν) := ⟨toPropForm⟩
 def toPropFun (φ : Cnf L) : PropFun ν :=
   φ.data.map (·.toPropFun) |>.foldr (init := ⊤) (fun l φ => l ⊓ φ)
 
+theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
+  : v ∈ (toPropFun F).semVars → ∃ C, C ∈ F ∧ ∃ l, l ∈ C ∧ LitVar.toVar l = v := by
+  rcases F with ⟨F⟩; simp [toPropFun]
+  induction F <;> simp
+  next hd tl ih =>
+  intro hv
+  have := PropFun.semVars_conj _ _ hv
+  simp at this
+  rcases this with (h|h)
+  · use hd
+    have := Clause.mem_semVars_toPropFun _ _ h
+    simp [this]; simp [Array.mem_def]
+  · have ⟨C,hc,h⟩ := ih h
+    use C
+    simp_all [Array.mem_def]
+
 instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
 
 @[simp] theorem mk_toPropForm (φ : Cnf L) : ⟦φ.toPropForm⟧ = φ.toPropFun := by

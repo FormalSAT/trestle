@@ -287,5 +287,24 @@ def Fintype.invFun [DecidableEq α'] [Fintype α] (f : α ↪ α') : Finset.univ
 @[simp] theorem Fintype.eq_invFun [Fintype α] [DecidableEq α'] (f : α ↪ α') (x : Finset.univ.map f) (y : α)
   : y = Fintype.invFun f x ↔ f y = x.val := by simp [invFun]
 
-@[simp] theorem Fintype.invFun_app [Fintype α] [DecidableEq α'] (f : α ↪ α') (x) (h)
-  : Fintype.invFun f ⟨f x, h⟩ = x := by simp
+@[simp] theorem Fintype.invFun_app [Fintype α] [DecidableEq α'] (f : α ↪ α') (f') (x) (h)
+  : f' = f.1 → Fintype.invFun f ⟨f' x, h⟩ = x := by rintro rfl; simp
+
+@[simp] theorem Fintype.app_invFun [Fintype α] [DecidableEq α'] (f : α ↪ α') (f') (x)
+  : f' = f.1 → f' (Fintype.invFun f x) = x := by rintro rfl; simp [invFun]
+
+@[simp] theorem Fintype.invFun_val_eq [Fintype α] [DecidableEq α'] (f : α ↪ α') (x : Finset.univ.map f) (y : α)
+  : (Fintype.invFun f x) = y ↔ x.val = f y := by simp [invFun]
+
+theorem Fintype.invFun_eq_invFun [Fintype α] [DecidableEq α'] (f f' : α ↪ α') (x y)
+  : Fintype.invFun f x = Fintype.invFun f' y ↔ ∃ a, x = f a ∧ y = f' a := by
+  simp [invFun]
+  constructor
+  · intro h; refine ⟨_, ?_, h.symm⟩
+    simp
+  · rintro ⟨a,h,h'⟩
+    simp_all
+
+@[simp] theorem PNat.val_eq_val (x y)
+  : PNat.val x = PNat.val y ↔ x = y := by
+  simp [PNat.val, Subtype.val_inj]

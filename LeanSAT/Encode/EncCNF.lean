@@ -80,14 +80,22 @@ noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
         apply s.vMapInj
         simpa [PNat.val, ← Subtype.ext_iff] using h)
 
+variable [DecidableEq ν] [Fintype ν] [LitVar L ν]
+
 /-- The interpretation of an `EncCNF` state is the
 formula's interpretation, but with all temporaries
 existentially quantified away.
 -/
 noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
   let φ := s.cnf.toPropFun
-  have := s.fintype
-  φ.existQuantInv ⟨s.vMap, s.vMapInj⟩
+  have varsLt : ∀ v ∈ φ.semVars, v < s.nextVar := by
+    intro v hv
+    have ⟨C, hC, L, h1, h2⟩ := Cnf.semVars_toPropFun _ hv
+    have := s.cnfVarsLt C hC L h1
+    rw [h2] at this
+    exact this
+  φ.attach.map (fun ⟨v,h⟩ => Fin.mk v (varsLt _ h))
+    |>.existsInv (fun v => ⟨s.vMap v, s.vMapLt _⟩)
 
 def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L ν := {
   State.new vars f with
@@ -96,13 +104,17 @@ def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L 
   vMapInj := f.injective
 }
 
-@[simp] theorem interp_new [DecidableEq ν] (vars) (f : ν ↪ IVar) (h)
+set_option pp.proofs.withType false in
+@[simp]
+theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
   ext τ
-  simp [new, State.new, interp, PropFun.existQuantInv, PropFun.satisfies_invImage]
+  simp [new, State.new, interp]
+  use τ.preimage ⟨fun v => ⟨f v, h v⟩, by
+    intro _ _ _; simp_all⟩
   simp [Cnf.toPropFun]
 
-def addClause [LitVar L ν] (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
+def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
   toState := s.toState.addClause C
   vMapLt := s.vMapLt
   vMapInj := s.vMapInj
@@ -116,16 +128,34 @@ def addClause [LitVar L ν] (C : Clause L) (s : LawfulState L ν) : LawfulState 
       · simp [LitVar.map]; apply vMapLt
       · simp [LitVar.map]; apply vMapLt
 
-@[simp] theorem interp_addClause [DecidableEq ν] [LitVar L ν]
+set_option pp.proofs.withType false in
+set_option trace.Meta.isDefEq true in
+@[simp]
+theorem interp_addClause
         (C : Clause L) (s : LawfulState L ν)
   : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
-  simp [interp]
-  convert PropFun.existQuantInv_conj _ using 4
-  · simp [addClause, State.addClause, BooleanAlgebra.himp_eq]
-    rw [sup_comm]
-  · assumption
-  · infer_instance
-  · exact s.fintype
+  ext τ
+  simp [-PropFun.satisfies_impl, addClause, interp]
+  rw [PropAssignment.map_eq_map]
+  stop
+  constructor
+  · rintro ⟨σ,⟨σ',hσ',h1,h2⟩,rfl⟩
+    simp [State.addClause] at σ
+    constructor
+    · use σ
+      constructor
+      · use σ'
+        simp [*]
+        ext ⟨v,hv⟩
+        have := congrFun hσ' ⟨v,?_⟩
+        · simpa using this
+        · simp [State.addClause]; sorry
+      · simp [State.addClause]
+    · apply (PropFun.agreeOn_semVars _).mpr h2
+      intro v hv
+      simp at hv
+      sorry
+  · sorry
 
 end LawfulState
 
