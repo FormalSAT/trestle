@@ -109,10 +109,10 @@ set_option pp.proofs.withType false in
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
   ext τ
-  simp [new, State.new, interp]
+  simp [new, State.new, interp, Cnf.toPropFun]
   use τ.preimage ⟨fun v => ⟨f v, h v⟩, by
     intro _ _ _; simp_all⟩
-  simp [Cnf.toPropFun]
+  simp
 
 def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
   toState := s.toState.addClause C
@@ -129,15 +129,12 @@ def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
       · simp [LitVar.map]; apply vMapLt
 
 set_option pp.proofs.withType false in
-set_option trace.Meta.isDefEq true in
 @[simp]
 theorem interp_addClause
         (C : Clause L) (s : LawfulState L ν)
   : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
   ext τ
   simp [-PropFun.satisfies_impl, addClause, interp]
-  rw [PropAssignment.map_eq_map]
-  stop
   constructor
   · rintro ⟨σ,⟨σ',hσ',h1,h2⟩,rfl⟩
     simp [State.addClause] at σ
