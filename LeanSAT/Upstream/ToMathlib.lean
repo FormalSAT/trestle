@@ -308,3 +308,8 @@ theorem Fintype.invFun_eq_invFun [Fintype α] [DecidableEq α'] (f f' : α ↪ �
 @[simp] theorem PNat.val_eq_val (x y)
   : PNat.val x = PNat.val y ↔ x = y := by
   simp [PNat.val, Subtype.val_inj]
+
+@[simp] theorem PNat.natPred_succ (n)
+  : PNat.natPred n + 1 = n := by
+  match n with
+  | ⟨_+1,_⟩ => simp

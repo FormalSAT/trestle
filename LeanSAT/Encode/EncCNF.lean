@@ -94,7 +94,8 @@ noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
     have := s.cnfVarsLt C hC L h1
     rw [h2] at this
     exact this
-  φ.attach.map (fun ⟨v,h⟩ => Fin.mk v (varsLt _ h))
+  -- existsInv expects the codomain to be finite, so we can't just use `IVar`.
+  φ.attach
     |>.existsInv (fun v => ⟨s.vMap v, s.vMapLt _⟩)
 
 def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L ν := {
@@ -109,7 +110,8 @@ set_option pp.proofs.withType false in
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
   ext τ
-  simp [new, State.new, interp, Cnf.toPropFun]
+  simp [new, State.new, interp, Cnf.toPropFun
+      , PropAssignment.map_eq_map]
   use τ.preimage ⟨fun v => ⟨f v, h v⟩, by
     intro _ _ _; simp_all⟩
   simp
@@ -129,12 +131,62 @@ def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
       · simp [LitVar.map]; apply vMapLt
 
 set_option pp.proofs.withType false in
+open PropFun in
 @[simp]
 theorem interp_addClause
         (C : Clause L) (s : LawfulState L ν)
   : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
   ext τ
-  simp [-PropFun.satisfies_impl, addClause, interp]
+  simp only [addClause, interp, State.addClause]
+  calc
+    _ ↔ ∃ σ,  τ = PropAssignment.map s.vMap σ ∧
+              σ ⊨ s.cnf.toPropFun ⊓ PropFun.map s.vMap ((s.assumeVars)ᶜ ⇨ C):= by
+      constructor
+      · intro h; simp at h
+        rcases h with ⟨σ,⟨σ',h1,h2,h3⟩,rfl⟩
+        use PropAssignment.setMany (σ.map (s.mapToFinNextVar))
+          (semVars (s.cnf.toPropFun ⊓ map s.vMap (s.assumeVars.toPropFun ⊔ C.toPropFun)))
+          σ'
+        constructor
+        · rw [PropAssignment.map_eq_map] at h1 ⊢
+          intro v
+          simp at h1; simp [PropAssignment.setMany]
+          split
+          next h =>
+            apply h1; apply h
+          next h =>
+            congr; simp [Fin.ofNat]
+            rw [eq_comm, Nat.mod_eq_iff_lt]
+              <;> simp [s.vMapLt v]
+        · rw [Model.PropFun.agreeOn_semVars (σ₂ := σ')]
+          · simp [*, imp_iff_not_or]
+          · convert PropAssignment.agreeOn_setMany _ _ _ using 5
+            · simp [BooleanAlgebra.himp_eq, sup_comm]
+            · infer_instance
+      · rintro ⟨σ,rfl,h⟩
+        simp at h ⊢
+        use σ.map ()
+        sorry
+      stop
+      simp
+      conv => lhs; rhs; ext; rw [← exists_and_right]
+      rw [exists_comm]
+      apply exists_congr; intro σ
+      conv =>
+        lhs; rhs; ext
+        rw [and_comm, ← and_assoc]
+      rw [exists_and_right]
+      apply and_congr
+      · constructor
+        · rintro ⟨σ',rfl,h⟩
+          simp [PropAssignment.map_eq_map] at h
+          ext v; have := h (s.vMap v); simp; apply this; sorry
+        · rintro rfl
+          sorry
+      · simp [imp_iff_not_or]
+    _ ↔ _ := by
+      sorry
+  stop
   constructor
   · rintro ⟨σ,⟨σ',hσ',h1,h2⟩,rfl⟩
     simp [State.addClause] at σ
