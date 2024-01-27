@@ -153,7 +153,7 @@ def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂
     map f (set τ (f v) b) = set (map f τ) v b := by
   unfold map; unfold set; ext; simp [finj.eq_iff]
 
-@[simp] theorem map_eq_map [Fintype ν] (f : ν → ν₁) (τ) (f' : ν → ν₂) (τ')
+theorem map_eq_map [Fintype ν] (f : ν → ν₁) (τ) (f' : ν → ν₂) (τ')
   : map f τ = map f' τ' ↔ ∀ v : ν, τ (f v) = τ' (f' v) := by
   simp [map]
   constructor <;> intro h
