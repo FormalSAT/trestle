@@ -8,7 +8,7 @@ import LeanSAT.Model.PropVars
 namespace LeanSAT.Model
 
 
-/-! ### `ofFun`, `ofSet` -/
+/-! ### `ofFun` -/
 
 def PropForm.ofBool (b : Bool) : PropForm V :=
   if b then .tr else .fls
@@ -68,6 +68,8 @@ def ofFun {V : Type u} [DecidableEq V] [Fintype V]
     intro L h1 h2 h'
     rw [h']
     simp
+
+/-! ### `ofSet` -/
 
 def ofSet {V : Type u} [DecidableEq V] [Fintype V]
       (S : Set (PropAssignment V)) [DecidablePred (· ∈ S)] : PropFun V :=

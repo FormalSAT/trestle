@@ -19,17 +19,18 @@ Quantifying over a *set* of variables is less straightforward.
 
 namespace PropFun
 
-variable [DecidableEq ν] [DecidableEq ν'] [Fintype ν] [Fintype ν']
+variable [Fintype ν']
 
+open Classical in
 /-- Most general form of existential quantification.
 True at `τ` iff there exists a model of `φ` whose image under `f` is `τ`.
 -/
-def «exists» (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
+noncomputable def «exists» (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
   ofSet { τ | ∃ σ, σ ⊨ φ ∧ τ = f σ }
 
 @[simp]
-theorem satisfies_exists {A B C D} (f : PropAssignment ν → PropAssignment ν') (τ)
-  : τ ⊨ @«exists» ν ν' A B C D f φ ↔ ∃ σ, σ ⊨ φ ∧ τ = f σ := by
+theorem satisfies_exists (f : PropAssignment ν → PropAssignment ν') (τ)
+  : τ ⊨ «exists» f φ ↔ ∃ σ, σ ⊨ φ ∧ τ = f σ := by
   simp [«exists»]
 
 def existsInv (f : ν' → ν) (φ : PropFun ν): PropFun ν' :=
