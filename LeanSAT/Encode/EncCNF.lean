@@ -96,7 +96,7 @@ noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
     exact this
   -- existsInv expects the codomain to be finite, so we can't just use `IVar`.
   φ.attach
-    |>.existsInv (fun v => ⟨s.vMap v, s.vMapLt _⟩)
+    |>.existsInv (fun v => sorry)
 
 def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L ν := {
   State.new vars f with

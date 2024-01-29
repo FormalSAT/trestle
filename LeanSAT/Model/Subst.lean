@@ -195,6 +195,7 @@ def PropFun.substOne [DecidableEq ν] (ψ : PropFun ν) (v : ν) (φ : PropFun �
     · simp
     )
 
+@[simp]
 theorem PropFun.satisfies_substOne [DecidableEq ν] (ψ : PropFun ν)
       (v : ν) (φ : PropFun ν) (τ : PropAssignment ν)
   : τ ⊨ ψ.substOne v φ ↔ τ.set v (τ ⊨ φ) ⊨ ψ := by
