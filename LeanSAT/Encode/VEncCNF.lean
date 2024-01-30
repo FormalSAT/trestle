@@ -42,7 +42,8 @@ def mapProp {P P' : PropFun ν} (h : P = P') : VEncCNF L α P → VEncCNF L α P
 def newCtx (name : String) (inner : VEncCNF L α P) : VEncCNF L α P :=
   ⟨EncCNF.newCtx name inner, inner.2⟩
 
-set_option pp.proofs.withType false
+def pure (a : α) : VEncCNF L α ⊤ := ⟨Pure.pure a, by
+    intro s; simp [Pure.pure, StateT.pure]⟩
 
 def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit (C.toPropFun) :=
   ⟨EncCNF.addClause C, by
@@ -149,12 +150,19 @@ theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
   -- once again we ♥ aesop
   aesop
 
-def seq (e1 : VEncCNF L α P) (e2 : VEncCNF L β Q) : VEncCNF L (α × β) (P ⊓ Q) :=
+def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
   VEncCNF.mapProp (show P ⊓ (Q ⊓ ⊤) = P ⊓ Q by simp)
-    ⟨ do let a ← e1; return (a, ← e2)
+    ⟨ do let a ← e1; return ← e2 a
     , by
       apply bind_satisfiesProp _ _ e1.2
       intro s
-      apply bind_satisfiesProp _ _ e2.2
-      simp [satisfiesProp, satisfiesProp.aux, pure, StateT.pure]
+      apply bind_satisfiesProp _ _ (e2 _).2
+      simp [satisfiesProp, satisfiesProp.aux, Pure.pure, StateT.pure]
     ⟩
+
+def seq (e1 : VEncCNF L Unit P) (e2 : VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
+  bind e1 (fun () => e2)
+
+def forIn (set : Finset ι) {P : ι → PropFun ν} (f : (i : ι) → VEncCNF L Unit (P i))
+  : VEncCNF L Unit (.all (sorry)) := by
+  sorry
