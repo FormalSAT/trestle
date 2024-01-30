@@ -162,3 +162,7 @@ def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P �
 
 def seq (e1 : VEncCNF L Unit P) (e2 : VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
   bind e1 (fun () => e2)
+
+def forIn (set : Finset ι) {P : ι → PropFun ν} (f : (i : ι) → VEncCNF L Unit (P i))
+  : VEncCNF L Unit (.all (sorry)) := by
+  sorry
