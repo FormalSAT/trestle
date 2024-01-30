@@ -87,18 +87,10 @@ formula's interpretation, but with all temporaries
 existentially quantified away.
 -/
 noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
-  let φ := s.cnf.toPropFun
-  have varsLt : ∀ v ∈ φ.semVars, v < s.nextVar := by
-    intro v hv
-    have ⟨C, hC, L, h1, h2⟩ := Cnf.semVars_toPropFun _ hv
-    have := s.cnfVarsLt C hC L h1
-    rw [h2] at this
-    exact this
-  -- existsInv expects the codomain to be finite, so we can't just use `IVar`.
-  φ.attach
-    |>.existsInv (fun v => sorry)
+  s.cnf.toPropFun.existsInv s.vMap
 
-def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) : LawfulState L ν := {
+def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
+    : LawfulState L ν := {
   State.new vars f with
   cnfVarsLt := by intro c hc _ _; simp [State.new, Array.mem_def] at hc
   vMapLt := h
@@ -112,8 +104,7 @@ theorem interp_new (vars) (f : ν ↪ IVar) (h)
   ext τ
   simp [new, State.new, interp, Cnf.toPropFun
       , PropAssignment.map_eq_map]
-  use τ.preimage ⟨fun v => ⟨f v, h v⟩, by
-    intro _ _ _; simp_all⟩
+  use τ.preimage f
   simp
 
 def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
@@ -137,74 +128,10 @@ theorem interp_addClause
         (C : Clause L) (s : LawfulState L ν)
   : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
   ext τ
-  simp only [addClause, interp, State.addClause]
-  calc
-    _ ↔ ∃ σ,  τ = PropAssignment.map s.vMap σ ∧
-              σ ⊨ s.cnf.toPropFun ⊓ PropFun.map s.vMap ((s.assumeVars)ᶜ ⇨ C):= by
-      constructor
-      · intro h; simp at h
-        rcases h with ⟨σ,⟨σ',h1,h2,h3⟩,rfl⟩
-        use PropAssignment.setMany (σ.map (s.mapToFinNextVar))
-          (semVars (s.cnf.toPropFun ⊓ map s.vMap (s.assumeVars.toPropFun ⊔ C.toPropFun)))
-          σ'
-        constructor
-        · rw [PropAssignment.map_eq_map] at h1 ⊢
-          intro v
-          simp at h1; simp [PropAssignment.setMany]
-          split
-          next h =>
-            apply h1; apply h
-          next h =>
-            congr; simp [Fin.ofNat]
-            rw [eq_comm, Nat.mod_eq_iff_lt]
-              <;> simp [s.vMapLt v]
-        · rw [Model.PropFun.agreeOn_semVars (σ₂ := σ')]
-          · simp [*, imp_iff_not_or]
-          · convert PropAssignment.agreeOn_setMany _ _ _ using 5
-            · simp [BooleanAlgebra.himp_eq, sup_comm]
-            · infer_instance
-      · rintro ⟨σ,rfl,h⟩
-        simp at h ⊢
-        use σ.map ()
-        sorry
-      stop
-      simp
-      conv => lhs; rhs; ext; rw [← exists_and_right]
-      rw [exists_comm]
-      apply exists_congr; intro σ
-      conv =>
-        lhs; rhs; ext
-        rw [and_comm, ← and_assoc]
-      rw [exists_and_right]
-      apply and_congr
-      · constructor
-        · rintro ⟨σ',rfl,h⟩
-          simp [PropAssignment.map_eq_map] at h
-          ext v; have := h (s.vMap v); simp; apply this; sorry
-        · rintro rfl
-          sorry
-      · simp [imp_iff_not_or]
-    _ ↔ _ := by
-      sorry
-  stop
-  constructor
-  · rintro ⟨σ,⟨σ',hσ',h1,h2⟩,rfl⟩
-    simp [State.addClause] at σ
-    constructor
-    · use σ
-      constructor
-      · use σ'
-        simp [*]
-        ext ⟨v,hv⟩
-        have := congrFun hσ' ⟨v,?_⟩
-        · simpa using this
-        · simp [State.addClause]; sorry
-      · simp [State.addClause]
-    · apply (PropFun.agreeOn_semVars _).mpr h2
-      intro v hv
-      simp at hv
-      sorry
-  · sorry
+  simp [addClause, interp, State.addClause, imp_iff_not_or]
+  rw [← exists_and_right]
+  apply exists_congr; intro σ
+  aesop
 
 end LawfulState
 
@@ -343,31 +270,44 @@ def LawfulState.withTemps (s : LawfulState L ν)
       intro h
       apply Fin.eq_of_veq; apply Nat.add_left_cancel h
 
-@[simp] theorem LawfulState.interp_withTemps [DecidableEq ν] (s : LawfulState L ν) (n)
-  : (s.withTemps (n := n)).interp = s.interp.map Sum.inl := by
-  simp [interp, withTemps, State.withTemps]
-  generalize hφ : s.cnf.toPropFun = φ
+@[simp]
+theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
+          (s : LawfulState L ν) (n)
+    : (s.withTemps (n := n)).interp = s.interp.map Sum.inl := by
   ext τ
-  simp [PropFun.existQuantInv]
-  rw [PropFun.satisfies_invImage, PropFun.satisfies_invImage]
-  convert PropFun.agreeOn_semVars _ using 3
-  · ext i; simp [State.withTemps.vMap, not_or]
-    intro hi _h t
-    replace hi := semVars_toPropFun_cnf_lt _ _ (hφ.symm ▸ hi)
-    apply ne_of_gt
-    apply Nat.lt_of_lt_of_le; apply hi
-    simp [← PNat.coe_le_coe]; exact Nat.le_add_right ↑s.nextVar ↑t
-  · infer_instance
-  · intro v hv
-    simp at hv; replace hv := PropFun.semVars_existQuantSet _ _ hv
-    simp at hv
-    rcases hv with ⟨hv,h⟩
-    have := semVars_toPropFun_cnf_lt _ _ (hφ.symm ▸ hv)
-    rcases h with (⟨v,rfl⟩|⟨t,rfl⟩)
-    · simp [State.withTemps.vMap]; congr
-      simp [State.withTemps.vMap]; congr
-      simp
-    · exfalso; simp [State.withTemps.vMap, ←PNat.coe_lt_coe] at this
+  simp [interp, withTemps, State.withTemps]
+  constructor
+  · rintro ⟨σ,h,rfl⟩
+    use σ; simp [h]
+    ext v; simp [State.withTemps.vMap]
+  · rintro ⟨σ,h1,h2⟩
+    use σ.setMany
+      (Finset.univ.image (State.withTemps.vMap (n := n) s.toState <| Sum.inr ·))
+      (τ.preimage ⟨State.withTemps.vMap s.toState, (LawfulState.withTemps s).vMapInj⟩)
+    constructor
+    · apply (Model.PropFun.agreeOn_semVars _).mpr h1
+      intro v hv
+      simp at hv
+      have := semVars_toPropFun_cnf_lt _ _ hv
+      rw [PropAssignment.setMany_not_mem]
+      simp [State.withTemps.vMap]
+      intro v'
+      rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
+      simp; apply Nat.ne_of_gt
+      exact Nat.lt_add_right _ _ _ this
+    · ext vot
+      rcases vot with (v|t)
+      · have := congrFun h2 v
+        simp at this; rw [this]; clear this h2
+        simp [withTemps, State.withTemps, State.withTemps.vMap]
+        rw [PropAssignment.setMany_not_mem]
+        simp; intro x
+        have := s.vMapLt v
+        rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
+        simp; apply Nat.ne_of_gt
+        exact Nat.lt_add_right _ _ _ this
+      · simp [State.withTemps.vMap]
+        congr; simp [State.withTemps.vMap]
 
 
 def State.withoutTemps (vMap : ν → IVar) (assumeVars : Array L) (s : State (WithTemps L n) (ν ⊕ Fin n)) : State L ν where
