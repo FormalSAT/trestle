@@ -25,22 +25,22 @@ open Classical in
 /-- Most general form of existential quantification.
 True at `τ` iff there exists a model of `φ` whose image under `f` is `τ`.
 -/
-noncomputable def «exists» (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
+noncomputable def existsAssn (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
   ofSet { τ | ∃ σ, σ ⊨ φ ∧ τ = f σ }
 
 open Classical in
 @[simp]
 theorem satisfies_exists (f : PropAssignment ν → PropAssignment ν') (τ)
-  : τ ⊨ «exists» f φ ↔ ∃ σ, σ ⊨ φ ∧ τ = f σ := by
-  simp [«exists»]
+  : τ ⊨ existsAssn f φ ↔ ∃ σ, σ ⊨ φ ∧ τ = f σ := by
+  simp [existsAssn]
 
 noncomputable def existsInv (f : ν' → ν) (φ : PropFun ν): PropFun ν' :=
-  φ.exists (fun σ => σ.map f)
+  φ.existsAssn (fun σ => σ.map f)
 
 @[simp]
 theorem satisfies_existsInv (f : ν' → ν) (φ) (τ)
-  : τ ⊨ «existsInv» f φ ↔ ∃ σ : PropAssignment ν, σ ⊨ φ ∧ τ = σ.map f := by
-  simp [«existsInv»]
+  : τ ⊨ existsInv f φ ↔ ∃ σ : PropAssignment ν, σ ⊨ φ ∧ τ = σ.map f := by
+  simp [existsInv]
 
 @[simp]
 theorem existsInv_existsInv [DecidableEq ν''] [Fintype ν'']
@@ -62,22 +62,21 @@ open Classical in
 /-- Most general form of universal quantification.
 True at `τ` iff for all models of `φ`, their image under `f` is `τ`.
 -/
-noncomputable def «forall» (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
+noncomputable def forallAssn (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
   ofSet { σ | ∀ τ, τ ⊨ φ → σ = f τ }
 
 open Classical in
 @[simp]
-theorem satisfies_forall (f : PropAssignment ν → PropAssignment ν') (τ)
-  : τ ⊨ «forall» f φ ↔ ∀ σ, σ ⊨ φ → τ = f σ := by
-  simp [«forall»]
+theorem satisfies_forallAssn (f : PropAssignment ν → PropAssignment ν') (τ)
+  : τ ⊨ forallAssn f φ ↔ ∀ σ, σ ⊨ φ → τ = f σ := by
+  simp [forallAssn]
 
 noncomputable def forallInv (f : ν' → ν) (φ : PropFun ν): PropFun ν' :=
-  φ.forall (fun σ => σ.map f)
+  φ.forallAssn (fun σ => σ.map f)
 
 @[simp]
 theorem satisfies_forallInv (f : ν' → ν) (φ) (τ)
-  : τ ⊨ «forallInv» f φ ↔ ∀ σ : PropAssignment ν, σ ⊨ φ → τ = σ.map f := by
-  simp [«forallInv»]
-
+  : τ ⊨ forallInv f φ ↔ ∀ σ : PropAssignment ν, σ ⊨ φ → τ = σ.map f := by
+  simp [forallInv]
 
 end PropFun
