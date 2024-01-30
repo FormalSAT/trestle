@@ -18,7 +18,7 @@ namespace LeanSAT.Encode
 
 open Model PropFun EncCNF
 
-def EncCNF.satisfiesProp [LitVar L ν] (e : EncCNF L α) (P : PropFun ν) : Prop :=
+def EncCNF.satisfiesProp [LitVar L ν] [Fintype ν] (e : EncCNF L α) (P : PropFun ν) : Prop :=
   aux e.1
 where aux (e' : StateM _ α) :=
   ∀ s,
@@ -27,12 +27,12 @@ where aux (e' : StateM _ α) :=
     s'.assumeVars = s.assumeVars ∧
     s'.interp = (s.interp ⊓ ((s.assumeVars.toPropFun)ᶜ ⇨ P))
 
-def VEncCNF (L : Type u) [LitVar L ν] (α : Type u) (P : PropFun ν) :=
+def VEncCNF (L) [LitVar L ν] [Fintype ν] (α : Type u) (P : PropFun ν) :=
   { e : EncCNF L α // e.satisfiesProp P }
 
 namespace VEncCNF
 
-variable {L} [LitVar L ν]
+variable {L} [LitVar L ν] [Fintype ν]
 
 instance : CoeHead (VEncCNF L α P) (EncCNF L α) := ⟨(·.1)⟩
 
@@ -89,16 +89,10 @@ def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
     simp [Clause.satisfies_iff, Array.mem_def]
   )
 
-noncomputable def withTemps.prop [DecidableEq ν] [Fintype ν] (P : PropFun (ν ⊕ Fin n)) :=
-  P.existQuantSet (Finset.univ.map ⟨Sum.inr,Sum.inr_injective⟩)
-    |>.invImage ⟨Sum.inl,Sum.inl_injective⟩ Finset.univ (by
-      apply _root_.trans; apply semVars_existQuantSet
-      intro v; cases v <;> simp)
-
 set_option pp.proofs.withType false in
 def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     (ve : VEncCNF (WithTemps L n) α P) :
-    VEncCNF L α (withTemps.prop P) :=
+    VEncCNF L α (P.existsInv Sum.inl) :=
   ⟨EncCNF.withTemps _ ve.1, by
     intro ls_pre ls_post'
     -- give various expressions names and specialize hypotheses
@@ -123,56 +117,6 @@ def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     simp [def_pair] at ls_temps_satisfies
     clear def_pair
     rcases ls_temps_satisfies with ⟨hvmap, hassume, h⟩
-    stop
-    generalize def_ls_post_pair : sh = ls_post_pair at def_ls_post
-    rcases ve with ⟨e,e_satisfies⟩
-    generalize def_wte : EncCNF.withTemps n e = wte at def_ls_post
-    generalize def_ls_post_temps : wte.val ls_pre = ls_post_temps at def_wte def_ls_post
-    rcases ls_post_temps with ⟨a,ls_post_temps⟩
-    simp at def_ls_post; cases def_ls_post
-    simp [EncCNF.withTemps] at def_wte
-    stop
-    -- give various expressions names and specialize hypotheses
-    replace h := h.symm
-    simp [EncCNF.withTemps] at h
-    rcases te with ⟨te,hte⟩
-    rw [Subtype.mk_eq_mk] at h
-    simp
-    replace h := congrFun h s
-    replace hte := hte s
-    generalize hs''' : te s = s''' at h hte
-    replace hs''' := hs'''.symm
-    rcases s''' with ⟨a,s'''⟩
-    simp at h hte ⊢
-    clear hs''' te
-    split at h; next a s'' hs'' =>
-    replace he := he (LawfulState.withTemps s)
-    rw [hs''] at he
-    stop
-    simp at he
-    generalize hs''' : LawfulState.withoutTemps .. = lswt at h
-    replace hs''' := hs'''.symm
-    cases h
-    -- we want to generalize `LawfulState.withTemps s` but need to
-    -- get rid of some dependent types first
-    rw [LawfulState.ext_iff] at hs'''
-    simp [LawfulState.withoutTemps, State.withoutTemps] at hs'''
-    clear hs''
-    generalize hs' : LawfulState.withTemps s = s' at he hs'''
-    replace hs' := hs'.symm
-    rw [LawfulState.ext_iff] at hs'
-    simp [LawfulState.withTemps, State.withTemps] at hs'
-    -- now we have all the info we should need.
-    simp_all
-    -- we want to clear out a bunch of un-helpful values
-    rcases s''' with ⟨⟨nextVar''', cnf''', vMap''', assumeVars'''⟩, cnfVars''', cnfVarsLt''', vMapInj'''⟩
-    rcases hs''' with ⟨rfl,rfl,rfl,rfl⟩
-    rcases s' with ⟨⟨nextVar', cnf', vMap', assumeVars'⟩, cnfVars', cnfVarsLt', vMapInj'⟩
-    rcases hs' with ⟨rfl,rfl,rfl,rfl⟩
-    simp [LawfulState.interp] at *
-    ext τ
-    have := he.2.2; rw [PropFun.ext_iff] at this
-    simp [PropFun.satisfies_invImage] at this ⊢
     sorry
   ⟩
 
