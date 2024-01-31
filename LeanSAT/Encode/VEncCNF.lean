@@ -18,7 +18,11 @@ namespace LeanSAT.Encode
 
 open Model PropFun EncCNF
 
-def EncCNF.satisfiesProp [LitVar L ν] [Fintype ν] (e : EncCNF L α) (P : PropFun ν) : Prop :=
+namespace EncCNF
+
+variable [LitVar L ν] [Fintype ν]
+
+def satisfiesProp (e : EncCNF L α) (P : PropFun ν) : Prop :=
   aux e.1
 where aux (e' : StateM _ α) :=
   ∀ s,
@@ -26,6 +30,37 @@ where aux (e' : StateM _ α) :=
     s'.vMap = s.vMap ∧
     s'.assumeVars = s.assumeVars ∧
     s'.interp = (s.interp ⊓ ((s.assumeVars.toPropFun)ᶜ ⇨ P))
+
+theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
+  : e1.satisfiesProp P → (∀ s, (f (e1.1 s).1).satisfiesProp Q) →
+    (e1 >>= f).satisfiesProp (P ⊓ Q)
+  := by
+  intro hP hQ s
+  simp [satisfiesProp, satisfiesProp.aux] at hP hQ
+  -- specialize hypotheses to the first state `s`
+  rcases e1 with ⟨e1,he1⟩
+  replace hP := hP s
+  replace hQ := hQ s
+  simp [Bind.bind, StateT.bind] at hP hQ ⊢
+  replace he1 := he1 s
+  -- give name to the next state `s'`
+  generalize hs' : e1 s = s' at *
+  rcases s' with ⟨a,s'⟩
+  simp at *
+  -- give name to the next state machine
+  generalize he2 : (f a) = e2 at *
+  rcases e2 with ⟨e2,he2⟩
+  -- specialize hypotheses to this state `s'`
+  replace hQ := hQ s'
+  simp at *
+  -- give name to the next state `s''`
+  generalize hs'' : e2 s' = s'' at *
+  rcases s'' with ⟨b,s''⟩
+  simp at hQ ⊢
+  -- once again we ♥ aesop
+  aesop
+
+end EncCNF
 
 def VEncCNF (L) [LitVar L ν] [Fintype ν] (α : Type u) (P : PropFun ν) :=
   { e : EncCNF L α // e.satisfiesProp P }
@@ -121,35 +156,6 @@ def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     sorry
   ⟩
 
-theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
-  : e1.satisfiesProp P → (∀ s, (f (e1.1 s).1).satisfiesProp Q) →
-    (e1 >>= f).satisfiesProp (P ⊓ Q)
-  := by
-  intro hP hQ s
-  simp [satisfiesProp, satisfiesProp.aux] at hP hQ
-  -- specialize hypotheses to the first state `s`
-  rcases e1 with ⟨e1,he1⟩
-  replace hP := hP s
-  replace hQ := hQ s
-  simp [Bind.bind, StateT.bind] at hP hQ ⊢
-  replace he1 := he1 s
-  -- give name to the next state `s'`
-  generalize hs' : e1 s = s' at *
-  rcases s' with ⟨a,s'⟩
-  simp at *
-  -- give name to the next state machine
-  generalize he2 : (f a) = e2 at *
-  rcases e2 with ⟨e2,he2⟩
-  -- specialize hypotheses to this state `s'`
-  replace hQ := hQ s'
-  simp at *
-  -- give name to the next state `s''`
-  generalize hs'' : e2 s' = s'' at *
-  rcases s'' with ⟨b,s''⟩
-  simp at hQ ⊢
-  -- once again we ♥ aesop
-  aesop
-
 def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
   VEncCNF.mapProp (show P ⊓ (Q ⊓ ⊤) = P ⊓ Q by simp)
     ⟨ do let a ← e1; return ← e2 a
@@ -163,6 +169,27 @@ def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P �
 def seq (e1 : VEncCNF L Unit P) (e2 : VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
   bind e1 (fun () => e2)
 
-def forIn (set : Finset ι) {P : ι → PropFun ν} (f : (i : ι) → VEncCNF L Unit (P i))
-  : VEncCNF L Unit (.all (sorry)) := by
-  sorry
+def varMap [LitVar L' ν'] [Fintype ν'] (f : ν → ν') (e : VEncCNF L α P)
+      : VEncCNF L' α (P.map f) :=
+  ⟨ sorry
+  , sorry⟩
+
+def forIn (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L Unit (P a))
+  : VEncCNF L Unit (.all (arr.map P)) :=
+  ⟨ arr.foldlM (fun () x => f x) ()
+  , by
+    rcases arr with ⟨L⟩
+    rw [Array.foldlM_eq_foldlM_data]
+    unfold all
+    rw [Array.foldr_eq_foldr_data]
+    rw [← List.foldl_reverse, Array.map_data, List.reverse_map]
+    simp
+    induction L with
+    | nil   => intro s; simp [Pure.pure, StateT.pure]
+    | cons hd tl ih =>
+      simp
+      apply bind_satisfiesProp
+      · apply (f hd).2
+      · intro s
+        simp [show _ = () from Subsingleton.elim _ _]
+        assumption⟩

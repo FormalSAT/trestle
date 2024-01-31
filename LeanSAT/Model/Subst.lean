@@ -208,6 +208,7 @@ theorem PropFun.satisfies_substOne [DecidableEq ν] (ψ : PropFun ν)
 
 /-! ### `map` -/
 
+@[simp]
 def PropForm.map (f : ν₁ → ν₂) : PropForm ν₁ → PropForm ν₂
 | .var l => .var (f l)
 | .tr => .tr
@@ -287,6 +288,36 @@ theorem PropFun.semVars_map [DecidableEq ν] [DecidableEq ν'] [Fintype ν]
   let ⟨ϕ,hϕ⟩ := φ.toTrunc.out; cases hϕ
   simp [map, *, PropForm.semVars_map]
 
+@[simp]
+theorem PropFun.map_var (f : ν₁ → ν₂) : map f (.var v) = .var (f v) := rfl
+
+@[simp]
+theorem PropFun.map_tr (f : ν₁ → ν₂) : map f ⊤ = ⊤ := rfl
+
+@[simp]
+theorem PropFun.map_fls (f : ν₁ → ν₂) : map f ⊥ = ⊥ := rfl
+
+@[simp]
+theorem PropFun.map_neg (f : ν₁ → ν₂) : map f (φᶜ) = (map f φ)ᶜ
+  := by ext; simp
+
+@[simp]
+theorem PropFun.map_conj (f : ν₁ → ν₂) : map f (φ₁ ⊓ φ₂) = (map f φ₁ ⊓ map f φ₂)
+  := by ext; simp
+
+@[simp]
+theorem PropFun.map_disj (f : ν₁ → ν₂) : map f (φ₁ ⊔ φ₂) = (map f φ₁ ⊔ map f φ₂)
+  := by ext; simp
+
+@[simp]
+theorem PropFun.map_impl (f : ν₁ → ν₂) : map f (φ₁ ⇨ φ₂) = (map f φ₁ ⇨ map f φ₂)
+  := by ext; simp
+
+@[simp]
+theorem PropFun.map_biImpl (f : ν₁ → ν₂) : map f (biImpl φ₁ φ₂) = .biImpl (map f φ₁) (map f φ₂)
+  := by ext; simp
+
+
 noncomputable def PropFun.attach [DecidableEq ν] (φ : PropFun ν) : PropFun φ.semVars :=
   .ofFun fun τ => τ.preimage ⟨Subtype.val, Subtype.val_injective⟩ ⊨ φ
 
@@ -300,7 +331,8 @@ theorem PropFun.preimage_satisfies [Fintype ν] [DecidableEq ν']
     apply (agreeOn_semVars _).mpr hσ
     intro v' hv'
     simp at hv'; have := h hv'; simp at this
-    simp [PropAssignment.preimage, PropAssignment.pmap, this]
+    simp [PropAssignment.preimage, PropAssignment.pmap
+      , Fintype.app_invFun, this]
 
 @[simp]
 theorem PropFun.satisfies_attach [DecidableEq ν] (φ : PropFun ν) (τ : PropAssignment _)
