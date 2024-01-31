@@ -2,7 +2,7 @@ import LeanSAT.Encode.VEncCNF
 
 namespace LeanSAT.Encode.Tseitin
 
-open Model EncCNF
+open Model VEncCNF
 
 inductive ReducedForm (L : Type u) : Bool → Type u
 | and (fs : Array (ReducedForm L false)) : ReducedForm L true
@@ -36,6 +36,9 @@ def const (val : Bool) : ReducedForm L b :=
 
 variable {L : Type u} {ν : Type v} [LitVar L ν] in
 mutual
+
+/-- `reduce φ b` returns a formula equivalent
+to `φ` if `b = true` or `¬φ` if `b = false`. -/
 def reduce : PropForm ν → Bool → ReducedForm L b
 | .neg f, neg =>
     reduce f (!neg)
@@ -106,7 +109,11 @@ theorem ReducedForm.disjuncts_toPropFun [LitVar L ν] (r : ReducedForm L false)
   | .or rs => by ext τ; simp [disjuncts, Array.mem_def, Array.attach, toPropFun]
   | .lit l => by ext τ; simp [disjuncts, Array.mem_def]; rfl
 
-/- TODO: This proof is really slow... -/
+/- TODO: This proof is really slow...
+
+JG: investigated this a bit more, it seems like the proof is not actually
+that slow, mutual blocks are just hard...
+-/
 set_option maxHeartbeats 500000 in
 open PropFun in
 variable {L : Type u} {ν : Type v} [LitVar L ν] [LawfulLitVar L ν] in
@@ -116,32 +123,40 @@ def reduce_toPropFun (f : PropForm ν) (neg : Bool)
   match f with
   | .neg f =>
       have := reduce_toPropFun f (!neg)
-      by simp [reduce]; rw [this]; cases neg <;> simp
-  | .var l => by
-      simp [reduce]
-      cases neg <;> simp [ReducedForm.toPropFun, LitVar.toPropFun]
-  | .tr => by
-      simp [reduce]
-      cases neg <;> simp
-  | .fls => by
-      simp [reduce]
-      cases neg <;> simp
+      by
+        simp [reduce]; rw [this]; cases neg <;> simp
+  | .var l =>
+      by
+        simp [reduce]
+        cases neg <;> simp [ReducedForm.toPropFun, LitVar.toPropFun]
+  | .tr =>
+      by
+        simp [reduce]
+        cases neg <;> simp
+  | .fls =>
+      by
+        simp [reduce]
+        cases neg <;> simp
   | .conj x y =>
-      have h1 := reduceDisj_toPropFun x y true
-      have h2 := reduceConj_toPropFun x y false
-      by simp [reduce]; cases neg <;> simp <;> (first | rw [h1] | rw [h2]) <;> simp
+      have h1 := reduceDisj_toPropFun (b := b) x y true
+      have h2 := reduceConj_toPropFun (b := b) x y false
+      by
+        simp [reduce]; cases neg <;> simp <;> (first | rw [h1] | rw [h2]) <;> simp
   | .disj x y =>
-      have h1 := reduceConj_toPropFun x y true
-      have h2 := reduceDisj_toPropFun x y false
-      by simp [reduce]; cases neg <;> simp <;> (first | rw [h1] | rw [h2]) <;> simp
+      have h1 := reduceConj_toPropFun (b := b) x y true
+      have h2 := reduceDisj_toPropFun (b := b) x y false
+      by
+        simp [reduce]; cases neg <;> simp <;> (first | rw [h1] | rw [h2]) <;> simp
   | .impl h c =>
       have h' := reduce_toPropFun (b := b) (.disj c (.neg h)) neg
-      by unfold reduce; rw [h']; clear h'
-         cases neg <;> simp [BooleanAlgebra.sdiff_eq, BooleanAlgebra.himp_eq]
+      by
+        unfold reduce; rw [h']; clear h'
+        cases neg <;> simp [BooleanAlgebra.sdiff_eq, BooleanAlgebra.himp_eq]
   | .biImpl l r =>
       have h' := reduce_toPropFun (b := b) (.conj (.impl l r) (.impl r l)) neg
-      by unfold reduce; rw [h']; clear h'
-         cases neg <;> simp [biImpl_eq_impls, BooleanAlgebra.sdiff_eq, BooleanAlgebra.himp_eq]
+      by
+        unfold reduce; rw [h']; clear h'
+        cases neg <;> simp [biImpl_eq_impls, BooleanAlgebra.sdiff_eq, BooleanAlgebra.himp_eq]
 
 def reduceConj_toPropFun (x y : PropForm ν) (neg : Bool)
   : (reduceConj x y neg : ReducedForm L b).toPropFun =
@@ -192,39 +207,56 @@ termination_by
   reduceDisj_toPropFun x y neg => reduceSize x + reduceSize y
 
 
-
 def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
-      (f : PropForm V) : VEncCNF L ⟦f⟧ Unit :=
+      (f : PropForm V) : VEncCNF L Unit ⟦f⟧ :=
   let red : ReducedForm L true := reduce f false
-  VEncCNF.withTemps 1 (
-    aux red
-  ) |>.mapProp (by
-    simp; rw [reduce_toPropFun]; simp
+  let conjs := red.conjuncts
+  forIn conjs (fun conj : ReducedForm L false =>
+    let disjs := conj.disjuncts
+    withTemps disjs.size (
+      let temps := List.fins disjs.size |>.toArray
+      forIn temps (fun i =>
+        aux disjs[i] |>.map sorry))
+  )
+  |> mapProp (by
+    sorry
   )
 where
-  aux {b} (f : ReducedForm L b) : VEncCNF (WithTemps L 1)
-        (.biImpl (.var (Sum.inr 0)) (f.toPropFun.map Sum.inl)) Unit :=
-    match f with
-    | .lit l => pure l
-    | .and fs => do
-      let ls : Array ILit ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
-        have := Nat.le_trans h (Nat.le_add_left _ 1)
-        aux f)
-      let t ← mkTemp
-      -- t ↔ ⋀ ls
-      for l in ls do
-        addClause #[ -t, l]
-      assuming ls <| addClause #[t]
-      return t
-    | .or fs => do
-      let ls ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
-        have := Nat.le_trans h (Nat.le_add_left _ 1)
-        aux f)
-      let t ← mkTemp
-      -- t ↔ ⋁ ls
-      assuming #[t] <| addClause ls
-      for l in ls do
-        addClause #[-l, t]
-      return t
+  aux {L} [LitVar L V] [LawfulLitVar L V] {b} (f : ReducedForm L b) :
+      VEncCNF (EncCNF.WithTemps L 1) Unit
+        (.biImpl (.var (Sum.inr 0)) (f.toPropFun.map Sum.inl)) :=
+    match h : f with
+    | .lit l =>
+      seq (addClause #[.var l, LitVar.negate <| .temp 0])
+          (addClause #[LitVar.negate <| .var l, .temp 0])
+      |> mapProp (by
+        subst b; simp at h; subst f
+        ext τ
+        simp [Clause.satisfies_iff, LitVar.satisfies_iff, ReducedForm.toPropFun]
+        generalize τ _ = x; generalize τ _ = y; generalize LitVar.polarity l = z
+        cases y <;> cases z <;> simp)
+    | .and fs =>
+      --withTemps fs.size (
+      --  let temps := List.fins fs.size |>.map EncCNF.WithTemps.temp
+      --  seq
+      --    -- temp i ↔ fs[i]
+      --    (forIn temps sorry)
+      --  <| seq
+      --    -- temp 0 ↔ ⋀ᵢ temp i
+      --    (forIn temps (fun i => addClause #[ sorry, fs[i]]))
+      --    (assuming temps <| addClause #[EncCNF.WithTemps.temp 0])
+      --) |> mapProp
+      sorry
+    | .or fs => sorry
+      --do
+      --let ls ← fs.subtypeSize.mapM (fun ⟨f,h⟩ =>
+      --  have := Nat.le_trans h (Nat.le_add_left _ 1)
+      --  aux f)
+      --let t ← mkTemp
+      ---- t ↔ ⋁ ls
+      --assuming #[t] <| addClause ls
+      --for l in ls do
+      --  addClause #[-l, t]
+      --return t
 
 end Tseitin

@@ -165,6 +165,24 @@ instance : Monad (EncCNF L) where
     · exact (f a).2 s'
     ⟩
 
+instance : LawfulMonad (EncCNF L) where
+  map_const := by simp [Functor.mapConst, Functor.map]
+  id_map := by intros; simp [Functor.map]; split; rfl
+  seqLeft_eq := by
+    intros; simp [Functor.map]; rfl
+  seqRight_eq := by
+    intros; simp [Functor.map]; rfl
+  pure_seq := by
+    intros; simp [Functor.map]; rfl
+  bind_pure_comp := by
+    intros; simp [Functor.map]; rfl
+  bind_map := by
+    intros; simp [Functor.map]; rfl
+  pure_bind := by
+    intros; simp [bind]; rfl
+  bind_assoc := by
+    intros; simp [bind]; rfl
+
 def newCtx (name : String) (inner : EncCNF L α) : EncCNF L α := do
   let res ← inner
   return res
@@ -201,6 +219,8 @@ def addAssn [BEq ν] [Hashable ν] (a : HashAssn L) : EncCNF L Unit := do
 /-! ### Temporaries -/
 
 def WithTemps (L n) := L ⊕ Fin n × Bool
+def WithTemps.var (l : L) : WithTemps L n := Sum.inl l
+def WithTemps.temp (i : Fin n) : WithTemps L n := Sum.inr (i,true)
 
 instance : LitVar (WithTemps L n) (ν ⊕ Fin n) where
   negate | Sum.inl l => Sum.inl (LitVar.negate l)
@@ -228,6 +248,38 @@ instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) where
       <;> congr
       <;> ext
     repeat simp only [*]
+
+@[simp] theorem WithTemps.toPropFun_var [LitVar L ν] (l : L)
+  : LitVar.toPropFun (WithTemps.var (n := n) l) =
+      (LitVar.toPropFun l).map Sum.inl := by
+  simp [LitVar.toPropFun, var]
+  split <;> simp_all [LitVar.polarity, LitVar.toVar]
+
+@[simp] theorem WithTemps.toPropFun_temp [LitVar L ν] (i : Fin n)
+  : LitVar.toPropFun (WithTemps.temp (L := L) i) =
+      (PropFun.var i).map Sum.inr := by
+  simp [LitVar.toPropFun, temp]
+  simp_all [LitVar.toVar]
+
+@[simp] theorem WithTemps.toVar_var [LitVar L ν] (l : L)
+  : LitVar.toVar (WithTemps.var (n := n) l) =
+      Sum.inl (LitVar.toVar l) := by
+  simp [LitVar.toVar, var]
+
+@[simp] theorem WithTemps.toVar_temp [LitVar L ν] (i : Fin n)
+  : LitVar.toVar (WithTemps.temp (L := L) i) =
+      Sum.inr i := by
+  simp [LitVar.toVar, temp]
+
+@[simp] theorem WithTemps.polarity_var [LitVar L ν] (l : L)
+  : LitVar.polarity (WithTemps.var (n := n) l) =
+      LitVar.polarity l := by
+  simp [LitVar.polarity, var]
+
+@[simp] theorem WithTemps.polarity_temp [LitVar L ν] (i : Fin n)
+  : LitVar.polarity (WithTemps.temp (L := L) i) = true := by
+  simp [LitVar.polarity, temp]
+
 
 def State.withTemps (s : State L ν) : State (WithTemps L n) (ν ⊕ Fin n) where
   nextVar := ⟨s.nextVar + n, by simp⟩
