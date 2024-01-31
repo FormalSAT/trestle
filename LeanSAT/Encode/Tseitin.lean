@@ -206,25 +206,81 @@ termination_by
   reduceConj_toPropFun x y neg => reduceSize x + reduceSize y
   reduceDisj_toPropFun x y neg => reduceSize x + reduceSize y
 
+def ReducedForm.map [LitVar L V] [LitVar L' V'] (f : V → V') : ReducedForm L b → ReducedForm L' b
+| lit l => .lit (LitVar.mkLit _ (f <| LitVar.toVar l) (LitVar.polarity l))
+| and rs => .and (rs.attach.map (fun ⟨r,_⟩ => map f r))
+| or rs => .or (rs.attach.map (fun ⟨r,_⟩ => map f r))
 
-def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
+@[simp]
+def ReducedForm.toPropFun_map [LitVar L V] [LawfulLitVar L V] [LitVar L' V'] [LawfulLitVar L' V']
+          (f : V → V') (r : ReducedForm L b)
+      : toPropFun (map (L' := L') f r) = (toPropFun r).map f :=
+  match r with
+  | .lit l => by
+    simp [map, toPropFun, LitVar.toPropFun]
+    split <;> simp_all
+  | .and rs =>
+    have ih : ∀ r ∈ rs, toPropFun (map f r) = (toPropFun r).map f :=
+      fun rf h => toPropFun_map f rf
+    by
+    simp [map, toPropFun]
+    ext τ
+    simp
+    constructor
+    · rintro h _ rf hrf _ rfl
+      have := h (toPropFun (map f rf)) _ rf ⟨?_,rfl⟩ ?_ rfl
+      · rw [ih rf hrf] at this; simpa using this
+      · use hrf
+      · simp [Array.mem_def, Array.attach]; use rf; simpa [Array.mem_def] using hrf
+    · rintro h _ _ rf ⟨⟨hrf,h1⟩,rfl⟩ _ rfl
+      rw [ih rf hrf]
+      simp
+      apply h
+      · apply h1
+      · rfl
+      · apply hrf
+  | .or rs =>
+    have ih : ∀ r ∈ rs, toPropFun (map f r) = (toPropFun r).map f :=
+      fun rf h => toPropFun_map f rf
+    by
+    simp [map, toPropFun]
+    ext τ
+    simp
+    constructor
+    · rintro ⟨_,⟨⟨rf,⟨hrf,h1⟩,rfl⟩,h2⟩,h4⟩
+      rw [ih rf hrf] at h4; simp at h4
+      refine ⟨_,⟨hrf,h1⟩,h4⟩
+    · rintro ⟨rf,⟨hrf,h1⟩,h2⟩
+      rw [← PropFun.satisfies_map, ← ih rf hrf] at h2
+      refine ⟨_,⟨⟨rf,⟨hrf,h1⟩,rfl⟩,?_⟩,h2⟩
+      simp [Array.mem_def, Array.attach]; use rf; simpa [Array.mem_def] using hrf
+
+
+
+set_option trace.Meta.isDefEq true in
+set_option trace.profiler true in
+noncomputable def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
       (f : PropForm V) : VEncCNF L Unit ⟦f⟧ :=
   let red : ReducedForm L true := reduce f false
   let conjs := red.conjuncts
-  forIn conjs (fun conj : ReducedForm L false =>
-    let disjs := conj.disjuncts
-    withTemps disjs.size (
-      let temps := List.fins disjs.size |>.toArray
-      forIn temps (fun i =>
-        aux disjs[i] |>.map sorry))
+  for_all conjs (fun conj : ReducedForm L false =>
+    withTemps conj.disjuncts.size (
+      let temps := List.fins conj.disjuncts.size |>.toArray
+      for_all temps (fun i =>
+        aux (L := EncCNF.WithTemps L conj.disjuncts.size) (V := V ⊕ Fin conj.disjuncts.size)
+          (Sum.inr i)
+          (ReducedForm.map Sum.inl conj.disjuncts[i]))
+    )
   )
   |> mapProp (by
     sorry
   )
 where
-  aux {L} [LitVar L V] [LawfulLitVar L V] {b} (f : ReducedForm L b) :
-      VEncCNF (EncCNF.WithTemps L 1) Unit
-        (.biImpl (.var (Sum.inr 0)) (f.toPropFun.map Sum.inl)) :=
+  aux {L} {V} [LitVar L V] [LawfulLitVar L V] [Fintype V] {b}
+          (t : V) (f : ReducedForm L b)
+      : VEncCNF L Unit (.biImpl (.var t) (f.toPropFun)) :=
+    sorry
+/-
     match h : f with
     | .lit l =>
       seq (addClause #[.var l, LitVar.negate <| .temp 0])
@@ -258,5 +314,6 @@ where
       --for l in ls do
       --  addClause #[-l, t]
       --return t
+-/
 
 end Tseitin
