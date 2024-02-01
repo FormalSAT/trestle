@@ -63,13 +63,6 @@ theorem satisfies_iff {τ : PropAssignment ν} {l : L} :
   dsimp [toPropFun, polarity]
   aesop
 
-instance [LitVar L1 V1] [LitVar L2 V2] : LitVar (L1 ⊕ L2) (V1 ⊕ V2) where
-  mkPos := Sum.map (LitVar.mkPos) (LitVar.mkPos)
-  mkNeg := Sum.map (LitVar.mkNeg) (LitVar.mkNeg)
-  toVar := Sum.map (LitVar.toVar) (LitVar.toVar)
-  polarity := fun | .inl l => LitVar.polarity l | .inr l => LitVar.polarity l
-  negate := Sum.map (LitVar.negate) (LitVar.negate)
-
 end LitVar
 
 /-! ### Lawful literals -/
@@ -190,7 +183,19 @@ def map [LitVar L V] [LitVar L' V'] (f : V → V') (l : L) : L' :=
   simp [map, toPropFun]
   split <;> simp
 
-instance [LitVar L1 V1] [LawfulLitVar L1 V1] [LitVar L2 V2] [LawfulLitVar L2 V2]
+
+/-! #### Sums as valid literals -/
+
+variable [LitVar L1 V1] [LitVar L2 V2]
+
+instance : LitVar (L1 ⊕ L2) (V1 ⊕ V2) where
+  mkPos := Sum.map (LitVar.mkPos) (LitVar.mkPos)
+  mkNeg := Sum.map (LitVar.mkNeg) (LitVar.mkNeg)
+  toVar := Sum.map (LitVar.toVar) (LitVar.toVar)
+  polarity := fun | .inl l => LitVar.polarity l | .inr l => LitVar.polarity l
+  negate := Sum.map (LitVar.negate) (LitVar.negate)
+
+instance [LawfulLitVar L1 V1] [LawfulLitVar L2 V2]
     : LawfulLitVar (L1 ⊕ L2) (V1 ⊕ V2) where
   toVar_mkPos     := by intro; simp [instLitVarSumSum]; aesop
   toVar_mkNeg     := by intro; simp [instLitVarSumSum]; aesop
@@ -200,6 +205,18 @@ instance [LitVar L1 V1] [LawfulLitVar L1 V1] [LitVar L2 V2] [LawfulLitVar L2 V2]
   polarity_negate := by intro; unfold instLitVarSumSum; simp [Neg.neg]; aesop
   ext := by rintro (l1|l2) (l1'|l2') <;> simp [instLitVarSumSum]
                                       <;> apply LawfulLitVar.ext
+
+@[simp] theorem polarity_inl (l : L1)
+  : polarity (L := L1 ⊕ L2) (ν := V1 ⊕ V2) (Sum.inl l) = polarity l := rfl
+
+@[simp] theorem polarity_inr (l : L2)
+  : polarity (L := L1 ⊕ L2) (ν := V1 ⊕ V2) (Sum.inr l) = polarity l := rfl
+
+@[simp] theorem toVar_inl (l : L1)
+  : toVar (L := L1 ⊕ L2) (ν := V1 ⊕ V2) (Sum.inl l) = .inl (toVar l) := rfl
+
+@[simp] theorem toVar_inr (l : L2)
+  : toVar (L := L1 ⊕ L2) (ν := V1 ⊕ V2) (Sum.inr l) = .inr (toVar l) := rfl
 
 end LitVar
 
