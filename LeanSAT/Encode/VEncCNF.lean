@@ -189,6 +189,35 @@ def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L
         simp [show _ = () from Subsingleton.elim _ _]
         assumption⟩
 
+-- Cayden TODO: Unit could possibly made to be β instead? Generalize later.
+protected def guard (a : Prop) [Decidable a] {P : PropFun ν}
+    (f : a → VEncCNF L Unit P) :
+    VEncCNF L Unit (if a then P else ⊤) :=
+  ⟨ do if ha : a then f ha
+  , by
+    by_cases ha : a
+    · simp [ha]
+      intro s
+      exact ((f ha).2 s)
+    · simp [ha]
+      intro s
+      simp [Pure.pure, StateT.pure]⟩
+
+protected def ite (a : Prop) [Decidable a] {P Q : PropFun ν}
+    (f : a → VEncCNF L Unit P)
+    (g : ¬a → VEncCNF L Unit Q) :
+    VEncCNF L Unit (if a then P else Q) :=
+  ⟨ if ha : a then f ha
+              else g ha
+  , by
+    by_cases ha : a
+    · simp [ha]
+      intro s
+      exact ((f ha).2 s)
+    · simp [ha]
+      intro s
+      exact ((g ha).2 s)⟩
+
 def andImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Array L)
   : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun)
                     ⇨ .any (conc.toList.map LitVar.toPropFun)) :=
