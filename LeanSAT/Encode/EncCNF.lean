@@ -346,7 +346,7 @@ theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
       intro v'
       rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
       simp; apply Nat.ne_of_gt
-      exact Nat.lt_add_right _ _ _ this
+      exact Nat.lt_add_right _ this
     · ext vot
       rcases vot with (v|t)
       · have := congrFun h2 v
@@ -357,7 +357,7 @@ theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
         have := s.vMapLt v
         rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
         simp; apply Nat.ne_of_gt
-        exact Nat.lt_add_right _ _ _ this
+        exact Nat.lt_add_right _ this
       · simp [State.withTemps.vMap]
         congr; simp [State.withTemps.vMap]
 
