@@ -1,6 +1,7 @@
 import Std
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
+import LeanSAT.Data.Literal
 import LeanSAT.Data.HashAssn
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Model.Quantifiers
@@ -218,36 +219,16 @@ def addAssn [BEq ν] [Hashable ν] (a : HashAssn L) : EncCNF L Unit := do
 
 /-! ### Temporaries -/
 
-def WithTemps (L n) := L ⊕ Fin n × Bool
+def WithTemps (L n) := L ⊕ Literal (Fin n)
+
+instance : LitVar (WithTemps L n) (ν ⊕ Fin n) :=
+  inferInstanceAs (LitVar (L ⊕ Literal (Fin n)) _)
+
+instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) :=
+  inferInstanceAs (LawfulLitVar (L ⊕ Literal (Fin n)) _)
+
 def WithTemps.var (l : L) : WithTemps L n := Sum.inl l
-def WithTemps.temp (i : Fin n) : WithTemps L n := Sum.inr (i,true)
-
-instance : LitVar (WithTemps L n) (ν ⊕ Fin n) where
-  negate | Sum.inl l => Sum.inl (LitVar.negate l)
-         | Sum.inr (i,p) => Sum.inr (i,!p)
-  mkPos | Sum.inl v => Sum.inl (LitVar.mkPos v)
-        | Sum.inr v => Sum.inr (v,true)
-  mkNeg | Sum.inl v => Sum.inl (LitVar.mkNeg v)
-        | Sum.inr v => Sum.inr (v,false)
-  toVar | Sum.inl l => Sum.inl (LitVar.toVar l)
-        | Sum.inr (i,_) => Sum.inr i
-  polarity | Sum.inl l => LitVar.polarity l
-           | Sum.inr (_,p) => p
-
-instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) where
-  toVar_negate := by intro l; cases l <;> simp [LitVar.toVar]
-  toVar_mkPos := by intro v; cases v <;> simp [LitVar.toVar]
-  toVar_mkNeg := by intro v; cases v <;> simp [LitVar.toVar]
-  polarity_negate := by intro l; cases l <;> simp [LitVar.polarity]
-  polarity_mkPos := by intro v; cases v <;> simp [LitVar.polarity]
-  polarity_mkNeg := by intro v; cases v <;> simp [LitVar.polarity]
-  ext := by
-    intro l1 l2 h1 h2
-    cases l1 <;> cases l2
-      <;> simp [LitVar.toVar, LitVar.polarity] at h1 h2
-      <;> congr
-      <;> ext
-    repeat simp only [*]
+def WithTemps.temp (i : Fin n) : WithTemps L n := Sum.inr (LitVar.mkPos i)
 
 @[simp] theorem WithTemps.toPropFun_var [LitVar L ν] (l : L)
   : LitVar.toPropFun (WithTemps.var (n := n) l) =
@@ -259,6 +240,7 @@ instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) where
   : LitVar.toPropFun (WithTemps.temp (L := L) i) =
       (PropFun.var i).map Sum.inr := by
   simp [LitVar.toPropFun, temp]
+  rw [LitVar.polarity_inr,LitVar.toVar_inr,LawfulLitVar.toVar_mkPos]
   simp_all [LitVar.toVar]
 
 @[simp] theorem WithTemps.toVar_var [LitVar L ν] (l : L)
@@ -269,7 +251,7 @@ instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) where
 @[simp] theorem WithTemps.toVar_temp [LitVar L ν] (i : Fin n)
   : LitVar.toVar (WithTemps.temp (L := L) i) =
       Sum.inr i := by
-  simp [LitVar.toVar, temp]
+  rw [temp,LitVar.toVar_inr,LawfulLitVar.toVar_mkPos]
 
 @[simp] theorem WithTemps.polarity_var [LitVar L ν] (l : L)
   : LitVar.polarity (WithTemps.var (n := n) l) =
@@ -278,7 +260,7 @@ instance [LawfulLitVar L ν] : LawfulLitVar (WithTemps L n) (ν ⊕ Fin n) where
 
 @[simp] theorem WithTemps.polarity_temp [LitVar L ν] (i : Fin n)
   : LitVar.polarity (WithTemps.temp (L := L) i) = true := by
-  simp [LitVar.polarity, temp]
+  rw [temp, LitVar.polarity_inr, LawfulLitVar.polarity_mkPos]
 
 
 def State.withTemps (s : State L ν) : State (WithTemps L n) (ν ⊕ Fin n) where
