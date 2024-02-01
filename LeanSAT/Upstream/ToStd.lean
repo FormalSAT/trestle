@@ -110,14 +110,6 @@ theorem Array.init_succ {f : Fin n.succ → α}
   : y ∈ A.push x ↔ y ∈ A ∨ y = x := by
   simp [push, Array.mem_def]
 
-@[simp] theorem Array.mem_map (A : Array α) (f : α → β) (y : β)
-  : y ∈ A.map f ↔ ∃ x, x ∈ A ∧ f x = y := by
-  simp [Array.mem_def]
-
-@[simp] theorem Array.mem_append (A1 A2 : Array α) (y : α)
-  : y ∈ A1 ++ A2 ↔ y ∈ A1 ∨ y ∈ A2 := by
-  simp [Array.mem_def]
-
 @[simp]
 theorem Array.size_init : (Array.init n f).size = n := by
   induction n

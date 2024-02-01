@@ -158,6 +158,7 @@ def Finset.getUnique (xs : Finset α) (h : ∃ x, xs = {x}) : α :=
   simp at hv
   simp [hv]
 
+open List in
 theorem List.Perm.find?_unique {f : α → Bool}
     (hunique : ∀ a1 a2, f a1 → f a2 → a1 = a2) (h : a ~ b)
   : a.find? f = b.find? f := by
@@ -208,14 +209,16 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
     (fun a1 => q2.lift (fun a2 => ⟦(a1,a2)⟧) (by
       intro a b hab; simp
       rw [Quotient.eq (r := s1.prod s2)]
-      simp [hab]; rfl
+      simp [hab]
+      rw [←eq]
       ))
     (by
       have ⟨q1,hq1⟩ := q1.exists_rep; cases hq1
       have ⟨q2,hq2⟩ := q2.exists_rep; cases hq2
       intro a b hab
       simp; rw [@Quotient.eq _ (.prod _ _)]
-      simp [hab]; rfl)
+      simp [hab]
+      rw [←eq])
 
 @[simp] theorem Quotient.prod_mk [sa : Setoid α] [sb : Setoid β] (a : α) (b : β)
   : Quotient.prod ⟦ a ⟧ ⟦ b ⟧ = Quotient.mk (s := sa.prod sb) (a,b) := by
