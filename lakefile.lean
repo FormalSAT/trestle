@@ -6,7 +6,6 @@ package «lean-sat»
 @[default_target]
 lean_lib LeanSAT
 
-@[default_target]
 lean_lib Examples
 lean_exe run_examples {
   root := `Examples
