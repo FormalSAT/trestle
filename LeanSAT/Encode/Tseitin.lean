@@ -1,8 +1,17 @@
 import LeanSAT.Encode.VEncCNF
 
+/-! ## Tseitin Transform
+
+This file implements an optimized version of the Tseitin transformation
+from arbitrary formulas to CNF.
+
+Formulas are first normalized, pushing negations down to the atoms
+and collecting nested ands/ors into a single multi-child and/or.
+-/
+
 namespace LeanSAT.Encode.Tseitin
 
-open Model VEncCNF
+open Model
 
 inductive ReducedForm (L : Type u) : Bool → Type u
 | and (fs : Array (ReducedForm L false)) : ReducedForm L true
@@ -257,13 +266,12 @@ def ReducedForm.toPropFun_map [LitVar L V] [LawfulLitVar L V] [LitVar L' V'] [La
 
 
 
-set_option trace.Meta.isDefEq true in
-set_option trace.profiler true in
 noncomputable def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
       (f : PropForm V) : VEncCNF L Unit ⟦f⟧ :=
   let red : ReducedForm L true := reduce f false
   let conjs := red.conjuncts
-  for_all conjs (fun conj : ReducedForm L false =>
+  sorry
+  /- for_all conjs (fun conj : ReducedForm L false =>
     withTemps conj.disjuncts.size (
       let temps := List.fins conj.disjuncts.size |>.toArray
       for_all temps (fun i =>
@@ -274,10 +282,9 @@ noncomputable def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Finty
   )
   |> mapProp (by
     sorry
-  )
+  ) -/
 where
-  aux {L} {V} [LitVar L V] [LawfulLitVar L V] [Fintype V] {b}
-          (t : V) (f : ReducedForm L b)
+  aux {b} (t : V) (f : ReducedForm L b)
       : VEncCNF L Unit (.biImpl (.var t) (f.toPropFun)) :=
     sorry
 /-
@@ -315,5 +322,71 @@ where
       --  addClause #[-l, t]
       --return t
 -/
+
+structure Literal (ν : Type u) where
+  toVar : ν
+  polarity : Bool
+
+instance : LitVar (Literal ν) ν where
+  toVar := Literal.toVar
+  polarity := Literal.polarity
+  mkPos := (⟨·,true⟩)
+  negate := fun l => ⟨l.toVar, !l.polarity⟩
+
+open EncCNF in
+def encodeAux {L V TL TV : Type} [LitVar L V] [LitVar TL TV]
+      (t : TV) (f : ReducedForm L b) : EncCNF (L ⊕ TL) (Option L) := do
+  match f with
+  | .lit l => return some l
+  | .and fs =>
+      let fs' : Array (L ⊕ Fin fs.size) ←
+        Array.ofFn (n := fs.size) id |>.mapM (fun i => do
+          match ← encodeAux (TL := Literal (Fin fs.size)) i fs[i] with
+          | none => return .inr i
+          | some l => return .inl l)
+      -- ∀ i, t → fs[i]
+      -- ⋀i fs[i] → t
+      addClause #[]
+      return none
+  | .or fs => sorry
+
+def encode [LitVar L V] (f : PropForm V) : EncCNF L Unit :=
+  let red : ReducedForm L true := reduce f false
+  let conjs := red.conjuncts
+where
+toplevel : Formula.NegNorm → EncCNF Unit
+  | .lit l => addClause l
+  | .and fs => newCtx "and." do
+    for (i,⟨f,h⟩) in fs.subtypeSize.enum do
+      have := Nat.le_trans h (Nat.le_add_left _ 1)
+      newCtx s!"[{i}]." <| toplevel f
+  | .or fs => newCtx "or." do
+    let ls ← fs.enum.mapM (fun (i,f) => newCtx s!"[{i}]." <| aux f)
+    addClause ls
+aux : Formula.NegNorm → EncCNF Literal
+  | .lit l => pure l
+  | .and fs => newCtx "and." do
+    let ls : List Literal ← fs.subtypeSize.enum.mapM (fun (i, ⟨f,h⟩) =>
+      have := Nat.le_trans h (Nat.le_add_left _ 1)
+      newCtx s!"[{i}]." <| aux f)
+    let t ← mkTemp
+    -- t ↔ ⋀ ls
+    for l in ls do
+      addClause (¬ t ∨ l)
+    addClause (ls.map (·.not) ∨ t)
+    return t
+  | .or  fs => newCtx "or." do
+    let ls ← fs.subtypeSize.enum.mapM (fun (i, ⟨f,h⟩) =>
+      have := Nat.le_trans h (Nat.le_add_left _ 1)
+      newCtx s!"[{i}]." <| aux f)
+    let t ← mkTemp
+    -- t ↔ ⋁ ls
+    addClause (¬ t ∨ ls)
+    for l in ls do
+      addClause (¬l ∨ t)
+    return t
+termination_by
+  toplevel f => f
+  aux f => f
 
 end Tseitin
