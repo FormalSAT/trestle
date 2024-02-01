@@ -171,14 +171,13 @@ def seq (e1 : VEncCNF L Unit P) (e2 : VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :
 
 
 def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L Unit (P a))
-  : VEncCNF L Unit (.all (arr.map P)) :=
+  : VEncCNF L Unit (.all (arr.toList.map P)) :=
   ⟨ arr.foldlM (fun () x => f x) ()
   , by
     rcases arr with ⟨L⟩
     rw [Array.foldlM_eq_foldlM_data]
     unfold all
-    rw [Array.foldr_eq_foldr_data]
-    rw [← List.foldl_reverse, Array.map_data, List.reverse_map]
+    rw [← List.foldl_reverse, List.reverse_map]
     simp
     induction L with
     | nil   => intro s; simp [Pure.pure, StateT.pure]
@@ -189,3 +188,20 @@ def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L
       · intro s
         simp [show _ = () from Subsingleton.elim _ _]
         assumption⟩
+
+
+def defConj [LawfulLitVar L ν] [DecidableEq ν] (v : L) (vs : Array L)
+  : VEncCNF L Unit (.biImpl v (.all <| vs.toList.map LitVar.toPropFun)) :=
+  seq (
+    show VEncCNF L Unit (.all (vs.toList.map LitVar.toPropFun) ⇨ v) from
+    addClause ((vs.map LitVar.negate).push v)
+    |> mapProp (by
+      ext τ; rw [himp_eq]; simp [Clause.satisfies_iff]
+      conv => lhs; rhs; ext; lhs; lhs; rhs; ext; rw [← LitVar.neg_eq_neg (- _ : L) _]
+      simp [or_and_right]
+    )
+  ) (
+    show VEncCNF L Unit (v ⇨ .all (vs.map LitVar.toPropFun)) from
+    sorry
+  )
+  |> mapProp sorry

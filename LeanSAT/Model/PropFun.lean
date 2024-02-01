@@ -336,20 +336,41 @@ theorem mk_impl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.impl φ₁ φ
 @[simp]
 theorem mk_biImpl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.biImpl φ₁ φ₂⟧ (biImpl ⟦φ₁⟧ ⟦φ₂⟧) := rfl
 
-/-! ### Array combinators -/
+/-! ### All/any -/
 
-def all (a : Array (PropFun ν)) : PropFun ν :=
+/- TODO: these should be defined in mathlib
+  for multisets on any comm lattice -/
+
+def all (a : List (PropFun ν)) : PropFun ν :=
   a.foldr (· ⊓ ·) ⊤
 
-def any (a : Array (PropFun ν)) : PropFun ν :=
+def any (a : List (PropFun ν)) : PropFun ν :=
   a.foldr (· ⊔ ·) ⊥
 
-@[simp] theorem satisfies_all (a : Array (PropFun ν)) (τ : PropAssignment ν)
+@[simp] theorem satisfies_all (a : List (PropFun ν)) (τ : PropAssignment ν)
   : τ ⊨ all a ↔ ∀ f ∈ a, τ ⊨ f
-  := by rcases a with ⟨L⟩; unfold all; rw [Array.foldr_eq_foldr_data]; simp [Array.mem_def]
-        induction L <;> simp [*]
+  := by unfold all; induction a <;> simp [*]
 
-@[simp] theorem satisfies_any (a : Array (PropFun ν)) (τ : PropAssignment ν)
+@[simp] theorem satisfies_any (a : List (PropFun ν)) (τ : PropAssignment ν)
   : τ ⊨ any a ↔ ∃ f ∈ a, τ ⊨ f
-  := by rcases a with ⟨L⟩; unfold any; rw [Array.foldr_eq_foldr_data]; simp [Array.mem_def]
-        induction L <;> simp [*]
+  := by unfold any; induction a <;> simp [*]
+
+@[simp] theorem all_nil : all (ν := ν) [] = ⊤ := by rfl
+
+@[simp] theorem any_nil : any (ν := ν) [] = ⊥ := by rfl
+
+@[simp] theorem all_cons (a) (b : List (PropFun ν))
+  : all (a :: b) = a ⊓ all b := by rfl
+
+@[simp] theorem any_cons (a) (b : List (PropFun ν))
+  : any (a :: b) = a ⊔ any b := by rfl
+
+@[simp] theorem all_append (a b : List (PropFun ν))
+  : all (a ++ b) = all a ⊓ all b := by
+  simp [all]; induction a <;> simp [*]
+  apply inf_assoc.symm
+
+@[simp] theorem any_append (a b : List (PropFun ν))
+  : any (a ++ b) = any a ⊔ any b := by
+  simp [any]; induction a <;> simp [*]
+  apply sup_assoc.symm

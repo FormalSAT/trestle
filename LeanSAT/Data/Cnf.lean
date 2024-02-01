@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki, Jeremy Avigad
 -/
 
+import LeanSAT.Upstream.ToStd
 import LeanSAT.Upstream.ToMathlib
 import LeanSAT.Model.PropFun
 import LeanSAT.Model.PropVars
@@ -56,12 +57,18 @@ def toPropFun (l : L) : PropFun ν :=
 
 instance : CoeHead L (PropFun ν) := ⟨toPropFun⟩
 
-open PropFun
-
+open PropFun in
 theorem satisfies_iff {τ : PropAssignment ν} {l : L} :
     τ ⊨ toPropFun l ↔ τ (toVar l) = polarity l := by
   dsimp [toPropFun, polarity]
   aesop
+
+instance [LitVar L1 V1] [LitVar L2 V2] : LitVar (L1 ⊕ L2) (V1 ⊕ V2) where
+  mkPos := Sum.map (LitVar.mkPos) (LitVar.mkPos)
+  mkNeg := Sum.map (LitVar.mkNeg) (LitVar.mkNeg)
+  toVar := Sum.map (LitVar.toVar) (LitVar.toVar)
+  polarity := fun | .inl l => LitVar.polarity l | .inr l => LitVar.polarity l
+  negate := Sum.map (LitVar.negate) (LitVar.negate)
 
 end LitVar
 
@@ -120,6 +127,19 @@ theorem mkPos_or_mkNeg (l : L) : l = mkPos (toVar l) ∨ l = mkNeg (toVar l) := 
   dsimp [toPropFun]
   aesop
 
+theorem ext_iff (l1 l2 : L) : l1 = l2 ↔ toVar l1 = toVar l2 ∧ polarity l1 = polarity l2 := by
+  constructor
+  · rintro rfl; simp
+  · aesop
+
+@[simp] theorem neg_eq_neg (l1 l2 : L) : -l1 = -l2 ↔ l1 = l2 := by
+  constructor
+  · rw [ext_iff, ext_iff (L := L)]; simp
+  · rintro rfl; rfl
+
+@[simp] theorem neg_neg (l : L) : - (- l) = l := by
+  rw [ext_iff]; simp
+
 variable [DecidableEq ν]
 
 @[simp] theorem vars_toPropForm (l : L) : (toPropForm l).vars = {toVar l} := by
@@ -170,6 +190,17 @@ def map [LitVar L V] [LitVar L' V'] (f : V → V') (l : L) : L' :=
   simp [map, toPropFun]
   split <;> simp
 
+instance [LitVar L1 V1] [LawfulLitVar L1 V1] [LitVar L2 V2] [LawfulLitVar L2 V2]
+    : LawfulLitVar (L1 ⊕ L2) (V1 ⊕ V2) where
+  toVar_mkPos     := by intro; simp [instLitVarSumSum]; aesop
+  toVar_mkNeg     := by intro; simp [instLitVarSumSum]; aesop
+  toVar_negate    := by intro; unfold instLitVarSumSum; simp [Neg.neg]; aesop
+  polarity_mkPos  := by intro; simp [instLitVarSumSum]; aesop
+  polarity_mkNeg  := by intro; simp [instLitVarSumSum]; aesop
+  polarity_negate := by intro; unfold instLitVarSumSum; simp [Neg.neg]; aesop
+  ext := by rintro (l1|l2) (l1'|l2') <;> simp [instLitVarSumSum]
+                                      <;> apply LawfulLitVar.ext
+
 end LitVar
 
 /-! ### Clauses -/
@@ -183,80 +214,59 @@ instance [ToString L] : ToString (Clause L) where
 
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
-def toPropForm (C : Clause L) : PropForm ν :=
-  C.data.foldr (init := .fls) (fun l φ => (LitVar.toPropForm l).disj φ)
-
-instance : CoeHead (Clause L) (PropForm ν) := ⟨toPropForm⟩
-
 def toPropFun (C : Clause L) : PropFun ν :=
-  C.data.foldr (init := ⊥) (fun l φ => (LitVar.toPropFun l) ⊔ φ)
+  C.toList.map LitVar.toPropFun |> .any
 
 instance : CoeHead (Clause L) (PropFun ν) := ⟨toPropFun⟩
-
-@[simp] theorem mk_toPropForm (C : Clause L) : ⟦C.toPropForm⟧ = C.toPropFun := by
-  dsimp [toPropForm, toPropFun]
-  induction C.data <;> simp_all
 
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
   : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
   intro h
   rcases C with ⟨data⟩
-  simp [Array.mem_def]
-  induction data <;> simp_all [toPropFun]
-  replace h := PropFun.semVars_disj _ _ h
+  have ⟨τ,hpos,hneg⟩ := (PropFun.mem_semVars _ _).mp h; clear h
+  simp_all [toPropFun, Array.mem_def]
+  rcases hpos with ⟨l,hl,h⟩
+  have := hneg l hl
+  have := (PropFun.mem_semVars _ _).mpr ⟨τ,h,this⟩
   aesop
 
 open PropFun
 
 theorem satisfies_iff {τ : PropAssignment ν} {C : Clause L} :
     τ ⊨ C.toPropFun ↔ ∃ l ∈ C.data, τ ⊨ LitVar.toPropFun l := by
-  rw [toPropFun]
-  induction C.data <;> simp_all
+  rw [toPropFun]; simp [Array.mem_def]
 
 theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C.data, ∃ l₂ ∈ C.data, l₁ = -l₂ := by
-  refine ⟨?mp, ?mpr⟩
-  case mp =>
-    refine not_imp_not.mp ?_
-    simp only [not_exists, not_and]
-    unfold toPropFun -- :( have to do it because no induction principle for arrays
-    induction C.data with
-    | nil => simp
-    | cons l₀ ls ih =>
-      -- crazy list-array induction boilerplate
-      have : ls.foldr (init := ⊥) (fun l φ => LitVar.toPropFun l ⊔ φ) = toPropFun ls.toArray := by
-        simp [toPropFun]
-      simp only [List.foldr_cons, this] at *
-      -- end boilerplate
-      intro hCompl hEq
-      specialize ih fun l₁ h₁ l₂ h₂ => hCompl l₁ (by simp [h₁]) l₂ (by simp [h₂])
-      simp only [PropFun.eq_top_iff, satisfies_disj, not_forall] at hEq ih
-      have ⟨τ₀, h₀⟩ := ih
-      have := hEq τ₀
-      have : τ₀ ⊨ LitVar.toPropFun l₀ := by tauto
-      let τ₁ := τ₀.set (LitVar.toVar l₀) !(LitVar.polarity l₀)
-      have : τ₁ ⊭ LitVar.toPropFun l₀ := by simp [LitVar.satisfies_iff]
-      have : τ₁ ⊭ toPropFun ls.toArray := fun h => by
-        have ⟨lₛ, hₛ, hτ⟩ := satisfies_iff.mp h
-        simp only [satisfies_iff, not_exists, not_and] at h₀
-        have : τ₀ ⊭ LitVar.toPropFun lₛ := h₀ lₛ hₛ
-        have : lₛ = LitVar.mkLit L (LitVar.toVar l₀) !(LitVar.polarity l₀) :=
-          LitVar.eq_of_flip this hτ
-        have : lₛ = -l₀ := by simp [this]
-        simp at hₛ
-        apply hCompl lₛ (List.mem_cons_of_mem _ hₛ) l₀ (List.mem_cons_self _ _) this
-      have := hEq τ₁
-      tauto
-  case mpr =>
-    intro ⟨l₁, h₁, l₂, h₂, hEq⟩
-    ext τ
-    rw [satisfies_iff]
-    by_cases hτ : τ ⊨ LitVar.toPropFun l₂
-    . aesop
-    . have : τ ⊨ LitVar.toPropFun l₁ := by
-        rw [hEq, LitVar.satisfies_neg]
-        assumption
-      tauto
+  constructor
+  · intro h
+    rcases C with ⟨lits⟩
+    simp_all [toPropFun]
+    induction lits with
+    | nil => rw [ext_iff] at h; simp [Array.mem_def] at h
+    | cons hd tl ih =>
+    by_cases hr : any (tl.map LitVar.toPropFun) = ⊤
+    · have := ih hr
+      aesop
+    · clear ih
+      rw [PropFun.ext_iff] at hr h
+      simp at hr h
+      rcases hr with ⟨τ,hr⟩
+      replace h := h (τ.set (LitVar.toVar hd) (!LitVar.polarity hd))
+      simp [LitVar.satisfies_iff, Bool.not_ne_self] at h
+      rcases h with ⟨hd',hd'_mem,h⟩
+      replace hr := hr hd' hd'_mem
+      simp [LitVar.satisfies_iff] at hr
+      simp [PropAssignment.set] at h
+      split at h
+      · use hd; constructor; simp
+        use hd'; constructor; simp [hd'_mem]
+        replace h := h.symm
+        apply LawfulLitVar.ext <;> simp [*]
+      · contradiction
+  · rintro ⟨_,hl1,l,hl2,rfl⟩
+    ext τ; simp [satisfies_iff]
+    by_cases τ ⊨ LitVar.toPropFun l <;> aesop
 
 def or (c1 c2 : Clause L) : Clause L :=
   c1 ++ c2
@@ -300,13 +310,8 @@ instance [ToString L] : ToString (Cnf L) where
 
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
-def toPropForm (φ : Cnf L) : PropForm ν :=
-  φ.data.foldr (init := .tr) (fun l φ => l.toPropForm.conj φ)
-
-instance : CoeHead (Cnf L) (PropForm ν) := ⟨toPropForm⟩
-
 def toPropFun (φ : Cnf L) : PropFun ν :=
-  φ.data.map (·.toPropFun) |>.foldr (init := ⊤) (fun l φ => l ⊓ φ)
+  φ.data.map (·.toPropFun) |> .all
 
 theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
   : v ∈ (toPropFun F).semVars → ∃ C, C ∈ F ∧ ∃ l, l ∈ C ∧ LitVar.toVar l = v := by
@@ -325,10 +330,6 @@ theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
     simp_all [Array.mem_def]
 
 instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
-
-@[simp] theorem mk_toPropForm (φ : Cnf L) : ⟦φ.toPropForm⟧ = φ.toPropFun := by
-  simp only [toPropForm, toPropFun]
-  induction φ.data <;> simp_all
 
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (F : Cnf L)
   : x ∈ F.toPropFun.semVars → ∃ C, C ∈ F ∧ x ∈ C.toPropFun.semVars := by
