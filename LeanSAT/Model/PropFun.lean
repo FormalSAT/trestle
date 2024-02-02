@@ -374,13 +374,13 @@ def all (a : Multiset (PropFun ν)) : PropFun ν :=
 def any (a : Multiset (PropFun ν)) : PropFun ν :=
   Multiset.sup a
 
-@[simp] theorem satisfies_all [DecidableEq ι] (a : Multiset (PropFun ν)) (τ : PropAssignment ν)
+@[simp] theorem satisfies_all (a : Multiset (PropFun ν)) (τ : PropAssignment ν)
   : τ ⊨ all a ↔ ∀ i ∈ a, τ ⊨ i := by
   induction a using Multiset.induction with
   | empty => simp [all]
   | cons => simp_all [all]
 
-@[simp] theorem satisfies_any [DecidableEq ι] (a : Multiset (PropFun ν)) (τ : PropAssignment ν)
+@[simp] theorem satisfies_any (a : Multiset (PropFun ν)) (τ : PropAssignment ν)
   : τ ⊨ any a ↔ ∃ i ∈ a, τ ⊨ i := by
   induction a using Multiset.induction with
   | empty => simp [any]

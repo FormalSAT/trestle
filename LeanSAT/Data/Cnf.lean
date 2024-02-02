@@ -246,7 +246,8 @@ theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
   rcases C with ⟨data⟩
   have ⟨τ,hpos,hneg⟩ := (PropFun.mem_semVars _ _).mp h; clear h
   simp_all [toPropFun, Array.mem_def]
-  have := (PropFun.mem_semVars _ _).mpr ⟨τ,hpos,hneg⟩
+  rcases hpos with ⟨l,hl,h⟩
+  have := (PropFun.mem_semVars _ _).mpr ⟨τ,h,hneg l hl⟩; clear hneg h
   aesop
 
 open PropFun
@@ -264,7 +265,7 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     induction lits with
     | nil => rw [ext_iff] at h; simp [Array.mem_def] at h
     | cons hd tl ih =>
-    by_cases hr : any _ _ = ⊤
+    by_cases hr : any _ = ⊤
     · have := ih hr
       aesop
     · clear ih
@@ -325,22 +326,21 @@ instance [ToString L] : ToString (Cnf L) where
 variable {L : Type u} {ν : Type v} [LitVar L ν] [DecidableEq L] [DecidableEq ν]
 
 noncomputable def toPropFun (φ : Cnf L) : PropFun ν :=
-  .all φ.data.toFinset Clause.toPropFun
+  .all (φ.data.map Clause.toPropFun)
 
 theorem semVars_toPropFun (F : Cnf L)
   : v ∈ (toPropFun F).semVars → ∃ C, C ∈ F ∧ ∃ l, l ∈ C ∧ LitVar.toVar l = v := by
-  rcases F with ⟨F⟩; simp [toPropFun]
+  rcases F with ⟨F⟩; simp [toPropFun, Array.mem_def, PropFun.all]
   induction F <;> simp
   next hd tl ih =>
   intro hv
   have := PropFun.semVars_conj _ _ hv
   simp at this
   rcases this with (h|h)
-  · use hd
-    have := Clause.mem_semVars_toPropFun _ _ h
-    simp [this]; simp [Array.mem_def]
-  · have ⟨C,hc,h⟩ := ih h
-    use C
+  · have := Clause.mem_semVars_toPropFun _ _ h
+    simp [Array.mem_def] at this
+    aesop
+  · have := ih h
     simp_all [Array.mem_def]
 
 noncomputable instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
@@ -350,7 +350,7 @@ theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (F : Cnf L)
   intro h
   rcases F with ⟨data⟩
   simp [Array.mem_def]
-  induction data <;> simp_all [toPropFun]
+  induction data <;> simp_all [toPropFun, PropFun.all]
   replace h := PropFun.semVars_conj _ _ h
   aesop
 
