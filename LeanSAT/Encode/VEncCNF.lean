@@ -210,8 +210,7 @@ def ite (p : Prop) [Decidable p] {P : p → PropFun ν} {Q : ¬p → PropFun ν}
     · exact (g h).2⟩
 
 def andImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Array L)
-  : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun)
-                    ⇨ .any (conc.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (Cnf.all hyps ⇨ Cnf.any conc) :=
   addClause (hyps.map LitVar.negate ++ conc)
   |> mapProp (by
     ext τ
@@ -224,18 +223,17 @@ def andImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Arr
       · aesop)
 
 def andImply [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : L)
-  : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun) ⇨ conc) :=
+  : VEncCNF L Unit (Cnf.all hyps ⇨ conc) :=
   andImplyOr hyps #[conc]
   |> mapProp (by simp [any])
 
 def implyOr [LawfulLitVar L ν] [DecidableEq ν] (hyp : L) (conc : Array L)
-  : VEncCNF L Unit (hyp ⇨ .any (conc.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (hyp ⇨ Cnf.any conc) :=
   andImplyOr #[hyp] conc
   |> mapProp (by simp [all])
 
 def orImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Array L)
-  : VEncCNF L Unit (.any (hyps.toList.map LitVar.toPropFun)
-                    ⇨ .any (conc.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (Cnf.any hyps ⇨ Cnf.any conc) :=
   for_all hyps (fun hyp => andImplyOr #[hyp] conc)
   |> mapProp (by
     ext τ
@@ -243,13 +241,12 @@ def orImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Arra
   )
 
 def orImply [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : L)
-  : VEncCNF L Unit (.any (hyps.toList.map LitVar.toPropFun) ⇨ conc) :=
+  : VEncCNF L Unit (Cnf.any hyps ⇨ conc) :=
   orImplyOr hyps #[conc]
   |> mapProp (by simp [any])
 
 def andImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : Array L)
-  : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun)
-                    ⇨ .all (concs.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (Cnf.all hyps ⇨ Cnf.all concs) :=
   for_all concs (fun conc => andImplyOr hyps #[conc])
   |> mapProp (by
     ext τ
@@ -258,13 +255,12 @@ def andImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : A
   )
 
 def implyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyp : L) (conc : Array L)
-  : VEncCNF L Unit (hyp ⇨ .all (conc.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (hyp ⇨ Cnf.all conc) :=
   andImplyAnd #[hyp] conc
   |> mapProp (by simp [all])
 
 def orImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : Array L)
-  : VEncCNF L Unit (.any (hyps.toList.map LitVar.toPropFun)
-                    ⇨ .all (concs.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (Cnf.any hyps ⇨ Cnf.all concs) :=
   for_all hyps (fun hyp =>
     for_all concs (fun conc =>
       andImplyOr #[hyp] #[conc]
@@ -278,11 +274,11 @@ def orImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : Ar
 
 
 def defConj [LawfulLitVar L ν] [DecidableEq ν] (v : L) (vs : Array L)
-  : VEncCNF L Unit (.biImpl v (.all <| vs.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (.biImpl v (Cnf.all vs)) :=
   seq (implyAnd v vs) (andImply vs v)
   |> mapProp (by simp [Model.PropFun.biImpl_eq_impls])
 
 def defDisj [LawfulLitVar L ν] [DecidableEq ν] (v : L) (vs : Array L)
-  : VEncCNF L Unit (.biImpl v (.any <| vs.toList.map LitVar.toPropFun)) :=
+  : VEncCNF L Unit (.biImpl v (Cnf.any vs)) :=
   seq (implyOr v vs) (orImply vs v)
   |> mapProp (by simp [Model.PropFun.biImpl_eq_impls])

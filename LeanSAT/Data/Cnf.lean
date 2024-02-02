@@ -305,8 +305,7 @@ def or (c1 c2 : Clause L) : Clause L :=
 nonrec def map (L') [LitVar L' ν'] (f : ν → ν') (c : Clause L) : Clause L' :=
   c.map (LitVar.map f)
 
-@[simp] theorem toPropFun_map [DecidableEq L'] [DecidableEq ν'] [LitVar L' ν'] [LawfulLitVar L' ν']
-        (f : ν → ν') (c : Clause L)
+@[simp] theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Clause L)
   : (c.map L' f).toPropFun = c.toPropFun.map f
   := by
   ext τ
@@ -323,9 +322,9 @@ namespace Cnf
 instance [ToString L] : ToString (Cnf L) where
   toString C := s!"{String.intercalate " ∧ " (C.map toString).toList}"
 
-variable {L : Type u} {ν : Type v} [LitVar L ν] [DecidableEq L] [DecidableEq ν]
+variable {L : Type u} {ν : Type v} [LitVar L ν] [DecidableEq ν]
 
-noncomputable def toPropFun (φ : Cnf L) : PropFun ν :=
+def toPropFun (φ : Cnf L) : PropFun ν :=
   .all (φ.data.map Clause.toPropFun)
 
 theorem semVars_toPropFun (F : Cnf L)
@@ -343,7 +342,7 @@ theorem semVars_toPropFun (F : Cnf L)
   · have := ih h
     simp_all [Array.mem_def]
 
-noncomputable instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
+instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
 
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (F : Cnf L)
   : x ∈ F.toPropFun.semVars → ∃ C, C ∈ F ∧ x ∈ C.toPropFun.semVars := by
@@ -388,12 +387,21 @@ def not (c : Clause L) : Cnf L :=
   simp [satisfies_iff, Clause.satisfies_iff, LitVar.satisfies_iff,
     not, Array.mem_def, Bool.eq_not_iff]
 
+def any (ls : Array L) : Cnf L := #[ls]
+
+@[simp] theorem toPropFun_any (ls : Array L)
+  : (any ls).toPropFun = .any (ls.toList.map LitVar.toPropFun)
+  := by
+  ext τ
+  simp [any, toPropFun, Clause.toPropFun]
+
 def all (ls : Array L) : Cnf L :=
   Array.map (fun l => #[l]) ls
 
-@[simp] theorem satisfies_all (ls : Array L) (τ : PropAssignment ν) [LawfulLitVar L ν]
-  : τ ⊨ (all ls).toPropFun ↔ ∀ l : L, l ∈ ls → τ ⊨ LitVar.toPropFun l
+@[simp] theorem toPropFun_all (ls : Array L)
+  : (all ls).toPropFun = .all (ls.toList.map LitVar.toPropFun)
   := by
+  ext τ
   simp [satisfies_iff, Clause.satisfies_iff, LitVar.satisfies_iff,
     all, Array.mem_def]
 
