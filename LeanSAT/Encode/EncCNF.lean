@@ -29,7 +29,7 @@ structure State (L ν : Type u) where
 
 namespace State
 
-variable [DecidableEq L] [DecidableEq ν] [LitVar L ν] [LawfulLitVar L ν]
+variable [LitVar L ν]
 
 def new (vars : PNat) (f : ν → IVar) : State L ν := {
   nextVar := vars
@@ -83,7 +83,7 @@ noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
         apply s.vMapInj
         simpa [PNat.val, ← Subtype.ext_iff] using h)
 
-variable [Fintype ν] [LitVar L ν] [DecidableEq ν] [DecidableEq L]
+variable [Fintype ν] [LitVar L ν]
 
 /-- The interpretation of an `EncCNF` state is the
 formula's interpretation, but with all temporaries
