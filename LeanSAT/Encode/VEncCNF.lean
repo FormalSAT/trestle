@@ -29,7 +29,7 @@ where aux (e' : StateM _ α) :=
     let s' := (e' s).2
     s'.vMap = s.vMap ∧
     s'.assumeVars = s.assumeVars ∧
-    s'.interp = (s.interp ⊓ ((s.assumeVars.toPropFun)ᶜ ⇨ P))
+    s'.interp = (s.interp ⊓ ((s.assumeVars)ᶜ ⇨ P))
 
 theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
   : e1.satisfiesProp P → (∀ s, (f (e1.1 s).1).satisfiesProp Q) →
@@ -83,7 +83,7 @@ def newCtx (name : String) (inner : VEncCNF L α P) : VEncCNF L α P :=
 def pure (a : α) : VEncCNF L α ⊤ := ⟨Pure.pure a, by
     intro s; simp [Pure.pure, StateT.pure]⟩
 
-def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit (C.toPropFun) :=
+def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit C :=
   ⟨EncCNF.addClause C, by
     intro s
     generalize he : (EncCNF.addClause C).1 s = e
@@ -94,7 +94,7 @@ def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit (C.toPropFun) :=
 
 /-- runs `e`, adding `ls` to each generated clause -/
 def unlessOneOf [LawfulLitVar L ν] (ls : Array L) (ve : VEncCNF L α P)
-    : VEncCNF L α ((Cnf.not ls).toPropFun ⇨ P) :=
+    : VEncCNF L α ((Cnf.not ls) ⇨ P) :=
   ⟨EncCNF.unlessOneOf ls ve, by
     -- TODO: terrible, slow proof
     intro s
@@ -122,7 +122,7 @@ def unlessOneOf [LawfulLitVar L ν] (ls : Array L) (ve : VEncCNF L α P)
     simp⟩
 
 def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
-    : VEncCNF L α ((Cnf.all ls).toPropFun ⇨ P) :=
+    : VEncCNF L α ((Cnf.all ls) ⇨ P) :=
   unlessOneOf (ls.map (- ·)) e |>.mapProp (by
     ext τ
     simp [Clause.satisfies_iff, Array.mem_def]
@@ -180,17 +180,14 @@ def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L
     rcases arr with ⟨L⟩
     rw [Array.foldlM_eq_foldlM_data]
     unfold all
-    rw [← List.foldl_reverse, List.reverse_map]
     simp
     induction L with
-    | nil   => intro s; simp [Pure.pure, StateT.pure]
+    | nil   => aesop
     | cons hd tl ih =>
       simp
       apply bind_satisfiesProp
       · apply (f hd).2
-      · intro s
-        simp [show _ = () from Subsingleton.elim _ _]
-        assumption⟩
+      · aesop⟩
 
 -- Cayden TODO: Unit could possibly made to be β instead? Generalize later.
 -- One would think that P could be of type {P : PropFun ν}. But Lean timed out synthesizing that
@@ -229,12 +226,12 @@ def andImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Arr
 def andImply [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : L)
   : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun) ⇨ conc) :=
   andImplyOr hyps #[conc]
-  |> mapProp (by simp)
+  |> mapProp (by simp [any])
 
 def implyOr [LawfulLitVar L ν] [DecidableEq ν] (hyp : L) (conc : Array L)
   : VEncCNF L Unit (hyp ⇨ .any (conc.toList.map LitVar.toPropFun)) :=
   andImplyOr #[hyp] conc
-  |> mapProp (by simp)
+  |> mapProp (by simp [all])
 
 def orImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Array L)
   : VEncCNF L Unit (.any (hyps.toList.map LitVar.toPropFun)
@@ -248,7 +245,7 @@ def orImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Arra
 def orImply [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : L)
   : VEncCNF L Unit (.any (hyps.toList.map LitVar.toPropFun) ⇨ conc) :=
   orImplyOr hyps #[conc]
-  |> mapProp (by simp)
+  |> mapProp (by simp [any])
 
 def andImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : Array L)
   : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun)
@@ -263,7 +260,7 @@ def andImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : A
 def implyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyp : L) (conc : Array L)
   : VEncCNF L Unit (hyp ⇨ .all (conc.toList.map LitVar.toPropFun)) :=
   andImplyAnd #[hyp] conc
-  |> mapProp (by simp)
+  |> mapProp (by simp [all])
 
 def orImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : Array L)
   : VEncCNF L Unit (.any (hyps.toList.map LitVar.toPropFun)
