@@ -60,6 +60,9 @@ theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
   -- once again we ♥ aesop
   aesop
 
+@[simp] theorem satisfiesProp_pure (a : α) : satisfiesProp (pure a : EncCNF L α) ⊤ := by
+  intro s; simp [Pure.pure, StateT.pure]
+
 end EncCNF
 
 def VEncCNF (L) [LitVar L ν] [Fintype ν] (α : Type u) (P : PropFun ν) :=
@@ -190,33 +193,24 @@ def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L
         assumption⟩
 
 -- Cayden TODO: Unit could possibly made to be β instead? Generalize later.
-protected def guard (a : Prop) [Decidable a] {P : PropFun ν}
-    (f : a → VEncCNF L Unit P) :
-    VEncCNF L Unit (if a then P else ⊤) :=
-  ⟨ do if ha : a then f ha
+-- One would think that P could be of type {P : PropFun ν}. But Lean timed out synthesizing that
+def guard (p : Prop) [Decidable p] {P : p → PropFun ν} (f : (h : p) → VEncCNF L Unit (P h))
+  : VEncCNF L Unit (if h : p then P h else ⊤) :=
+  ⟨ do if h : p then f h
   , by
-    by_cases ha : a
-    · simp [ha]
-      intro s
-      exact ((f ha).2 s)
-    · simp [ha]
-      intro s
-      simp [Pure.pure, StateT.pure]⟩
+    by_cases h : p <;> simp [h]
+    exact (f h).2⟩
 
-protected def ite (a : Prop) [Decidable a] {P Q : PropFun ν}
-    (f : a → VEncCNF L Unit P)
-    (g : ¬a → VEncCNF L Unit Q) :
-    VEncCNF L Unit (if a then P else Q) :=
-  ⟨ if ha : a then f ha
-              else g ha
+def ite (p : Prop) [Decidable p] {P : p → PropFun ν} {Q : ¬p → PropFun ν}
+    (f : (h : p) → VEncCNF L Unit (P h))
+    (g : (h : ¬p) → VEncCNF L Unit (Q h))
+  : VEncCNF L Unit (if h : p then P h else Q h) :=
+  ⟨ if h : p then f h
+             else g h
   , by
-    by_cases ha : a
-    · simp [ha]
-      intro s
-      exact ((f ha).2 s)
-    · simp [ha]
-      intro s
-      exact ((g ha).2 s)⟩
+    by_cases h : p <;> simp [h]
+    · exact (f h).2
+    · exact (g h).2⟩
 
 def andImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Array L)
   : VEncCNF L Unit (.all (hyps.toList.map LitVar.toPropFun)
