@@ -173,6 +173,10 @@ theorem eq_of_flip' {τ : PropAssignment ν} {l : L} {x : ν} {p : Bool} :
     simp [hEq, this]
   . exfalso; exact hSet (τ.set_get_of_ne p hEq ▸ h)
 
+theorem toPropFun.inj [LawfulLitVar L ν] : (toPropFun (L := L)).Injective := by
+  intro l1 l2 h; simp [toPropFun] at h
+  apply LawfulLitVar.ext <;> aesop
+
 def map [LitVar L V] [LitVar L' V'] (f : V → V') (l : L) : L' :=
   LitVar.mkLit _ (f (LitVar.toVar l)) (LitVar.polarity l)
 
@@ -232,7 +236,7 @@ instance [ToString L] : ToString (Clause L) where
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
 def toPropFun (C : Clause L) : PropFun ν :=
-  C.toList.map LitVar.toPropFun |> .any
+  .any (Multiset.ofList C.toList |>.map LitVar.toPropFun)
 
 instance : CoeHead (Clause L) (PropFun ν) := ⟨toPropFun⟩
 
@@ -242,9 +246,7 @@ theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
   rcases C with ⟨data⟩
   have ⟨τ,hpos,hneg⟩ := (PropFun.mem_semVars _ _).mp h; clear h
   simp_all [toPropFun, Array.mem_def]
-  rcases hpos with ⟨l,hl,h⟩
-  have := hneg l hl
-  have := (PropFun.mem_semVars _ _).mpr ⟨τ,h,this⟩
+  have := (PropFun.mem_semVars _ _).mpr ⟨τ,hpos,hneg⟩
   aesop
 
 open PropFun
@@ -262,7 +264,7 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     induction lits with
     | nil => rw [ext_iff] at h; simp [Array.mem_def] at h
     | cons hd tl ih =>
-    by_cases hr : any (tl.map LitVar.toPropFun) = ⊤
+    by_cases hr : any _ _ = ⊤
     · have := ih hr
       aesop
     · clear ih
@@ -272,15 +274,9 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
       replace h := h (τ.set (LitVar.toVar hd) (!LitVar.polarity hd))
       simp [LitVar.satisfies_iff, Bool.not_ne_self] at h
       rcases h with ⟨hd',hd'_mem,h⟩
-      replace hr := hr hd' hd'_mem
-      simp [LitVar.satisfies_iff] at hr
-      simp [PropAssignment.set] at h
-      split at h
-      · use hd; constructor; simp
-        use hd'; constructor; simp [hd'_mem]
-        replace h := h.symm
-        apply LawfulLitVar.ext <;> simp [*]
-      · contradiction
+      · replace hr := hr hd' hd'_mem
+        simp [LitVar.satisfies_iff, PropAssignment.set] at hr h
+        aesop
   · rintro ⟨_,hl1,l,hl2,rfl⟩
     ext τ; simp [satisfies_iff]
     by_cases τ ⊨ LitVar.toPropFun l <;> aesop
@@ -308,7 +304,8 @@ def or (c1 c2 : Clause L) : Clause L :=
 nonrec def map (L') [LitVar L' ν'] (f : ν → ν') (c : Clause L) : Clause L' :=
   c.map (LitVar.map f)
 
-@[simp] theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Clause L)
+@[simp] theorem toPropFun_map [DecidableEq L'] [DecidableEq ν'] [LitVar L' ν'] [LawfulLitVar L' ν']
+        (f : ν → ν') (c : Clause L)
   : (c.map L' f).toPropFun = c.toPropFun.map f
   := by
   ext τ
@@ -325,12 +322,12 @@ namespace Cnf
 instance [ToString L] : ToString (Cnf L) where
   toString C := s!"{String.intercalate " ∧ " (C.map toString).toList}"
 
-variable {L : Type u} {ν : Type v} [LitVar L ν]
+variable {L : Type u} {ν : Type v} [LitVar L ν] [DecidableEq L] [DecidableEq ν]
 
-def toPropFun (φ : Cnf L) : PropFun ν :=
-  φ.data.map (·.toPropFun) |> .all
+noncomputable def toPropFun (φ : Cnf L) : PropFun ν :=
+  .all φ.data.toFinset Clause.toPropFun
 
-theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
+theorem semVars_toPropFun (F : Cnf L)
   : v ∈ (toPropFun F).semVars → ∃ C, C ∈ F ∧ ∃ l, l ∈ C ∧ LitVar.toVar l = v := by
   rcases F with ⟨F⟩; simp [toPropFun]
   induction F <;> simp
@@ -346,7 +343,7 @@ theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
     use C
     simp_all [Array.mem_def]
 
-instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
+noncomputable instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
 
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (F : Cnf L)
   : x ∈ F.toPropFun.semVars → ∃ C, C ∈ F ∧ x ∈ C.toPropFun.semVars := by

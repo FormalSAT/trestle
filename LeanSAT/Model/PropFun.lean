@@ -5,6 +5,7 @@ Authors: Wojciech Nawrocki
 -/
 
 import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Finset.Lattice
 
 import LeanSAT.Model.PropForm
 
@@ -308,6 +309,35 @@ theorem biImpl_eq_impls (φ ψ : PropFun ν) : biImpl φ ψ = (φ ⇨ ψ) ⊓ (�
   ext τ
   aesop
 
+theorem var.inj [DecidableEq ν] : (var (ν := ν)).Injective := by
+  intro v1 v2 h
+  rw [ext_iff] at h
+  have := h (fun v => v = v1)
+  aesop
+
+@[simp]
+theorem var_eq_var [DecidableEq ν] (v v' : ν) : var v = var v' ↔ v = v' := by
+  constructor
+  · intro; apply var.inj; assumption
+  · aesop
+
+theorem eq_compl_iff_neq {φ₁ φ₂ : PropFun ν} : φ₁ = (φ₂)ᶜ → φ₁ ≠ φ₂ := by
+  rintro rfl h; rw [ext_iff] at h; simp at h
+
+@[simp]
+theorem var_ne_var_compl [DecidableEq ν] (v1 v2 : ν) : var v1 ≠ (var v2)ᶜ := by
+  intro h
+  rw [ext_iff] at h
+  have := h (fun v => v = v1 || v = v2)
+  simp at this
+
+@[simp]
+theorem var_compl_ne_var [DecidableEq ν] (v1 v2 : ν) : (var v1)ᶜ ≠ (var v2) := by
+  intro h
+  rw [ext_iff] at h
+  have := h (fun v => v = v1 || v = v2)
+  simp at this
+
 /-! Lemmas to push `Quotient.mk` inwards. -/
 
 -- TODO: custom simp set?
@@ -338,39 +368,20 @@ theorem mk_biImpl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.biImpl φ�
 
 /-! ### All/any -/
 
-/- TODO: these should be defined in mathlib
-  for multisets on any comm lattice -/
+def all (a : Multiset (PropFun ν)) : PropFun ν :=
+  Multiset.inf a
 
-def all (a : List (PropFun ν)) : PropFun ν :=
-  a.foldr (· ⊓ ·) ⊤
+def any (a : Multiset (PropFun ν)) : PropFun ν :=
+  Multiset.sup a
 
-def any (a : List (PropFun ν)) : PropFun ν :=
-  a.foldr (· ⊔ ·) ⊥
+@[simp] theorem satisfies_all [DecidableEq ι] (a : Multiset (PropFun ν)) (τ : PropAssignment ν)
+  : τ ⊨ all a ↔ ∀ i ∈ a, τ ⊨ i := by
+  induction a using Multiset.induction with
+  | empty => simp [all]
+  | cons => simp_all [all]
 
-@[simp] theorem satisfies_all (a : List (PropFun ν)) (τ : PropAssignment ν)
-  : τ ⊨ all a ↔ ∀ f ∈ a, τ ⊨ f
-  := by unfold all; induction a <;> simp [*]
-
-@[simp] theorem satisfies_any (a : List (PropFun ν)) (τ : PropAssignment ν)
-  : τ ⊨ any a ↔ ∃ f ∈ a, τ ⊨ f
-  := by unfold any; induction a <;> simp [*]
-
-@[simp] theorem all_nil : all (ν := ν) [] = ⊤ := by rfl
-
-@[simp] theorem any_nil : any (ν := ν) [] = ⊥ := by rfl
-
-@[simp] theorem all_cons (a) (b : List (PropFun ν))
-  : all (a :: b) = a ⊓ all b := by rfl
-
-@[simp] theorem any_cons (a) (b : List (PropFun ν))
-  : any (a :: b) = a ⊔ any b := by rfl
-
-@[simp] theorem all_append (a b : List (PropFun ν))
-  : all (a ++ b) = all a ⊓ all b := by
-  simp [all]; induction a <;> simp [*]
-  apply inf_assoc.symm
-
-@[simp] theorem any_append (a b : List (PropFun ν))
-  : any (a ++ b) = any a ⊔ any b := by
-  simp [any]; induction a <;> simp [*]
-  apply sup_assoc.symm
+@[simp] theorem satisfies_any [DecidableEq ι] (a : Multiset (PropFun ν)) (τ : PropAssignment ν)
+  : τ ⊨ any a ↔ ∃ i ∈ a, τ ⊨ i := by
+  induction a using Multiset.induction with
+  | empty => simp [any]
+  | cons => simp_all [any]
