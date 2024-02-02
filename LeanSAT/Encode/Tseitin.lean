@@ -17,6 +17,7 @@ inductive ReducedForm (L : Type u) : Bool → Type u
 | and (fs : Array (ReducedForm L false)) : ReducedForm L true
 | or  (fs : Array (ReducedForm L true )) : ReducedForm L false
 | lit (l : L) : ReducedForm L b
+deriving Repr
 
 private def ReducedForm.disjuncts : ReducedForm L false → Array (ReducedForm L true)
 | .or fs => fs
@@ -91,10 +92,10 @@ def ReducedForm.toPropFun [LitVar L V] (r : ReducedForm L b) : PropFun V :=
   match r with
   | and fs =>
     let fs' := fs.attach.map (fun ⟨x,_h⟩ => ReducedForm.toPropFun x)
-    PropFun.all fs'
+    PropFun.all fs'.toList
   | or fs  =>
     let fs' := fs.attach.map (fun ⟨x,_h⟩ => ReducedForm.toPropFun x)
-    PropFun.any fs'
+    PropFun.any fs'.toList
   | lit l => LitVar.toPropFun l
 
 @[simp] theorem const_toPropFun [LitVar L ν]
@@ -107,16 +108,21 @@ def ReducedForm.toPropFun [LitVar L V] (r : ReducedForm L b) : PropFun V :=
   )
 
 theorem ReducedForm.conjuncts_toPropFun [LitVar L ν] (r : ReducedForm L true)
-  : r.toPropFun = (PropFun.all (r.conjuncts.map toPropFun)) :=
+  : r.toPropFun = (PropFun.all (r.conjuncts.toList.map toPropFun)) :=
   match r with
   | .and rs => by ext τ; simp [conjuncts, Array.mem_def, Array.attach, toPropFun]
   | .lit l => by ext τ; simp [conjuncts, Array.mem_def]; rfl
 
 theorem ReducedForm.disjuncts_toPropFun [LitVar L ν] (r : ReducedForm L false)
-  : r.toPropFun = (PropFun.any (r.disjuncts.map toPropFun)) :=
+  : r.toPropFun = (PropFun.any (r.disjuncts.toList.map toPropFun)) :=
   match r with
   | .or rs => by ext τ; simp [disjuncts, Array.mem_def, Array.attach, toPropFun]
   | .lit l => by ext τ; simp [disjuncts, Array.mem_def]; rfl
+
+#eval show ReducedForm ILit true from
+  reduce (.biImpl (.var 1) (.conj (.biImpl (.var 2) (.var 3)) (.biImpl (.var 4) (.var 2)))) true
+
+#exit
 
 /- TODO: This proof is really slow...
 
@@ -215,6 +221,7 @@ termination_by
   reduceConj_toPropFun x y neg => reduceSize x + reduceSize y
   reduceDisj_toPropFun x y neg => reduceSize x + reduceSize y
 
+/-
 def ReducedForm.map [LitVar L V] [LitVar L' V'] (f : V → V') : ReducedForm L b → ReducedForm L' b
 | lit l => .lit (LitVar.mkLit _ (f <| LitVar.toVar l) (LitVar.polarity l))
 | and rs => .and (rs.attach.map (fun ⟨r,_⟩ => map f r))
@@ -263,7 +270,7 @@ def ReducedForm.toPropFun_map [LitVar L V] [LawfulLitVar L V] [LitVar L' V'] [La
       rw [← PropFun.satisfies_map, ← ih rf hrf] at h2
       refine ⟨_,⟨⟨rf,⟨hrf,h1⟩,rfl⟩,?_⟩,h2⟩
       simp [Array.mem_def, Array.attach]; use rf; simpa [Array.mem_def] using hrf
-
+-/
 
 
 noncomputable def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
@@ -323,31 +330,30 @@ where
       --return t
 -/
 
-structure Literal (ν : Type u) where
-  toVar : ν
-  polarity : Bool
-
-instance : LitVar (Literal ν) ν where
-  toVar := Literal.toVar
-  polarity := Literal.polarity
-  mkPos := (⟨·,true⟩)
-  negate := fun l => ⟨l.toVar, !l.polarity⟩
-
 open EncCNF in
-def encodeAux {L V TL TV : Type} [LitVar L V] [LitVar TL TV]
-      (t : TV) (f : ReducedForm L b) : EncCNF (L ⊕ TL) (Option L) := do
+def encodeAux {L V L' V' : Type} [LitVar L V] [LitVar L' V'] [Fintype V]
+      (t : V) (f : ReducedForm L' b) (emb : L' ↪ L) :
+    EncCNF L (Option L') := do
   match f with
   | .lit l => return some l
   | .and fs =>
-      let fs' : Array (L ⊕ Fin fs.size) ←
-        Array.ofFn (n := fs.size) id |>.mapM (fun i => do
-          match ← encodeAux (TL := Literal (Fin fs.size)) i fs[i] with
-          | none => return .inr i
-          | some l => return .inl l)
-      -- ∀ i, t → fs[i]
-      -- ⋀i fs[i] → t
-      addClause #[]
-      return none
+    withTemps fs.size (do
+    let fs' : Array (L ⊕ Fin fs.size) ←
+      Array.ofFn (n := fs.size) id |>.mapM (fun i => do
+        match ←
+          encodeAux (.inr i) (fs[i] : ReducedForm L' _)
+            ⟨ (.var <| emb ·)
+            , by intro l1 l2 h; simp [WithTemps.var] at h; have := Sum.inl_injective h; simp_all⟩
+        with
+        | none => return .inr i
+        | some l => return .inl (emb l))
+    -- ∀ i, t → fs[i]
+    for f in fs' do
+      sorry
+    -- ⋀i fs[i] → t
+    addClause #[]
+    return none
+    )
   | .or fs => sorry
 
 def encode [LitVar L V] (f : PropForm V) : EncCNF L Unit :=
