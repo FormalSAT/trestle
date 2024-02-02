@@ -29,6 +29,8 @@ structure State (L ν : Type u) where
 
 namespace State
 
+variable [DecidableEq L] [DecidableEq ν] [LitVar L ν] [LawfulLitVar L ν]
+
 def new (vars : PNat) (f : ν → IVar) : State L ν := {
   nextVar := vars
   cnf := #[]
@@ -36,7 +38,7 @@ def new (vars : PNat) (f : ν → IVar) : State L ν := {
   assumeVars := #[]
 }
 
-def addClause [LitVar L ν] (C : Clause L) : State L ν → State L ν
+def addClause (C : Clause L) : State L ν → State L ν
 | {nextVar, cnf, vMap, assumeVars} => {
   nextVar := nextVar
   vMap := vMap
@@ -44,7 +46,7 @@ def addClause [LitVar L ν] (C : Clause L) : State L ν → State L ν
   cnf := cnf.addClause ((Clause.or assumeVars C).map _ vMap)
 }
 
-@[simp] theorem toPropFun_addClause [LitVar L ν] (C : Clause L) (s)
+@[simp] theorem toPropFun_addClause (C : Clause L) (s)
   : (addClause C s).cnf.toPropFun = s.cnf.toPropFun ⊓ PropFun.map s.vMap (s.assumeVarsᶜ ⇨ C)
   := by
   simp [addClause, BooleanAlgebra.himp_eq, sup_comm]
@@ -81,7 +83,7 @@ noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
         apply s.vMapInj
         simpa [PNat.val, ← Subtype.ext_iff] using h)
 
-variable [DecidableEq ν] [Fintype ν] [LitVar L ν]
+variable [Fintype ν] [LitVar L ν] [DecidableEq ν] [DecidableEq L]
 
 /-- The interpretation of an `EncCNF` state is the
 formula's interpretation, but with all temporaries
@@ -103,8 +105,7 @@ set_option pp.proofs.withType false in
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
   ext τ
-  simp [new, State.new, interp, Cnf.toPropFun
-      , PropAssignment.map_eq_map]
+  simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map]
   use τ.preimage f
   simp
 
