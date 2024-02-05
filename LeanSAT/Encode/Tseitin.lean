@@ -229,8 +229,12 @@ def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν]
         aesop
       )
 
-noncomputable def tseitin [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
+def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
       (f : PropForm V) : VEncCNF L Unit ⟦f⟧ :=
   let nnf : NegNormForm L := (NegNormForm.ofPropForm false f).cleanup
   encodeNNF nnf
   |>.mapProp (by simp [NegNormForm.toPropFun_ofPropForm])
+
+end Tseitin
+
+def tseitin := @Tseitin.encode
