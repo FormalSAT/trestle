@@ -116,6 +116,10 @@ theorem mkPos_or_mkNeg (l : L) : l = mkPos (toVar l) ∨ l = mkNeg (toVar l) := 
   simp [toPropFun]
 @[simp] theorem toPropFun_mkNeg (x : ν) : toPropFun (mkNeg (L := L) x) = (.var x)ᶜ := by
   simp [toPropFun]
+@[simp] theorem toPropFun_mkLit_true : toPropFun (mkLit L v true) = .var v := by
+  simp [toPropFun]
+@[simp] theorem toPropFun_mkLit_false : toPropFun (mkLit L v false) = (.var v)ᶜ := by
+  simp [toPropFun]
 @[simp] theorem toPropFun_neg (l : L) : toPropFun (-l) = (toPropFun l)ᶜ := by
   dsimp [toPropFun]
   aesop
@@ -186,6 +190,11 @@ def map [LitVar L V] [LitVar L' V'] (f : V → V') (l : L) : L' :=
   := by
   simp [map, toPropFun]
   split <;> simp
+
+@[simp] theorem toPropFun_map [LitVar L V] [LitVar L' V'] [LawfulLitVar L' V']
+                    (f : V → V') (l : L)
+    : LitVar.toPropFun (LitVar.map f l : L') = (LitVar.toPropFun l).map f := by
+  ext τ; simp
 
 
 /-! #### Sums as valid literals -/

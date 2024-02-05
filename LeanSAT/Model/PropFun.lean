@@ -309,6 +309,16 @@ theorem biImpl_eq_impls (φ ψ : PropFun ν) : biImpl φ ψ = (φ ⇨ ψ) ⊓ (�
   ext τ
   aesop
 
+@[simp] theorem biImpl_top_left (φ : PropFun ν) : biImpl ⊤ φ = φ := by
+  ext τ; aesop
+@[simp] theorem biImpl_top_right (φ : PropFun ν) : biImpl φ ⊤ = φ := by
+  ext τ; aesop
+
+@[simp] theorem biImpl_bot_left (φ : PropFun ν) : biImpl ⊥ φ = φᶜ := by
+  ext τ; aesop
+@[simp] theorem biImpl_bot_right (φ : PropFun ν) : biImpl φ ⊥ = φᶜ := by
+  ext τ; aesop
+
 theorem var.inj [DecidableEq ν] : (var (ν := ν)).Injective := by
   intro v1 v2 h
   rw [ext_iff] at h
