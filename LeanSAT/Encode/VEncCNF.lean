@@ -272,6 +272,15 @@ def orImplyAnd [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (concs : Ar
     aesop
   )
 
+def imply [LawfulLitVar L ν] [DecidableEq ν] (v1 v2 : L)
+  : VEncCNF L Unit (v1 ⇨ v2) :=
+  andImplyOr #[v1] #[v2]
+  |> mapProp (by simp [all,any])
+
+def biImpl [LawfulLitVar L ν] [DecidableEq ν] (v1 v2 : L)
+  : VEncCNF L Unit (.biImpl v1 v2) :=
+  seq (imply v1 v2) (imply v2 v1)
+  |> mapProp (by simp [Model.PropFun.biImpl_eq_impls])
 
 def defConj [LawfulLitVar L ν] [DecidableEq ν] (v : L) (vs : Array L)
   : VEncCNF L Unit (.biImpl v (Cnf.all vs)) :=
