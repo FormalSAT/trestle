@@ -144,6 +144,11 @@ scoped instance : SemanticEntails (PropAssignment ν) (PropFun ν) where
 
 open SemanticEntails renaming entails → sEntails
 
+instance (τ : PropAssignment ν) (φ : PropFun ν) : Decidable (τ ⊨ φ) :=
+  match h : φ.eval τ with
+    | true => isTrue h
+    | false => isFalse fun h' => nomatch h.symm.trans h'
+
 @[ext]
 theorem ext : (∀ (τ : PropAssignment ν), τ ⊨ φ₁ ↔ τ ⊨ φ₂) → φ₁ = φ₂ := by
   have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
