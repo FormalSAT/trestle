@@ -94,6 +94,11 @@ scoped instance : SemanticEntails (PropAssignment ν) (PropForm ν) where
 
 open SemanticEntails renaming entails → sEntails
 
+instance (τ : PropAssignment ν) (φ : PropForm ν) : Decidable (τ ⊨ φ) :=
+  match h : φ.eval τ with
+    | true => isTrue h
+    | false => isFalse fun h' => nomatch h.symm.trans h'
+
 variable {τ : PropAssignment ν} {x : ν} {φ φ₁ φ₂ φ₃ : PropForm ν}
 
 instance : Decidable (τ ⊨ φ) := inferInstanceAs (Decidable (φ.eval τ))
