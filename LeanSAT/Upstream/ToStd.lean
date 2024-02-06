@@ -169,6 +169,58 @@ where
   | 0, _, acc => acc
   | i+1, h, acc => finsAux i (Nat.le_of_lt h) (⟨i,h⟩ :: acc)
 
+@[simp] theorem List.length_fins (n : Nat) : (List.fins n).length = n := by
+  unfold fins
+  suffices ∀ i (hi : i ≤ n) acc, length (fins.finsAux n i hi acc) = length acc + i
+    by have := this n (Nat.le_refl _) []; simp at this; exact this
+  intro i hi acc
+  induction i generalizing acc <;>
+    (unfold fins.finsAux; simp_all [Nat.succ_add, Nat.add_succ])
+
+@[simp] theorem List.fins_zero : List.fins 0 = [] := rfl
+
+theorem List.fins_succ (n : Nat)
+  : List.fins (n.succ) = (List.fins n).map (Fin.castSucc) ++ [Fin.last n] := by
+  unfold fins
+  conv => lhs; unfold fins.finsAux
+  suffices ∀ i (hi : i ≤ n) acc,
+      fins.finsAux n.succ i (trans hi (Nat.le_succ _)) (map Fin.castSucc acc ++ [Fin.last n]) =
+        map Fin.castSucc (fins.finsAux n i hi acc) ++ [Fin.last n]
+    by have := this n (Nat.le_refl _) []; simpa using this
+  intro i hi acc
+  induction i generalizing acc with
+  | zero => unfold fins.finsAux; simp
+  | succ i ih =>
+    unfold fins.finsAux
+    replace ih := ih (Nat.le_of_lt hi) (⟨i,hi⟩ :: acc)
+    simpa using ih
+
+@[simp] theorem List.get_fins (n : Nat) (i : Fin (List.fins n).length)
+  : (List.fins n).get i = ⟨i, by cases i; simp; simp_all⟩ := by
+  rcases i with ⟨j,hj⟩
+  revert hj; simp; intro hj
+  apply Option.some_inj.mp
+  rw [← get?_eq_get]
+  induction n
+  · contradiction
+  next n' ih =>
+  conv => lhs; rw [fins_succ]
+  by_cases h : j = n'
+  · rw [get?_append_right]
+    · simp [h, Fin.last]
+    · simp [h]
+  · have : j < n' := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hj) h
+    have := ih this
+    rw [get?_append, get?_map, this]
+    · simp
+    · simp; assumption
+
+@[simp] theorem List.mem_fins (n : Nat) (x : Fin n)
+  : x ∈ List.fins n := by
+  rw [mem_iff_get]
+  refine ⟨⟨x,?_⟩,?_⟩
+  · simp
+  · simp
 
 /- Better parallelism primitive, that is actually like Scala's Future -/
 def TaskIO (α) := IO (Task (Except IO.Error α))
@@ -335,11 +387,6 @@ def Std.AssocList.ofList : List (α × β) → Std.AssocList α β
   : toList (ofList L) = L
   := by induction L <;> simp [*]
 
-@[simp]
-theorem Std.HashMap.find?_ofList {B : BEq α} {H : Hashable α} (a : List (α × β)) (k : α)
-  : (@Std.HashMap.ofList _ _ B H a |>.find? k) = (Std.AssocList.ofList a |>.find? k)
-  := sorry
-
 @[inline]
 def Option.expectSome (err : Unit → ε) : Option α → Except ε α
 | none => .error (err ())
@@ -375,3 +422,17 @@ def IO.FS.withTempFile (f : System.FilePath → IO α) : IO α := do
         IO.FS.removeFile file
 
   return res
+
+@[simp] theorem Array.ofFn_data (f : Fin n → α)
+  : (Array.ofFn f).data = (List.fins n).map f := by
+  ext i x
+  simp [List.get?_eq_some]
+  simp only [← Array.getElem_eq_data_get, Array.getElem_ofFn]
+  refine ⟨?mp,?mpr⟩
+  case mp =>
+    rintro ⟨h,rfl⟩
+    refine ⟨_,?_,rfl⟩
+    simpa using h
+  case mpr =>
+    rintro ⟨_,⟨h,rfl⟩,rfl⟩
+    simpa using h
