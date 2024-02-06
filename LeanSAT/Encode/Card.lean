@@ -1,15 +1,46 @@
-import LeanSAT.Encode.EncCNF
+import LeanSAT.Encode.VEncCNF
 import LeanSAT.Encode.Tseitin
 
 namespace LeanSAT.Encode
 
-open EncCNF Tseitin
+open VEncCNF Model PropFun
 
-def amoPairwise (lits : List ILit) : EncCNF Unit := do
+variable [LitVar L ν] [LawfulLitVar L ν]
+    [DecidableEq L] [DecidableEq ν] [Fintype ν]
+
+def card (lits : List L) (τ : PropAssignment ν) : Nat :=
+  lits.countP (τ ⊨ LitVar.toPropFun ·)
+
+def cardPred (lits : List L) (P : Nat → Prop) [DecidablePred P] : PropFun ν :=
+  .ofFun fun τ => P (card lits τ)
+
+@[simp] theorem satisfies_cardPred (lits : List L) (P) [DecidablePred P] (τ)
+  : τ ⊨ cardPred lits P ↔ P (card lits τ) := by
+  unfold cardPred; simp
+
+def amoPairwise (lits : Array L) : VEncCNF L Unit (cardPred lits.data (· ≤ 1)) :=
   -- for every pair x,y of literals in `lits`, they can't both be true
-  lits.forPairsM (fun (x y : ILit) => do
-    addClause #[-x, -y]
-  )
+  (for_all (Array.ofFn id) fun (i : Fin lits.size) =>
+    for_all (Array.ofFn id) fun (j : Fin lits.size) =>
+      .guard (i ≠ j) fun _ =>
+        addClause #[-lits[i], -lits[j]]
+  ).mapProp (by
+    rcases lits with ⟨list⟩
+    ext τ
+    simp [Clause.toPropFun, any, Array.getElem_eq_data_get]
+    simp only [Array.size]
+    by_cases h : card list τ = 0
+    · simp [h]
+      intro x y; split <;> simp
+      simp [card, List.countP_eq_zero] at h
+      apply Or.inl; apply h; rw [List.mem_iff_get]; simp
+    · replace h : card list τ > 0 := Nat.pos_of_ne_zero h
+      simp [card, List.countP_pos, List.mem_iff_get] at h
+      rcases h with ⟨x,h⟩
+      stop
+      have := List.countP_mono_left (l := list)
+      rw [Nat.le_iff_lt_or_eq, Nat.lt_one_iff]; simp [h]
+      unfold card)
 
 def amoCut4 (lits : Array ILit) : EncCNF Unit :=
   match h1 : lits.pop? with
