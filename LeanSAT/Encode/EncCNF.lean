@@ -305,6 +305,14 @@ def LawfulState.withTemps (s : LawfulState L ν)
       intro h
       apply Fin.eq_of_veq; apply Nat.add_left_cancel h
 
+@[simp] theorem LawfulState.vMap_withTemps (s : LawfulState L ν) :
+    (s.withTemps (n := n)).vMap = State.withTemps.vMap s.toState
+  := by simp [LawfulState.withTemps, State.withTemps]
+
+@[simp] theorem LawfulState.assumeVars_withTemps (s : LawfulState L ν) :
+    (s.withTemps (n := n)).assumeVars = s.assumeVars.map _ Sum.inl
+  := by simp [LawfulState.withTemps, State.withTemps]
+
 @[simp]
 theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
           (s : LawfulState L ν) (n)

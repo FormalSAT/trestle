@@ -129,7 +129,7 @@ def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
   )
 
 set_option pp.proofs.withType false in
-def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
+def withTemps [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     (ve : VEncCNF (WithTemps L n) α P) :
     VEncCNF L α (P.existsInv Sum.inl) :=
   ⟨EncCNF.withTemps _ ve.1, by
@@ -156,7 +156,21 @@ def withTemps [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
     simp [def_pair] at ls_temps_satisfies
     clear def_pair
     rcases ls_temps_satisfies with ⟨hvmap, hassume, h⟩
-    sorry
+    -- now we prove the goals
+    subst ls_post
+    simp
+    rw [LawfulState.interp_withoutTemps]
+    · rw [h]
+      subst ls_pre_temps
+      simp
+      clear h hassume hvmap ls_temps_nextVar def_pair ls_post_temps vMapInj
+      ext τ
+      simp
+      constructor
+      · aesop
+      · rintro ⟨h1,h2⟩
+        sorry
+    · aesop
   ⟩
 
 def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
