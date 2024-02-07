@@ -3,7 +3,7 @@
 LeanSAT is a collection of utilities for SAT work. This includes:
 - Encoding utilities
 - Solver APIs
-- Common file formats
+- Printers and parsers for common file formats
 
 ## Getting it
 
@@ -16,20 +16,36 @@ Then `import LeanSAT` will import everything in the library.
 
 ## Usage
 
-Important namespaces:
-- `LeanSAT`: everything in the library is under `LeanSAT`, so you probably want to `open LeanSAT` at the top of your files
-- `LeanSAT.Notation`: this exposes nice notation for writing CNFs. It is under a separate namespace because it clashes with proposition notation, so you should only open `Notation` in the declarations where you are using it (via `open Notation in ...`)
+Everything in the library is under the `LeanSAT` namespace,
+so we generally assume you have `open LeanSAT` at the top of your files.
 
 Important types:
-- `EncCNF`: the encoding monad. You can generate variables and add clauses. It also keeps track of meta-info about the variable names and so on. See `Examples/Encoding` for example usage.
-- `Solver`, `Solver.ModelCount`, `Solver.ModelSample`: interfaces for solvers (and model counters/model samplers). These are each typeclasses. The idea is that you should have an `instance` of the `Solver` typeclass in scope when you go to solve a CNF formula. See `Examples/Cadical.lean` for how to declare a solver instance.
+- `PropFun`: **The mathematical model of a propositional formula**.
+  Two `PropFun`s are equal iff they have the same interpretation under all assignments.
+- `EncCNF`: **The encoding monad.**
+  This monad allows you to build up a CNF via do-notation.
+  See `Examples/Encoding` for example usage.
+- `VEncCNF`: **Verified encoding.**
+  Similar to `EncCNF`, but the type specifies a `PropFun`
+  which the object provably encodes.
+  This connects `EncCNF` to the `PropFun` math model.
+- `Solver`, `Solver.ModelCount`, `Solver.ModelSample`: **Solver interfaces.**
+  These are each typeclasses.
+  The idea is that you should have an `instance` of the `Solver` typeclass in scope
+  when you go to solve a CNF formula.
+  See `Examples/Cadical.lean` for how to declare a solver instance.
+
+### Notation
+
+TODO(JG): describe available notation for `PropFun`, `PropForm`
 
 ## Planned scope
 
-I am planning to add support for:
-- Non-CNF formulas (KNF, d-DNNF, XOR-CNF, ...)
-- Verification
-  - Verified encodings (see [Cayden Codel's work](https://github.com/ccodel/verified-encodings))
-  - Verification of sat witnesses/unsat proofs (see e.g. [here](https://github.com/joehendrix/lean-sat-checker) and [here](https://github.com/leanprover-community/mathlib4/blob/master/Mathlib/Tactic/Sat/FromLRAT.lean))
-  - Verified model counting
-- Pre-processing techniques
+- Support (verified?) encoding to non-CNF formulas (KNF, d-DNNF, XOR-CNF, ...)
+- Add verified checkers for sat certificates
+  - See e.g. [here](https://github.com/joehendrix/lean-sat-checker),
+      [here](https://github.com/leanprover-community/mathlib4/blob/master/Mathlib/Tactic/Sat/FromLRAT.lean),
+      [here](https://github.com/leanprover/leansat)
+- Add verified model counting
+  - See [Bryant et al 2023](https://github.com/rebryant/cpog)
+- Add verified pre-processing
