@@ -1,3 +1,0 @@
-[submodule "cadical"]
-	path = cadical
-	url = https://github.com/arminbiere/cadical
