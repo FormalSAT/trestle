@@ -5,6 +5,7 @@ import LeanSAT.Data.Literal
 import LeanSAT.Data.HashAssn
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Model.Quantifiers
+import Mathlib.Data.FinEnum
 
 open Std
 
@@ -100,7 +101,6 @@ def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
   vMapInj := f.injective
 }
 
-set_option pp.proofs.withType false in
 @[simp]
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
@@ -108,6 +108,23 @@ theorem interp_new (vars) (f : ν ↪ IVar) (h)
   simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map]
   use τ.preimage f
   simp
+
+@[simp]
+theorem toState_new (vars) (f : ν ↪ IVar) (h)
+  : (new (L := L) vars f h).toState = State.new vars f := rfl
+
+def new' (vars : Nat) (f : ν ↪ Fin vars) : LawfulState L ν :=
+  new (Nat.succPNat vars)
+    ⟨ fun v => Nat.succPNat (f v)
+    , by intro x y; simp [State.new, ← PNat.val_eq_val, Fin.val_inj]⟩
+    (by
+      intro v; simp [State.new, Nat.succPNat]
+      rw [PNat.mk_lt_mk, Nat.succ_lt_succ_iff]
+      exact (f v).isLt)
+
+@[simp]
+theorem interp_new' (vars) (f : ν ↪ Fin vars)
+  : interp (new' (L := L) vars f) = ⊤ := by simp [new']
 
 def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
   toState := s.toState.addClause C
@@ -184,6 +201,12 @@ instance : LawfulMonad (EncCNF L) where
     intros; simp [bind]; rfl
   bind_assoc := by
     intros; simp [bind]; rfl
+
+def run [FinEnum ν] (e : EncCNF L α) : α × ICnf :=
+  let (a,state) := e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
+  (a, state.cnf)
+
+def toICnf [FinEnum ν] (e : EncCNF L α) : ICnf := (run e).2
 
 def newCtx (name : String) (inner : EncCNF L α) : EncCNF L α := do
   let res ← inner
