@@ -9,12 +9,8 @@ namespace LeanSAT.Model
 
 /-! ## Quantification
 
-The main result of this file is a characterization of
-existential quantification over [PropFun].
-
-Quantifying over a single variable is straightforward
-(see [PropFun.satisfies_existQuant]).
-Quantifying over a *set* of variables is less straightforward.
+This file characterizes existential and universal quantification
+of variables in a `PropFun`.
 -/
 
 namespace PropFun
