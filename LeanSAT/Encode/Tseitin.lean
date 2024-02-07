@@ -145,6 +145,7 @@ where
 end NegNormForm
 
 open VEncCNF
+
 attribute [local simp] NegNormForm.toPropFun
 
 /-- Tseitin encoding in the general case creates temporaries for each clause -/
@@ -163,11 +164,11 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
       |>.mapProp (by simp)
   | .and a b =>
       withTemps 2 (
-        seq
-          (encodeNNF_mkDefs (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a)
-          (seq
-          (encodeNNF_mkDefs (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b)
-          (defConj (.var t) #[.temp 0, .temp 1]))
+        seq[
+          encodeNNF_mkDefs (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
+        , encodeNNF_mkDefs (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b
+        , defConj (.var t) #[.temp 0, .temp 1]
+        ]
       ) |>.mapProp (by
         ext τ; simp
         constructor
@@ -183,11 +184,11 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
           aesop)
   | .or a b =>
       withTemps 2 (
-        seq
-          (encodeNNF_mkDefs (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a)
-          (seq
-          (encodeNNF_mkDefs (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b)
-          (defDisj (.var t) #[.temp 0, .temp 1]))
+        seq[
+          encodeNNF_mkDefs (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
+        , encodeNNF_mkDefs (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b
+        , defDisj (.var t) #[.temp 0, .temp 1]
+        ]
       ) |>.mapProp (by
         ext τ; simp
         constructor
@@ -209,12 +210,13 @@ def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν]
   | .fls => addClause #[]  -- type matches by rfl
   | .lit l => addClause #[l] |>.mapProp (by simp [Clause.toPropFun, PropFun.any])
   | .and a b =>
-    seq (encodeNNF a) (encodeNNF b) -- type matches by rfl
+    seq[ encodeNNF a, encodeNNF b].mapProp (by simp)
   | .or a b =>
     withTemps 2 (
-        seq (encodeNNF_mkDefs (.inr 0) ⟨Sum.inl,Sum.inl_injective⟩ a)
-      ( seq (encodeNNF_mkDefs (.inr 1) ⟨Sum.inl,Sum.inl_injective⟩ b)
-            (addClause #[.temp 0, .temp 1]))
+      seq[ encodeNNF_mkDefs (.inr 0) ⟨Sum.inl,Sum.inl_injective⟩ a
+        ,  encodeNNF_mkDefs (.inr 1) ⟨Sum.inl,Sum.inl_injective⟩ b
+        ,  addClause #[.temp 0, .temp 1]
+      ]
     ) |>.mapProp (by
       apply Eq.symm -- otherwise aesop rewrites in the wrong direction
       ext τ

@@ -190,9 +190,20 @@ def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P �
       simp [satisfiesProp, satisfiesProp.aux, Pure.pure, StateT.pure]
     ⟩
 
+/-- Sequences two encodings together, i.e. a conjunction of the encodings.
+
+For sequencing many encodings together, see `seq[ ... ]` syntax
+-/
 def seq (e1 : VEncCNF L Unit P) (e2 : VEncCNF L β Q) : VEncCNF L β (P ⊓ Q) :=
   bind e1 (fun () => e2)
 
+scoped syntax "seq[ " term,+ " ]" : term
+
+macro_rules
+| `(seq[$as:term,*]) => do
+  as.getElems.foldrM (β := Lean.TSyntax `term)
+    (fun a acc => `(seq $a $acc))
+    (← `(pure ()))
 
 def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L Unit (P a))
   : VEncCNF L Unit (.all (arr.toList.map P)) :=
