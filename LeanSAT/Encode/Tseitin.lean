@@ -114,33 +114,6 @@ def cleanup : NegNormForm L → NegNormForm L
           (add norm 1 simp toPropFun)
           (add norm 1 simp cleanup)
 
-/-
-structure CNFish (L : Type u) where
-  clauses : Array (Array (NegNormForm L))
-deriving Repr
-
-def CNFish.toPropFun [LawfulLitVar L ν] (C : CNFish L) : PropFun ν :=
-  .all <|
-    C.clauses.toList.map (fun clause =>
-      PropFun.any (ν := ν) <|
-        clause.toList.map NegNormForm.toPropFun)
-
-def toCNFish (f : NegNormForm L) : CNFish L :=
-  ⟨ands f⟩
-where
-  ands (f : NegNormForm L) : Array (Array (NegNormForm L)) :=
-    match f with
-    | .and a b => ands a ++ ands b
-    | _ => #[ors f]
-  ors (f : NegNormForm L) : Array (NegNormForm L) :=
-    match f with
-    | .or a b => ors a ++ ors b
-    | _ => #[f]
-
-@[simp] theorem toPropForm_toCNFish [LawfulLitVar L ν] (f : NegNormForm L)
-  : (toCNFish f).toPropFun = f.toPropFun := by
-  sorry --TODO make use of this
--/
 
 end NegNormForm
 
