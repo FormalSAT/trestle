@@ -22,21 +22,43 @@ namespace EncCNF
 
 variable [LitVar L ν] [Fintype ν]
 
-def satisfiesProp (e : EncCNF L α) (P : PropFun ν) : Prop :=
+/-- `e` encodes proposition `P` -/
+def encodesProp (e : EncCNF L α) (P : PropFun ν) : Prop :=
   aux e.1
 where aux (e' : StateM _ α) :=
   ∀ s,
     let s' := (e' s).2
     s'.vMap = s.vMap ∧
     s'.assumeVars = s.assumeVars ∧
+    -- TODO(JG): should we weaken this to equisatisfiability?
     s'.interp = (s.interp ⊓ ((s.assumeVars)ᶜ ⇨ P))
 
-theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
-  : e1.satisfiesProp P → (∀ s, (f (e1.1 s).1).satisfiesProp Q) →
-    (e1 >>= f).satisfiesProp (P ⊓ Q)
+open PropFun in
+/-- If `e` encodes `P`, then `P` is satisfiable iff `e.toICnf` is satisfiable -/
+theorem encodesProp_equisatisfiable [FinEnum ν] (e : EncCNF L α) (P : PropFun ν) (h : encodesProp e P)
+  : (∃ τ : PropAssignment ν, τ ⊨ P) ↔ (∃ τ : PropAssignment IVar, τ ⊨ e.toICnf.toPropFun) := by
+  simp [toICnf, run, StateT.run]
+  generalize hls : LawfulState.new' _ _ = ls
+  have := h ls
+  generalize hls' : e.1 ls = ls' at this
+  rcases ls' with ⟨a,ls'⟩
+  simp only at this ⊢
+  rcases this with ⟨-,-,h3⟩
+  rw [←hls] at h3
+  simp [LawfulState.new', State.new, Clause.toPropFun, any] at h3
+  clear hls' hls
+  cases h3
+  simp [LawfulState.interp]
+  aesop
+
+attribute [aesop unsafe apply] le_trans
+
+theorem bind_encodesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
+  : e1.encodesProp P → (∀ s, (f (e1.1 s).1).encodesProp Q) →
+    (e1 >>= f).encodesProp (P ⊓ Q)
   := by
   intro hP hQ s
-  simp [satisfiesProp, satisfiesProp.aux] at hP hQ
+  simp [encodesProp, encodesProp.aux] at hP hQ
   -- specialize hypotheses to the first state `s`
   rcases e1 with ⟨e1,he1⟩
   replace hP := hP s
@@ -60,13 +82,13 @@ theorem bind_satisfiesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
   -- once again we ♥ aesop
   aesop
 
-@[simp] theorem satisfiesProp_pure (a : α) : satisfiesProp (pure a : EncCNF L α) ⊤ := by
+@[simp] theorem encodesProp_pure (a : α) : encodesProp (pure a : EncCNF L α) ⊤ := by
   intro s; simp [Pure.pure, StateT.pure]
 
 end EncCNF
 
 def VEncCNF (L) [LitVar L ν] [Fintype ν] (α : Type u) (P : PropFun ν) :=
-  { e : EncCNF L α // e.satisfiesProp P }
+  { e : EncCNF L α // e.encodesProp P }
 
 namespace VEncCNF
 
@@ -184,10 +206,10 @@ def bind (e1 : VEncCNF L α P) (e2 : α → VEncCNF L β Q) : VEncCNF L β (P �
   VEncCNF.mapProp (show P ⊓ (Q ⊓ ⊤) = P ⊓ Q by simp)
     ⟨ do let a ← e1; return ← e2 a
     , by
-      apply bind_satisfiesProp _ _ e1.2
+      apply bind_encodesProp _ _ e1.2
       intro s
-      apply bind_satisfiesProp _ _ (e2 _).2
-      simp [satisfiesProp, satisfiesProp.aux, Pure.pure, StateT.pure]
+      apply bind_encodesProp _ _ (e2 _).2
+      simp [encodesProp, encodesProp.aux, Pure.pure, StateT.pure]
     ⟩
 
 /-- Sequences two encodings together, i.e. a conjunction of the encodings.
@@ -217,7 +239,7 @@ def for_all (arr : Array α) {P : α → PropFun ν} (f : (a : α) → VEncCNF L
     | nil   => aesop
     | cons hd tl ih =>
       simp
-      apply bind_satisfiesProp
+      apply bind_encodesProp
       · apply (f hd).2
       · aesop⟩
 
