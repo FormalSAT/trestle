@@ -204,6 +204,9 @@ def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν]
         aesop
       )
 
+-- nospecialize here because otherwise the compiler tries specializing it a ton
+-- and that causes big slowdowns when building up VEncCNFs
+@[nospecialize]
 def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
       (f : PropForm V) : VEncCNF L Unit ⟦f⟧ :=
   let nnf : NegNormForm L := (NegNormForm.ofPropForm false f).cleanup
