@@ -228,15 +228,29 @@ theorem entails.antisymm : entails φ₁ φ₂ → entails φ₂ φ₁ → equiv
 
 namespace Notation
 
--- The notation for `Prop` has default priority (1000).
--- When open, we want to always supercede `Prop` notation.
-scoped notation:max (priority := 1100) " ¬ " b:40 => neg b
-scoped infixr:35    (priority := 1100) " ∧ "      => conj
-scoped infixr:30    (priority := 1100) " ∨ "      => disj
-scoped infixr:25    (priority := 1100) " → "      => impl
-scoped infix:20     (priority := 1100) " ↔ "      => biImpl
+declare_syntax_cat propform
+
+syntax "[propform| " propform " ]" : term
+
+syntax:max "{ " term:45 " }" : propform
+syntax:max "(" propform:10 ")" : propform
+
+syntax:40 " ¬" propform:41 : propform
+syntax:35 propform:36 " ∧ " propform:35 : propform
+syntax:30 propform:31 " ∨ " propform:30 : propform
+syntax:25 propform:26 " → " propform:25 : propform
+syntax:20 propform:21 " ↔ " propform:20 : propform
+
+macro_rules
+| `([propform| {$t:term} ]) => `(show PropForm _ from $t)
+| `([propform| ($f:propform) ]) => `([propform| $f ])
+| `([propform| ¬ $f:propform ]) => `(PropForm.neg [propform| $f ])
+| `([propform| $f1 ∧ $f2 ]) => `(PropForm.conj [propform| $f1 ] [propform| $f2 ])
+| `([propform| $f1 ∨ $f2 ]) => `(PropForm.disj [propform| $f1 ] [propform| $f2 ])
+| `([propform| $f1 → $f2 ]) => `(PropForm.impl [propform| $f1 ] [propform| $f2 ])
+| `([propform| $f1 ↔ $f2 ]) => `(PropForm.biImpl [propform| $f1 ] [propform| $f2 ])
 
 example (a b c d : ν) : PropForm ν :=
-  a ∧ b ∨ c → d  ↔  (¬a ∨ ¬b) ∧ ¬c ∨ d
+  [propform| {a} ∧ {b} ∨ {c} → {d}  ↔  (¬{a} ∨ ¬{b}) ∧ ¬{c} ∨ {d} ]
 
 end Notation
