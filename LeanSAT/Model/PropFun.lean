@@ -400,3 +400,15 @@ def any (a : Multiset (PropFun ν)) : PropFun ν :=
   induction a using Multiset.induction with
   | empty => simp [any]
   | cons => simp_all [any]
+
+namespace Notation
+open PropForm.Notation
+
+syntax "[propfun| " propform " ]" : term
+macro_rules
+| `([propfun| $t:propform ]) => `(show PropFun _ from ⟦ [propform| $t ] ⟧)
+
+example (a b c : ν) : PropFun ν :=
+  [propfun| {a} ∧ {b} ∧ {c} ]
+
+end Notation
