@@ -4,7 +4,7 @@ import Mathlib.Tactic.Linarith
 /-- Intended to clash with Mathlib's FinEnum -/
 class FinEnum (α : Type u) where
   card : Nat
-  toEqv : α ≃ Fin card
+  equiv : α ≃ Fin card
 
 namespace FinEnum
 
@@ -41,13 +41,13 @@ def prodNEZero (n m) (hm : m > 0) (f : α ≃ Fin n) (g : β ≃ Fin m) : (α ×
 
 instance prod [FinEnum α] [FinEnum β] : FinEnum (α × β) where
   card := card α * card β
-  toEqv :=
+  equiv :=
     if h : card β > 0 then
-      prodNEZero (card α) (card β) h toEqv toEqv
+      prodNEZero (card α) (card β) h equiv equiv
     else
       have : card β = 0 := Nat.eq_zero_of_not_pos h
       have : IsEmpty β := by
-        apply Equiv.isEmpty (this ▸ toEqv)
+        apply Equiv.isEmpty (this ▸ equiv)
       have : IsEmpty (Fin (card α * card β)) := by
         simp [*]
         apply Fin.isEmpty
@@ -55,18 +55,26 @@ instance prod [FinEnum α] [FinEnum β] : FinEnum (α × β) where
 
 instance sum [FinEnum α] [FinEnum β] : FinEnum (α ⊕ β) where
   card := card α + card β
-  toEqv := {
+  equiv := {
     toFun := fun
-      | .inl a => Fin.castAdd _ (toEqv a)
-      | .inr b => Fin.natAdd _ (toEqv b)
+      | .inl a => Fin.castAdd _ (equiv a)
+      | .inr b => Fin.natAdd _ (equiv b)
     invFun := fun ⟨x,h⟩ =>
       if h' : x < card α then
-        .inl <| toEqv.symm ⟨x,h'⟩
+        .inl <| equiv.symm ⟨x,h'⟩
       else
         have : x - card α < card β := by
           simp at h'
           exact Nat.sub_lt_left_of_lt_add h' h
-        .inr <| toEqv.symm ⟨x - card α, this⟩
+        .inr <| equiv.symm ⟨x - card α, this⟩
     left_inv := by rintro (a|b) <;> simp
     right_inv := by rintro ⟨x,h⟩; aesop
   }
+
+instance : FinEnum (Fin n) where
+  card := n
+  equiv := Equiv.refl _
+
+def ofEquiv [FinEnum β] (f : α ≃ β) : FinEnum α where
+  card := FinEnum.card β
+  equiv := Equiv.trans f FinEnum.equiv
