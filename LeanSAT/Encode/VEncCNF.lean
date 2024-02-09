@@ -96,6 +96,12 @@ variable {L} [LitVar L ν] [Fintype ν]
 
 instance : CoeHead (VEncCNF L α P) (EncCNF L α) := ⟨(·.1)⟩
 
+theorem toICnf_equisatisfiable [FinEnum ν] (v : VEncCNF L α P) :
+    (∃ τ : PropAssignment _, τ ⊨ v.val.toICnf.toPropFun) ↔
+      ∃ τ : PropAssignment ν, τ ⊨ P
+  := by
+  rw [v.val.encodesProp_equisatisfiable _ v.property]
+
 def mapProp {P P' : PropFun ν} (h : P = P') : VEncCNF L α P → VEncCNF L α P' :=
   fun ⟨e,he⟩ => ⟨e, h ▸ he⟩
 
