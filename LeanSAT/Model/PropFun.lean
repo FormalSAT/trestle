@@ -47,6 +47,8 @@ theorem sound {φ₁ φ₂ : PropForm ν} : PropForm.equivalent φ₁ φ₂ → 
 
 def var (x : ν) : PropFun ν := ⟦.var x⟧
 
+instance : Coe ν (PropFun ν) := ⟨.var⟩
+
 def tr : PropFun ν := ⟦.tr⟧
 
 def fls : PropFun ν := ⟦.fls⟧
@@ -404,9 +406,27 @@ def any (a : Multiset (PropFun ν)) : PropFun ν :=
 namespace Notation
 open PropForm.Notation
 
-syntax "[propfun| " propform " ]" : term
+declare_syntax_cat propfun
+
+syntax "[propfun| " propfun " ]" : term
+
+syntax:max "{ " term:45 " }" : propfun
+syntax:max "(" propfun ")" : propfun
+
+syntax:40 " ¬" propfun:41 : propfun
+syntax:35 propfun:36 " ∧ " propfun:35 : propfun
+syntax:30 propfun:31 " ∨ " propfun:30 : propfun
+syntax:25 propfun:26 " → " propfun:25 : propfun
+syntax:20 propfun:21 " ↔ " propfun:20 : propfun
+
 macro_rules
-| `([propfun| $t:propform ]) => `(show PropFun _ from ⟦ [propform| $t ] ⟧)
+| `([propfun| {$t:term} ]) => `(show PropFun _ from $t)
+| `([propfun| ($f:propfun) ]) => `([propfun| $f ])
+| `([propfun| ¬ $f:propfun ]) => `(PropFun.neg [propfun| $f ])
+| `([propfun| $f1 ∧ $f2 ]) => `(PropFun.conj [propfun| $f1 ] [propfun| $f2 ])
+| `([propfun| $f1 ∨ $f2 ]) => `(PropFun.disj [propfun| $f1 ] [propfun| $f2 ])
+| `([propfun| $f1 → $f2 ]) => `(PropFun.impl [propfun| $f1 ] [propfun| $f2 ])
+| `([propfun| $f1 ↔ $f2 ]) => `(PropFun.biImpl [propfun| $f1 ] [propfun| $f2 ])
 
 example (a b c : ν) : PropFun ν :=
   [propfun| {a} ∧ {b} ∧ {c} ]
