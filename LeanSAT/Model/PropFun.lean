@@ -422,13 +422,13 @@ syntax:20 propfun:21 " ↔ " propfun:20 : propfun
 macro_rules
 | `([propfun| {$t:term} ]) => `(show PropFun _ from $t)
 | `([propfun| ($f:propfun) ]) => `([propfun| $f ])
-| `([propfun| ¬ $f:propfun ]) => `(PropFun.neg [propfun| $f ])
-| `([propfun| $f1 ∧ $f2 ]) => `(PropFun.conj [propfun| $f1 ] [propfun| $f2 ])
-| `([propfun| $f1 ∨ $f2 ]) => `(PropFun.disj [propfun| $f1 ] [propfun| $f2 ])
-| `([propfun| $f1 → $f2 ]) => `(PropFun.impl [propfun| $f1 ] [propfun| $f2 ])
+| `([propfun| ¬ $f:propfun ]) => `(([propfun| $f ])ᶜ)
+| `([propfun| $f1 ∧ $f2 ]) => `([propfun| $f1 ] ⊓ [propfun| $f2 ])
+| `([propfun| $f1 ∨ $f2 ]) => `([propfun| $f1 ] ⊔ [propfun| $f2 ])
+| `([propfun| $f1 → $f2 ]) => `([propfun| $f1 ] ⇨ [propfun| $f2 ])
 | `([propfun| $f1 ↔ $f2 ]) => `(PropFun.biImpl [propfun| $f1 ] [propfun| $f2 ])
 
 example (a b c : ν) : PropFun ν :=
-  [propfun| {a} ∧ {b} ∧ {c} ]
+  [propfun| {a} ∧ ¬{b} ∧ {c} ]
 
 end Notation
