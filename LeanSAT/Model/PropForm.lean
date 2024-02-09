@@ -233,7 +233,7 @@ declare_syntax_cat propform
 syntax "[propform| " propform " ]" : term
 
 syntax:max "{ " term:45 " }" : propform
-syntax:max "(" propform:10 ")" : propform
+syntax:max "(" propform ")" : propform
 
 syntax:40 " ¬" propform:41 : propform
 syntax:35 propform:36 " ∧ " propform:35 : propform

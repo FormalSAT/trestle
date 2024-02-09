@@ -215,4 +215,13 @@ def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
 
 end Tseitin
 
-def tseitin := @Tseitin.encode
+open Model.PropForm.Notation in
+syntax "tseitin[" propform "]" : term
+
+macro_rules
+| `(tseitin[ $t ]) => `(Tseitin.encode [propform| $t ])
+
+example [DecidableEq ν] [Fintype ν] [LitVar L ν] [LawfulLitVar L ν] (a b : ν)
+    : VEncCNF (ν := ν) L Unit (a ⊓ b) :=
+  tseitin[ {a} ∧ {b} ]
+  |>.mapProp (by simp)
