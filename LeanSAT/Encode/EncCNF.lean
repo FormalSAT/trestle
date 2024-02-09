@@ -203,7 +203,7 @@ instance : LawfulMonad (EncCNF L) where
     intros; simp [bind]; rfl
 
 def run [FinEnum ν] (e : EncCNF L α) : α × ICnf :=
-  let (a,state) := e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.toEqv.toEmbedding)
+  let (a,state) := e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
   (a, state.cnf)
 
 def toICnf [FinEnum ν] (e : EncCNF L α) : ICnf := (run e).2
