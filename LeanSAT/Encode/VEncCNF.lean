@@ -20,7 +20,7 @@ open Model PropFun EncCNF
 
 namespace EncCNF
 
-variable [LitVar L ν] [Fintype ν]
+variable [LitVar L ν] [ErasedFintype ν]
 
 /-- `e` encodes proposition `P` -/
 def encodesProp (e : EncCNF L α) (P : PropFun ν) : Prop :=
@@ -87,12 +87,12 @@ theorem bind_encodesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
 
 end EncCNF
 
-def VEncCNF (L) [LitVar L ν] [Fintype ν] (α : Type u) (P : PropFun ν) :=
+def VEncCNF (L) [LitVar L ν] [ErasedFintype ν] (α : Type u) (P : PropFun ν) :=
   { e : EncCNF L α // e.encodesProp P }
 
 namespace VEncCNF
 
-variable {L} [LitVar L ν] [Fintype ν]
+variable {L} [LitVar L ν] [ErasedFintype ν]
 
 instance : CoeHead (VEncCNF L α P) (EncCNF L α) := ⟨(·.1)⟩
 
@@ -157,7 +157,7 @@ def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
   )
 
 set_option pp.proofs.withType false in
-def withTemps [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν] (n) {P : PropFun (ν ⊕ Fin n)}
+def withTemps [LawfulLitVar L ν] [DecidableEq ν] (n) {P : PropFun (ν ⊕ Fin n)}
     (ve : VEncCNF (WithTemps L n) α P) :
     VEncCNF L α (P.existsInv Sum.inl) :=
   ⟨EncCNF.withTemps _ ve.1, by

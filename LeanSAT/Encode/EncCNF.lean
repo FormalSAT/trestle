@@ -6,6 +6,7 @@ import LeanSAT.Data.HashAssn
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Model.Quantifiers
 import LeanSAT.Upstream.FinEnum
+import LeanSAT.Upstream.ErasedFintype
 
 open Std
 
@@ -76,6 +77,7 @@ theorem semVars_toPropFun_cnf_lt (s : LawfulState L ν)
   rcases h with ⟨l,hl,rfl⟩
   apply s.cnfVarsLt _ hC _ hl
 
+/-
 /-- Thanks to `vInjLt` we know `V` is `Fintype`. -/
 noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
   Fintype.ofInjective (β := Fin s.nextVar)
@@ -83,8 +85,8 @@ noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
     (by intro v1 v2 h
         apply s.vMapInj
         simpa [PNat.val, ← Subtype.ext_iff] using h)
-
-variable [Fintype ν] [LitVar L ν]
+-/
+variable [ErasedFintype ν] [LitVar L ν]
 
 /-- The interpretation of an `EncCNF` state is the
 formula's interpretation, but with all temporaries
@@ -104,6 +106,7 @@ def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
 @[simp]
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new (L := L) vars f h) = ⊤ := by
+  have : Fintype ν := ErasedFintype.toFintype
   ext τ
   simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map]
   use τ.preimage f
@@ -337,9 +340,10 @@ def LawfulState.withTemps (s : LawfulState L ν)
   := by simp [LawfulState.withTemps, State.withTemps]
 
 @[simp]
-theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
+theorem LawfulState.interp_withTemps [DecidableEq ν] [ErasedFintype ν]
           (s : LawfulState L ν) (n)
     : (s.withTemps (n := n)).interp = s.interp.map Sum.inl := by
+  have : Fintype ν := ErasedFintype.toFintype
   ext τ
   simp [interp, withTemps, State.withTemps]
   constructor
@@ -419,7 +423,7 @@ def LawfulState.withoutTemps (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).assumeVars = av
   := by simp [LawfulState.withoutTemps]
 
-theorem LawfulState.interp_withoutTemps [DecidableEq ν] [Fintype ν]
+theorem LawfulState.interp_withoutTemps [DecidableEq ν] [ErasedFintype ν]
     (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
     (h : vMap = s.vMap ∘ Sum.inl)
