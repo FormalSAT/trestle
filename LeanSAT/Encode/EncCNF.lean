@@ -76,15 +76,7 @@ theorem semVars_toPropFun_cnf_lt (s : LawfulState L ν)
   rcases h with ⟨l,hl,rfl⟩
   apply s.cnfVarsLt _ hC _ hl
 
-/-
-/-- Thanks to `vInjLt` we know `V` is `Fintype`. -/
-noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
-  Fintype.ofInjective (β := Fin s.nextVar)
-    (fun v => ⟨s.vMap v, s.vMapLt ..⟩)
-    (by intro v1 v2 h
-        apply s.vMapInj
-        simpa [PNat.val, ← Subtype.ext_iff] using h)
--/
+
 variable [LitVar L ν]
 
 open PropFun in
