@@ -123,7 +123,7 @@ attribute [local simp] NegNormForm.toPropFun
 
 open PropFun in
 /-- Tseitin encoding in the general case creates temporaries for each clause -/
-def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [DecidableEq ν] [ErasedFintype ν]
+def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [DecidableEq ν]
         (t : ν) (emb : ν' ↪ ν) (f : NegNormForm L')
   : VEncCNF L Unit (fun τ => τ t ↔ τ ⊨ f.toPropFun.map emb) :=
   match f with
@@ -182,7 +182,7 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
           aesop)
 
 open PropFun in
-def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [ErasedFintype ν]
+def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν]
         (f : NegNormForm L) : VEncCNF L Unit (· ⊨ f.toPropFun) :=
   match f with
   | .tr => VEncCNF.pure () |>.mapProp (by simp)
@@ -214,7 +214,7 @@ def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [ErasedFintype 
 -- and that causes big slowdowns when building up VEncCNFs
 open PropForm in
 @[nospecialize]
-def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [ErasedFintype V]
+def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V]
       (f : PropForm V) : VEncCNF L Unit (· ⊨ f) :=
   let nnf : NegNormForm L := (NegNormForm.ofPropForm false f).cleanup
   encodeNNF nnf
@@ -228,7 +228,7 @@ syntax "tseitin[" propform "]" : term
 macro_rules
 | `(tseitin[ $t ]) => `(Tseitin.encode [propform| $t ])
 
-example [DecidableEq ν] [ErasedFintype ν] [LitVar L ν] [LawfulLitVar L ν] (a b : ν)
+example [DecidableEq ν] [LitVar L ν] [LawfulLitVar L ν] (a b : ν)
     : VEncCNF (ν := ν) L Unit (fun τ => τ a ∧ τ b) :=
   tseitin[ {a} ∧ {b} ]
   |>.mapProp (by simp)

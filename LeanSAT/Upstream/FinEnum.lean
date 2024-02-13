@@ -2,7 +2,6 @@ import Mathlib.Logic.Equiv.Fintype
 import Mathlib.Tactic.Linarith
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Upstream.ToMathlib
-import LeanSAT.Upstream.ErasedFintype
 
 /-- Intended to clash with Mathlib's FinEnum -/
 class FinEnum (α : Type u) where
@@ -82,10 +81,8 @@ def ofEquiv [FinEnum β] (f : α ≃ β) : FinEnum α where
   card := FinEnum.card β
   equiv := Equiv.trans f FinEnum.equiv
 
-instance [FinEnum α] : ErasedFintype α where
-  val := .mk {
-      elems := List.finRange _ |>.toFinset.map FinEnum.equiv.symm.toEmbedding
-      complete := by
-        intro x
-        simp
-    }
+instance [FinEnum α] : Fintype α where
+  elems := List.finRange _ |>.toFinset.map FinEnum.equiv.symm.toEmbedding
+  complete := by
+    intro x
+    simp
