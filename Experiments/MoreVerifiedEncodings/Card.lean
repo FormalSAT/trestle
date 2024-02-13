@@ -1,81 +1,71 @@
 import LeanSAT.Encode.VEncCNF
 import LeanSAT.Encode.Tseitin
+import LeanSAT.Encode.Card
 
 namespace LeanSAT.Encode
 
 open VEncCNF Model PropFun
 
 variable [LitVar L ν] [LawfulLitVar L ν]
-    [DecidableEq L] [DecidableEq ν] [Fintype ν]
+    [DecidableEq L] [DecidableEq ν]
 
-def card (lits : List L) (τ : PropAssignment ν) : Nat :=
-  lits.countP (τ ⊨ LitVar.toPropFun ·)
 
-def cardPred (lits : List L) (P : Nat → Prop) [DecidablePred P] : PropFun ν :=
-  .ofFun fun τ => P (card lits τ)
+open EncCNF (WithTemps) in
+/-- At-most-one cut4 encoding. The literals are divided into many small groups,
+like `lits = L₁ ++ L₂ ++ ... ++ Lₙ`.
+Then we add `n` auxiliary variables `tᵢ` representing whether a literal
+to the left of `Lᵢ` is true.
+Then we can encode "at most one of `lits`" as a conjunction:
+- ∀ i, at most one of `[tᵢ] ++ Lᵢ ++ [¬tᵢ₊₁]`
+-/
+def amoCut4 (lits : Array L) (h : lits.size > 4) : VEncCNF L Unit (atMost 1 (Multiset.ofList lits.data)) :=
+  let firstGrpSize := 3
+  let middleGrps := (lits.size - 5) / 2
+  let lastGrpSize := lits.size - firstGrpSize - 2 * middleGrps
+  withTemps (middleGrps + 1) (
+    seq[
+      amoPairwise #[
+        WithTemps.var (lits[0]'(by trans 4; decide; assumption))
+      , WithTemps.var (lits[1]'(by trans 4; decide; assumption))
+      , WithTemps.var (lits[2]'(by trans 4; decide; assumption))
+      , WithTemps.temp 0
+      ]
+    , for_all (Array.ofFn id) (fun (i : Fin middleGrps) =>
+        amoPairwise #[
+          WithTemps.temp i.castSucc
+        , WithTemps.var (lits[3 + 2 * i.val]'(by
+            rcases i with ⟨i,hi⟩; simp (config := {zeta:=true}) at hi ⊢
+            zify at hi ⊢; simp [Nat.cast_sub h] at hi; omega))
+        , WithTemps.var (lits[4 + 2 * i.val]'(by
+            rcases i with ⟨i,hi⟩; simp (config := {zeta:=true}) at hi ⊢
+            zify at hi ⊢; simp [Nat.cast_sub h] at hi; omega))
+        , WithTemps.temp i.succ
+        ]
+        )
+    , amoPairwise <|
+        #[WithTemps.temp <| Fin.last middleGrps] ++
+        lits[lits.size-lastGrpSize:lits.size].toArray.map WithTemps.var
+    ]
+  )
+  |>.mapProp (by
+    ext τ; simp
+    sorry)
 
-@[simp] theorem satisfies_cardPred (lits : List L) (P) [DecidablePred P] (τ)
-  : τ ⊨ cardPred lits P ↔ P (card lits τ) := by
-  unfold cardPred; simp
-
-def amoPairwise (lits : Array L) : VEncCNF L Unit (cardPred lits.data (· ≤ 1)) :=
-  -- for every pair x,y of literals in `lits`, they can't both be true
-  (for_all (Array.ofFn id) fun (i : Fin lits.size) =>
-    for_all (Array.ofFn id) fun (j : Fin lits.size) =>
-      .guard (i ≠ j) fun _ =>
-        addClause #[-lits[i], -lits[j]]
-  ).mapProp (by
-    rcases lits with ⟨list⟩
-    ext τ
-    simp [Clause.toPropFun, any, Array.getElem_eq_data_get]
-    simp only [Array.size]
-    by_cases h : card list τ = 0
-    · simp [h]
-      intro x y; split <;> simp
-      simp [card, List.countP_eq_zero] at h
-      apply Or.inl; apply h; rw [List.mem_iff_get]; simp
-    · replace h : card list τ > 0 := Nat.pos_of_ne_zero h
-      simp [card, List.countP_pos, List.mem_iff_get] at h
-      rcases h with ⟨x,h⟩
-      stop
-      have := List.countP_mono_left (l := list)
-      rw [Nat.le_iff_lt_or_eq, Nat.lt_one_iff]; simp [h]
-      unfold card)
-
-def amoCut4 (lits : Array ILit) : EncCNF Unit :=
-  match h1 : lits.pop? with
-  | none => return
-  | some (lits', l1) =>
-  match h2 : lits'.pop? with
-  | none => amoPairwise [l1]
-  | some (lits'', l2) =>
-  match h3 : lits''.pop? with
-  | none => amoPairwise [l1, l2]
-  | some (lits''', l3) => do
-  let t ← mkTemp
-  amoPairwise [t, l1, l2, l3]
-  have : lits.size = lits'''.size + 1 + 1 + 1 := by
-    repeat rw [Array.size_pop? ‹_›]
-  have : lits'''.size + 1 < lits.size := by simp [*]
-  amoCut4 <| lits'''.push (-t)
-termination_by _ lits => lits.size
-
-def atMostOne (lits : Array ILit) : EncCNF Unit :=
-  if lits.size ≤ 5 then
-    amoPairwise lits.toList
+def atMostOne (lits : Array L) : VEncCNF L Unit (atMost 1 <| Multiset.ofList lits.data) :=
+  if h : lits.size ≤ 4 then
+    amoPairwise lits
   else
-    amoCut4 lits
+    amoCut4 lits (by omega)
+
+#exit
 
 open Model.PropForm.Notation in
-def partialSumsBlock (lits : Array ILit) (k : Nat) (hk : k > 1)
-  : EncCNF (IVarBlock [k, lits.size]) := do
-  -- `temps[i][j]` ↔ i < ∑ j' ≤ j, `lits[j']`
-  let temps ← mkTempBlock [k, lits.size]
-
-  have : 0 < k := Nat.lt_trans (by simp) hk
-
-  for i in List.fins k do
-    for j in List.fins lits.size do
+def partialSumsBlock (lits : Array L) (temps : Fin k → Fin lits.size → ν)
+  : VEncCNF L Unit (fun τ =>
+      ∀ i j, τ (temps i j) ↔ i < card (Multiset.ofList lits[0:j].toArray.toList) τ) :=
+  -- `temps i j` ↔ i < (∑ `j' ≤ j`, `lits[j']`)
+  (for_all (List.fins k) fun i =>
+    for_all (List.fins lits.size) fun j =>
       match j.pred? with
       | none => -- `j = 0`
         if i = ⟨0,this⟩ then
@@ -88,8 +78,9 @@ def partialSumsBlock (lits : Array ILit) (k : Nat) (hk : k > 1)
           tseitin (temps[i][j] ↔ temps[i][j'] ∨ lits[j])
         | some i' =>
           tseitin (temps[i][j] ↔ temps[i][j'] ∨ temps[i'][j'] ∧ lits[j])
+  ).mapProp (by
+    sorry)
 
-  return temps
 
 def partialSumsAtMostK (lits : Array ILit) (hl : lits.size > 0) (k : Nat) (hk : k > 0) : EncCNF Unit :=
   newCtx s!"pSums≤{k}" do

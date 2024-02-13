@@ -9,15 +9,17 @@ instance : Solver.ModelCount IO := Solver.Impl.ApproxMCCommand
 
 open Encode Model.PropForm.Notation in
 def main : IO Unit := do
-  let ((x,y,z), enc) := EncCNF.new! do
-    let x ← EncCNF.mkVar "x"
-    let y ← EncCNF.mkVar "y"
-    let z ← EncCNF.mkVar "z"
-    Tseitin.tseitin (x ∧ y ∧ z ∨ ¬x ∧ ¬y)
-    return (x,y,z)
-  let formula : ICnf := enc.toFormula
+  let x : Fin 3 := 0
+  let y : Fin 3 := 1
+  let z : Fin 3 := 2
 
-  let res ← Solver.solve formula
+  let enc : EncCNF (Literal (Fin 3)) Unit := do
+    Subtype.val tseitin[ {x} ∧ {y} ∧ {z} ∨ ¬{x} ∧ ¬{y} ]
+
+  let ((),state) := enc.run
+
+  let res ← Solver.solve state.cnf
   IO.println res
-  let res ← Solver.ModelCount.modelCount formula (some [x,y,z])
+  let res ← Solver.ModelCount.modelCount state.cnf (some <|
+    [x,y,z].map state.vMap)
   IO.println res

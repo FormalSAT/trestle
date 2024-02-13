@@ -121,10 +121,11 @@ open VEncCNF
 
 attribute [local simp] NegNormForm.toPropFun
 
+open PropFun in
 /-- Tseitin encoding in the general case creates temporaries for each clause -/
-def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν]
+def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [DecidableEq ν]
         (t : ν) (emb : ν' ↪ ν) (f : NegNormForm L')
-  : VEncCNF L Unit (.biImpl (.var t) (f.toPropFun.map emb)) :=
+  : VEncCNF L Unit (fun τ => τ t ↔ τ ⊨ f.toPropFun.map emb) :=
   match f with
   | .tr =>
       addClause #[LitVar.mkPos t]
@@ -138,8 +139,10 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
   | .and a b =>
       withTemps 2 (
         seq[
-          encodeNNF_mkDefs (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
-        , encodeNNF_mkDefs (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b
+          encodeNNF_mkDefs
+            (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
+        , encodeNNF_mkDefs
+            (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b
         , defConj (.var t) #[.temp 0, .temp 1]
         ]
       ) |>.mapProp (by
@@ -158,8 +161,10 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
   | .or a b =>
       withTemps 2 (
         seq[
-          encodeNNF_mkDefs (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
-        , encodeNNF_mkDefs (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b
+          encodeNNF_mkDefs
+            (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
+        , encodeNNF_mkDefs
+            (.inr 1) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) b
         , defDisj (.var t) #[.temp 0, .temp 1]
         ]
       ) |>.mapProp (by
@@ -176,11 +181,12 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
             | .inr 1 => τ.map emb ⊨ b.toPropFun
           aesop)
 
-def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν]
-        (f : NegNormForm L) : VEncCNF L Unit f.toPropFun :=
+open PropFun in
+def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν]
+        (f : NegNormForm L) : VEncCNF L Unit (· ⊨ f.toPropFun) :=
   match f with
-  | .tr => VEncCNF.pure () -- type matches by rfl
-  | .fls => addClause #[]  -- type matches by rfl
+  | .tr => VEncCNF.pure () |>.mapProp (by simp)
+  | .fls => addClause #[] |>.mapProp (by simp [Clause.toPropFun])
   | .lit l => addClause #[l] |>.mapProp (by simp [Clause.toPropFun, PropFun.any])
   | .and a b =>
     seq[ encodeNNF a, encodeNNF b].mapProp (by simp)
@@ -206,12 +212,13 @@ def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν] [Fintype ν]
 
 -- nospecialize here because otherwise the compiler tries specializing it a ton
 -- and that causes big slowdowns when building up VEncCNFs
+open PropForm in
 @[nospecialize]
-def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V] [Fintype V]
-      (f : PropForm V) : VEncCNF L Unit ⟦f⟧ :=
+def encode [LitVar L V] [LawfulLitVar L V] [DecidableEq V]
+      (f : PropForm V) : VEncCNF L Unit (· ⊨ f) :=
   let nnf : NegNormForm L := (NegNormForm.ofPropForm false f).cleanup
   encodeNNF nnf
-  |>.mapProp (by simp [NegNormForm.toPropFun_ofPropForm])
+  |>.mapProp (by simp [NegNormForm.toPropFun_ofPropForm]; rfl)
 
 end Tseitin
 
@@ -221,7 +228,7 @@ syntax "tseitin[" propform "]" : term
 macro_rules
 | `(tseitin[ $t ]) => `(Tseitin.encode [propform| $t ])
 
-example [DecidableEq ν] [Fintype ν] [LitVar L ν] [LawfulLitVar L ν] (a b : ν)
-    : VEncCNF (ν := ν) L Unit (a ⊓ b) :=
+example [DecidableEq ν] [LitVar L ν] [LawfulLitVar L ν] (a b : ν)
+    : VEncCNF (ν := ν) L Unit (fun τ => τ a ∧ τ b) :=
   tseitin[ {a} ∧ {b} ]
   |>.mapProp (by simp)

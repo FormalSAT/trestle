@@ -262,15 +262,15 @@ theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
 open PropFun
 
 theorem satisfies_iff {τ : PropAssignment ν} {C : Clause L} :
-    τ ⊨ C.toPropFun ↔ ∃ l ∈ C.data, τ ⊨ LitVar.toPropFun l := by
+    τ ⊨ C.toPropFun ↔ ∃ l ∈ C, τ ⊨ LitVar.toPropFun l := by
   rw [toPropFun]; simp [Array.mem_def]
 
 theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
-    C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C.data, ∃ l₂ ∈ C.data, l₁ = -l₂ := by
+    C.toPropFun = ⊤ ↔ ∃ l₁ ∈ C, ∃ l₂ ∈ C, l₁ = -l₂ := by
   constructor
   · intro h
     rcases C with ⟨lits⟩
-    simp_all [toPropFun]
+    simp_all [toPropFun, Array.mem_def]
     induction lits with
     | nil => rw [ext_iff] at h; simp [Array.mem_def] at h
     | cons hd tl ih =>

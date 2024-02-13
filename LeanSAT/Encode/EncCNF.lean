@@ -5,7 +5,7 @@ import LeanSAT.Data.Literal
 import LeanSAT.Data.HashAssn
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Model.Quantifiers
-import Mathlib.Data.FinEnum
+import LeanSAT.Upstream.FinEnum
 
 open Std
 
@@ -76,22 +76,16 @@ theorem semVars_toPropFun_cnf_lt (s : LawfulState L ν)
   rcases h with ⟨l,hl,rfl⟩
   apply s.cnfVarsLt _ hC _ hl
 
-/-- Thanks to `vInjLt` we know `V` is `Fintype`. -/
-noncomputable def fintype (s : LawfulState L ν) : Fintype ν :=
-  Fintype.ofInjective (β := Fin s.nextVar)
-    (fun v => ⟨s.vMap v, s.vMapLt ..⟩)
-    (by intro v1 v2 h
-        apply s.vMapInj
-        simpa [PNat.val, ← Subtype.ext_iff] using h)
 
-variable [Fintype ν] [LitVar L ν]
+variable [LitVar L ν]
 
+open PropFun in
 /-- The interpretation of an `EncCNF` state is the
 formula's interpretation, but with all temporaries
 existentially quantified away.
 -/
-noncomputable def interp (s : LawfulState L ν) : PropFun ν :=
-  s.cnf.toPropFun.existsInv s.vMap
+noncomputable def interp (s : LawfulState L ν) : PropAssignment ν → Prop :=
+  fun τ => ∃ σ, τ = PropAssignment.map s.vMap σ ∧ σ ⊨ s.cnf.toPropFun
 
 def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
     : LawfulState L ν := {
@@ -103,11 +97,10 @@ def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
 
 @[simp]
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
-  : interp (new (L := L) vars f h) = ⊤ := by
+  : interp (new (L := L) vars f h) = fun _ => True := by
   ext τ
   simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map]
-  use τ.preimage f
-  simp
+  apply τ.exists_preimage
 
 @[simp]
 theorem toState_new (vars) (f : ν ↪ IVar) (h)
@@ -124,7 +117,7 @@ def new' (vars : Nat) (f : ν ↪ Fin vars) : LawfulState L ν :=
 
 @[simp]
 theorem interp_new' (vars) (f : ν ↪ Fin vars)
-  : interp (new' (L := L) vars f) = ⊤ := by simp [new']
+  : interp (new' (L := L) vars f) = fun _ => True := by simp [new']
 
 def addClause (C : Clause L) (s : LawfulState L ν) : LawfulState L ν where
   toState := s.toState.addClause C
@@ -145,7 +138,7 @@ open PropFun in
 @[simp]
 theorem interp_addClause
         (C : Clause L) (s : LawfulState L ν)
-  : interp (addClause C s) = interp s ⊓ ((s.assumeVars)ᶜ ⇨ C) := by
+  : interp (addClause C s) = fun τ => interp s τ ∧ (τ ⊭ ↑s.assumeVars → τ ⊨ ↑C) := by
   ext τ
   simp [addClause, interp, State.addClause, imp_iff_not_or]
   rw [← exists_and_right]
@@ -202,11 +195,10 @@ instance : LawfulMonad (EncCNF L) where
   bind_assoc := by
     intros; simp [bind]; rfl
 
-def run [FinEnum ν] (e : EncCNF L α) : α × ICnf :=
-  let (a,state) := e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
-  (a, state.cnf)
+def run [FinEnum ν] (e : EncCNF L α) : α × LawfulState L ν :=
+  e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
 
-def toICnf [FinEnum ν] (e : EncCNF L α) : ICnf := (run e).2
+def toICnf [FinEnum ν] (e : EncCNF L α) : ICnf := (run e).2.cnf
 
 def newCtx (name : String) (inner : EncCNF L α) : EncCNF L α := do
   let res ← inner
@@ -337,21 +329,36 @@ def LawfulState.withTemps (s : LawfulState L ν)
   := by simp [LawfulState.withTemps, State.withTemps]
 
 @[simp]
-theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
+theorem LawfulState.interp_withTemps [DecidableEq ν]
           (s : LawfulState L ν) (n)
-    : (s.withTemps (n := n)).interp = s.interp.map Sum.inl := by
+    : (s.withTemps (n := n)).interp = fun τ => s.interp (τ.map Sum.inl) := by
   ext τ
   simp [interp, withTemps, State.withTemps]
   constructor
-  · rintro ⟨σ,h,rfl⟩
+  · rintro ⟨σ,rfl,h⟩
     use σ; simp [h]
     ext v; simp [State.withTemps.vMap]
   · rintro ⟨σ,h1,h2⟩
+    have ⟨σ',hσ'⟩ := τ.exists_preimage ⟨State.withTemps.vMap s.toState, (LawfulState.withTemps s).vMapInj⟩
+    cases hσ'
+    simp [PropAssignment.map] at h2 ⊢
     use σ.setMany
       (Finset.univ.image (State.withTemps.vMap (n := n) s.toState <| Sum.inr ·))
-      (τ.preimage ⟨State.withTemps.vMap s.toState, (LawfulState.withTemps s).vMapInj⟩)
+      σ'
     constructor
-    · apply (Model.PropFun.agreeOn_semVars _).mpr h1
+    · ext vot
+      rcases vot with (v|t)
+      · have := congrFun h1 v
+        simp at this; simp [this]; clear this h2
+        simp [withTemps, State.withTemps, State.withTemps.vMap]
+        rw [PropAssignment.setMany_not_mem]
+        simp; intro x
+        have := s.vMapLt v
+        rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
+        simp; apply Nat.ne_of_gt
+        exact Nat.lt_add_right _ this
+      · simp [State.withTemps.vMap]
+    · apply (Model.PropFun.agreeOn_semVars _).mpr h2
       intro v hv
       simp at hv
       have := semVars_toPropFun_cnf_lt _ _ hv
@@ -361,19 +368,6 @@ theorem LawfulState.interp_withTemps [DecidableEq ν] [Fintype ν]
       rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
       simp; apply Nat.ne_of_gt
       exact Nat.lt_add_right _ this
-    · ext vot
-      rcases vot with (v|t)
-      · have := congrFun h2 v
-        simp at this; rw [this]; clear this h2
-        simp [withTemps, State.withTemps, State.withTemps.vMap]
-        rw [PropAssignment.setMany_not_mem]
-        simp; intro x
-        have := s.vMapLt v
-        rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
-        simp; apply Nat.ne_of_gt
-        exact Nat.lt_add_right _ this
-      · simp [State.withTemps.vMap]
-        congr; simp [State.withTemps.vMap]
 
 
 def State.withoutTemps (vMap : ν → IVar) (assumeVars : Array L) (s : State (WithTemps L n) (ν ⊕ Fin n)) : State L ν where
@@ -419,15 +413,17 @@ def LawfulState.withoutTemps (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).assumeVars = av
   := by simp [LawfulState.withoutTemps]
 
-theorem LawfulState.interp_withoutTemps [DecidableEq ν] [Fintype ν]
+theorem LawfulState.interp_withoutTemps [DecidableEq ν]
     (s : LawfulState (WithTemps L n) (ν ⊕ Fin n))
     {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
     (h : vMap = s.vMap ∘ Sum.inl)
     : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
-        s.interp.existsInv Sum.inl
+        fun τ => ∃ σ, τ = σ.map Sum.inl ∧ LawfulState.interp s σ
   := by
+  ext τ
   cases h
   simp [LawfulState.withoutTemps, State.withoutTemps, interp]
+  aesop
 
 def nextVar_mono_of_eq {e : EncCNF L α} (h : e.1 s = (a, s')) :
     s.nextVar ≤ s'.nextVar := by

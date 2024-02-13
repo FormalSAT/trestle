@@ -1,8 +1,6 @@
 import Examples.Encoding.Akari
 import Examples.Encoding.NumberLink
 import Examples.Encoding.Yajilin
-import Examples.ApproxMC
-import Examples.Cadical
 
 open LeanSAT Examples
 
@@ -30,5 +28,5 @@ def main (args : List String) : IO UInt32 := do
     selection.trim.toNat?.expectSome fun () => s!"Expected a number, got {selection}"
   if _h : selection < mains.length then
     mains[selection].2
-  
+
   return 0

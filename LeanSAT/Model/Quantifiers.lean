@@ -39,7 +39,7 @@ theorem satisfies_existsInv (f : ν' → ν) (φ) (τ)
   simp [existsInv]
 
 @[simp]
-theorem existsInv_existsInv [DecidableEq ν''] [Fintype ν'']
+theorem existsInv_existsInv [Fintype ν'']
       (f : ν'' → ν') (g : ν' → ν) (φ : PropFun ν)
   : (φ.existsInv g).existsInv f = φ.existsInv (g ∘ f) := by
   ext τ; simp
