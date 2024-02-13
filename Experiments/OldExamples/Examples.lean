@@ -30,5 +30,5 @@ def main (args : List String) : IO UInt32 := do
     selection.trim.toNat?.expectSome fun () => s!"Expected a number, got {selection}"
   if _h : selection < mains.length then
     mains[selection].2
-  
+
   return 0
