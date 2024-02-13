@@ -203,11 +203,10 @@ instance : LawfulMonad (EncCNF L) where
   bind_assoc := by
     intros; simp [bind]; rfl
 
-def run [FinEnum ν] (e : EncCNF L α) : α × ICnf :=
-  let (a,state) := e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
-  (a, state.cnf)
+def run [FinEnum ν] (e : EncCNF L α) : α × LawfulState L ν :=
+  e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
 
-def toICnf [FinEnum ν] (e : EncCNF L α) : ICnf := (run e).2
+def toICnf [FinEnum ν] (e : EncCNF L α) : ICnf := (run e).2.cnf
 
 def newCtx (name : String) (inner : EncCNF L α) : EncCNF L α := do
   let res ← inner
