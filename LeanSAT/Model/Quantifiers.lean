@@ -4,7 +4,6 @@ Authors: James Gallicchio
 -/
 
 import LeanSAT.Model.OfFun
-import LeanSAT.Upstream.ErasedFintype
 
 namespace LeanSAT.Model
 
@@ -16,21 +15,20 @@ of variables in a `PropFun`.
 
 namespace PropFun
 
-variable [ErasedFintype ν']
+variable [Fintype ν']
 
 open Classical in
 /-- Most general form of existential quantification.
 True at `τ` iff there exists a model of `φ` whose image under `f` is `τ`.
 -/
 noncomputable def existsAssn (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
-  have : Fintype ν' := ErasedFintype.toFintype
   ofSet { τ | ∃ σ, σ ⊨ φ ∧ τ = f σ }
 
 open Classical in
 @[simp]
 theorem satisfies_exists (f : PropAssignment ν → PropAssignment ν') (τ)
   : τ ⊨ existsAssn f φ ↔ ∃ σ, σ ⊨ φ ∧ τ = f σ := by
-  simp [existsAssn, @satisfies_ofSet _ _ _ (ErasedFintype.toFintype)]
+  simp [existsAssn]
 
 noncomputable def existsInv (f : ν' → ν) (φ : PropFun ν): PropFun ν' :=
   φ.existsAssn (fun σ => σ.map f)
@@ -41,7 +39,7 @@ theorem satisfies_existsInv (f : ν' → ν) (φ) (τ)
   simp [existsInv]
 
 @[simp]
-theorem existsInv_existsInv [DecidableEq ν''] [ErasedFintype ν'']
+theorem existsInv_existsInv [Fintype ν'']
       (f : ν'' → ν') (g : ν' → ν) (φ : PropFun ν)
   : (φ.existsInv g).existsInv f = φ.existsInv (g ∘ f) := by
   ext τ; simp
@@ -61,14 +59,13 @@ open Classical in
 True at `τ` iff for all models of `φ`, their image under `f` is `τ`.
 -/
 noncomputable def forallAssn (f : PropAssignment ν → PropAssignment ν') (φ : PropFun ν) : PropFun ν' :=
-  have : Fintype ν' := ErasedFintype.toFintype
   ofSet { σ | ∀ τ, τ ⊨ φ → σ = f τ }
 
 open Classical in
 @[simp]
 theorem satisfies_forallAssn (f : PropAssignment ν → PropAssignment ν') (τ)
   : τ ⊨ forallAssn f φ ↔ ∀ σ, σ ⊨ φ → τ = f σ := by
-  simp [forallAssn, @satisfies_ofSet _ _ _ (ErasedFintype.toFintype)]
+  simp [forallAssn]
 
 noncomputable def forallInv (f : ν' → ν) (φ : PropFun ν): PropFun ν' :=
   φ.forallAssn (fun σ => σ.map f)

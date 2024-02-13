@@ -254,12 +254,14 @@ theorem PropForm.semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν
     rw [PropFun.mem_semVars] at hv1 ⊢
     rcases hv1 with ⟨τ,hpos,hneg⟩
     rw [PropFun.satisfies_mk] at hpos hneg
-    use τ.preimage ⟨f,hf⟩
+    have ⟨σ,h⟩ := τ.exists_preimage ⟨f,hf⟩
+    cases h; simp at hpos hneg
+    use σ
     dsimp
     rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
     simp [satisfies_map, hpos]
     rw [PropAssignment.map_set]
-    · simp; exact hneg
+    · exact hneg
     · assumption
 
 def PropFun.map (f : ν → ν') (φ : PropFun ν) : PropFun ν' :=
@@ -317,27 +319,3 @@ theorem PropFun.map_impl (f : ν₁ → ν₂) : map f (φ₁ ⇨ φ₂) = (map 
 theorem PropFun.map_biImpl (f : ν₁ → ν₂) : map f (biImpl φ₁ φ₂) = .biImpl (map f φ₁) (map f φ₂)
   := by ext; simp
 
-
-noncomputable def PropFun.attach [DecidableEq ν] (φ : PropFun ν) : PropFun φ.semVars :=
-  .ofFun fun τ => τ.preimage ⟨Subtype.val, Subtype.val_injective⟩ ⊨ φ
-
-theorem PropFun.preimage_satisfies [Fintype ν] [DecidableEq ν']
-      (τ : PropAssignment ν) (f : ν ↪ ν') (h : φ.semVars ⊆ Finset.univ.map f)
-  : τ.preimage f ⊨ φ ↔ ∃ σ, τ = PropAssignment.map f σ ∧ σ ⊨ φ := by
-  constructor
-  · intro h; refine ⟨_, ?_, h⟩
-    simp
-  · rintro ⟨σ,rfl,hσ⟩
-    apply (agreeOn_semVars _).mpr hσ
-    intro v' hv'
-    simp at hv'; have := h hv'; simp at this
-    simp [PropAssignment.preimage, PropAssignment.pmap
-      , Fintype.app_invFun, this]
-
-@[simp]
-theorem PropFun.satisfies_attach [DecidableEq ν] (φ : PropFun ν) (τ : PropAssignment _)
-  : τ ⊨ φ.attach ↔ ∃ σ, τ = PropAssignment.map Subtype.val σ ∧ σ ⊨ φ := by
-  simp [attach]
-  rw [preimage_satisfies]
-  · rfl
-  · intro; simp

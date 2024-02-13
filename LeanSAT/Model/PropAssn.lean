@@ -153,43 +153,29 @@ def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂
     map f (set τ (f v) b) = set (map f τ) v b := by
   unfold map; unfold set; ext; simp [finj.eq_iff]
 
-theorem map_eq_map [Fintype ν] (f : ν → ν₁) (τ) (f' : ν → ν₂) (τ')
+theorem map_eq_map (f : ν → ν₁) (τ) (f' : ν → ν₂) (τ')
   : map f τ = map f' τ' ↔ ∀ v : ν, τ (f v) = τ' (f' v) := by
   simp [map]
   constructor <;> intro h
   · intro v; have := congrFun h v; simp_all
   · ext v; simp [*]
 
-def pmap {vs : Finset ν₂} [DecidableEq ν₂]
+def pmap {vs : Set ν₂} [DecidablePred (· ∈ vs)] [DecidableEq ν₂]
     (f : vs → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
   fun v =>
     if h : v ∈ vs then τ (f ⟨v,h⟩) else false
 
-theorem pmap_agreeOn_set {vs : Finset ν₂} [DecidableEq ν₁] [DecidableEq ν₂]
-      (f : vs → ν₁) (τ τ' : PropAssignment ν₁)
-  : agreeOn vs (pmap f τ) (pmap f τ') → agreeOn (vs.attach.image f) τ τ' := by
-  intro h v1 hv1
-  simp at hv1
-  rcases hv1 with ⟨v2,hv2,rfl⟩
-  have := h v2 hv2
-  simp [pmap, hv2] at this
-  exact this
-
-def preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) (τ : PropAssignment ν₁)
-    : PropAssignment ν₂ :=
-  pmap (Fintype.invFun f) τ
-
-theorem get_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ ↪ ν₂) {τ v v'}
-    : v = f.1 v' → (preimage f τ) v = τ v' := by
-  rintro rfl; simp [preimage, pmap]
-
-@[simp]
-theorem map_preimage [Fintype ν₁] [DecidableEq ν₂] (f : ν₁ → ν₂) (f') (τ)
-    : f = f'.1 → map f (preimage f' τ) = τ := by
-  rintro rfl; ext v1; simp [preimage, pmap]
-
-@[simp]
-theorem preimage_of_mem_image [Fintype ν] [DecidableEq ν₀]
-      (f : ν ↪ ν₀) (τ) (h : v0 ∈ Finset.univ.map f)
-    : preimage f τ v0 = τ (Fintype.invFun f ⟨v0,h⟩) := by
-  simp at h; simp [preimage, pmap, h]
+def exists_preimage [DecidableEq ν₂] (f : ν₁ ↪ ν₂) (τ : PropAssignment ν₁)
+    : ∃ σ : PropAssignment ν₂, τ = σ.map f := by
+  have : ∀ v2 : Set.range f, ∃ v1, f v1 = v2 := by
+    rintro ⟨v2,h⟩
+    have := f.injective.exists_unique_of_mem_range h
+    simp; exact this.exists
+  replace this := Classical.axiomOfChoice this
+  rcases this with ⟨f',h⟩
+  open Classical in
+  use τ.pmap f'
+  ext v1
+  specialize h ⟨f v1, by simp⟩
+  simp at h
+  simp [pmap, h]
