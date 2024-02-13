@@ -87,12 +87,7 @@ theorem bind_encodesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
 
 end EncCNF
 
-/-- The verified encoding monad.
-
-N.B. There is an issue with Lean thinking `P` is used for computation
-in places where it is not. We work around it by `@[inline]` annotations.
-See https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputability.20across.20function.20calls
--/
+/-- The verified encoding monad. -/
 def VEncCNF (L) [LitVar L ν] (α : Type u) (P : PropAssignment ν → Prop) :=
   { e : EncCNF L α // e.encodesProp P }
 
