@@ -23,3 +23,6 @@ instance : LawfulLitVar (Literal ν) ν where
   polarity_mkPos := by aesop
   polarity_mkNeg := by aesop
   ext := by intro l1 l2; cases l1; cases l2; aesop
+
+abbrev pos : ν → Literal ν := (.mk · true)
+abbrev neg : ν → Literal ν := (.mk · false)
