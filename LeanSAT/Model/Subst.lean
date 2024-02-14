@@ -1,4 +1,6 @@
-/- Copyright (c) the LeanSAT contributors
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: James Gallicchio
 -/
@@ -318,4 +320,3 @@ theorem PropFun.map_impl (f : ν₁ → ν₂) : map f (φ₁ ⇨ φ₂) = (map 
 @[simp]
 theorem PropFun.map_biImpl (f : ν₁ → ν₂) : map f (biImpl φ₁ φ₂) = .biImpl (map f φ₁) (map f φ₂)
   := by ext; simp
-

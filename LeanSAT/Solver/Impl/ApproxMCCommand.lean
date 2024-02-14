@@ -1,10 +1,17 @@
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import LeanSAT.Solver.Basic
 import LeanSAT.Solver.Dimacs
 
 namespace LeanSAT.Solver.Impl
 
 
-/-- Command-line ApproxMC solver 
+/-- Command-line ApproxMC solver
 
 Lives in IO, since we need access to process invocation.
 -/

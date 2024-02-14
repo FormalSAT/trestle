@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio, Cayden Codel
+-/
+
 import Std
 
 def List.enum' (L : List α) : List (Fin L.length × α) :=

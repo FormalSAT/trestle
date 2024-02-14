@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import LeanSAT.Solver.Basic
 import LeanSAT.Solver.Dimacs
 
@@ -18,7 +25,7 @@ def D4Command.ModelCount
   IO.FS.withTempFile (fun temp => do
     IO.FS.withFile temp .write (fun handle =>
       Dimacs.printFormula handle.putStr fml)
-  
+
     let child ← IO.Process.spawn {
       cmd := cmd
       args := ("-mc" :: flags ++ [temp.toString]).toArray
@@ -37,9 +44,9 @@ def D4Command.ModelCount
       match first.take 2 with
       | "s " =>
         let this := first.drop 2
-        this.toNat?.expectSome fun () => s!"Expected number, got `{this}`" 
+        this.toNat?.expectSome fun () => s!"Expected number, got `{this}`"
       | _ =>
         .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
-    
+
     return res
   )⟩
