@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import Std
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf

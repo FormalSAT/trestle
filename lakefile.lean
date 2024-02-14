@@ -4,7 +4,9 @@ open Lake DSL
 package «lean-sat»
 
 @[default_target]
-lean_lib LeanSAT
+lean_lib LeanSAT {
+  globs := #[.andSubmodules `LeanSAT]
+}
 
 lean_lib Examples {
   globs := #[.submodules `Examples]

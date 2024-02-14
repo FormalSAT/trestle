@@ -5,6 +5,13 @@ LeanSAT is a collection of utilities for SAT work. This includes:
 - Solver APIs
 - Printers and parsers for common file formats
 
+This repository is an active research code base using the
+[Research Codebase Manifesto](https://www.moderndescartes.com/essays/research_code/),
+and the core library (in `LeanSAT/`) is not very stable yet.
+
+We would love to hear from any projects using LeanSAT!
+Contact @JamesGallicchio by email or mastodon.
+
 ## Getting it
 
 Add the following to your project's `lakefile`:
@@ -26,8 +33,7 @@ Important types:
   This monad allows you to build up a CNF via do-notation.
   See `Examples/Encoding` for example usage.
 - `VEncCNF`: **Verified encoding.**
-  Similar to `EncCNF`, but the type specifies a `PropFun`
-  which the object provably encodes.
+  Similar to `EncCNF`, constrained to provably encode some predicate over assignments.
   This connects `EncCNF` to the `PropFun` math model.
 - `Solver`, `Solver.ModelCount`, `Solver.ModelSample`: **Solver interfaces.**
   These are each typeclasses.
@@ -49,3 +55,22 @@ TODO(JG): describe available notation for `PropFun`, `PropForm`
 - Add verified model counting
   - See [Bryant et al 2023](https://github.com/rebryant/cpog)
 - Add verified pre-processing
+
+## License
+
+This project is licensed under the Apache 2.0 license (see [LICENSE](LICENSE)).
+If you want to use the library but need it to be released under different terms,
+please contact us or open an issue.
+
+## Contributing
+
+PRs are welcome and appreciated.
+That said, because the repository is quite unstable,
+please open an issue or comment on an existing one
+to let us know what you are working on!
+
+### Contributors
+
+@vtec234
+@ccodel
+@JamesGallicchio

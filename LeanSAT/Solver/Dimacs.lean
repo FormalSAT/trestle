@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import LeanSAT.Encode.EncCNF
 import LeanSAT.Solver.Basic
 
@@ -43,16 +50,6 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
   print (formatAssn assn)
 | .unsat => print "s UNSATISFIABLE"
 | .error => throw default
-
-
---def printEnc [Monad m] (print : String → m Unit) (s : Encode.EncCNF.State V) : m Unit := do
---  for h : i in [1:s.nextVar] do
---    let var := ⟨i,h.1⟩
---    for name in s.names.find? var do
---      print s!"c {Dimacs.formatVar var} {name}\n"
---
---  Dimacs.printFormula print ⟨s.clauses.reverse⟩
-
 
 
 structure DimacsParseRes where

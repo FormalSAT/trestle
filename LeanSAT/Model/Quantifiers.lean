@@ -1,4 +1,6 @@
-/- Copyright (c) the LeanSAT contributors
+/-
+Copyright (c) 2024 The LeanSAT Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: James Gallicchio
 -/
