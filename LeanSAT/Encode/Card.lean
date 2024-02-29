@@ -33,12 +33,14 @@ theorem ofList_eq_map_get (L : List α)
 
 @[inline]
 def amoPairwise (lits : Array L) :
-    VEncCNF L Unit (atMost 1 (Multiset.ofList lits.data)) :=
+    VEncCNF L Unit (atMost 1 (Multiset.ofList lits.data)) := (
   -- for every pair x,y of literals in `lits`, they can't both be true
-  (for_all (Array.ofFn id) fun (i : Fin lits.size) =>
-    for_all (Array.ofFn (fun (j : Fin (lits.size - i.succ)) =>
-        (Fin.addNat j i.succ).cast (by
-          cases i; cases j; simp at *; apply Nat.sub_add_cancel; assumption)))
+  for_all (Array.ofFn id) fun (i : Fin lits.size) =>
+    for_all (Array.ofFn (fun (diff : Fin (lits.size - i.succ)) =>
+      let j : Fin lits.size :=
+        ⟨ i + diff + 1
+        , by cases i; cases diff; have := Nat.add_lt_of_lt_sub ‹_›; simp_all; omega ⟩
+      j))
       fun (j : Fin lits.size) =>
         addClause #[-lits[i], -lits[j]]
   ).mapProp (by

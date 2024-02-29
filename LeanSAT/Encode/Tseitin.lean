@@ -192,7 +192,7 @@ open PropFun in
 def encodeNNF [LitVar L ν] [LawfulLitVar L ν] [DecidableEq ν]
         (f : NegNormForm L) : VEncCNF L Unit (· ⊨ f.toPropFun) :=
   match f with
-  | .tr => VEncCNF.pure () |>.mapProp (by simp)
+  | .tr => VEncCNF.pure () |>.mapProp (by funext; simp)
   | .fls => addClause #[] |>.mapProp (by simp [Clause.toPropFun])
   | .lit l => addClause #[l] |>.mapProp (by simp [Clause.toPropFun, PropFun.any])
   | .and a b =>

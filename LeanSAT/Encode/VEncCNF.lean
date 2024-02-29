@@ -6,6 +6,7 @@ Authors: James Gallicchio
 -/
 
 import LeanSAT.Encode.EncCNF
+import LeanSAT.Model.PropPred
 import Mathlib.Tactic.LiftLets
 
 /-! ## Verified Encodings
@@ -18,14 +19,14 @@ and verify what a particular `EncCNF` value actually encodes.
 
 namespace LeanSAT.Encode
 
-open Model PropFun EncCNF
+open Model EncCNF
 
 namespace EncCNF
 
 variable [LitVar L ν]
 
 /-- `e` encodes proposition `P` -/
-def encodesProp (e : EncCNF L α) (P : PropAssignment ν → Prop) : Prop :=
+def encodesProp (e : EncCNF L α) (P : PropPred ν) : Prop :=
   aux e.1
 where aux (e' : StateM _ α) :=
   ∀ s,
@@ -33,12 +34,12 @@ where aux (e' : StateM _ α) :=
     s'.vMap = s.vMap ∧
     s'.assumeVars = s.assumeVars ∧
     -- TODO(JG): should we weaken this to equisatisfiability?
-    ∀ τ, s'.interp τ ↔ s.interp τ ∧ (¬(τ ⊨ ↑s.assumeVars) → P τ)
+    ∀ (τ : PropAssignment ν), s'.interp τ ↔ s.interp τ ∧ (open PropPred in τ ⊨ (↑s.assumeVars)ᶜ ⇨ P)
 
-open PropFun in
 /-- If `e` encodes `P`, then `P` is satisfiable iff `e.toICnf` is satisfiable -/
-theorem encodesProp_equisatisfiable [FinEnum ν] (e : EncCNF L α) (P : PropAssignment ν → Prop) (h : encodesProp e P)
-  : (∃ τ : PropAssignment ν, P τ) ↔ (∃ τ : PropAssignment IVar, τ ⊨ e.toICnf.toPropFun) := by
+theorem encodesProp_equisatisfiable [FinEnum ν] (e : EncCNF L α) (P : PropPred ν) (h : encodesProp e P)
+  : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
+    (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toICnf.toPropFun) := by
   simp [toICnf, run, StateT.run]
   generalize hls : LawfulState.new' _ _ = ls
   have := h ls
@@ -47,7 +48,7 @@ theorem encodesProp_equisatisfiable [FinEnum ν] (e : EncCNF L α) (P : PropAssi
   simp only at this ⊢
   rcases this with ⟨-,-,h3⟩
   rw [←hls] at h3
-  simp [LawfulState.new', State.new, Clause.toPropFun, any] at h3
+  simp [LawfulState.new', State.new, Clause.toPropFun] at h3
   clear hls' hls
   simp_rw [← h3]
   simp [LawfulState.interp]
@@ -80,17 +81,18 @@ theorem bind_encodesProp (e1 : EncCNF L α) (f : α → EncCNF L β)
   -- give name to the next state `s''`
   generalize hs'' : e2 s' = s'' at *
   rcases s'' with ⟨b,s''⟩
-  simp at hQ ⊢
+  open PropPred in --necessary because simp doesn't simp thru scoped instances not in scope
+  simp at hP hQ ⊢
   -- once again we ♥ aesop
   aesop
 
-@[simp] theorem encodesProp_pure (a : α) : encodesProp (pure a : EncCNF L α) (fun _ => True) := by
+@[simp] theorem encodesProp_pure (a : α) : encodesProp (pure a : EncCNF L α) ⊤ := by
   intro s; simp [Pure.pure, StateT.pure]
 
 end EncCNF
 
 /-- The verified encoding monad. -/
-def VEncCNF (L) [LitVar L ν] (α : Type u) (P : PropAssignment ν → Prop) :=
+def VEncCNF (L) [LitVar L ν] (α : Type u) (P : PropPred ν) :=
   { e : EncCNF L α // e.encodesProp P }
 
 namespace VEncCNF
@@ -100,32 +102,35 @@ variable {L} [LitVar L ν]
 instance : CoeHead (VEncCNF L α P) (EncCNF L α) := ⟨(·.1)⟩
 
 theorem toICnf_equisatisfiable [FinEnum ν] (v : VEncCNF L α P) :
-    (∃ τ : PropAssignment _, τ ⊨ v.val.toICnf.toPropFun) ↔
-      ∃ τ : PropAssignment ν, P τ
+    (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toICnf.toPropFun) ↔
+    (∃ τ : PropAssignment ν, open PropPred in τ ⊨ P)
   := by
   rw [v.val.encodesProp_equisatisfiable _ v.property]
 
-def mapProp {P P' : PropAssignment ν → Prop} (h : P = P') : VEncCNF L α P → VEncCNF L α P' :=
+def mapProp {P P' : PropPred ν} (h : P = P') : VEncCNF L α P → VEncCNF L α P' :=
   fun ⟨e,he⟩ => ⟨e, h ▸ he⟩
 
 def newCtx (name : String) (inner : VEncCNF L α P) : VEncCNF L α P :=
   ⟨EncCNF.newCtx name inner, inner.2⟩
 
-protected def pure (a : α) : VEncCNF L α (fun _ => True) := ⟨Pure.pure a, by
-    intro s; simp [Pure.pure, StateT.pure]⟩
+open PropPred in
+protected def pure (a : α) : VEncCNF L α ⊤ :=
+  ⟨ Pure.pure a
+  , by intro s; simp [Pure.pure, StateT.pure]⟩
 
-def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit (· ⊨ ↑C) :=
+def addClause [DecidableEq ν] (C : Clause L) : VEncCNF L Unit C :=
   ⟨EncCNF.addClause C, by
     intro s
     generalize he : (EncCNF.addClause C).1 s = e
     rcases e with ⟨_,s'⟩
     simp [EncCNF.addClause] at he; cases he
-    simp; simp [LawfulState.addClause, State.addClause]
+    simp; simp [SemanticEntails.entails, himp, compl, LawfulState.addClause, State.addClause]
     ⟩
 
+open PropPred in
 /-- runs `e`, adding `ls` to each generated clause -/
 def unlessOneOf [LawfulLitVar L ν] (ls : Array L) (ve : VEncCNF L α P)
-    : VEncCNF L α (fun τ => (∀ l ∈ ls, τ ⊭ ↑l) → P τ) :=
+    : VEncCNF L α (fun τ => (∀ l ∈ ls, τ ⊭ ↑l) → τ ⊨ P) :=
   ⟨EncCNF.unlessOneOf ls ve, by
     -- TODO: terrible, slow proof
     intro s
@@ -152,16 +157,18 @@ def unlessOneOf [LawfulLitVar L ν] (ls : Array L) (ve : VEncCNF L α P)
     simp_all
     clear! s''f s''e s''d sf se sd
     rintro _ _ rfl
-    simp [Clause.satisfies_iff, not_or]
+    simp [Clause.satisfies_iff, not_or, PropPred.satisfies_def]
   ⟩
 
+open PropPred in
 def assuming [LawfulLitVar L ν] (ls : Array L) (e : VEncCNF L α P)
     : VEncCNF L α (fun τ => (∀ l ∈ ls, τ ⊨ ↑l) → P τ) :=
   unlessOneOf (ls.map (- ·)) e |>.mapProp (by
-    ext τ
+    funext τ
     simp [Clause.satisfies_iff, Array.mem_def]
   )
 
+open PropFun in
 set_option pp.proofs.withType false in
 @[inline]
 def withTemps [LawfulLitVar L ν] [DecidableEq ν] (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
@@ -206,10 +213,10 @@ def withTemps [LawfulLitVar L ν] [DecidableEq ν] (n) {P : PropAssignment (ν �
       · rintro ⟨h1,h2⟩
         rcases (inferInstance : Decidable (τ ⊨ ls_pre.assumeVars.toPropFun)) with h | h
         . rcases h2 h with ⟨σ, rfl, _⟩
-          use σ
+          use σ; simp
           tauto
         . let σ : PropAssignment (ν ⊕ Fin n) := fun | .inl x => τ x | _ => false
-          use σ
+          use σ; simp
           have : τ = PropAssignment.map Sum.inl σ := funext fun x => by simp only [PropAssignment.get_map]
           tauto
     · aesop
@@ -241,7 +248,7 @@ macro_rules
     (← `(VEncCNF.pure ()))
 
 @[inline]
-def for_all (arr : Array α) {P : α → PropAssignment ν → Prop} (f : (a : α) → VEncCNF L Unit (P a))
+def for_all (arr : Array α) {P : α → PropPred ν} (f : (a : α) → VEncCNF L Unit (P a))
   : VEncCNF L Unit (fun τ => ∀ a ∈ arr, P a τ) :=
   ⟨ arr.foldlM (fun () x => f x) ()
   , by
@@ -249,7 +256,7 @@ def for_all (arr : Array α) {P : α → PropAssignment ν → Prop} (f : (a : �
     rw [Array.foldlM_eq_foldlM_data]
     simp [Array.mem_def]
     induction L with
-    | nil   => simp
+    | nil   => simp; apply encodesProp_pure
     | cons hd tl ih =>
       simp
       apply bind_encodesProp
@@ -259,15 +266,17 @@ def for_all (arr : Array α) {P : α → PropAssignment ν → Prop} (f : (a : �
 
 -- Cayden TODO: Unit could possibly made to be β instead? Generalize later.
 -- One would think that P could be of type {P : PropFun ν}. But Lean timed out synthesizing that
-def guard (p : Prop) [Decidable p] {P : p → PropAssignment ν → Prop}
+def guard (p : Prop) [Decidable p] {P : p → PropPred ν}
       (f : (h : p) → VEncCNF L Unit (P h))
-  : VEncCNF L Unit (if h : p then P h else fun _ => True) :=
+  : VEncCNF L Unit (if h : p then P h else ⊤) :=
   ⟨ do if h : p then f h
   , by
-    by_cases h : p <;> simp [h]
-    simpa using (f h).2⟩
+    by_cases h : p
+    · simp [h]; simpa using (f h).2
+    · simp [h]
+  ⟩
 
-def ite (p : Prop) [Decidable p] {P : p → PropAssignment ν → Prop} {Q : ¬p → PropAssignment ν → Prop}
+def ite (p : Prop) [Decidable p] {P : p → PropPred ν} {Q : ¬p → PropPred ν}
     (f : (h : p) → VEncCNF L Unit (P h))
     (g : (h : ¬p) → VEncCNF L Unit (Q h))
   : VEncCNF L Unit (if h : p then P h else Q h) :=
@@ -278,12 +287,14 @@ def ite (p : Prop) [Decidable p] {P : p → PropAssignment ν → Prop} {Q : ¬p
     · simpa using (f h).2
     · simpa using (g h).2⟩
 
+open PropFun in
+section
 def andImplyOr [LawfulLitVar L ν] [DecidableEq ν] (hyps : Array L) (conc : Array L)
   : VEncCNF L Unit (fun τ => (∀ h ∈ hyps, τ ⊨ ↑h) → (∃ c ∈ conc, τ ⊨ ↑c)) :=
   addClause (hyps.map LitVar.negate ++ conc)
   |> mapProp (by
     ext τ
-    simp [Clause.satisfies_iff]
+    simp [Clause.satisfies_iff, PropPred.satisfies_def]
     constructor
     · aesop
     · intro h
@@ -360,3 +371,5 @@ def defDisj [LawfulLitVar L ν] [DecidableEq ν] (v : L) (vs : Array L)
   : VEncCNF L Unit (fun τ => τ ⊨ ↑v ↔ (∃ v ∈ vs, τ ⊨ ↑v)) :=
   seq (implyOr v vs) (orImply vs v)
   |> mapProp (by aesop)
+
+end

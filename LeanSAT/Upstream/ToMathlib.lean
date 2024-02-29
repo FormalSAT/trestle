@@ -318,3 +318,7 @@ theorem Fintype.invFun_eq_invFun [Fintype α] [DecidableEq α'] (f f' : α ↪ �
   : PNat.natPred n + 1 = n := by
   match n with
   | ⟨_+1,_⟩ => simp
+
+@[simp] theorem top : ⊤ := by trivial
+
+@[simp] theorem not_bot : ¬⊥ := fun x => nomatch x
