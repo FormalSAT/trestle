@@ -18,6 +18,23 @@ def List.enum' (L : List α) : List (Fin L.length × α) :=
         simp [←h, Nat.add_succ, Nat.succ_add])
   go L 0 (by simp)
 
+theorem List.mem_set : ∀ {l : List α} {i : Nat} {a a' : α},
+    a' ∈ l.set i a → a' ∈ l ∨ a' = a
+  | nil, _, _, _, h => Or.inl h
+  | cons _ bs, 0, _, _, h => by
+    simp only [set, mem_cons] at h ⊢
+    cases h
+    · right; assumption
+    · left; right; assumption
+  | cons b bs, Nat.succ n, _, _, h => by
+    simp only [set, mem_cons] at h ⊢
+    cases h
+    . left; left; assumption
+    · rename _ => h
+      cases mem_set h
+      · left; right; assumption
+      · right; assumption
+
 def Fin.pred? : Fin n → Option (Fin n)
 | ⟨0, _⟩ => none
 | ⟨i+1,h⟩ => some ⟨i, Nat.le_of_succ_le h⟩
@@ -47,6 +64,8 @@ def Fin.succ? : {n : Nat} → Fin n → Option (Fin n)
 def Function.iterate (f : α → α) : Nat → (α → α)
 | 0 => id
 | n+1 => iterate f n ∘ f
+
+/-! Array -/
 
 def Array.init (n : Nat) (f : Fin n → α) : Array α := Id.run do
   let mut A := Array.mkEmpty n
@@ -161,6 +180,52 @@ def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
     some <| A.foldl (start := 1) (max · <| f ·) b0
   else
     none
+
+theorem Array.mkArray_succ (n : Nat) (a : α) :
+    Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
+  apply Array.ext'; simp
+
+theorem Array.mkArray_succ' (n : Nat) (a : α) :
+    Array.mkArray (n + 1) a = (Array.mkArray n a).push a := by
+  apply Array.ext'
+  simp [mkArray_data, List.replicate]
+  induction n with
+  | zero => rfl
+  | succ n ih => simp; exact ih
+
+@[simp] theorem Array.foldl_empty (f : β → α → β) (init : β) (start stop : Nat) :
+    Array.foldl f init #[] start stop = init := by
+  simp [foldl, foldlM, Id.run]
+  by_cases h : stop = 0
+  · simp [h, foldlM.loop]
+  · simp [h]
+    unfold foldlM.loop
+    simp [Nat.not_lt_zero start]
+
+@[simp] theorem Array.foldl_nil (f : β → α → β) (init : β) (start stop : Nat) :
+    Array.foldl f init { data := [] } start stop = init :=
+  Array.foldl_empty f init start stop
+
+@[simp] theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List α) :
+    Array.foldl f init { data := a :: as } 0 (size { data := a :: as }) =
+      Array.foldl f (f init a) { data := as } 0 (size { data := as }) := by
+  simp only [foldl_eq_foldl_data]; rfl
+
+@[simp] theorem Array.foldl_append (f : β → α → β) (init : β) (A B : Array α) :
+    Array.foldl f init (A ++ B) 0 (size (A ++ B)) =
+      Array.foldl f (Array.foldl f init A 0 (size A)) B 0 (size B) := by
+  have ⟨A⟩ := A
+  have ⟨B⟩ := B
+  simp only [foldl_eq_foldl_data, append_data]
+  exact List.foldl_append _ _ _ _
+
+@[simp] theorem Array.size_setD (A : Array α) (i : Nat) (v : α) : (A.setD i v).size = A.size := by
+  rw [setD]; by_cases hi : i < size A <;> simp [hi]
+
+@[simp] theorem Array.size_set! (A : Array α) (i : Nat) (v : α) : (A.set! i v).size = A.size := by
+  rw [set!, Array.size_setD]
+
+/-! List -/
 
 def List.distinct [DecidableEq α] (L : List α) : List α :=
   L.foldl (·.insert ·) []
