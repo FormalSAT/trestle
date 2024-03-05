@@ -27,7 +27,15 @@ The main definitions are:
 
 /-! ### `subst` -/
 
-def PropForm.subst (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropForm ν₂ :=
+open PropFun in
+def PropAssignment.subst (f : ν → PropFun ν') (τ : PropAssignment ν') : PropAssignment ν :=
+  fun v => τ ⊨ f v
+
+/-! # PropForm -/
+
+namespace PropForm
+
+def subst (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropForm ν₂ :=
   match p with
   | .var l => f l
   | .tr => .tr
@@ -38,27 +46,143 @@ def PropForm.subst (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropFor
   | .impl φ₁ φ₂ => .impl (φ₁.subst f) (φ₂.subst f)
   | .biImpl φ₁ φ₂ => .biImpl (φ₁.subst f) (φ₂.subst f)
 
-theorem PropForm.subst_assoc (p : PropForm ν₁) (f₁ : ν₁ → PropForm ν₂) (f₂ : ν₂ → PropForm ν₃)
-  : (p.subst f₁ |>.subst f₂) = p.subst (fun v => f₁ v |>.subst f₂)
-  := by
-  induction p <;> simp [subst, *]
+-- CC: This notation is borrowed from Samuel Buss. Since pipe "|" is Dvd, we use mid "∣".
+-- CC: I've used this notation in the first group of defs and theorems, but kept subst elsewhere.
+-- CC: This is to minimize the refactoring if we determine that this notation isn't good.
+-- CC TODO: Use syntax instead?
+notation φ "∣" σ => subst φ σ
 
-theorem PropForm.vars_subst [DecidableEq ν₁] [DecidableEq ν₂]
-    (p : PropForm ν₁) (f : ν₁ → PropForm ν₂)
-  : vars (p.subst f) = (vars p).biUnion (fun v1 => vars (f v1)) := by
-  induction p <;> simp [subst, Finset.biUnion_union, *]
+section subst
 
-open PropFun in
-def PropAssignment.subst (f : ν → PropFun ν') (τ : PropAssignment ν') : PropAssignment ν :=
-  fun v => τ ⊨ f v
+variable (f f₁ : ν₁ → PropForm ν₂) (f₂ : ν₂ → PropForm ν₃) (φ φ₁ φ₂ : PropForm ν₁)
+
+@[simp] theorem subst_fls  : ((.fls : PropForm ν₁) ∣ f) = .fls       := rfl
+@[simp] theorem subst_tr   : ((.tr : PropForm ν₁) ∣ f) = .tr         := rfl
+@[simp] theorem subst_disj : ((.disj φ₁ φ₂)∣f) = .disj (φ₁∣f) (φ₂∣f) := rfl
+@[simp] theorem subst_conj : ((.conj φ₁ φ₂)∣f) = .conj (φ₁∣f) (φ₂∣f) := rfl
+@[simp] theorem subst_neg  : ((.neg φ)∣f) = .neg (φ∣f)               := rfl
+
+theorem subst_assoc : ((φ∣f₁)∣f₂) = φ∣(fun v => (f₁ v)∣f₂) := by
+  induction φ <;> simp [subst, *]
+
+theorem vars_subst [DecidableEq ν₁] [DecidableEq ν₂]
+  : vars (φ.subst f) = (vars φ).biUnion (fun v1 => vars (f v1)) := by
+  induction φ <;> simp [subst, Finset.biUnion_union, *]
 
 @[simp]
-theorem PropForm.satisfies_subst [DecidableEq ν] (φ : PropForm ν) (f : ν → PropForm ν') {τ : PropAssignment ν'}
-  : τ ⊨ φ.subst f ↔ τ.subst (⟦f ·⟧) ⊨ φ
-  := by induction φ <;> simp [subst, PropAssignment.subst, *]; rw [PropFun.satisfies_mk]
+theorem satisfies_subst {φ : PropForm ν₁} {f} {τ : PropAssignment ν₂}
+    : τ ⊨ φ.subst f ↔ τ.subst (⟦f ·⟧) ⊨ φ := by
+  induction φ <;> simp [subst, PropAssignment.subst, *]; rw [PropFun.satisfies_mk]
+
+-- CC: Better to use equivalence or ⟦ ⟧ = ⟦ ⟧?
+theorem subst_congr {φ₁ φ₂} (hφ : equivalent φ₁ φ₂)
+    : ∀ (σ : ν₁ → PropForm ν₂), (⟦φ₁.subst σ⟧ : PropFun _) = ⟦φ₂.subst σ⟧ := by
+  intro σ
+  apply PropFun.ext
+  intro τ
+  -- CC: simp_rw doesn't work here, for some reason...
+  rw [PropFun.satisfies_mk, PropFun.satisfies_mk, satisfies_subst, satisfies_subst,
+      ← PropFun.satisfies_mk, ← PropFun.satisfies_mk, Quotient.sound hφ]
+
+end subst /- section -/
+
+/-! ### `substOne` -/
+
+def substOne [DecidableEq ν] (φ : PropForm ν) (v : ν) (ψ : PropForm ν) : PropForm ν :=
+  φ.subst (fun v' => if v' = v then ψ else .var v')
+
+section substOne
+
+variable [DecidableEq ν] (φ φ₁ φ₂ : PropForm ν) (v : ν) (ψ ψ₁ ψ₂ : PropForm ν)
+
+theorem satisfies_substOne {φ : PropForm ν} {v} {τ : PropAssignment ν}
+    : τ ⊨ φ.substOne v ψ ↔ τ.set v (τ ⊨ ψ) ⊨ φ := by
+  simp [substOne]
+  apply iff_of_eq; congr
+  ext v
+  simp [PropAssignment.subst, PropAssignment.set]
+  split <;> simp
+  exact PropFun.satisfies_mk
+
+-- CC: Use `@Eq (PropFun _) ⟦ψ₁⟧ ⟦ψ₂⟧` or `equivalent φ₁ φ₂`?
+theorem substOne_congr {φ₁ φ₂ ψ₁ ψ₂} (v : ν) (hφ : @Eq (PropFun _) ⟦φ₁⟧ ⟦φ₂⟧) (hψ : @Eq (PropFun _) ⟦ψ₁⟧ ⟦ψ₂⟧)
+  : (⟦ φ₁.substOne v ψ₁ ⟧ : PropFun _) = ⟦ φ₂.substOne v ψ₂ ⟧ := by
+  apply PropFun.ext
+  intro τ
+  rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
+  simp [substOne]
+  rw [← PropFun.satisfies_mk, ← PropFun.satisfies_mk, hφ]
+  apply iff_of_eq; congr; ext v
+  simp [PropAssignment.subst]
+  split
+  · rw [hψ]
+  · simp
+
+theorem vars_substOne : (PropForm.substOne φ v ψ).vars ⊆ (φ.vars \ {v}) ∪ ψ.vars := by
+  induction φ with
+  | var =>
+      intro v hv; simp [subst, substOne] at hv ⊢
+      split at hv
+      · simp [hv]
+      · simp at hv; subst_vars; simp [*]
+  | tr  => simp
+  | fls => simp
+  | neg φ₁ ih => simp; exact ih
+  | disj φ₁ φ₂ ih₁ ih₂
+  | conj φ₁ φ₂ ih₁ ih₂
+  | impl φ₁ φ₂ ih₁ ih₂
+  | biImpl φ₁ φ₂ ih₁ ih₂ =>
+    intro v hv; simp at *
+    cases hv
+    · have := ih₁ ‹_›
+      simp at this; rcases this with ⟨a,b⟩|c <;> simp [*]
+    · have := ih₂ ‹_›
+      simp at this; rcases this with ⟨a,b⟩|c <;> simp [*]
+
+end substOne /- section -/
+
+end PropForm
+
+/-! # PropFun -/
+
+namespace PropFun
+
+-- CC: A computable, lifting version of subst. Note the mis-ordering of arguments.
+def substL (f : ν₁ → PropForm ν₂) : PropFun ν₁ → PropFun ν₂ :=
+  Quotient.lift (⟦PropForm.subst · f⟧) (fun _ _ h => PropForm.subst_congr h f)
+
+section substL
+
+variable (f : ν₁ → PropForm ν₂) (φ₁ φ₂ : PropFun ν₁) (v : ν₁)
+
+@[simp] theorem substL_distrib : substL f ⟦v⟧ = ⟦f v⟧ := rfl
+@[simp] theorem substL_bot : substL f ⊥ = ⊥ := rfl
+@[simp] theorem substL_top : substL f ⊤ = ⊤ := rfl
+
+@[simp] theorem substL_disj : substL f (φ₁ ⊔ φ₂) = substL f φ₁ ⊔ substL f φ₂ := by
+  have ⟨φ₁, hφ₁⟩ := φ₁.exists_rep; cases hφ₁
+  have ⟨φ₂, hφ₂⟩ := φ₂.exists_rep; cases hφ₂
+  rfl
+
+@[simp] theorem substL_conj : substL f (φ₁ ⊓ φ₂) = substL f φ₁ ⊓ substL f φ₂ := by
+  have ⟨φ₁, hφ₁⟩ := φ₁.exists_rep; cases hφ₁
+  have ⟨φ₂, hφ₂⟩ := φ₂.exists_rep; cases hφ₂
+  rfl
+
+@[simp] theorem substL_neg : substL f (neg φ) = neg (substL f φ) := by
+  have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
+  rfl
+
+@[simp] theorem satisfies_substL {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂} :
+    τ ⊨ φ.substL f ↔ τ.subst (⟦f ·⟧) ⊨ φ := by
+  have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
+  simp [substL]
+  rw [satisfies_mk, satisfies_mk, PropForm.satisfies_subst]
+
+end substL /- section -/
 
 noncomputable
-def PropFun.subst [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) : PropFun ν₂ :=
+def subst (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) : PropFun ν₂ :=
   φ.prod (Quotient.choice f)
   |>.lift (fun (p,f) => ⟦ p.subst f ⟧) (by
     rintro ⟨p1,f1⟩ ⟨p2,f2⟩ hab
@@ -71,13 +195,16 @@ def PropFun.subst [DecidableEq ν₁] (φ : PropFun ν₁) (f : ν₁ → PropFu
     apply PropForm.equivalent_ext.mp hp
   )
 
+section subst
+
+variable (φ φ₁ φ₂ : PropFun ν₁) (f f₁ : ν₁ → PropFun ν₂) (τ : PropAssignment ν₂) (v : ν₁)
+
 @[simp]
-theorem PropFun.satisfies_subst [DecidableEq ν₁]
-    (φ : PropFun ν₁) (f : ν₁ → PropFun ν₂) (τ : PropAssignment ν₂)
-  : τ ⊨ φ.subst f ↔ τ.subst f ⊨ φ := by
+theorem satisfies_subst {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
+    : τ ⊨ φ.subst f ↔ τ.subst f ⊨ φ := by
   unfold subst
   generalize hq : φ.prod (Quotient.choice f) = q
-  have ⟨(p,f'),h⟩ := q.exists_rep; cases h
+  rcases q.exists_rep with ⟨⟨p, f'⟩, rfl⟩
   simp [Quotient.lift_mk (s := .prod _ _)]
   rw [satisfies_mk, PropForm.satisfies_subst, ← satisfies_mk]
   rw [Quotient.prod_eq_mk] at hq
@@ -87,6 +214,26 @@ theorem PropFun.satisfies_subst [DecidableEq ν₁]
   have := Quotient.sound (hq x)
   simp at this
   exact this.symm
+
+-- CC: Unsure how to prove for fancy `subst`.
+--@[simp] theorem subst_distrib : subst ⟦v⟧ f = f v := by
+
+@[simp] theorem subst_bot : subst ⊥ f = ⊥ := rfl
+@[simp] theorem subst_top : subst ⊤ f = ⊤ := rfl
+
+@[simp] theorem subst_disj : subst (φ₁ ⊔ φ₂) f = subst φ₁ f ⊔ subst φ₂ f := by
+  have ⟨φ₁, hφ₁⟩ := φ₁.exists_rep; cases hφ₁
+  have ⟨φ₂, hφ₂⟩ := φ₂.exists_rep; cases hφ₂
+  rfl
+
+@[simp] theorem subst_conj : subst (φ₁ ⊓ φ₂) f = subst φ₁ f ⊓ subst φ₂ f := by
+  have ⟨φ₁, hφ₁⟩ := φ₁.exists_rep; cases hφ₁
+  have ⟨φ₂, hφ₂⟩ := φ₂.exists_rep; cases hφ₂
+  rfl
+
+@[simp] theorem subst_neg : subst (neg φ) f = neg (subst φ f) := by
+  have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
+  rfl
 
 theorem PropFun.semVars_subst [DecidableEq ν₁] [DecidableEq ν₂]
     {φ} {f : ν₁ → PropFun ν₂}
@@ -122,62 +269,9 @@ theorem PropFun.semVars_subst [DecidableEq ν₁] [DecidableEq ν₂]
     refine ⟨_, h1, ?_⟩
     simp [h]
 
+end subst /- section -/
 
-/-! ### `substOne` -/
-
-def PropForm.substOne [DecidableEq ν] (φ : PropForm ν) (v : ν) (φ' : PropForm ν) : PropForm ν :=
-  φ.subst (fun v' => if v' = v then φ' else .var v')
-
-theorem PropForm.substOne_congr [DecidableEq ν]
-      (φ₁ φ₂ : PropForm ν) (v : ν) (ψ₁ ψ₂ : PropForm ν)
-      (hφ : @Eq (PropFun _) ⟦φ₁⟧ ⟦φ₂⟧) (hψ : @Eq (PropFun _) ⟦ψ₁⟧ ⟦ψ₂⟧)
-  : (⟦ φ₁.substOne v ψ₁ ⟧ : PropFun _) = ⟦ φ₂.substOne v ψ₂ ⟧
-  := by
-  apply PropFun.ext
-  intro τ
-  rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
-  simp [substOne]
-  rw [←PropFun.satisfies_mk, ←PropFun.satisfies_mk]
-  rw [hφ]
-  simp
-  apply iff_of_eq; congr; ext v
-  simp [PropAssignment.subst]
-  split
-  · rw [hψ]
-  · simp
-
-theorem PropForm.satisfies_substOne [DecidableEq ν] (φ : PropForm ν) (v : ν) (ψ : PropForm ν)
-        (τ : PropAssignment ν)
-  : τ ⊨ φ.substOne v ψ ↔ τ.set v (τ ⊨ ψ) ⊨ φ := by
-  simp [substOne]
-  apply iff_of_eq; congr
-  ext v
-  simp [PropAssignment.subst, PropAssignment.set]
-  split <;> simp
-  exact PropFun.satisfies_mk
-
-theorem PropForm.vars_substOne [DecidableEq ν] (v : ν) : (PropForm.substOne φ v φ').vars ⊆ (φ.vars \ {v}) ∪ φ'.vars := by
-  induction φ with
-  | var =>
-      intro v hv; simp [subst, substOne] at hv ⊢
-      split at hv
-      · simp [hv]
-      · simp at hv; subst_vars; simp [*]
-  | tr  => simp
-  | fls => simp
-  | neg φ₁ ih => simp; exact ih
-  | disj φ₁ φ₂ ih₁ ih₂
-  | conj φ₁ φ₂ ih₁ ih₂
-  | impl φ₁ φ₂ ih₁ ih₂
-  | biImpl φ₁ φ₂ ih₁ ih₂ =>
-    intro v hv; simp at *
-    cases hv
-    · have := ih₁ ‹_›
-      simp at this; rcases this with ⟨a,b⟩|c <;> simp [*]
-    · have := ih₂ ‹_›
-      simp at this; rcases this with ⟨a,b⟩|c <;> simp [*]
-
-def PropFun.substOne [DecidableEq ν] (ψ : PropFun ν) (v : ν) (φ : PropFun ν) : PropFun ν :=
+def substOne [DecidableEq ν] (ψ : PropFun ν) (v : ν) (φ : PropFun ν) : PropFun ν :=
   ψ.lift (fun ψ => φ.lift (fun φ => ⟦ψ.substOne v φ⟧) (by
       intro a b h
       ext τ
@@ -197,21 +291,27 @@ def PropFun.substOne [DecidableEq ν] (ψ : PropFun ν) (v : ν) (φ : PropFun �
     · simp
     )
 
+section substOne
+
 @[simp]
-theorem PropFun.satisfies_substOne [DecidableEq ν] (ψ : PropFun ν)
-      (v : ν) (φ : PropFun ν) (τ : PropAssignment ν)
-  : τ ⊨ ψ.substOne v φ ↔ τ.set v (τ ⊨ φ) ⊨ ψ := by
+theorem satisfies_substOne [DecidableEq ν] {φ ψ : PropFun ν} {v : ν} {τ : PropAssignment ν}
+    : τ ⊨ ψ.substOne v φ ↔ τ.set v (τ ⊨ φ) ⊨ ψ := by
   have ⟨ψ,hψ⟩ := ψ.exists_rep; cases hψ
   have ⟨φ,hφ⟩ := φ.exists_rep; cases hφ
   simp [substOne]; rw [satisfies_mk, satisfies_mk]
   rw [PropForm.satisfies_substOne]
   rfl
 
+end substOne /- section -/
+
+end PropFun
 
 /-! ### `map` -/
 
+namespace PropForm
+
 @[simp]
-def PropForm.map (f : ν₁ → ν₂) : PropForm ν₁ → PropForm ν₂
+def map (f : ν₁ → ν₂) : PropForm ν₁ → PropForm ν₂
 | .var l => .var (f l)
 | .tr => .tr
 | .fls => .fls
@@ -221,21 +321,22 @@ def PropForm.map (f : ν₁ → ν₂) : PropForm ν₁ → PropForm ν₂
 | .impl φ₁ φ₂ => .impl (map f φ₁) (map f φ₂)
 | .biImpl φ₁ φ₂ => .biImpl (map f φ₁) (map f φ₂)
 
+section map
+
+variable (f : ν₁ → ν₂) (φ φ₁ φ₂ : PropForm ν₁)
+
 @[simp]
-theorem PropForm.vars_map [DecidableEq ν₁] [DecidableEq ν₂]
-      (f : ν₁ → ν₂) (φ : PropForm ν₁)
-  : vars (φ.map f) = φ.vars.image f := by
+theorem vars_map [DecidableEq ν₁] [DecidableEq ν₂] : vars (φ.map f) = φ.vars.image f := by
   induction φ <;> simp [*, Finset.image_union]
 
-theorem PropForm.satisfies_map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) (φ : PropForm ν₂)
-  : τ ⊨ φ.map f ↔ (τ.map f) ⊨ φ
-  := by
+theorem satisfies_map {φ : PropForm ν₁} {f} {τ : PropAssignment ν₂}
+    : τ ⊨ φ.map f ↔ (τ.map f) ⊨ φ := by
   induction φ <;> (simp [map, PropAssignment.map] at *) <;> (simp [*])
 
 @[simp]
-theorem PropForm.semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν₁]
-      (f : ν₁ → ν₂) (hf : f.Injective) (φ : PropForm ν₁)
-  : PropFun.semVars ⟦φ.map f⟧ = (PropFun.semVars ⟦φ⟧).map ⟨f,hf⟩ := by
+theorem semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν₁]
+      {f : ν₁ → ν₂} (hf : f.Injective) (φ : PropForm ν₁)
+    : PropFun.semVars ⟦φ.map f⟧ = (PropFun.semVars ⟦φ⟧).map ⟨f,hf⟩ := by
   ext v2; simp
   constructor
   · intro h
@@ -266,57 +367,50 @@ theorem PropForm.semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν
     · exact hneg
     · assumption
 
-def PropFun.map (f : ν → ν') (φ : PropFun ν) : PropFun ν' :=
+end map /- section -/
+
+end PropForm
+
+namespace PropFun
+
+def map (f : ν₁ → ν₂) (φ : PropFun ν₁) : PropFun ν₂ :=
   φ.lift (⟦ PropForm.map f · ⟧) (by
     intro a b h
     simp
     ext τ
     rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
     simp [PropForm.satisfies_map]
-    rw [← PropFun.satisfies_mk, ← PropFun.satisfies_mk]
-    rw [Quotient.eq.mpr h])
+    rw [← PropFun.satisfies_mk, ← PropFun.satisfies_mk, Quotient.eq.mpr h]
+  )
+
+section map
 
 @[simp]
-theorem PropFun.satisfies_map (f : ν → ν') (τ : PropAssignment ν') (φ : PropFun ν)
-  : τ ⊨ φ.map f ↔ (τ.map f) ⊨ φ
-  := by
+theorem satisfies_map {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
+    : τ ⊨ φ.map f ↔ (τ.map f) ⊨ φ := by
   let ⟨ϕ,hϕ⟩ := φ.toTrunc.out
   cases hϕ
   simp [map]
   rw [satisfies_mk, satisfies_mk]
   apply PropForm.satisfies_map
 
-theorem PropFun.semVars_map [DecidableEq ν] [DecidableEq ν'] [Fintype ν]
-    (f : ν → ν') (φ : PropFun ν) (hf : f.Injective)
-  : (φ.map f).semVars = φ.semVars.map ⟨f,hf⟩ := by
+theorem semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν₁]
+    (f : ν₁ → ν₂) (φ : PropFun ν₁) (hf : f.Injective)
+    : (φ.map f).semVars = φ.semVars.map ⟨f,hf⟩ := by
   let ⟨ϕ,hϕ⟩ := φ.toTrunc.out; cases hϕ
   simp [map, *, PropForm.semVars_map]
 
-@[simp]
-theorem PropFun.map_var (f : ν₁ → ν₂) : map f (.var v) = .var (f v) := rfl
+variable (f : ν₁ → ν₂) (φ φ₁ φ₂ : PropFun ν₁)
 
-@[simp]
-theorem PropFun.map_tr (f : ν₁ → ν₂) : map f ⊤ = ⊤ := rfl
+@[simp] theorem map_var (v : ν₁) : map f (.var v) = .var (f v) := rfl
+@[simp] theorem map_tr  : map f ⊤ = ⊤ := rfl
+@[simp] theorem map_fls : map f ⊥ = ⊥ := rfl
+@[simp] theorem map_neg  : map f (φᶜ) = (map f φ)ᶜ := by ext; simp
+@[simp] theorem map_conj : map f (φ₁ ⊓ φ₂) = (map f φ₁ ⊓ map f φ₂) := by ext; simp
+@[simp] theorem map_disj : map f (φ₁ ⊔ φ₂) = (map f φ₁ ⊔ map f φ₂) := by ext; simp
+@[simp] theorem map_impl : map f (φ₁ ⇨ φ₂) = (map f φ₁ ⇨ map f φ₂) := by ext; simp
+@[simp] theorem map_biImpl : map f (biImpl φ₁ φ₂) = .biImpl (map f φ₁) (map f φ₂) := by ext; simp
 
-@[simp]
-theorem PropFun.map_fls (f : ν₁ → ν₂) : map f ⊥ = ⊥ := rfl
+end map /- section -/
 
-@[simp]
-theorem PropFun.map_neg (f : ν₁ → ν₂) : map f (φᶜ) = (map f φ)ᶜ
-  := by ext; simp
-
-@[simp]
-theorem PropFun.map_conj (f : ν₁ → ν₂) : map f (φ₁ ⊓ φ₂) = (map f φ₁ ⊓ map f φ₂)
-  := by ext; simp
-
-@[simp]
-theorem PropFun.map_disj (f : ν₁ → ν₂) : map f (φ₁ ⊔ φ₂) = (map f φ₁ ⊔ map f φ₂)
-  := by ext; simp
-
-@[simp]
-theorem PropFun.map_impl (f : ν₁ → ν₂) : map f (φ₁ ⇨ φ₂) = (map f φ₁ ⇨ map f φ₂)
-  := by ext; simp
-
-@[simp]
-theorem PropFun.map_biImpl (f : ν₁ → ν₂) : map f (biImpl φ₁ φ₂) = .biImpl (map f φ₁) (map f φ₂)
-  := by ext; simp
+end PropFun
