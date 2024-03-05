@@ -327,6 +327,25 @@ theorem biImpl_eq_impls (φ ψ : PropFun ν) : biImpl φ ψ = (φ ⇨ ψ) ⊓ (�
 @[simp] theorem biImpl_bot_right (φ : PropFun ν) : biImpl φ ⊥ = φᶜ := by
   ext τ; aesop
 
+-- CC: Some additional simplifications, for reasoning about ≤
+theorem inf_le_iff_compl_sup {φ₁ φ₂ φ₃ : PropFun ν} : φ₁ ⊓ φ₂ ≤ φ₃ ↔ φ₁ ≤ φ₂ᶜ ⊔ φ₃ :=
+  BooleanAlgebra.inf_le_iff_le_compl_sup
+
+theorem le_iff_inf_compl_le_bot {φ₁ φ₂ : PropFun ν} : φ₁ ≤ φ₂ ↔ φ₁ ⊓ φ₂ᶜ ≤ ⊥ :=
+  BooleanAlgebra.le_iff_inf_compl_le_bot
+
+theorem le_iff_inf_compl_eq_bot {φ₁ φ₂ : PropFun ν} : φ₁ ≤ φ₂ ↔ φ₁ ⊓ φ₂ᶜ = ⊥ :=
+  BooleanAlgebra.le_iff_inf_compl_eq_bot
+
+theorem ne_top_left_of_disj_ne_top {φ₁ φ₂ : PropFun ν} : φ₁ ⊔ φ₂ ≠ ⊤ → φ₁ ≠ ⊤ := by
+  intro h; aesop
+
+theorem ne_top_right_of_disj_ne_top {φ₁ φ₂ : PropFun ν} : φ₁ ⊔ φ₂ ≠ ⊤ → φ₂ ≠ ⊤ := by
+  intro h; aesop
+
+theorem ne_top_of_disj_ne_top {φ₁ φ₂ : PropFun ν} : φ₁ ⊔ φ₂ ≠ ⊤ → φ₁ ≠ ⊤ ∧ φ₂ ≠ ⊤ :=
+  fun h => ⟨ne_top_left_of_disj_ne_top h, ne_top_right_of_disj_ne_top h⟩
+
 theorem var.inj [DecidableEq ν] : (var (ν := ν)).Injective := by
   intro v1 v2 h
   rw [ext_iff] at h
@@ -403,6 +422,41 @@ def any (a : Multiset (PropFun ν)) : PropFun ν :=
   induction a using Multiset.induction with
   | empty => simp [any]
   | cons => simp_all [any]
+
+/-! # satisfiable and eqsat -/
+
+def satisfiable (φ : PropFun ν) : Prop :=
+  ∃ (τ : PropAssignment ν), τ ⊨ φ
+
+def eqsat (φ₁ φ₂ : PropFun ν) : Prop :=
+  satisfiable φ₁ ↔ satisfiable φ₂
+
+@[symm]
+def eqsat.symm {φ₁ φ₂ : PropFun ν} : eqsat φ₁ φ₂ ↔ eqsat φ₂ φ₁ :=
+  ⟨fun h => ⟨h.2, h.1⟩, fun h => ⟨h.2, h.1⟩⟩
+
+@[trans]
+def eqsat.trans {φ₁ φ₂ φ₃ : PropFun ν} : eqsat φ₁ φ₂ → eqsat φ₂ φ₃ → eqsat φ₁ φ₃ :=
+  fun h₁ h₂ => ⟨fun h => h₂.1 (h₁.1 h), fun h => h₁.2 (h₂.2 h)⟩
+
+def bot_not_satisfiable : ¬satisfiable (⊥ : PropFun ν) := by
+  intro h
+  rcases h with ⟨τ, h⟩
+  exact nomatch h
+
+theorem not_satisfiable_iff_eq_bot {F : PropFun ν} : ¬satisfiable F ↔ F = ⊥ := by
+  simp [satisfiable]; aesop
+
+theorem eq_bot_of_eqsat {F C : PropFun ν} : eqsat F (F ⊓ C) → (F ⊓ C) = ⊥ → F = ⊥ := by
+  rintro ⟨h₁, _⟩ hFC
+  rw [hFC] at h₁
+  have := mt h₁ bot_not_satisfiable
+  exact not_satisfiable_iff_eq_bot.mp (mt h₁ bot_not_satisfiable)
+
+theorem eqsat_of_entails {F C : PropFun ν} : F ≤ C → eqsat F (F ⊓ C) := by
+  intro h_entails
+  simp only [eqsat, satisfiable, ge_iff_le, satisfies_conj]
+  exact ⟨fun ⟨τ, hτ⟩ => ⟨τ, hτ, h_entails τ hτ⟩, fun ⟨τ, hτ, _⟩ => ⟨τ, hτ⟩⟩
 
 namespace Notation
 open PropForm.Notation

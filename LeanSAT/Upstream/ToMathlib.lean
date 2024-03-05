@@ -33,6 +33,14 @@ class SemanticEntails (α : Type u) (β : outParam $ Type v) where
 infix:51 " ⊨ " => SemanticEntails.entails
 infix:51 " ⊭ " => fun M φ => ¬(M ⊨ φ)
 
+/-! Nat -/
+
+theorem Nat.eq_or_lt_of_lt_succ {m n : Nat} : m < n + 1 → m = n ∨ m < n := by
+  intro h
+  rcases eq_or_lt_of_le (Nat.le_of_lt_succ h) with (rfl | h)
+  · exact Or.inl rfl
+  · exact Or.inr h
+
 /-! Int -/
 
 theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 := by
@@ -74,6 +82,15 @@ theorem Multiset.elim_eq_forall {α β : Type*} {s : Multiset α} {f : (L : List
     (motive : Prop) (hmotive : ∀ {L hL}, Multiset.elim s f h = f L hL → motive) : motive := by
   induction s using Quotient.inductionOn with | _ L =>
   exact hmotive rfl
+
+-- CC: Can probably be stated more elegantly / might not want to Mathlib
+theorem Fin.succFin_of_ne {n : Nat} {i : Fin n} :
+  i.val + 1 ≠ n → i.val + 1 < n := by
+  intro hi
+  have := i.isLt
+  rcases eq_or_lt_of_le (Nat.succ_le_of_lt this) with (h | h)
+  · exact absurd h hi
+  · exact h
 
 abbrev Finset.elim {α β : Type*} (s : Finset α) (f : (L : List α) → L = s.val → β)
     (h : ∀ a b ha hb, f a ha = f b hb) : β :=
@@ -330,3 +347,39 @@ def Array.finRange (n : Nat) : Array (Fin n) :=
 @[simp] theorem top : ⊤ := by trivial
 
 @[simp] theorem not_bot : ¬⊥ := fun x => nomatch x
+
+namespace BooleanAlgebra
+
+variable {α : Type _} [BooleanAlgebra α] {a b c : α}
+
+-- CC TODO: Generalize? add to some library? simplify proof in terms of other ops?
+--          For example, inf_of_le_left uses the [Semilattice] typeclass.
+-- CC Q: Is this the right namespace? usually these lemmas are at root namespace
+theorem inf_le_iff_le_compl_sup : a ⊓ b ≤ c ↔ a ≤ bᶜ ⊔ c := by
+  constructor
+  · intro h
+    have : bᶜ ⊔ (a ⊓ b) ≤ bᶜ ⊔ c := sup_le_sup_left h bᶜ
+    replace := le_trans le_sup_inf this
+    simp only [compl_sup_eq_top, ge_iff_le, le_top, inf_of_le_left, sup_le_iff, le_sup_left,
+      true_and] at this
+    exact this
+  · intro h
+    rw [sup_comm] at h
+    have : a ⊓ b ≤ (c ⊔ bᶜ) ⊓ b := inf_le_inf_right b h
+    simp [inf_sup_right] at this
+    exact this
+
+theorem inf_compl_le_iff_le_sup : a ⊓ bᶜ ≤ c ↔ a ≤ b ⊔ c := by
+  conv => rhs; rhs; lhs; rw [← compl_compl b]
+  exact BooleanAlgebra.inf_le_iff_le_compl_sup
+
+theorem le_iff_inf_compl_le_bot : a ≤ b ↔ a ⊓ bᶜ ≤ ⊥ := by
+  conv => lhs; rhs; rw [← compl_compl b]
+  have : bᶜᶜ = bᶜᶜ ⊔ ⊥ := by exact sup_bot_eq.symm
+  rw [this]
+  exact inf_le_iff_le_compl_sup.symm
+
+theorem le_iff_inf_compl_eq_bot : a ≤ b ↔ a ⊓ bᶜ = ⊥ := by
+  rw [← le_bot_iff]; exact le_iff_inf_compl_le_bot
+
+end BooleanAlgebra
