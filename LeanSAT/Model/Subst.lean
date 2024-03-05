@@ -46,23 +46,17 @@ def subst (p : PropForm ν₁) (f : ν₁ → PropForm ν₂) : PropForm ν₂ :
   | .impl φ₁ φ₂ => .impl (φ₁.subst f) (φ₂.subst f)
   | .biImpl φ₁ φ₂ => .biImpl (φ₁.subst f) (φ₂.subst f)
 
--- CC: This notation is borrowed from Samuel Buss. Since pipe "|" is Dvd, we use mid "∣".
--- CC: I've used this notation in the first group of defs and theorems, but kept subst elsewhere.
--- CC: This is to minimize the refactoring if we determine that this notation isn't good.
--- CC TODO: Use syntax instead?
-notation φ "∣" σ => subst φ σ
-
 section subst
 
 variable (f f₁ : ν₁ → PropForm ν₂) (f₂ : ν₂ → PropForm ν₃) (φ φ₁ φ₂ : PropForm ν₁)
 
-@[simp] theorem subst_fls  : ((.fls : PropForm ν₁) ∣ f) = .fls       := rfl
-@[simp] theorem subst_tr   : ((.tr : PropForm ν₁) ∣ f) = .tr         := rfl
-@[simp] theorem subst_disj : ((.disj φ₁ φ₂)∣f) = .disj (φ₁∣f) (φ₂∣f) := rfl
-@[simp] theorem subst_conj : ((.conj φ₁ φ₂)∣f) = .conj (φ₁∣f) (φ₂∣f) := rfl
-@[simp] theorem subst_neg  : ((.neg φ)∣f) = .neg (φ∣f)               := rfl
+@[simp] theorem subst_fls  : subst (.fls : PropForm ν₁) f = .fls                     := rfl
+@[simp] theorem subst_tr   : subst (.tr : PropForm ν₁) f = .tr                       := rfl
+@[simp] theorem subst_disj : subst (.disj φ₁ φ₂) f = .disj (subst φ₁ f) (subst φ₂ f) := rfl
+@[simp] theorem subst_conj : subst (.conj φ₁ φ₂) f = .conj (subst φ₁ f) (subst φ₂ f) := rfl
+@[simp] theorem subst_neg  : subst (.neg φ) f = .neg (subst φ f)                     := rfl
 
-theorem subst_assoc : ((φ∣f₁)∣f₂) = φ∣(fun v => (f₁ v)∣f₂) := by
+theorem subst_assoc : (subst (subst φ f₁) f₂) = subst φ (fun v => subst (f₁ v) f₂) := by
   induction φ <;> simp [subst, *]
 
 theorem vars_subst [DecidableEq ν₁] [DecidableEq ν₂]
