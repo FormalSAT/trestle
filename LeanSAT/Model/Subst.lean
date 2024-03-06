@@ -68,13 +68,14 @@ theorem satisfies_subst {φ : PropForm ν₁} {f} {τ : PropAssignment ν₂}
     : τ ⊨ φ.subst f ↔ τ.subst (⟦f ·⟧) ⊨ φ := by
   induction φ <;> simp [subst, PropAssignment.subst, *]; rw [PropFun.satisfies_mk]
 
--- CC: Better to use equivalence or ⟦ ⟧ = ⟦ ⟧?
-theorem subst_congr {φ₁ φ₂} (hφ : equivalent φ₁ φ₂)
+-- CC: Standardize use of (⟦⟧ = ⟦⟧) vs. `equivalent`? Rn we use the former.
+theorem subst_congr {φ₁ φ₂} (hφ : (⟦φ₁⟧ : PropFun _) = ⟦φ₂⟧)
     : ∀ (σ : ν₁ → PropForm ν₂), (⟦φ₁.subst σ⟧ : PropFun _) = ⟦φ₂.subst σ⟧ := by
   intro σ
   apply PropFun.ext
   intro τ
-  -- CC: simp_rw doesn't work here, for some reason...
+  rw [Quotient.eq] at hφ
+  -- CC: `simp_rw` gives an error here. James claims the newest version of Lean fixes this bug.
   rw [PropFun.satisfies_mk, PropFun.satisfies_mk, satisfies_subst, satisfies_subst,
       ← PropFun.satisfies_mk, ← PropFun.satisfies_mk, Quotient.sound hφ]
 
@@ -98,9 +99,9 @@ theorem satisfies_substOne {φ : PropForm ν} {v} {τ : PropAssignment ν}
   split <;> simp
   exact PropFun.satisfies_mk
 
--- CC: Use `@Eq (PropFun _) ⟦ψ₁⟧ ⟦ψ₂⟧` or `equivalent φ₁ φ₂`?
-theorem substOne_congr {φ₁ φ₂ ψ₁ ψ₂} (v : ν) (hφ : @Eq (PropFun _) ⟦φ₁⟧ ⟦φ₂⟧) (hψ : @Eq (PropFun _) ⟦ψ₁⟧ ⟦ψ₂⟧)
-  : (⟦ φ₁.substOne v ψ₁ ⟧ : PropFun _) = ⟦ φ₂.substOne v ψ₂ ⟧ := by
+theorem substOne_congr {φ₁ φ₂ ψ₁ ψ₂} (v : ν)
+    (hφ : (⟦φ₁⟧ : PropFun _) =  ⟦φ₂⟧) (hψ : (⟦ψ₁⟧ : PropFun _) = ⟦ψ₂⟧)
+    : (⟦ φ₁.substOne v ψ₁ ⟧ : PropFun _) = ⟦ φ₂.substOne v ψ₂ ⟧ := by
   apply PropFun.ext
   intro τ
   rw [PropFun.satisfies_mk, PropFun.satisfies_mk]
@@ -141,29 +142,32 @@ end PropForm
 
 namespace PropFun
 
--- CC: A computable, lifting version of subst. Note the mis-ordering of arguments.
-def substL (f : ν₁ → PropForm ν₂) : PropFun ν₁ → PropFun ν₂ :=
-  Quotient.lift (⟦PropForm.subst · f⟧) (fun _ _ h => PropForm.subst_congr h f)
+-- A computable, lifting version of `PropFun.subst` below.
+-- `PropForm.subst` maps a substitution function over the atoms of a PropForm.
+-- `substL` lifts the same substitution over PropForms into one over PropFuns.
+def substL (φ : PropFun ν₁) (f : ν₁ → PropForm ν₂) : PropFun ν₂ :=
+  φ |> Quotient.lift (⟦PropForm.subst · f⟧)
+    (fun _ _ h => PropForm.subst_congr (Quotient.eq.mpr h) f)
 
 section substL
 
 variable (f : ν₁ → PropForm ν₂) (φ₁ φ₂ : PropFun ν₁) (v : ν₁)
 
-@[simp] theorem substL_distrib : substL f ⟦v⟧ = ⟦f v⟧ := rfl
-@[simp] theorem substL_bot : substL f ⊥ = ⊥ := rfl
-@[simp] theorem substL_top : substL f ⊤ = ⊤ := rfl
+@[simp] theorem substL_distrib : substL ⟦v⟧ f = ⟦f v⟧ := rfl
+@[simp] theorem substL_bot : substL ⊥ f = ⊥ := rfl
+@[simp] theorem substL_top : substL ⊤ f = ⊤ := rfl
 
-@[simp] theorem substL_disj : substL f (φ₁ ⊔ φ₂) = substL f φ₁ ⊔ substL f φ₂ := by
+@[simp] theorem substL_disj : substL (φ₁ ⊔ φ₂) f = substL φ₁ f ⊔ substL φ₂ f := by
   have ⟨φ₁, hφ₁⟩ := φ₁.exists_rep; cases hφ₁
   have ⟨φ₂, hφ₂⟩ := φ₂.exists_rep; cases hφ₂
   rfl
 
-@[simp] theorem substL_conj : substL f (φ₁ ⊓ φ₂) = substL f φ₁ ⊓ substL f φ₂ := by
+@[simp] theorem substL_conj : substL (φ₁ ⊓ φ₂) f = substL φ₁ f ⊓ substL φ₂ f := by
   have ⟨φ₁, hφ₁⟩ := φ₁.exists_rep; cases hφ₁
   have ⟨φ₂, hφ₂⟩ := φ₂.exists_rep; cases hφ₂
   rfl
 
-@[simp] theorem substL_neg : substL f (neg φ) = neg (substL f φ) := by
+@[simp] theorem substL_neg : substL (neg φ) f = neg (substL φ f) := by
   have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
   rfl
 
@@ -210,7 +214,8 @@ theorem satisfies_subst {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
   exact this.symm
 
 -- CC: Unsure how to prove for fancy `subst`.
---@[simp] theorem subst_distrib : subst ⟦v⟧ f = f v := by
+@[simp] theorem subst_distrib : subst ⟦v⟧ f = f v := by
+  ext; simp [PropAssignment.subst]
 
 @[simp] theorem subst_bot : subst ⊥ f = ⊥ := rfl
 @[simp] theorem subst_top : subst ⊤ f = ⊤ := rfl

@@ -4,24 +4,13 @@ import LeanSAT.Encode.VEncCNF
 import LeanSAT.Solver.Basic
 import LeanSAT.Solver.Dimacs
 import LeanSAT.Data.ICnf
+import LeanSAT.Upstream.ToMathlib
 
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Prod.Lex
 import Mathlib.Data.Sum.Order
 import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Tactic
-
-namespace Array
-
-def finRange (n : Nat) : Array (Fin n) :=
-  ⟨List.finRange n⟩
-
-@[simp] theorem mem_finRange {n} (x : Fin n) : x ∈ finRange n := by simp [finRange, mem_def]
-@[simp] theorem finRange_data (n) : (Array.finRange n).data = List.finRange n := rfl
-
-end Array
-
--------------------------------------------------------------------
 
 open LeanSAT Model PropFun
 
@@ -55,23 +44,14 @@ instance : FinEnum (ColorVars n) := .ofEquiv {
     | ⟨2, _⟩ => .green v
     | ⟨3, _⟩ => .yellow v
     | ⟨n + 4, hn⟩ => by contradiction
+  -- CC: These are in principle doable, but tedious. Also, the proof falters
+  -- due to the functions above being anonymous. Make external def?
   left_inv := sorry
   right_inv := sorry
 }
 
--- Open the namespace so we can use ".blue" instead of "Coloring.blue", etc.
+-- Open the namespace so we can use "blue" instead of "Coloring.blue", etc.
 open ColorVars
-
--- We sometimes need to provide a lexicographic ordering for our variables
-instance : LinearOrder (ColorVars n) :=
-  LinearOrder.lift'
-    (β := Fin n ⊕ₗ Fin n ⊕ₗ Fin n ⊕ₗ Fin n)
-    (fun
-      | .blue v => .inlₗ v
-      | .red v => .inrₗ <| .inlₗ v
-      | .green v => .inrₗ <| .inrₗ <| .inlₗ v
-      | .yellow v => .inrₗ <| .inrₗ <| .inrₗ v)
-    (by rintro ⟨⟩ ⟨⟩ <;> simp)
 
 -- Given a vertex, we should expect that it gets a color
 def eachVertexGetsAColor (u : Fin n) : PropFun (ColorVars n) :=
@@ -171,10 +151,9 @@ def coloringAssignment (C : Coloring n 4) : PropAssignment (ColorVars n) :=
   | .green  v => C v = ⟨2, by decide⟩
   | .yellow v => C v = ⟨3, by decide⟩
 
-example (f : ℕ → Prop) (p : Fin 3) (h0 : f 0) (h1 : f 1) (h2 : f 2) : f p.val := by
-  fin_cases p; simp
-  all_goals assumption
-
+-- CC: A theorem doing an explicit four-way case split on a Fin 4.
+-- This is because `fin_cases (C v)` produced a syntax error, while
+-- `let Cv := C v; fin_cases Cv` produced a "dependent elimination failure.""
 theorem splitFin4 (n : Fin 4) :
   n = ⟨0, by decide⟩ ∨ n = ⟨1, by decide⟩ ∨
   n = ⟨2, by decide⟩ ∨ n = ⟨3, by decide⟩ := by
@@ -217,9 +196,11 @@ def PrintTheCNF : IO Unit :=
   let cnf := K8_CNF.val.toICnf
   Solver.Dimacs.printFormula IO.print cnf
 
+-- In case we want to print the CNF to the Lean infoview.
 -- #eval PrintTheCNF
 
 -- We trust the SAT solver and axiomatize the UNSAT result
+-- TODO: Replace `axiom` with tactic to trust/insert SAT results directly from the solver.
 axiom cnfUnsat : ¬∃ τ : PropAssignment IVar, τ ⊨ K8_CNF.val.toICnf.toPropFun
 
 theorem unsat_result : ¬∃ (C : Coloring 8 4), isValidColoring K8 C := by
