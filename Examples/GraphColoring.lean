@@ -31,24 +31,32 @@ inductive ColorVars (n : Nat)
   | yellow (v : Fin n)
   deriving DecidableEq, Repr
 
+namespace ColorVars
+
+def toFin : ColorVars n → Fin 4 × Fin n
+| .blue   v => ((⟨0, by decide⟩ : Fin 4), v)
+| .red    v => ((⟨1, by decide⟩ : Fin 4), v)
+| .green  v => ((⟨2, by decide⟩ : Fin 4), v)
+| .yellow v => ((⟨3, by decide⟩ : Fin 4), v)
+
+def fromFin : Fin 4 × Fin n → ColorVars n
+| (⟨0, _⟩, v) => .blue v
+| (⟨1, _⟩, v) => .red v
+| (⟨2, _⟩, v) => .green v
+| (⟨3, _⟩, v) => .yellow v
+
 instance : FinEnum (ColorVars n) := .ofEquiv {
-  toFun := fun c => match c with
-    | .blue   v => ((⟨0, by decide⟩ : Fin 4), v)
-    | .red    v => ((⟨1, by decide⟩ : Fin 4), v)
-    | .green  v => ((⟨2, by decide⟩ : Fin 4), v)
-    | .yellow v => ((⟨3, by decide⟩ : Fin 4), v)
-  invFun := fun (c, v) =>
-    match hc : c with
-    | ⟨0, _⟩ => .blue v
-    | ⟨1, _⟩ => .red v
-    | ⟨2, _⟩ => .green v
-    | ⟨3, _⟩ => .yellow v
-    | ⟨n + 4, hn⟩ => by contradiction
-  -- CC: These are in principle doable, but tedious. Also, the proof falters
-  -- due to the functions above being anonymous. Make external def?
-  left_inv := sorry
-  right_inv := sorry
+  toFun := toFin
+  invFun := fromFin
+  left_inv := by
+    intro x
+    cases x <;> simp [toFin, fromFin]
+  right_inv := by
+    rintro ⟨x,v⟩
+    fin_cases x <;> simp [toFin, fromFin]
 }
+
+end ColorVars
 
 -- Open the namespace so we can use "blue" instead of "Coloring.blue", etc.
 open ColorVars
@@ -151,33 +159,26 @@ def coloringAssignment (C : Coloring n 4) : PropAssignment (ColorVars n) :=
   | .green  v => C v = ⟨2, by decide⟩
   | .yellow v => C v = ⟨3, by decide⟩
 
--- CC: A theorem doing an explicit four-way case split on a Fin 4.
--- This is because `fin_cases (C v)` produced a syntax error, while
--- `let Cv := C v; fin_cases Cv` produced a "dependent elimination failure.""
-theorem splitFin4 (n : Fin 4) :
-  n = ⟨0, by decide⟩ ∨ n = ⟨1, by decide⟩ ∨
-  n = ⟨2, by decide⟩ ∨ n = ⟨3, by decide⟩ := by
-  fin_cases n <;> simp
-
 theorem coloringAssignment_exists_of_validColoring {G : Graph n} :
   (∃ (C : Coloring n 4), isValidColoring G C) →
   (∃ (τ : PropAssignment (ColorVars n)), τ |> graphColoring G) := by
   rintro ⟨C, hC⟩
   use coloringAssignment C
-  simp [graphColoring]
+  simp only [graphColoring]
   constructor
-  · simp [vertexColorConstraints, eachVertexGetsAColor, coloringAssignment]
+  · simp only [vertexColorConstraints, eachVertexGetsAColor, satisfies_disj, satisfies_var,
+    coloringAssignment, Fin.zero_eta, decide_eq_true_eq, Fin.mk_one]
     intro v
-    rcases splitFin4 (C v) with (h | h | h | h)
-    <;> simp [h]
-  · simp [edgeConstraints, adjacentVertexesGetDifferentColors, coloringAssignment]
+    generalize C v = Cv
+    fin_cases Cv <;> simp
+  · simp only [edgeConstraints, adjacentVertexesGetDifferentColors, compl_inf, satisfies_conj,
+    satisfies_disj, PropFun.satisfies_neg, satisfies_var, coloringAssignment, Fin.zero_eta,
+    decide_eq_true_eq, Fin.mk_one]
     intro u v huv
     have h_ne := hC huv
-    rcases splitFin4 (C u) with (hu | hu | hu | hu)
-    <;> simp [hu] at h_ne ⊢
-    <;> rcases splitFin4 (C v) with (hv | hv | hv | hv)
-    <;> simp [hv, ← not_and_or] at h_ne ⊢
-    <;> aesop
+    generalize C u = Cu at h_ne ⊢
+    generalize C v = Cv at h_ne ⊢
+    fin_cases Cu <;> fin_cases Cv <;> simp [← Fin.val_inj] at *
 
 -- Now generate an actual CNF for a graph object
 def K8 : Graph 8 := completeGraph (Fin 8)
