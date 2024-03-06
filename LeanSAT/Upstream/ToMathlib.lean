@@ -319,6 +319,14 @@ theorem Fintype.invFun_eq_invFun [Fintype α] [DecidableEq α'] (f f' : α ↪ �
   match n with
   | ⟨_+1,_⟩ => simp
 
+def Array.finRange (n : Nat) : Array (Fin n) :=
+  ⟨List.finRange n⟩
+
+@[simp] theorem Array.mem_finRange {n} (x : Fin n) : x ∈ finRange n := by
+  simp [finRange, mem_def]
+
+@[simp] theorem Array.finRange_data (n) : (Array.finRange n).data = List.finRange n := rfl
+
 @[simp] theorem top : ⊤ := by trivial
 
 @[simp] theorem not_bot : ¬⊥ := fun x => nomatch x
