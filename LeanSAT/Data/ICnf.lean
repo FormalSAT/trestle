@@ -39,34 +39,8 @@ instance : Coe IVar (PropFun IVar) := ⟨toPropFun⟩
 
 /-! index: a way to get a Nat from an IVar -/
 
-protected def index (v : IVar) : Nat := v.val - 1
-protected def fromIndex (n : Nat) : IVar := ⟨n + 1, Nat.succ_pos _⟩
-
-theorem index_succ_eq (v : IVar) : ⟨v.index + 1, Nat.succ_pos _⟩ = v := by
-  rw [Subtype.ext_iff]
-  simp [IVar.index]
-  rw [Nat.sub_add_cancel]
-  · rfl
-  · exact v.property
-
-@[simp] theorem fromIndex_index (v : IVar) : IVar.fromIndex v.index = v :=
-  index_succ_eq v
-
-@[simp] theorem index_fromIndex (n : Nat) : (IVar.fromIndex n).index = n := by
-  simp [IVar.index, IVar.fromIndex]
-
-theorem index_eq_iff {v v' : IVar} : v.index = v'.index ↔ v = v' := by
-  simp [IVar.index]
-  exact ⟨PNat.natPred_inj.mp, fun h => by rw [h]⟩
-
-theorem index_ne_iff {v v' : IVar} : v.index ≠ v'.index ↔ v ≠ v' :=
-  ⟨mt index_eq_iff.mpr, mt index_eq_iff.mp⟩
-
-theorem index_inj : Function.Injective IVar.index :=
-  fun _ _ h => index_eq_iff.mp h
-
--- TODO: Whole ecosystem of left/right inverses, bijection, etc.
--- theorem left_inverse_fromIndex_index : Function.LeftInverse IVar.fromIndex IVar.index := fromIndex_index
+protected abbrev index (v : IVar) : Nat := v.natPred
+protected abbrev fromIndex (n : Nat) : IVar := n.succPNat
 
 end IVar
 
@@ -129,47 +103,38 @@ open LitVar
 @[simp] abbrev toPropFun (l : ILit) := LitVar.toPropFun l
 instance : Coe ILit (PropFun IVar) := ⟨LitVar.toPropFun⟩
 
-/-! index: a way to get a Nat from an IVar -/
+/-! index: a way to get a Nat from an ILit -/
 
-protected def index (l : ILit) : Nat := (toVar l).val - 1
-protected def fromIndex (n : Nat) : ILit := mkPos ⟨n + 1, Nat.succ_pos _⟩
-
-@[simp] theorem toVar_index_eq_index (l : ILit) : (toVar l).index = l.index := rfl
-
--- CC: how to mark this @[simp] this without going back and forth?
-theorem index_negate (l : ILit) : (-l).index = l.index := by simp [ILit.index]
-
-@[simp] theorem mkPos_index_eq (v : IVar) : ILit.index (mkPos v) = v.index := by
-  simp [ILit.index, IVar.index]
-
-@[simp] theorem mkNeg_index_eq (v : IVar) : ILit.index (mkNeg v) = v.index := by
-  simp [ILit.index, IVar.index]
+protected abbrev index (l : ILit) : Nat := (toVar l).natPred
+protected abbrev fromIndex (n : Nat) : ILit := mkPos (n.succPNat)
 
 theorem exists_succ_toVar (l : ILit) : ∃ n, (toVar l).val = n + 1 := by
   exact Nat.exists_eq_add_of_le' (toVar l).property
 
--- CC: A simpler proof exists, possibly using Subtype.ext(_iff)?
 theorem index_ne_of_var_ne {l₁ l₂ : ILit} : (toVar l₁) ≠ (toVar l₂) → l₁.index ≠ l₂.index := by
-  intro hne
-  simp only [← toVar_index_eq_index]
-  exact IVar.index_ne_iff.mpr hne
+  intro hne hcon
+  rcases mkPos_or_mkNeg l₁ with (hl₁ | hl₁)
+  <;> rw [hl₁] at hcon
+  <;> rcases mkPos_or_mkNeg l₂ with (hl₂ | hl₂)
+  <;> rw [hl₂] at hcon
+  <;> simp at hcon
+  <;> contradiction
 
 theorem index_eq_iff_eq_or_negate_eq {l₁ l₂ : ILit} : l₁.index = l₂.index ↔ l₁ = l₂ ∨ (negate l₁) = l₂ := by
   constructor
   · intro hlit
-    simp only [← toVar_index_eq_index] at hlit
-    have := IVar.index_eq_iff.mp hlit
+    simp at hlit
     by_cases hpol : polarity l₁ = polarity l₂
     · left; ext
-      · exact this
+      · exact hlit
       · exact hpol
     · right; ext
-      · simp [this]
+      · simpa
       · rw [← Bool.bnot_eq] at hpol
         simp [hpol]
   · rintro (rfl | rfl)
     · rfl
-    · rw [negate_eq, index_negate]
+    · simp
 
 end ILit
 
