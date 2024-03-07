@@ -48,7 +48,8 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 | .sat assn => do
   print "s SATISFIABLE"
   print (formatAssn assn)
-| .unsat => print "s UNSATISFIABLE"
+| .unsat => do
+  print "s UNSATISFIABLE"
 | .error => throw default
 
 
