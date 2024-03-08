@@ -11,6 +11,8 @@ import LeanSAT.Model.PropFun
 import LeanSAT.Model.PropVars
 import LeanSAT.Model.Subst
 
+import Std.Data.Array.Basic
+
 namespace LeanSAT
 
 open Model
@@ -58,11 +60,22 @@ def toPropFun (l : L) : PropFun ν :=
 
 instance : CoeHead L (PropFun ν) := ⟨toPropFun⟩
 
-open PropFun in
+open PropFun
+
 theorem satisfies_iff {τ : PropAssignment ν} {l : L} :
     τ ⊨ toPropFun l ↔ τ (toVar l) = polarity l := by
   dsimp [toPropFun, polarity]
   aesop
+
+theorem toPropFun_ne_bot (l : L) : toPropFun l ≠ ⊥ := by
+  cases hpol : polarity l <;> simp [toPropFun, hpol]
+  · exact var_ne_top _
+  · exact var_ne_bot _
+
+theorem toPropFun_ne_top (l : L) : toPropFun l ≠ ⊤ := by
+  cases hpol : polarity l <;> simp [toPropFun, hpol]
+  · exact var_ne_bot _
+  · exact var_ne_top _
 
 end LitVar
 
@@ -250,6 +263,20 @@ def toPropFun (C : Clause L) : PropFun ν :=
 
 instance : CoeHead (Clause L) (PropFun ν) := ⟨toPropFun⟩
 
+@[simp]
+theorem toPropFun_empty : toPropFun (#[] : Clause L) = ⊥ := by
+  simp [toPropFun, PropFun.any]
+
+@[simp]
+theorem toPropFun_nil : toPropFun ({ data := [] } : Clause L) = ⊥ :=
+  toPropFun_empty
+
+@[simp]
+theorem toPropFun_cons (l : L) (ls : List L) :
+    toPropFun ({ data := l :: ls } : Clause L) =
+      (LitVar.toPropFun (l : L)) ⊔ toPropFun ({ data := ls } : Clause L) := by
+  simp [toPropFun, PropFun.any]
+
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
   : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
   intro h
@@ -321,6 +348,27 @@ nonrec def map (L') [LitVar L' ν'] (f : ν → ν') (c : Clause L) : Clause L' 
   ext τ
   simp [map, satisfies_iff]
 
+theorem toPropFun_getElem_lt {C : Clause L} {i : Nat} (h : i < C.size) : LitVar.toPropFun (C[i]'h) ≤ C.toPropFun := by
+  apply PropFun.entails_ext.mpr
+  intro σ hσ
+  apply satisfies_iff.mpr
+  use C[i]'h
+  constructor
+  · rw [← Array.mem_data]
+    exact C.getElem_mem_data h
+  · exact hσ
+
+theorem toPropFun_take_lt (C : Clause L) (i : Nat) : toPropFun ⟨C.data.take i⟩ ≤ C.toPropFun := by
+  apply PropFun.entails_ext.mpr
+  intro σ hσ
+  have ⟨l, hl, hl'⟩ := satisfies_iff.mp hσ
+  apply satisfies_iff.mpr
+  use l
+  constructor
+  · rw [← Array.mem_data] at hl ⊢
+    exact List.mem_of_mem_take hl
+  · exact hl'
+
 end Clause
 
 /-! ### CNF -/
@@ -336,6 +384,20 @@ variable {L : Type u} {ν : Type v} [LitVar L ν] [DecidableEq ν]
 
 def toPropFun (φ : Cnf L) : PropFun ν :=
   .all (φ.data.map Clause.toPropFun)
+
+@[simp]
+theorem toPropFun_empty : toPropFun (#[] : Cnf L) = ⊤ := by
+  simp [toPropFun, PropFun.all]
+
+@[simp]
+theorem toPropFun_nil : toPropFun ({ data := [] } : Cnf L) = ⊤ :=
+  toPropFun_empty
+
+@[simp]
+theorem toPropFun_cons (C : Clause L) (F : List (Clause L)) :
+    toPropFun ({ data := C :: F } : Cnf L) =
+      ↑C ⊓ toPropFun ({ data := F } : Cnf L) := by
+  simp [toPropFun, PropFun.all]
 
 theorem semVars_toPropFun (F : Cnf L)
   : v ∈ (toPropFun F).semVars → ∃ C, C ∈ F ∧ ∃ l, l ∈ C ∧ LitVar.toVar l = v := by

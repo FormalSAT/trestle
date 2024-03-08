@@ -198,9 +198,7 @@ theorem Array.mkArray_succ' (n : Nat) (a : α) :
   simp [foldl, foldlM, Id.run]
   by_cases h : stop = 0
   · simp [h, foldlM.loop]
-  · simp [h]
-    unfold foldlM.loop
-    simp [Nat.not_lt_zero start]
+  · simp [h]; simp [foldlM.loop]
 
 @[simp] theorem Array.foldl_nil (f : β → α → β) (init : β) (start stop : Nat) :
     Array.foldl f init { data := [] } start stop = init :=

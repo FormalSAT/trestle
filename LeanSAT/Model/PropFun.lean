@@ -375,6 +375,12 @@ theorem var_compl_ne_var [DecidableEq ν] (v1 v2 : ν) : (var v1)ᶜ ≠ (var v2
   have := h (fun v => v = v1 || v = v2)
   simp at this
 
+theorem var_ne_top (v : ν) : var v ≠ ⊤ := by
+  simp [ext_iff]; exact ⟨(fun _ => false), rfl⟩
+
+theorem var_ne_bot (v : ν) : var v ≠ ⊥ := by
+  simp [ext_iff]; exact ⟨(fun _ => true), rfl⟩
+
 /-! Lemmas to push `Quotient.mk` inwards. -/
 
 -- TODO: custom simp set?
@@ -422,6 +428,9 @@ def any (a : Multiset (PropFun ν)) : PropFun ν :=
   induction a using Multiset.induction with
   | empty => simp [any]
   | cons => simp_all [any]
+
+@[simp] theorem any_zero : any (0 : Multiset (PropFun ν)) = ⊥ := by simp [any]
+@[simp] theorem all_zero : all (0 : Multiset (PropFun ν)) = ⊤ := by simp [all]
 
 /-! # satisfiable and eqsat -/
 
