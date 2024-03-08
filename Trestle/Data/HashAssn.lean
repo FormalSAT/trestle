@@ -33,4 +33,4 @@ def toPropAssn : Model.PropAssignment ν :=
   fun v => self.find? v |>.getD false
 
 instance [ToString L] : ToString (HashAssn L) where
-  toString a := a.fold (fun s v b => s ++ toString (LitVar.mkLit L v b)) ""
+  toString a := a.toList.map (fun (v,b) => toString (LitVar.mkLit L v b)) |> String.intercalate " "
