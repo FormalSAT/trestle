@@ -126,7 +126,7 @@ def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
   | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
 
-def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State ILit IVar) := do
+def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State IVar) := do
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
   let {vars, clauses} ← IO.ofExcept <| Dimacs.parseFormula contents
   return {
