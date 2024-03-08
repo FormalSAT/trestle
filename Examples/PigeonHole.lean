@@ -27,7 +27,7 @@ def pigeonsInHole (h : Fin n) : List (Literal <| Var n) :=
 def holesWithPigeon (p : Fin (n+1)) : List (Literal (Var n)) :=
   List.finRange n |>.map (Literal.pos <| Var.mk p ·)
 
-def encoding (n) : VEncCNF (Literal (Var n)) Unit (fun τ =>
+def encoding (n) : VEncCNF (Var n) Unit (fun τ =>
     (∀ p, ∃ h, τ (Var.mk p h)) ∧
     (∀ h, atMost 1 (Multiset.ofList <| pigeonsInHole h) τ)
   ) :=

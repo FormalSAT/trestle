@@ -20,7 +20,7 @@ def main : IO Unit := do
   let y : Fin 3 := 1
   let z : Fin 3 := 2
 
-  let enc : EncCNF (Literal (Fin 3)) Unit := do
+  let enc : EncCNF (Fin 3) Unit := do
     Subtype.val tseitin[ {x} ∧ {y} ∧ {z} ∨ ¬{x} ∧ ¬{y} ]
 
   let ((),state) := enc.run
