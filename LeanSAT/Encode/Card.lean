@@ -12,28 +12,26 @@ namespace LeanSAT.Encode
 
 open VEncCNF Model PropFun
 
-variable [LitVar L ν] [LawfulLitVar L ν] [DecidableEq L] [DecidableEq ν]
-
-def card (lits : Multiset L) (τ : PropAssignment ν) : Nat :=
+def card (lits : Multiset (Literal ν)) (τ : PropAssignment ν) : Nat :=
   lits.countP (τ ⊨ LitVar.toPropFun ·)
 
-noncomputable def cardPred (lits : Multiset L) (P : Nat → Prop) [DecidablePred P] :=
+noncomputable def cardPred (lits : Multiset (Literal ν)) (P : Nat → Prop) [DecidablePred P] :=
   fun τ => P (card lits τ)
 
-@[simp] theorem satisfies_cardPred (lits : Multiset L) (P) [DecidablePred P] (τ)
+@[simp] theorem satisfies_cardPred (lits : Multiset (Literal ν)) (P) [DecidablePred P] (τ)
   : cardPred lits P τ ↔ P (card lits τ) := by
   unfold cardPred; simp
 
-noncomputable abbrev atMost (k : Nat) (lits : Multiset L) := cardPred lits (· ≤ k)
-noncomputable abbrev atLeast (k : Nat) (lits : Multiset L) := cardPred lits (· ≥ k)
+noncomputable abbrev atMost (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· ≤ k)
+noncomputable abbrev atLeast (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· ≥ k)
 
 theorem ofList_eq_map_get (L : List α)
   : Multiset.ofList L = (Finset.univ.val.map fun i => L.get i) := by
   conv => lhs; rw [← List.finRange_map_get (l := L)]
 
 @[inline]
-def amoPairwise (lits : Array L) :
-    VEncCNF L Unit (atMost 1 (Multiset.ofList lits.data)) := (
+def amoPairwise (lits : Array (Literal ν)) :
+    VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.data)) := (
   -- for every pair x,y of literals in `lits`, they can't both be true
   for_all (Array.ofFn id) fun (i : Fin lits.size) =>
     for_all (Array.ofFn (fun (diff : Fin (lits.size - i.succ)) =>
