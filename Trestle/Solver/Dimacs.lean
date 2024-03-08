@@ -124,7 +124,7 @@ def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
     let assn ←
       rest.foldlM (fun assn line => parseVLines maxVar assn line) (HashMap.empty)
     return .sat assn
-  | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
+  | _ => .error  s!"Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
 
 def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State IVar) := do
