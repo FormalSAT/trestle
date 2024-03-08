@@ -102,13 +102,12 @@ def graphColoring (G : Graph n) : PropPred (ColorVars n) := fun τ =>
   (τ |> edgeConstraints G)
 
 ------------------------------------------------------------------------
--- Now we express the graph coloring problem into a CNF
+-- Now we express the graph coloring problem as a CNF
 /-! # CNF -/
 
 open Encode VEncCNF LitVar
 
-abbrev L (n : Nat) := Literal (ColorVars n)
-abbrev VCnf (n : Nat) := VEncCNF (L n) Unit
+abbrev VCnf (n : Nat) := VEncCNF (ColorVars n) Unit
 
 def vertexColorClause (v : Fin n) : VCnf n (eachVertexGetsAColor v) :=
   (addClause #[mkPos <| blue v, mkPos <| red v, mkPos <| green v, mkPos <| yellow v])
