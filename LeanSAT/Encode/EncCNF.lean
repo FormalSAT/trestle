@@ -12,9 +12,9 @@ import LeanSAT.Data.Literal
 import LeanSAT.Data.HashAssn
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Model.Quantifiers
-import LeanSAT.Upstream.FinEnum
+import LeanColls
 
-open Std
+open Std LeanColls
 
 namespace LeanSAT.Encode
 
@@ -202,10 +202,10 @@ instance : LawfulMonad (EncCNF ν) where
   bind_assoc := by
     intros; simp [bind]; rfl
 
-def run [FinEnum ν] (e : EncCNF ν α) : α × LawfulState ν :=
-  e.1.run <| LawfulState.new' (FinEnum.card ν) (FinEnum.equiv.toEmbedding)
+def run [IndexType.{_,0} ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
+  e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
 
-def toICnf [FinEnum ν] (e : EncCNF ν α) : ICnf := (run e).2.cnf
+def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf := (run e).2.cnf
 
 def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
   let res ← inner

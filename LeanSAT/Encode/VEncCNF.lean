@@ -9,6 +9,8 @@ import LeanSAT.Encode.EncCNF
 import LeanSAT.Model.PropPred
 import Mathlib.Tactic.LiftLets
 
+open LeanColls
+
 /-! ## Verified Encodings
 
 This file defines `VEncCNF`,
@@ -34,8 +36,10 @@ where aux (e' : StateM _ α) :=
     -- TODO(JG): should we weaken this to equisatisfiability?
     ∀ (τ : PropAssignment ν), s'.interp τ ↔ s.interp τ ∧ (open PropPred in τ ⊨ (↑s.assumeVars)ᶜ ⇨ P)
 
+variable [IndexType ν] [LawfulIndexType ν]
+
 /-- If `e` encodes `P`, then `P` is satisfiable iff `e.toICnf` is satisfiable -/
-theorem encodesProp_equisatisfiable [FinEnum ν] (e : EncCNF ν α) (P : PropPred ν) (h : encodesProp e P)
+theorem encodesProp_equisatisfiable (e : EncCNF ν α) (P : PropPred ν) (h : encodesProp e P)
   : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
     (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toICnf.toPropFun) := by
   simp [toICnf, run, StateT.run]
@@ -95,11 +99,11 @@ def VEncCNF (ν) (α : Type u) (P : PropPred ν) :=
 
 namespace VEncCNF
 
-variable {L} [LitVar L ν]
+variable [IndexType ν] [LawfulIndexType ν]
 
 instance : CoeHead (VEncCNF ν α P) (EncCNF ν α) := ⟨(·.1)⟩
 
-theorem toICnf_equisatisfiable [FinEnum ν] (v : VEncCNF ν α P) :
+theorem toICnf_equisatisfiable (v : VEncCNF ν α P) :
     (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toICnf.toPropFun) ↔
     (∃ τ : PropAssignment ν, open PropPred in τ ⊨ P)
   := by
