@@ -12,5 +12,5 @@ lean_lib Examples {
   globs := #[.submodules `Examples]
 }
 
--- Note: `std` is not required so that Lake selects a version matching mathlib.
-require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "master"
+-- Note: `mathlib` and `std` are obtained transitively so that the versions all match up
+require leancolls from git "https://github.com/JamesGallicchio/LeanColls.git" @ "v4.5.0"
