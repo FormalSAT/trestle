@@ -12,7 +12,7 @@ import Mathlib.Data.Sum.Order
 import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Tactic
 
-open LeanSAT Model PropFun
+open LeanColls LeanSAT LeanSAT.Model PropFun
 
 -- A graph is a symmetric function from two vertices to a boolean
 -- The number of vertices `n` is specified ahead of time
@@ -29,34 +29,7 @@ inductive ColorVars (n : Nat)
   | red    (v : Fin n)
   | green  (v : Fin n)
   | yellow (v : Fin n)
-  deriving DecidableEq, Repr
-
-namespace ColorVars
-
-def toFin : ColorVars n → Fin 4 × Fin n
-| .blue   v => ((⟨0, by decide⟩ : Fin 4), v)
-| .red    v => ((⟨1, by decide⟩ : Fin 4), v)
-| .green  v => ((⟨2, by decide⟩ : Fin 4), v)
-| .yellow v => ((⟨3, by decide⟩ : Fin 4), v)
-
-def fromFin : Fin 4 × Fin n → ColorVars n
-| (⟨0, _⟩, v) => .blue v
-| (⟨1, _⟩, v) => .red v
-| (⟨2, _⟩, v) => .green v
-| (⟨3, _⟩, v) => .yellow v
-
-instance : FinEnum (ColorVars n) := .ofEquiv {
-  toFun := toFin
-  invFun := fromFin
-  left_inv := by
-    intro x
-    cases x <;> simp [toFin, fromFin]
-  right_inv := by
-    rintro ⟨x,v⟩
-    fin_cases x <;> simp [toFin, fromFin]
-}
-
-end ColorVars
+  deriving DecidableEq, Repr, IndexType
 
 -- Open the namespace so we can use "blue" instead of "Coloring.blue", etc.
 open ColorVars

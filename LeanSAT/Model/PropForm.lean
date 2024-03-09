@@ -40,12 +40,11 @@ protected def toString [ToString ν] : PropForm ν → String
   | disj φ₁ φ₂   => s!"{go φ₁} ∨ {go φ₂}"
   | impl φ₁ φ₂   => s!"{go φ₁} → {go φ₂}"
   | biImpl φ₁ φ₂ => s!"{go φ₁} ↔ {go φ₂}"
+termination_by f => 2 * sizeOf f
 where go n :=
   let s := PropForm.toString n
   if s.contains ' ' then s!"({s})" else s
-termination_by
-  toString f => 2 * sizeOf f
-  go f => 1 + 2 * sizeOf f
+termination_by 1 + 2 * sizeOf n
 
 instance [ToString ν] : ToString (PropForm ν) :=
   ⟨PropForm.toString⟩

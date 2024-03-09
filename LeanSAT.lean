@@ -26,7 +26,6 @@ import LeanSAT.Solver.Impl.DimacsCommand
 import LeanSAT.Solver.Impl.UniGenCommand
 import LeanSAT.Solver.Basic
 import LeanSAT.Solver.Dimacs
-import LeanSAT.Upstream.FinEnum
 import LeanSAT.Upstream.ToMathlib
 import LeanSAT.Upstream.ToStd
 

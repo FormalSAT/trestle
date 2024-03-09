@@ -219,9 +219,6 @@ theorem Array.mkArray_succ' (n : Nat) (a : α) :
   simp only [foldl_eq_foldl_data, append_data]
   exact List.foldl_append _ _ _ _
 
-@[simp] theorem Array.size_setD (A : Array α) (i : Nat) (v : α) : (A.setD i v).size = A.size := by
-  rw [setD]; by_cases hi : i < size A <;> simp [hi]
-
 @[simp] theorem Array.size_set! (A : Array α) (i : Nat) (v : α) : (A.set! i v).size = A.size := by
   rw [set!, Array.size_setD]
 

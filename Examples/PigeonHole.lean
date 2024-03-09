@@ -7,19 +7,13 @@ Authors: James Gallicchio
 
 import LeanSAT
 
-open LeanSAT Encode VEncCNF
+open LeanColls LeanSAT Encode VEncCNF
 
 structure Var (n : Nat) where
   pigeon : Fin (n+1)
   hole : Fin n
-deriving DecidableEq
+deriving DecidableEq, IndexType
 
-instance : FinEnum (Var n) := .ofEquiv {
-  toFun := fun {pigeon,hole} => (pigeon,hole)
-  invFun := fun (pigeon,hole) => {pigeon,hole}
-  left_inv := by intro; simp
-  right_inv := by intro; simp
-}
 
 def pigeonsInHole (h : Fin n) : List (Literal <| Var n) :=
   List.finRange (n+1) |>.map (Literal.pos <| Var.mk · h)
