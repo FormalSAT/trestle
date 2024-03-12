@@ -331,8 +331,14 @@ theorem biImpl_eq_impls (φ ψ : PropFun ν) : biImpl φ ψ = (φ ⇨ ψ) ⊓ (�
 theorem inf_le_iff_compl_sup {φ₁ φ₂ φ₃ : PropFun ν} : φ₁ ⊓ φ₂ ≤ φ₃ ↔ φ₁ ≤ φ₂ᶜ ⊔ φ₃ :=
   BooleanAlgebra.inf_le_iff_le_compl_sup
 
+theorem inf_compl_le_iff_le_sup {φ₁ φ₂ φ₃ : PropFun ν} : φ₁ ⊓ φ₂ᶜ ≤ φ₃ ↔ φ₁ ≤ φ₂ ⊔ φ₃ :=
+  BooleanAlgebra.inf_compl_le_iff_le_sup
+
 theorem le_iff_inf_compl_le_bot {φ₁ φ₂ : PropFun ν} : φ₁ ≤ φ₂ ↔ φ₁ ⊓ φ₂ᶜ ≤ ⊥ :=
   BooleanAlgebra.le_iff_inf_compl_le_bot
+
+theorem le_compl_iff_inf_le_bot {φ₁ φ₂ : PropFun ν} : φ₁ ≤ φ₂ᶜ ↔ φ₁ ⊓ φ₂ ≤ ⊥ :=
+  BooleanAlgebra.le_compl_iff_inf_le_bot
 
 theorem le_iff_inf_compl_eq_bot {φ₁ φ₂ : PropFun ν} : φ₁ ≤ φ₂ ↔ φ₁ ⊓ φ₂ᶜ = ⊥ :=
   BooleanAlgebra.le_iff_inf_compl_eq_bot
