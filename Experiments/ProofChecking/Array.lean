@@ -2,7 +2,6 @@ import Std
 import Init.Data.Nat.Basic
 import LeanSAT.Upstream.ToStd
 import Std.Data.List.Init.Lemmas
---import Mathlib.Tactic -- TODO: Remove later
 
 @[simp] def comm_in_second_arg (f : β → α → β) : Prop :=
   ∀ (b : β) (a₁ a₂ : α), f (f b a₁) a₂ = f (f b a₂) a₁
