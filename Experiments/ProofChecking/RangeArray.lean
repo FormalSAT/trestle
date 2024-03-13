@@ -8,10 +8,12 @@ Carnegie Mellon University
 
 -/
 
+import Experiments.ProofChecking.CArray
+
 import Mathlib.Data.Nat.Basic
 import Mathlib.Data.Array.Basic
 import Mathlib.Tactic
-import LeanSAT.Data.CArray
+
 import LeanSAT.Upstream.ToStd
 import LeanSAT.Upstream.ToMathlib
 
@@ -22,11 +24,15 @@ import LeanSAT.Upstream.ToMathlib
 structure RangeArray (α : Type _) where
   data : CArray α
   indexes : CArray Nat
+  deleted : CArray Bool
+  deletedSize : Nat /-- Counts the total size of the data array that has been deleted. -/
+
   /- We want every index in the RangeArray to point "into" data in bounds. However,
      the clearing property makes it so that the data beyond the lsize limit in
      indexes might be larger than data's logical size (lsize). So we separate out
      the hypothesis that everything in the logical data of indexes is in bounds. -/
   h_indexes : ∀ (i : Fin indexes.size), (indexes.get i) < data.size + 1
+  h_sizes : indexes.size = deleted.size ∧ indexes.size > 0
 
 namespace RangeArray
 
@@ -37,27 +43,39 @@ variable {α : Type u} (A : RangeArray α) (v : α)
 def mkRangeArray (n : Nat) (v : α) : RangeArray α := {
   data := CArray.mkCArray n v
   indexes := CArray.singleton 0
+  deleted := CArray.singleton true
+  deletedSize := 0
   h_indexes := by
     intro i
     simp [size_mkCArray, CArray.singleton, CArray.get]
     exact succ_pos _
+  h_sizes := by simp
 }
 
 def empty : RangeArray α := {
   data := CArray.empty
   indexes := CArray.singleton 0
+  deleted := CArray.singleton true
+  deletedSize := 0
   h_indexes := by
     intro i
     simp [size_mkCArray, CArray.singleton, CArray.get]
     exact succ_pos _
+  h_sizes := by simp
 }
 
+/-- The (logical) size of the underlying data array. -/
 def size : Nat := A.data.size
+
+/-- The (logical) number of partitions in the underlying data array
+    Excludes 1 due to allowing an "extra" element on the end.  -/
 def numPartitions : Nat := A.indexes.size - 1
 
--- Pushes an element of data onto the back
+/-- Pushes an element of data onto the back of the data array.
+    By default, new "partitions" are deleted until `cap` is called. -/
 def push : RangeArray α := { A with
   data := A.data.push v
+  deleted := A.deleted.setBack false
   h_indexes := by
     intro i
     rw [size_push]
@@ -68,6 +86,7 @@ def push : RangeArray α := { A with
 -- Sets the next section as deleted until an element is added via push
 def cap : RangeArray α := { A with
   indexes := A.indexes.push A.data.size
+  deleted := A.deleted.push true
   h_indexes := by
     intro i
     rcases i with ⟨i, hi⟩
@@ -76,11 +95,10 @@ def cap : RangeArray α := { A with
     · simp
     · rw [get_push_lt A.indexes (A.data.size) ⟨i, hi⟩]
       exact A.h_indexes _
+  h_sizes := by simp [A.h_sizes]
 }
 
 -- Calls cap until the desired number of caps is reached
--- More efficient as a fold, or an append?
--- def forIn {β : Type u} {m : Type u → Type v} [Monad m] (range : Range) (init : β) (f : Nat → β → m (ForInStep β)) : m β
 def capUntil (desiredNumCaps : Nat) : RangeArray α :=
   let rec loop (j : Nat) (A' : RangeArray α) : RangeArray α :=
     match j with
@@ -90,7 +108,8 @@ def capUntil (desiredNumCaps : Nat) : RangeArray α :=
 
 def clear : RangeArray α := { A with
   data := A.data.clear
-  indexes := (A.indexes.clear).push 0
+  indexes := A.indexes.clear.push 0
+  deleted := A.deleted.clear.push true
   h_indexes := by
     intro i
     rcases i with ⟨i, hi⟩
@@ -98,6 +117,7 @@ def clear : RangeArray α := { A with
     have := get_push_eq (A.indexes.clear) 0
     rw [size_clear] at this
     aesop
+  h_sizes := by simp
 }
 
 def get  (i : Fin A.data.size) : α := A.data.get i

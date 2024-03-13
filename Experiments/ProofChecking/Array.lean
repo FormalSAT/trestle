@@ -2,6 +2,7 @@ import Std
 import Init.Data.Nat.Basic
 import LeanSAT.Upstream.ToStd
 import Std.Data.List.Init.Lemmas
+--import Mathlib.Tactic -- TODO: Remove later
 
 @[simp] def comm_in_second_arg (f : β → α → β) : Prop :=
   ∀ (b : β) (a₁ a₂ : α), f (f b a₁) a₂ = f (f b a₂) a₁
@@ -33,7 +34,7 @@ namespace Array
 
 open Nat
 
-theorem Array.ne_empty_iff_size_pos {A : Array α} : A ≠ #[] ↔ 0 < A.size := by
+theorem ne_empty_iff_size_pos {A : Array α} : A ≠ #[] ↔ 0 < A.size := by
   have ⟨A⟩ := A
   have : #[] = ({ data := [] } : Array α) := rfl
   simp [this]
@@ -45,6 +46,48 @@ theorem mem_data_iff_exists_fin {A : Array α} {a : α} :
   · exact List.get_of_mem
   · rintro ⟨i, rfl⟩
     exact Array.getElem_mem_data A i.isLt
+
+/-
+def head (A : Array α) (hA : A.size > 0) : α := A.get ⟨0, hA⟩
+def headD (A : Array α) (default : α) : α := if h : A.size > 0 then A.head h else default
+
+#check List.tail
+#check Array.back
+/-- The last element in the array. Not to be confused with `List.tail`, which drops the head. -/
+def tail (A : Array α) (hA : A.size > 0) : α := A.get ⟨A.size - 1, sub_one_lt_of_le hA le.refl⟩
+def tailD (A : Array α) (default : α) : α := if h : A.size > 0 then A.tail h else default
+
+def setTail (A : Array α) (hA : A.size > 0) (a : α) : Array α :=
+  A.set ⟨A.size - 1, sub_one_lt_of_le hA le.refl⟩ a
+
+def setTail! (A : Array α) (a : α) : Array α :=
+  if h : A.size > 0 then A.set ⟨A.size - 1, sub_one_lt_of_le h le.refl⟩ a else A
+
+@[simp]
+theorem size_setTail (A : Array α) (hA : A.size > 0) (a : α) : (A.setTail hA a).size = A.size := by
+  simp [setTail]
+
+@[simp]
+theorem size_setTail! (A : Array α) (a : α) : (A.setTail! a).size = A.size := by
+  simp [setTail!]; split <;> simp
+
+@[simp]
+theorem tail_setTail (A : Array α) (hA : A.size > 0) (a : α) : (A.setTail hA a).tail (size_setTail A hA a ▸ hA) = a := by
+  simp [tail, setTail]
+  done
+
+#exit -/
+#check Array.back
+
+def setBack (A : Array α) (a : α) : Array α :=
+  if h : A.size > 0 then A.set ⟨A.size - 1, sub_one_lt_of_le h le.refl⟩ a else A
+
+@[simp]
+theorem size_setBack (A : Array α) (a : α) : (A.setBack a).size = A.size := by
+  simp [setBack]; split <;> simp
+
+theorem back_setBack [Inhabited α] (A : Array α) (a : α) : A.size > 0 → (A.setBack a).back = a := by
+  intro hA; simp [setBack, hA, Option.getD, Array.back?, Array.get?_set]
 
 @[simp] theorem Array.foldlM_empty {m : Type v → Type w} [Monad m] (f : β → α → m β)
     (init : β) (start stop : Nat) :
