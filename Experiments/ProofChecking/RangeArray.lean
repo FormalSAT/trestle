@@ -3,13 +3,11 @@
 Arrays that implicitly partition a pool of data into contiguous ranges.
 Handles deletions.
 
-Author: Cayden Codel
+Authors: Cayden Codel, James Gallicchio
 Carnegie Mellon University
 
 -/
 
--- It appears that we don't need to use these
---import Experiments.ProofChecking.CArray
 import Experiments.ProofChecking.Array
 
 import Mathlib.Data.Nat.Basic
@@ -23,9 +21,10 @@ import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
 import LeanSAT.Model.PropFun
 
-import LeanColls
+--import LeanColls
+--open LeanColls
 
-open LeanColls
+open Array Nat Fin
 
 namespace Fin
 
@@ -82,6 +81,31 @@ theorem foldRange_gt {β : Type v} (f : Fin n → β → β) (init : β) (s e : 
   simp [h]
   exact fun hcon => absurd (le_of_lt hcon) (not_le_of_gt h)
 
+def isMaxElem (i : Fin n) : Prop := ∀ (j : Fin n), i ≤ j
+
+instance : Decidable (isMaxElem i) := by
+  simp [isMaxElem]
+  apply inferInstance
+
+theorem isMaxElem_iff {i : Fin n} : i.isMaxElem ↔ i.val + 1 = n := by sorry
+
+theorem not_isMaxElem_iff {i : Fin n} : ¬ i.isMaxElem ↔ i.val + 1 < n := by sorry
+
+def predMax (i : Fin (n + 1)) (h : ¬ i.isMaxElem) : Fin n :=
+  ⟨i.val, by
+    rcases i with ⟨i, hi⟩
+    have := not_isMaxElem_iff.mp h
+    simp at this
+    exact this⟩
+
+@[simp]
+theorem predMax_val_eq : (predMax i h).val = i.val := rfl
+
+def ofEq (i : Fin n) (h : n = m) : Fin m :=
+  ⟨i.val, by rcases i with ⟨i, hi⟩; rw [h] at hi; exact hi⟩
+
+theorem ofEq_val_eq (i : Fin n) (h : n = m) : (ofEq i h).val = i.val := rfl
+
 end Fin
 
 /-
@@ -89,91 +113,122 @@ end Fin
   contiguous regions of that pool into pieces. Also handles deletions.
 -/
 structure RangeArray (α : Type _) where
+  /-- The pool of data. Data is added groups, or sub-arrays, at a time.
+      These sub-arrays, called "containers", are demarcated by `indexes`
+      as 0-indexed Nat pointers into `data`. -/
   data : Array α
-  indexes : Array Nat
-  deleted : Array Bool
-  deletedSize : Nat /-- Counts the total size of the data array that has been deleted. -/
 
-  /- We want every index in the RangeArray to point "into" data in bounds. However,
-     the clearing property makes it so that the data beyond the lsize limit in
-     indexes might be larger than data's logical size (lsize). So we separate out
-     the hypothesis that everything in the logical data of indexes is in bounds. -/
-  h_indexes_size_pos : indexes.size > 0
-  h_indexes : ∀ (i : Fin indexes.size), (indexes.get i) ≤ data.size
-  h_sizes_eq : indexes.size = deleted.size
+  /-- We take the convention that `indexes.size` is the number of "committed"
+      elements in the data array. The Bool indicates whether the
+      container under that index in `data` has been deleted.
+      The size of a container is the difference between the absolute values of
+      the index and its next highest neighbor (or `data.size` if at the end).
+      Indexes are (not necessarily strictly) monotonically increasing.  -/
+  indexes : Array (Nat × Bool)
+
+  -- size : Nat
+  --indexes : ArrayN Int size     -- Using LeanColls `ArrayN`
+
+  /-- Counts the total size of the data array that has been deleted. -/
+  deletedSize : Nat
+
+  /-- Invariants -/
+
+  -- All indexes never exceed data.size
+  h_indexes : ∀ (i : Fin indexes.size), (indexes.get i).1 ≤ data.size
+
+  h_indexes_inc : ∀ (i : Nat) (hi : i + 1 < indexes.size),
+    (indexes.get ⟨i, lt_of_succ_lt hi⟩).1 ≤ (indexes.get ⟨i + 1, hi⟩).1
+
+/-
+CNF: <20 clauses>
+LRAT:
+
+21 1 4 -2 0 ...
+25 2 -10 0 ...
+
+data = [1, 5, 6, -2 | ]
+indexes = [0, -4, -4, -4, -4, ]
+indexes = [0, ]
+
+fold at an index (run a function across a single specified clause)
+folding across all indexes (hack this with Fin.foldRange [above])
+add a sub-array (adding a clause)
+delete (has something been deleted?)
+(Garbage collect)
+
+spec fns:
+- array α @ i (where i is not deleted)
+- array (array α) [all deleted clauses filtered out]
+
+proofs:
+- fold(M) at index i = fold(M) over (array @ i) or whatever
+- fold(M) = fold(M) over array
+- toArrays (delete RA) = RA' ↔ ∃ L M R, RA.toArrays = L ++ [M] ++ R ∧ RA'.toArrays = L ++ R
+- garbageCollect RA = RA' → RA.toArrays = RA'.toArrays
+
+-/
 
 namespace RangeArray
 
-open Nat Array
-
 variable {α : Type u} (A : RangeArray α) (v : α)
 
+-- Initialize a RangeArray with some data.
+-- We don't use this operation for proof checking, so no theorems are proved about it.
 def mkRangeArray (n : Nat) (v : α) : RangeArray α := {
   data := Array.mkArray n v
-  indexes := Array.singleton 0
-  deleted := Array.singleton true
+  indexes := Array.singleton ⟨0, false⟩
   deletedSize := 0
   h_indexes := by simp; intro; exact Nat.zero_le _
-  h_indexes_size_pos := by simp
-  h_sizes_eq := by simp
+  h_indexes_inc := by simp
 }
 
 def empty : RangeArray α := {
   data := Array.empty
-  indexes := Array.singleton 0
-  deleted := Array.singleton true
+  indexes := Array.singleton ⟨0, false⟩
   deletedSize := 0
   h_indexes := by simp; intro; exact Nat.zero_le _
-  h_indexes_size_pos := by simp
-  h_sizes_eq := by simp
+  h_indexes_inc := by simp
 }
 
-/-- The (logical) size of the number of indexes (including unfinished backs). -/
+/-- The number of indexes, or containers in the `data` array. -/
 abbrev size : Nat := A.indexes.size
 
-/-- The (logical) size of the underlying data array. -/
+/-- The size of the underlying data array. -/
 abbrev dsize : Nat := A.data.size
 
-/-- The (logical) number of times `cap` has been called. -/
-abbrev caps : Nat := A.indexes.size - 1
-
-/-- Pushes an element of data onto the back of the data array.
-    By default, new "partitions" are considered deleted until `push` is called. -/
-def push : RangeArray α := { A with
-  data := A.data.push v
-  deleted := A.deleted.setBack false
-  h_indexes := by
-    simp
-    intro i
-    exact le_trans (A.h_indexes i) (Nat.le_succ _)
-  h_sizes_eq := by simp [A.h_sizes_eq]
-}
-
--- Caps off the current section (by adding the start of the next section)
--- Sets the next section as deleted until an element is added via push
-def cap : RangeArray α := { A with
-  indexes := A.indexes.push A.data.size
-  deleted := A.deleted.push true
+/-- Adds a container. If the container is empty, it's automatically deleted. -/
+def add (arr : Array α) := { A with
+  data := A.data ++ arr
+  indexes := A.indexes.push ⟨A.data.size, arr.size = 0⟩
   h_indexes := by
     rintro ⟨i, hi⟩
-    simp at hi ⊢
+    simp [size_append] at hi ⊢
     rcases eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi)
     · simp
     · simp [get_push, hi]
-      exact A.h_indexes ⟨i, hi⟩
-  h_indexes_size_pos := by simp
-  h_sizes_eq := by simp [A.h_sizes_eq]
+      exact le_add_right (A.h_indexes ⟨i, hi⟩)
+  h_indexes_inc := by
+    intro i hi
+    simp [size_append] at hi ⊢
+    have := A.h_indexes_inc
+    sorry
 }
 
--- Calls cap until the desired number of caps is reached
-def capUntil (desiredCaps : Nat) : RangeArray α :=
-  let rec loop (j : Nat) (A' : RangeArray α) : RangeArray α :=
-    match j with
-    | 0     => A'
-    | j + 1 => loop j (A'.cap)
-  loop (desiredCaps - A.caps) A
+#check Prod.map
+#check Prod.fst
+#check Prod.eta
 
-def index (i : Fin A.size) : Nat := A.indexes.get i
+def addEmptyUntil (desiredSize : Nat) : RangeArray α :=
+  let rec loop (n : Nat) (A' : RangeArray α) : RangeArray α :=
+    match n with
+    | 0 => A'
+    | n + 1 => loop n (A'.add #[])
+  loop (desiredSize - A.size) A
+
+/-- Gets the index of the ith container. -/
+def index (i : Fin A.size) : Nat := (A.indexes.get i).1
+def isDeleted? (i : Fin A.size) : Bool := (A.indexes.get i).2
 
 /-- Gets the size of the range under the provided index. -/
 def rsize (i : Fin A.size) : Nat :=
@@ -181,6 +236,158 @@ def rsize (i : Fin A.size) : Nat :=
     A.index ⟨i.val + 1, hi⟩ - A.index i
   else
     A.dsize - A.index i
+
+def delete (i : Fin A.size) : RangeArray α := { A with
+  indexes := A.indexes.set i ⟨(A.indexes.get i).1, true⟩
+  deletedSize := A.deletedSize + A.rsize i
+  h_indexes := by
+    rcases i with ⟨i, hi⟩
+    rintro ⟨j, hj⟩
+    simp at hj
+    by_cases heq : i = j
+    <;> simp
+    <;> rw [get_set]
+    <;> try simp [heq]
+    <;> try exact A.h_indexes ⟨j, hj⟩
+    exact hj
+  h_indexes_inc := by
+    rcases i with ⟨i, hi⟩
+    intro j hj
+    simp at hj
+    stop
+    by_cases heq : i = j
+    · simp [heq]
+      rw [get_set, get_set]
+      simp
+      · exact A.h_indexes_inc j hj
+      · exact lt_of_succ_lt hj
+    · simp
+      rw [get_set, get_set]
+      simp [heq]
+      split <;> rename _ => h
+      · subst h
+        simp at hj
+        have := A.h_indexes_inc j hj
+        simp at this
+        have h_rfl : A.indexes[j + 1].1 = (A.indexes[j + 1].1, true).1 := rfl
+        sorry
+        done
+      · sorry -- Same proof as above
+        done
+      · exact hj
+        done
+      done
+    stop
+    done
+    /-
+    <;> simp
+    <;> rw [get_set]
+    <;> try simp [h_eq]
+    <;> try rw [get_set]
+    <;> try simp
+    · exact A.h_indexes_inc j hj
+    · exact lt_of_succ_lt hj
+    · split <;> rename _ => h
+      · subst h
+        simp at hj
+        stop
+        exact A.h_indexes_inc j hj
+        --have :=
+        --simp at this
+        sorry -- This is a one-line proof
+      · stop
+        have := A.h_indexes_inc j hj
+        simp at this
+        sorry -- Same proof
+        done
+    · exact hj
+    done -/
+}
+
+@[simp] theorem size_empty : (empty : RangeArray α).size = 1 := by simp [empty, size]
+@[simp] theorem dsize_empty : (empty : RangeArray α).dsize = 0 := by simp [empty, dsize]; rfl
+@[simp] theorem rsize_empty : (empty : RangeArray α).rsize ⟨0, by simp⟩ = 0 := by simp [empty]; rfl
+@[simp] theorem size_add (arr : Array α) : (A.add arr).size = A.size + 1 := by simp [add, size]
+@[simp] theorem dsize_push (arr : Array α) : (A.add arr).dsize = A.dsize + arr.size :=
+  by simp [add, dsize, size_append]
+
+@[simp]
+theorem rsize_push (arr : Array α) (i : Fin (A.add arr).size) :
+    (A.add arr).rsize i = if hi : i.isMaxElem then arr.size else A.rsize (predMax (ofEq i (size_add A arr)) (by sorry))
+  := by sorry
+  /-
+  simp [push, rsize]
+  rcases i with ⟨i, hi⟩
+  by_cases h_index : i + 1 < A.size
+  · simp [h_index, Nat.ne_of_lt h_index]; rfl
+  · simp [h_index]
+    simp at h_index
+    simp [le_antisymm h_index (succ_le_of_lt hi), index]
+    rw [Nat.sub_add_comm]
+    exact A.h_indexes _ -/
+
+/-! # fold -/
+
+@[inline, specialize]
+def foldlM_index {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α → m β)
+    (init : β) (A : RangeArray α) (i : Fin A.size) : m β :=
+  A.data.foldlM f init (A.index i) (A.index i + A.rsize i)
+
+@[inline]
+def foldl_index {β : Type v} (f : β → α → β)
+    (init : β) (A : RangeArray α) (i : Fin A.size) : β :=
+  A.data.foldl f init (A.index i) (A.index i + A.rsize i)
+  --Id.run <| A.foldlM_index f init i
+
+@[simp]
+theorem foldlM_index_empty {β : Type v} {m : Type v → Type w} [Monad m]
+    (f : β → α → m β) (init : β) (i : Fin empty.size) :
+      (empty : RangeArray α).foldlM_index f init i = return init := by sorry
+  /- simp [foldlM_index, empty, foldlM]
+  rcases i with ⟨i, hi⟩
+  simp at hi
+  subst hi
+  simp
+  sorry -/
+
+@[simp]
+theorem foldl_index_empty {β : Type v} (f : β → α → β) (init : β) (i : Fin empty.size) :
+      (empty : RangeArray α).foldl_index f init i = init := by
+  simp [foldl_index, empty, foldlM_index_empty]
+  sorry
+
+@[simp]
+theorem foldlM_index_add {β : Type v} {m : Type v → Type w} [Monad m]
+    (f : β → α → m β) (init : β) (arr : Array α) (i : Fin (A.add arr).size) :
+      (A.add arr).foldlM_index f init i =
+        if i.val + 1 = (A.add arr).size then arr.foldlM f init
+        else A.foldlM  := by
+  simp [foldlM_index, add, foldlM]
+  sorry
+
+@[simp]
+theorem foldl_index_add {β : Type v} (f : β → α → β) (init : β) (i : Fin empty.size) :
+      (empty : RangeArray α).foldl_index f init i = init := by
+  simp [foldl_index, empty, foldlM_index_empty]
+  sorry
+
+@[simp]
+theorem foldlM_index_add_
+
+#exit
+
+/-! # model -/
+
+def toContainer (i : Fin A.size) : Array α :=
+  A.data.extract (A.index i) (A.rsize i)
+
+def toArrays : Array (Array α) :=
+
+#exit
+
+
+
+
 
 theorem rsize_lt_size (i : Fin A.size) : A.rsize i ≤ A.dsize - A.index i := by
   simp [index, rsize]
