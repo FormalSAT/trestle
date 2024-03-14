@@ -9,6 +9,7 @@ Carnegie Mellon University
 
 import Experiments.ProofChecking.PPA
 import Experiments.ProofChecking.PS
+import Experiments.ProofChecking.RangeArray
 
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
@@ -172,6 +173,53 @@ def checkProof (F : ICnf) (proof : Array SRLine) : Bool :=
   | ok _ => false
   | error false => false
   | error true => true
+
+/-! # flat version -/
+
+structure FlatState where
+  formula : RangeArray ILit -- Accumulated formula
+  τ : PPA                   -- Partial assignment, to store candidate and RAT negations
+  σ : PS                    -- Substitution, for the witness
+
+
+def checkLineFlat (S : FlatState) (line : SRLine) : Except Bool SRState :=
+  let ⟨F, τ, σ⟩ := S
+  let ⟨C, w_tf, w_maps, UPhints, RAThints⟩ := line
+
+  -- Assumes the negation of the candidate clause, with "# of RAT hints" offset
+  match assumeNegatedClauseFor τ.reset C (RAThints.size + 1) with
+  | error _ => error false
+  | ok τ =>
+
+  -- Evaluate the UP hints, with "# of RAT hints" offset
+  -- We add one more than normal to help with proving
+  match UPhints.foldlM (init := τ) (applyUPHint F (RAThints.size + 1)) with
+  -- The clause led to contradiction via unit propagation
+  | error ⟨τ, .checked⟩ =>
+    if C = #[] then error true       -- If the clause is empty, we have a successful proof
+    else ok ⟨F.addClause C, τ, σ⟩ -- The clause is redundant, so add it to the formula
+
+  -- Unit propagation failed due to multiple unassigned literals, satisfied clause, or out-of-bounds
+  | error ⟨_, _⟩ => error false
+
+  -- Unit propagation worked but didn't lead to contradiction, so continue to RAT checking
+  | ok τ =>
+
+    -- If the clause is empty, then we should have derived UP contradiction by now
+    if hCw : 0 < C.size ∧ 0 < w_tf.size then
+      if C.get ⟨0, hCw.1⟩ ≠ w_tf.get ⟨0, hCw.2⟩ then error false else
+
+      -- Assume the witness, under substitution (the function call resets σ)
+      let σ := assumeWitness σ (C.get ⟨0, hCw.1⟩) w_tf w_maps
+
+      -- Go through each clause in the formula to check RAT
+      match F.foldlM (init := (⟨τ, 0, 0, 0⟩ : PPA × Nat × Nat × Nat)) (checkClause F σ RAThints) with
+      | error () => error false
+      | ok (τ, _) => ok ⟨F.addClause C, τ, σ⟩ -- The RAT hint checked, so we continue
+
+    else error false
+
+#exit
 
 /-! # correctness -/
 

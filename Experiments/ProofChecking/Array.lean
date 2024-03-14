@@ -77,7 +77,6 @@ theorem tail_setTail (A : Array α) (hA : A.size > 0) (a : α) : (A.setTail hA a
   done
 
 #exit -/
-#check Array.back
 
 def setBack (A : Array α) (a : α) : Array α :=
   if h : A.size > 0 then A.set ⟨A.size - 1, sub_one_lt_of_le h le.refl⟩ a else A

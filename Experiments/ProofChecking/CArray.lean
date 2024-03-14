@@ -100,11 +100,12 @@ def setF (i : Nat) (v filler : α) : CArray α :=
           ← Nat.add_sub_assoc hi, add_comm _ i, Nat.add_sub_cancel]
         exact Nat.le_succ _ ⟩ }
 
+@[simp] theorem size_empty : (empty : CArray α).size = 0 := rfl
 @[simp] theorem size_mkCArray (n : Nat) (v : α) : (mkCArray n v).size = n := by sorry
 @[simp] theorem size_singleton (v : α) : (singleton v).size = 1 := by sorry
 @[simp] theorem size_clear : A.clear.size = 0 := rfl
-@[simp] theorem size_set (i : Fin A.size) (v : α) : (set A i v).size = A.lsize := by sorry
-@[simp] theorem size_set! (i : Nat) (v : α) : (set! A i v).size = A.lsize := by sorry
+@[simp] theorem size_set (i : Fin A.size) (v : α) : (set A i v).size = A.size := by sorry
+@[simp] theorem size_set! (i : Nat) (v : α) : (set! A i v).size = A.size := by sorry
 @[simp] theorem size_push (v : α) : (push A v).size = A.size + 1 := sorry
 @[simp] theorem size_setF (i : Nat) (v default : α) :
     (A.setF i v default).size = max A.size (i + 1) := by sorry
