@@ -88,25 +88,57 @@ theorem size_setBack (A : Array α) (a : α) : (A.setBack a).size = A.size := by
 theorem back_setBack [Inhabited α] (A : Array α) (a : α) : A.size > 0 → (A.setBack a).back = a := by
   intro hA; simp [setBack, hA, Option.getD, Array.back?, Array.get?_set]
 
-@[simp] theorem Array.foldlM_empty {m : Type v → Type w} [Monad m] (f : β → α → m β)
-    (init : β) (start stop : Nat) :
-    Array.foldlM f init #[] start stop = pure init := by
-  simp [foldlM, Id.run]
-  by_cases h : stop = 0
-  · simp [h, foldlM.loop]
-  · simp [h]; simp [foldlM.loop]
+-- See `#check Array.extract`
 
-@[simp] theorem Array.foldlM_nil {m : Type v → Type w} [Monad m] (f : β → α → m β)
-    (init : β) (start stop : Nat) :
-    Array.foldlM f init { data := [] } start stop = pure init :=
-  Array.foldlM_empty f init start stop
+@[simp] theorem extract_nil (start stop : Nat) : ({ data := [] } : Array α).extract start stop = #[] :=
+  extract_empty _ _
 
-@[simp] theorem Array.foldlM_cons {m : Type v → Type w} [Monad m] (f : β → α → m β)
-    (init : β) (a : α) (as : List α) :
-    Array.foldlM f init { data := a :: as } 0 (size { data := a :: as }) = do
-      { Array.foldlM f (← f init a) { data := as } 0 (size { data := as }) } := by
-  simp only [foldlM_eq_foldlM_data, List.foldlM]
+def extractCore' (A acc : Array α) (start stop : Nat) :=
+  A.foldl Array.push acc start stop
 
+def extract' (A : Array α) (start stop : Nat) :=
+  extractCore' A #[] start stop
+
+@[simp]
+theorem extractCore'_empty (acc : Array α) (start stop : Nat) :
+    Array.extractCore' (#[] : Array α) acc start stop = acc := by
+  simp [extractCore']
+
+@[simp]
+theorem extractCore'_nil (acc : Array α) (start stop : Nat) :
+    Array.extractCore' ({ data := [] } : Array α) acc start stop = acc := by
+  simp [extractCore']
+
+@[simp]
+theorem extractCore'_eq (A acc : Array α) (s : Nat) :
+    A.extractCore' acc s s = acc := by
+  simp [extractCore']
+
+theorem extractCore'_gt (A acc : Array α) (start stop : Nat) :
+    start > stop → Array.extractCore' A acc start stop = acc := by
+  intro h
+  simp [extractCore']
+  sorry
+  done
+
+/-
+@[simp]
+theorem extractCore'_cons (a : α) (as : List α) (acc : Array α) (start stop : Nat) :
+    Array.extractCore' { data := a :: as } acc start stop = do
+      { let acc' := if start = 0 then acc.push a else acc
+        Array.extractCore' { data := as } acc' (start - 1) (stop - 1) } := by
+  simp [extractCore']
+  sorry -/
+
+--#check extract_loop_zero
+
+@[simp]
+theorem extract'_lt (A : Array α) {start stop : Nat} :
+    start < stop → stop < A.size → A.extract' start stop = A.extract' s s := by sorry
+  --induction A with
+  --| mk as => simp [extract', Array.extract, Array.foldl, Array.push]
+
+/-
 -- TODO: A better implementation exists, probably by writing a custom looper/recursive function
 def foldlIdxM {α : Type u} {β : Type v} {m : Type v → Type w} [Monad m]
     (as : Array α) (f : β → Fin as.size → α → m β) (init : β) (start := 0) (stop := as.size) : m β :=
@@ -171,7 +203,7 @@ theorem foldlIdx_of_comm (A : Array α) (f : β → Fin A.size → α → β) (i
 -- TODO: Check to see if a similar theorem exists for lists.
 theorem foldl_of_comm (A : Array α) {f : β → α → β} (init : β) :
     (∀ (acc : β) (a₁ a₂ : α), f (f acc a₁) a₂ = f (f acc a₂) a₁) →
-    ∀ a ∈ A, ∃ (acc : β), A.foldl f init = f acc a := by sorry
+    ∀ a ∈ A, ∃ (acc : β), A.foldl f init = f acc a := by sorry -/
 
 
 /-! # setF - a dynamic sizing setting function for arrays -/

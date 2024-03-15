@@ -28,15 +28,19 @@ open Array Nat Fin
 
 namespace Fin
 
+/-- Monadically folds from start to stop along the Fin, including end. -/
 def foldRangeM {β : Type v} {m : Type v → Type w} [Monad m]
     {n : Nat} (f : Fin n → β → m β) (init : β) (s e : Fin n) : m β :=
-  let rec loop (i : Fin n) (b : β) : m β := do
-    if h : i < e then
-      loop ⟨i.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ (← f ⟨i, by exact lt_trans h e.isLt⟩ b)
-    else
-      pure b
-  termination_by e.val - i.val
-  loop s init
+  if s > e then
+    return init
+  else
+    let rec loop (i : Fin n) (b : β) : m β := do
+      if h : i < e then
+        loop ⟨i.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ (← f ⟨i, by exact lt_trans h e.isLt⟩ b)
+      else
+        f i b
+    termination_by e.val - i.val
+    loop s init
 
 def foldRange {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) : β :=
   Id.run <| foldRangeM f init s e
@@ -44,7 +48,7 @@ def foldRange {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) 
 @[simp]
 theorem foldRangeM_eq {β : Type v} {m : Type v → Type w} [Monad m]
     (f : Fin n → β → m β) (init : β) (s : Fin n) :
-    foldRangeM f init s s = return init := by
+    foldRangeM f init s s = f s init := by
   simp [foldRange, foldRangeM, foldRangeM.loop]
 
 theorem foldRangeM_lt {β : Type v} {m : Type v → Type w} [Monad m]
@@ -54,32 +58,33 @@ theorem foldRangeM_lt {β : Type v} {m : Type v → Type w} [Monad m]
   simp [foldRange, foldRangeM]
   rw [foldRangeM.loop]
   simp [h]
+  sorry
 
 theorem foldRangeM_gt {β : Type v} {m : Type v → Type w} [Monad m]
     (f : Fin n → β → m β) (init : β) (s e : Fin n) (h : e < s) :
     foldRangeM f init s e = return init := by
   simp [foldRange, foldRangeM]
   rw [foldRangeM.loop]
-  simp [h]
-  exact fun hcon => absurd (le_of_lt hcon) (not_le_of_gt h)
+  simp [h, not_le_of_gt h]
 
 @[simp]
 theorem foldRange_eq {β : Type v} (f : Fin n → β → β) (init : β) (s : Fin n) :
-    foldRange f init s s = init := by
+    foldRange f init s s = f s init := by
   simp [foldRange, foldRangeM, Id.run, foldRangeM.loop]
 
-theorem foldRange_lt {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) (h : s < e) :
-    foldRange f init s e = foldRange f (f s init) ⟨s.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ e := by
-  simp [foldRange, foldRangeM]
-  rw [foldRangeM.loop]
-  simp [h]
+--theorem foldRange_lt {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) (h : s ≤ e) :
+--    foldRange f init s e = foldRange f (f s init) ⟨s.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ e := by
+--  simp [foldRange, foldRangeM]
+--  rw [foldRangeM.loop]
+--  simp [h]
 
-theorem foldRange_gt {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) (h : e < s) :
-    foldRange f init s e = init := by
-  simp [foldRange, foldRangeM, Id.run]
-  rw [foldRangeM.loop]
-  simp [h]
-  exact fun hcon => absurd (le_of_lt hcon) (not_le_of_gt h)
+--theorem foldRange_gt {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) (h : e < s) :
+--    foldRange f init s e = init := by
+--  simp [foldRange, foldRangeM, Id.run]
+--  rw [foldRangeM.loop]
+--  simp [h]
+--  exact fun hcon => absurd (le_of_lt hcon) (not_le_of_gt h)
+
 
 def isMaxElem (i : Fin n) : Prop := ∀ (j : Fin n), i ≤ j
 
@@ -108,11 +113,13 @@ theorem ofEq_val_eq (i : Fin n) (h : n = m) : (ofEq i h).val = i.val := rfl
 
 end Fin
 
+universe u v w
+
 /-
   A structure with a single pool of data in an array, and a system for marking
   contiguous regions of that pool into pieces. Also handles deletions.
 -/
-structure RangeArray (α : Type _) where
+structure RangeArray (α : Type u) where
   /-- The pool of data. Data is added groups, or sub-arrays, at a time.
       These sub-arrays, called "containers", are demarcated by `indexes`
       as 0-indexed Nat pointers into `data`. -/
@@ -177,18 +184,18 @@ variable {α : Type u} (A : RangeArray α) (v : α)
 -- We don't use this operation for proof checking, so no theorems are proved about it.
 def mkRangeArray (n : Nat) (v : α) : RangeArray α := {
   data := Array.mkArray n v
-  indexes := Array.singleton ⟨0, false⟩
+  indexes := Array.empty
   deletedSize := 0
-  h_indexes := by simp; intro; exact Nat.zero_le _
-  h_indexes_inc := by simp
+  h_indexes := by simp; rintro ⟨i, hi⟩; contradiction
+  h_indexes_inc := by simp; intro i hi; contradiction
 }
 
 def empty : RangeArray α := {
   data := Array.empty
-  indexes := Array.singleton ⟨0, false⟩
+  indexes := Array.empty
   deletedSize := 0
-  h_indexes := by simp; intro; exact Nat.zero_le _
-  h_indexes_inc := by simp
+  h_indexes := by simp; rintro ⟨i, hi⟩; contradiction
+  h_indexes_inc := by simp; intro i hi; contradiction
 }
 
 /-- The number of indexes, or containers in the `data` array. -/
@@ -227,93 +234,39 @@ def addEmptyUntil (desiredSize : Nat) : RangeArray α :=
   loop (desiredSize - A.size) A
 
 /-- Gets the index of the ith container. -/
-def index (i : Fin A.size) : Nat := (A.indexes.get i).1
-def isDeleted? (i : Fin A.size) : Bool := (A.indexes.get i).2
+def index (i : Nat) : Nat :=
+  if hi : i < A.size then (A.indexes.get ⟨i, hi⟩).1
+  else 0
+
+def isDeleted (i : Nat) : Bool :=
+  if hi : i < A.size then (A.indexes.get ⟨i, hi⟩).2
+  else true
 
 /-- Gets the size of the range under the provided index. -/
-def rsize (i : Fin A.size) : Nat :=
-  if hi : i.val + 1 < A.size then
-    A.index ⟨i.val + 1, hi⟩ - A.index i
-  else
-    A.dsize - A.index i
+def rsize (i : Nat) : Nat :=
+  if i + 1 < A.size then A.index (i + 1) - A.index i
+  else if i + 1 = A.size then A.dsize - A.index i
+  else 0
 
-def delete (i : Fin A.size) : RangeArray α := { A with
-  indexes := A.indexes.set i ⟨(A.indexes.get i).1, true⟩
-  deletedSize := A.deletedSize + A.rsize i
-  h_indexes := by
-    rcases i with ⟨i, hi⟩
-    rintro ⟨j, hj⟩
-    simp at hj
-    by_cases heq : i = j
-    <;> simp
-    <;> rw [get_set]
-    <;> try simp [heq]
-    <;> try exact A.h_indexes ⟨j, hj⟩
-    exact hj
-  h_indexes_inc := by
-    rcases i with ⟨i, hi⟩
-    intro j hj
-    simp at hj
-    stop
-    by_cases heq : i = j
-    · simp [heq]
-      rw [get_set, get_set]
-      simp
-      · exact A.h_indexes_inc j hj
-      · exact lt_of_succ_lt hj
-    · simp
-      rw [get_set, get_set]
-      simp [heq]
-      split <;> rename _ => h
-      · subst h
-        simp at hj
-        have := A.h_indexes_inc j hj
-        simp at this
-        have h_rfl : A.indexes[j + 1].1 = (A.indexes[j + 1].1, true).1 := rfl
-        sorry
-        done
-      · sorry -- Same proof as above
-        done
-      · exact hj
-        done
-      done
-    stop
-    done
-    /-
-    <;> simp
-    <;> rw [get_set]
-    <;> try simp [h_eq]
-    <;> try rw [get_set]
-    <;> try simp
-    · exact A.h_indexes_inc j hj
-    · exact lt_of_succ_lt hj
-    · split <;> rename _ => h
-      · subst h
-        simp at hj
-        stop
-        exact A.h_indexes_inc j hj
-        --have :=
-        --simp at this
-        sorry -- This is a one-line proof
-      · stop
-        have := A.h_indexes_inc j hj
-        simp at this
-        sorry -- Same proof
-        done
-    · exact hj
-    done -/
-}
+def delete (i : Nat) : RangeArray α :=
+  if hi : i < A.size then
+    { A with
+        indexes := A.indexes.set ⟨i, hi⟩ ⟨(A.indexes.get ⟨i, hi⟩).1, true⟩
+        deletedSize := A.deletedSize + A.rsize i
+        h_indexes := by sorry
+        h_indexes_inc := by sorry }
+  else A
 
-@[simp] theorem size_empty : (empty : RangeArray α).size = 1 := by simp [empty, size]
+@[simp] theorem size_empty : (empty : RangeArray α).size = 0 := rfl
 @[simp] theorem dsize_empty : (empty : RangeArray α).dsize = 0 := by simp [empty, dsize]; rfl
-@[simp] theorem rsize_empty : (empty : RangeArray α).rsize ⟨0, by simp⟩ = 0 := by simp [empty]; rfl
+@[simp] theorem rsize_empty : (empty : RangeArray α).rsize 0 = 0 := by simp [empty]; rfl
 @[simp] theorem size_add (arr : Array α) : (A.add arr).size = A.size + 1 := by simp [add, size]
 @[simp] theorem dsize_push (arr : Array α) : (A.add arr).dsize = A.dsize + arr.size :=
   by simp [add, dsize, size_append]
 
 @[simp]
-theorem rsize_push (arr : Array α) (i : Fin (A.add arr).size) :
-    (A.add arr).rsize i = if hi : i.isMaxElem then arr.size else A.rsize (predMax (ofEq i (size_add A arr)) (by sorry))
+theorem rsize_push (arr : Array α) (i : Nat) :
+    (A.add arr).rsize i = if hi : i = A.size then arr.size else A.rsize i
   := by sorry
   /-
   simp [push, rsize]
@@ -326,68 +279,245 @@ theorem rsize_push (arr : Array α) (i : Fin (A.add arr).size) :
     rw [Nat.sub_add_comm]
     exact A.h_indexes _ -/
 
+theorem index_OoB {A : RangeArray α} {i : Nat} : i ≥ A.size → A.index i = 0 := by
+  simp [index]
+  intro h hcon
+  exact absurd hcon (not_lt_of_ge h)
+
+theorem rsize_OoB {A : RangeArray α} {i : Nat} : i ≥ A.size → A.rsize i = 0 := by
+  simp [rsize]
+  intro h
+  have := le_trans h (le_succ _)
+  simp [index_OoB h, index_OoB this]
+  rintro _ heq
+  simp [← heq] at h
+
+theorem index_add_rsize_of_lt {A : RangeArray α} {i : Nat} :
+    i + 1 < A.size → A.index i + A.rsize i = A.index (i + 1) := by
+  intro hi
+  simp [index, rsize, hi, lt_of_succ_lt hi, -get_eq_getElem]
+  rw [← Nat.add_sub_assoc, Nat.add_comm, Nat.add_sub_cancel]
+  exact A.h_indexes_inc i hi
+
+theorem index_add_rsize_of_eq {A : RangeArray α} {i : Nat} :
+    i + 1 = A.size → A.index i + A.rsize i = A.dsize := by
+  intro hi
+  have hi' := lt_of_succ_le (le_of_eq hi)
+  simp [index, rsize, hi, hi', -get_eq_getElem]
+  rw [← Nat.add_sub_assoc, Nat.add_comm, Nat.add_sub_cancel]
+  exact A.h_indexes ⟨i, hi'⟩
+
 /-! # fold -/
 
 @[inline, specialize]
 def foldlM_index {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α → m β)
-    (init : β) (A : RangeArray α) (i : Fin A.size) : m β :=
+    (init : β) (A : RangeArray α) (i : Nat) : m β :=
   A.data.foldlM f init (A.index i) (A.index i + A.rsize i)
 
 @[inline]
 def foldl_index {β : Type v} (f : β → α → β)
-    (init : β) (A : RangeArray α) (i : Fin A.size) : β :=
+    (init : β) (A : RangeArray α) (i : Nat) : β :=
   A.data.foldl f init (A.index i) (A.index i + A.rsize i)
   --Id.run <| A.foldlM_index f init i
 
 @[simp]
 theorem foldlM_index_empty {β : Type v} {m : Type v → Type w} [Monad m]
-    (f : β → α → m β) (init : β) (i : Fin empty.size) :
-      (empty : RangeArray α).foldlM_index f init i = return init := by sorry
-  /- simp [foldlM_index, empty, foldlM]
-  rcases i with ⟨i, hi⟩
-  simp at hi
-  subst hi
-  simp
-  sorry -/
+    (f : β → α → m β) (init : β) (i : Nat) :
+      (empty : RangeArray α).foldlM_index f init i = return init := by
+  simp [foldlM_index, empty]
+  exact Array.foldlM_empty _ _ _ _
 
 @[simp]
-theorem foldl_index_empty {β : Type v} (f : β → α → β) (init : β) (i : Fin empty.size) :
+theorem foldl_index_empty {β : Type v} (f : β → α → β) (init : β) (i : Nat) :
       (empty : RangeArray α).foldl_index f init i = init := by
-  simp [foldl_index, empty, foldlM_index_empty]
-  sorry
+  simp [foldl_index, empty]
+  exact Array.foldl_empty _ _ _ _
 
 @[simp]
 theorem foldlM_index_add {β : Type v} {m : Type v → Type w} [Monad m]
-    (f : β → α → m β) (init : β) (arr : Array α) (i : Fin (A.add arr).size) :
+    (f : β → α → m β) (init : β) (arr : Array α) (i : Nat) :
       (A.add arr).foldlM_index f init i =
-        if i.val + 1 = (A.add arr).size then arr.foldlM f init
-        else A.foldlM  := by
+        if i = A.size then arr.foldlM f init
+        else A.foldlM_index f init i := by
   simp [foldlM_index, add, foldlM]
   sorry
 
 @[simp]
-theorem foldl_index_add {β : Type v} (f : β → α → β) (init : β) (i : Fin empty.size) :
-      (empty : RangeArray α).foldl_index f init i = init := by
+theorem foldl_index_add {β : Type v} (f : β → α → β) (init : β) (arr : Array α) (i : Nat) :
+      (A.add arr).foldl_index f init i =
+        if i = A.size then arr.foldl f init
+        else A.foldl_index f init i := by
   simp [foldl_index, empty, foldlM_index_empty]
   sorry
 
-@[simp]
-theorem foldlM_index_add_
+theorem foldlM_index_trivial {β : Type v} {m : Type v → Type w} [Monad m]
+    {A : RangeArray α} {i : Nat} : (A.rsize i) = 0 →
+      ∀ (f : β → α → m β) init, A.foldlM_index f init i = return init := by
+  sorry
 
-#exit
+theorem foldl_index_trivial {β : Type v} {A : RangeArray α} {i : Nat} :
+    (A.rsize i) = 0 → ∀ (f : β → α → β) init, A.foldl_index f init i = init := by
+  intro hr
+  simp [foldl_index, Array.foldl]
+  sorry
+
+@[inline]
+def foldlM {β : Type v} {m : Type v → Type w} [Monad m]
+    (g : β → α → m β) (f : β → β → m β)
+    (initg initf : β) (A : RangeArray α)
+    (start : Nat := 0) (stop : Nat := A.size) : m β :=
+  let minStop := min stop A.size
+  let rec loop (i : Nat) (b : β) : m β := do
+    if h : i < minStop then
+      loop (i + 1) (
+        if !A.isDeleted i then
+          ← f b (← A.foldlM_index g initg i)
+        else b)
+    else return b
+  termination_by minStop - i
+  loop start initf
+
+@[inline]
+def foldlM_over_indexes {β : Type v} {m : Type v → Type w} [Monad m]
+    (f : β → Nat → m β) (init : β) (A : RangeArray α)
+    (start : Nat := 0) (stop : Nat := A.size) : m β :=
+  let minStop := min stop A.size
+  let rec loop (i : Nat) (b : β) : m β := do
+    if h : i < minStop then
+      loop (i + 1) (
+        if !A.isDeleted i then
+          ← f b i
+        else b)
+    else return b
+  termination_by minStop - i
+  loop start init
+
+@[inline]
+def foldl_over_indexes {β : Type v}
+    (f : β → Nat → β) (init : β) (A : RangeArray α)
+    (start : Nat := 0) (stop : Nat := A.size) : β :=
+  Id.run <| A.foldlM_over_indexes f init start stop
+
+@[inline]
+def foldl {β : Type v} (g : β → α → β) (f : β → β → β)
+    (initg initf : β) (A : RangeArray α) (start : Nat := 0) (stop : Nat := A.size) :=
+  Id.run <| A.foldlM g f initg initf start stop
+--Fin.foldRange (fun i b => f_outer b (A.foldl_index f_inner init_inner i)) init_outer start stop
+
+@[simp]
+theorem foldlM_empty {β : Type v} {m : Type v → Type w} [Monad m]
+    (g : β → α → m β) (f : β → β → m β) (initg initf : β) (start stop : Nat) :
+      (empty : RangeArray α).foldlM g f initg initf start stop = return initf := by
+  stop
+  simp [RangeArray.foldlM]
+  simp [foldlM, empty]
+  rintro rfl
+  exact Array.foldlM_empty _ _ _ _
+
+@[simp]
+theorem foldl_empty {β : Type v} (g : β → α → β) (f : β → β → β)
+    (initg initf : β) (start stop : Nat) :
+      (empty : RangeArray α).foldl g f initg initf start stop = initf := by
+  simp [foldl, Id.run]
+
+theorem foldlM_add {β : Type v} {m : Type v → Type w} [Monad m]
+    (g : β → α → m β) (f : β → β → m β) (initg initf : β)
+    (A : RangeArray α) (arr : Array α) :
+      (A.add arr).foldlM g f initg initf = do
+        { f (← A.foldlM g f initg initf) (← arr.foldlM g initg) } := by
+  stop
+  done
+
+theorem foldl_add {β : Type v} (g : β → α → β) (f : β → β → β)
+    (initg initf : β) (A : RangeArray α) (arr : Array α) :
+      (A.add arr).foldl g f initg initf = f (A.foldl g f initg initf) (arr.foldl g initg) := by
+  --simp [foldl, foldlM_add]
+  --intro hi f init
+  simp [Array.foldl, Id.run]
+  --exact foldlM_add (m := Id) g f initg initf _ _
+  sorry
+  done
 
 /-! # model -/
 
-def toContainer (i : Fin A.size) : Array α :=
-  A.data.extract (A.index i) (A.rsize i)
+def subArray (i : Nat) : Array α :=
+  A.foldl_index Array.push #[] i
 
-def toArrays : Array (Array α) :=
+#check foldlM.loop
+#check Nat.lt_trichotomy
+
+theorem foldlM_eq_subArray_foldlM {β : Type v} {m : Type v → Type w} [Monad m]
+    (f : β → α → m β) (init : β) (i : Nat) :
+      A.foldlM_index f init i = (A.subArray i).foldlM f init := by
+  simp [subArray, foldlM_index]
+  generalize h_range : A.rsize i = range
+  induction range using Nat.recAux generalizing i with
+  | zero => simp [foldl_index_trivial h_range]
+  | succ range ih =>
+    sorry
+    done
+
+end RangeArray
+
+----------------------------------
+
+namespace LeanSAT
+
+open LeanSAT LeanSAT.Model PropFun
+
+open RangeArray
+
+instance : ToString (RangeArray ILit) where
+  toString F := F.foldl (· ++ s!" {·}") (· ++ "\n" ++ ·) "" ""
+
+def toPropFun (F : RangeArray ILit) : PropFun IVar :=
+    F.foldl (· ⊔ ·.toPropFun) (· ⊓ ·) ⊥ ⊤
+
+@[simp]
+theorem toPropFun_empty : toPropFun (RangeArray.empty : RangeArray ILit) = ⊤ := by
+  simp [toPropFun]
+
+theorem toPropFun_add (RA : RangeArray ILit) (C : IClause) :
+    toPropFun (RA.add C) = (toPropFun RA) ⊓ C.toPropFun := by
+  simp_rw [toPropFun]
+  rw [foldl_add, Clause.foldl_bot_toPropFun_eq]
+
+end LeanSAT
 
 #exit
 
+/-
+/-! ### extract -/
 
+theorem extract_loop_zero (as bs : Array α) (start : Nat) : extract.loop as 0 start bs = bs := by
+  rw [extract.loop]; split <;> rfl
 
+theorem extract_loop_succ (as bs : Array α) (size start : Nat) (h : start < as.size) :
+    extract.loop as (size+1) start bs = extract.loop as size (start+1) (bs.push as[start]) := by
+  rw [extract.loop, dif_pos h]; rfl
 
+theorem extract_loop_of_ge (as bs : Array α) (size start : Nat) (h : start ≥ as.size) :
+    extract.loop as size start bs = bs := by
+  rw [extract.loop, dif_neg (Nat.not_lt_of_ge h)]
+
+theorem extract_loop_eq_aux (as bs : Array α) (size start : Nat) :
+    extract.loop as size start bs = bs ++ extract.loop as size start #[] := by
+  induction size using Nat.recAux generalizing start bs with
+  | zero => rw [extract_loop_zero, extract_loop_zero, append_nil]
+  | succ size ih =>
+    if h : start < as.size then
+      rw [extract_loop_succ (h:=h), ih (bs.push _), push_eq_append_singleton]
+      rw [extract_loop_succ (h:=h), ih (#[].push _), push_eq_append_singleton, nil_append]
+      rw [append_assoc]
+    else
+      rw [extract_loop_of_ge (h:=Nat.le_of_not_lt h)]
+      rw [extract_loop_of_ge (h:=Nat.le_of_not_lt h)]
+      rw [append_nil]
+
+theorem extract_loop_eq (as bs : Array α) (size start : Nat) (h : start + size ≤ as.size) :
+  extract.loop as size start bs = bs ++ as.extract start (start + size) := by
+  simp [extract]; rw [extract_loop_eq_aux, Nat.min_eq_left h, Nat.add_sub_cancel_left]
+-/
 
 theorem rsize_lt_size (i : Fin A.size) : A.rsize i ≤ A.dsize - A.index i := by
   simp [index, rsize]

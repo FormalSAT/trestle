@@ -22,43 +22,62 @@ namespace SRParser
 open Except
 open SR
 
+universe u
+
+/-- The type `L` is a representation of literals over variables of type `ν`. -/
+class Formula (F : Type u) where
+  empty : F
+  addClause : F → IClause → F
+  size : F → Nat
+
+instance : Formula (RangeArray ILit) where
+  empty := (RangeArray.empty : RangeArray ILit)
+  addClause := RangeArray.add
+  size := RangeArray.size
+
+instance : Formula (ICnf) where
+  empty := #[]
+  addClause := (fun F C => Cnf.addClause C F)
+  size := Array.size
+
 structure ArrayParseRes where
   vars : Nat
   clauses : ICnf
 
 structure RAPraseRes where
   vars : Nat
-  formula : FlatCnf
+  formula : RangeArray ILit
 
-def parseLit (maxVar : Nat) (F : FlatCnf) (s : String) : Except (Except String FlatCnf) FlatCnf := do
+def parseLit (maxVar : Nat) (C : IClause) (s : String) : Except (Except String IClause) IClause := do
   match s.toInt? with
   | none => throw (throw s!"Literal is not a number: {s}")
   | some n =>
     if hn : n = 0 then
-      throw (return F.cap)
+      throw (return C)
     else
       if n.natAbs > maxVar then
         throw (throw s!"Literal {n} is greater than the maximum variable {maxVar}")
       else
         if n < 0 then
-          return F.push ⟨n, hn⟩
+          return C.push ⟨n, hn⟩
         else
-          return F.push ⟨n, hn⟩
+          return C.push ⟨n, hn⟩
 
-def parseClause (maxVar : Nat) (F : FlatCnf) (s : String) : Except String FlatCnf :=
-  match s.splitOn " " |>.foldlM (parseLit maxVar) F with
+def parseClause {α : Type} [Formula α] (maxVar : Nat) (F : α) (s : String) : Except String α :=
+  match s.splitOn " " |>.foldlM (parseLit maxVar) #[] with
   | ok _ => throw "Zero not encountered on this line"
-  | error e => return ← e
+  | error e => return Formula.addClause F (← e)
 
-def parseFormula (s : String) : Except String FlatCnf := do
+-- Parses the CNF given a string and an empty formula to read the clauses into
+def parseFormula {α : Type} [Formula α] (s : String) (F : α) : Except String α := do
   let ⟨pLine, clauseLines⟩ ←
     s.splitOn "\n"
     |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
     |>.expectNonempty fun () => "All lines are empty or comments"
   let (nvars, ncls) ← parseHeader pLine
-  let F ← clauseLines.foldlM (parseClause nvars) RangeArray.empty
-  if RangeArray.caps F != ncls then
-    throw s!"Expected {ncls} clauses, but found {F.size}"
+  let F ← clauseLines.foldlM (parseClause nvars) F
+  if Formula.size F != ncls then
+    throw s!"Expected {ncls} clauses, but found {Formula.size F}"
   else
     return F
 
@@ -92,7 +111,11 @@ def parseSRAtom (pivot : Option ILit) (p : SRLine × SRParsingMode) (s : String)
   | some n =>
     if hn : n = 0 then
       match mode with
-      | .clause => return ⟨line, .up_hints⟩
+      | .clause =>
+        -- We don't have a witness, so we insert the pivot into the witness and continue, if the clause isn't empty
+        match pivot with
+        | none => return ⟨line, .up_hints⟩
+        | some pivot => return ⟨{ line with witness_lits := line.witness_lits.push pivot }, .up_hints⟩
       | .witness_tf => return ⟨line, .up_hints⟩
       | .witness_mapped_ready => return ⟨line, .up_hints⟩
       | .witness_mapped_halfway _ => throw s!"Only got half a substitution mapping when ending a witness"
@@ -107,7 +130,7 @@ def parseSRAtom (pivot : Option ILit) (p : SRLine × SRParsingMode) (s : String)
         | some pivot =>
           if n = pivot.val then
             -- Seeing the pivot again means we're parsing a witness
-            return ⟨line, .witness_tf⟩
+            return ⟨{ line with witness_lits := line.witness_lits.push ⟨n, hn⟩ }, .witness_tf⟩
           else
             -- It's not the pivot (and it's not 0), so add it to the clause
             return ⟨{ line with clause := line.clause.push ⟨n, hn⟩ }, .clause⟩
@@ -178,7 +201,7 @@ def parseLSRLine (p : Nat × Array (SRLine ⊕ SRDeletionLine)) (s : String) : E
       | none => throw "Line ID is not a number"
       | some id =>
         if id ≤ maxId then
-          throw "Addition line id is not increasing"
+          throw s!"Addition line id is not increasing: parsed {id}, max {maxId}"
         else
           match hd.toInt? with
           | none => throw "Pivot is not a number"
@@ -193,7 +216,7 @@ def parseLSRLine (p : Nat × Array (SRLine ⊕ SRDeletionLine)) (s : String) : E
                 else
                   return ⟨id, lines.push (.inl line)⟩
             else
-              match tls.foldlM (parseSRAtom (some ⟨n, hn⟩)) ⟨line, .clause⟩ with
+              match tls.foldlM (parseSRAtom (some ⟨n, hn⟩)) ⟨{ line with clause := line.clause.push ⟨n, hn⟩ }, .clause⟩ with
               | error str => throw str
               | ok ⟨line, mode⟩ =>
                 if mode != .done_with_line then
@@ -216,10 +239,35 @@ def main (args : List String) : IO Unit := do
   let lsrFile := args[1]!
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
   --let res ← fromFileEnc cnfFile
-  let F ← IO.ofExcept <| SRParser.parseFormula contents
-  IO.println s!"Formula has {RangeArray.caps F} clauses"
+  let F ← IO.ofExcept <| SRParser.parseFormula contents RangeArray.empty
+  --let cnf ← IO.ofExcept <| SRParser.parseFormula contents (#[] : ICnf)
+  IO.println s!"Formula has {F.size} clauses"
+  -- IO.println s!"Formula has {cnf.size} clauses"
 
   let lsrContents ← IO.FS.withFile lsrFile .read (·.readToEnd)
-  let lines ← IO.ofExcept <| SRParser.parseLSRFile (RangeArray.caps F) lsrContents
-  IO.println s!"LSR file has {lines.size} lines"
+  let lines ← IO.ofExcept <| SRParser.parseLSRFile (F.size) lsrContents
+  --IO.println s!"LSR file has {lines.size} lines"
   --IO.println s!"{F}"
+  --for line in lines do
+  --  match line with
+  --  | .inl l => IO.println s!"{l.clause} {l.witness_lits} p {l.witness_maps} 0 {l.up_hints} {l.rat_hints} 0"
+  --  | .inr _ => continue
+
+  match lines.foldlM (init := ⟨F, PPA.new 100, PS.new 100⟩)
+    (fun S line =>
+      match line with
+      | .inl l => SR.checkLineFlat S l
+      | .inr l =>
+        let ⟨F, τ, σ⟩ := S
+        return ⟨l.clauses.foldl RangeArray.delete F, τ, σ⟩) with
+  | Except.ok _ => IO.println "c Flat Proof failed to derive the empty clause, but is otherwise valid"
+  | Except.error false => IO.println "c Flat Proof failed"
+  | Except.error true => IO.println "s VERIFIED UNSAT"
+
+    /-
+  match lines.mapM ((fun line =>
+    match line with
+    | .inl l => return l
+    | .inr _ => throw "Deletion line found in mapped lines") : SR.SRLine ⊕ SRParser.SRDeletionLine → Except String SR.SRLine) with
+  | .ok l => IO.println s!"{(SR.checkProof cnf l)}"
+  | .error e => IO.println e -/

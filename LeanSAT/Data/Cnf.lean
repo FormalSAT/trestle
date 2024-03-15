@@ -334,6 +334,25 @@ theorem toPropFun_cons (l : L) (ls : List L) :
       (LitVar.toPropFun (l : L)) ⊔ toPropFun ({ data := ls } : Clause L) := by
   simp [toPropFun, PropFun.any]
 
+@[simp]
+theorem foldl_toPropFun_eq (C : Clause L) (acc : PropFun ν) :
+    C.foldl (fun φ l => φ ⊔ (LitVar.toPropFun l)) acc = C.toPropFun ⊔ acc := by
+  have ⟨C⟩ := C
+  rw [Array.foldl_eq_foldl_data]
+  induction C generalizing acc with
+  | nil => simp [toPropFun, PropFun.any]
+  | cons hd tl ih =>
+    simp at ih
+    simp [Array.foldl]
+    rw [ih (acc ⊔ LitVar.toPropFun hd)]
+    conv => lhs; rhs; rw [sup_comm]
+    rw [← sup_assoc]
+    conv => lhs; lhs; rw [sup_comm]
+
+theorem foldl_bot_toPropFun_eq (C : Clause L) :
+    C.foldl (fun φ l => φ ⊔ (LitVar.toPropFun l)) ⊥ = C.toPropFun := by
+  simp [foldl_toPropFun_eq]
+
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
   : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
   intro h
