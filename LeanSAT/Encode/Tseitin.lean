@@ -220,7 +220,7 @@ open PropForm in
 def encode (f : PropForm ν) : VEncCNF ν Unit (· ⊨ f) :=
   let nnf : NegNormForm ν := (NegNormForm.ofPropForm false f).cleanup
   encodeNNF nnf
-  |>.mapProp (by simp [NegNormForm.toPropFun_ofPropForm]; rfl)
+  |>.mapProp (by simp [nnf, NegNormForm.toPropFun_ofPropForm]; rfl)
 
 end Tseitin
 

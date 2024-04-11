@@ -281,7 +281,7 @@ def LawfulState.withTemps (s : LawfulState ν)
     · intro h; simp [State.withTemps.vMap] at h; have := h.symm ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
     · simp [State.withTemps.vMap]; rw [Subtype.mk_eq_mk]
       intro h
-      apply Fin.eq_of_veq; apply Nat.add_left_cancel h
+      apply Fin.eq_of_val_eq; apply Nat.add_left_cancel h
 
 @[simp] theorem LawfulState.vMap_withTemps (s : LawfulState ν) :
     (s.withTemps (n := n)).vMap = State.withTemps.vMap s.toState
@@ -400,7 +400,7 @@ def withTemps (n) (e : EncCNF (ν ⊕ Fin n) α) : EncCNF ν α :=
     match h : e.1 s.withTemps with
     | (a,s') =>
     (a, s'.withoutTemps vMap (by
-        intro v; simp; apply Nat.lt_of_lt_of_le (m := s.nextVar)
+        intro v; apply Nat.lt_of_lt_of_le (m := s.nextVar)
         · apply s.vMapLt
         · have := e.nextVar_mono_of_eq h
           apply Nat.le_trans (m := s.nextVar + n)

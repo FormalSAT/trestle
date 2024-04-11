@@ -234,7 +234,7 @@ theorem satisfies_subst {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
   have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
   rfl
 
-theorem PropFun.semVars_subst [DecidableEq ν₁] [DecidableEq ν₂]
+theorem semVars_subst [DecidableEq ν₁] [DecidableEq ν₂]
     {φ} {f : ν₁ → PropFun ν₂}
   : semVars (PropFun.subst φ f) ⊆ (semVars φ).biUnion (fun v1 => semVars (f v1)) := by
   intro v2 hv2

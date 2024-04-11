@@ -39,8 +39,8 @@ def amoPairwise (lits : Array (Literal ν)) :
         ⟨ i + diff + 1
         , by cases i; cases diff; have := Nat.add_lt_of_lt_sub ‹_›; simp_all; omega ⟩
       j))
-      fun (j : Fin lits.size) =>
-        addClause #[-lits[i], -lits[j]]
+      fun (j : Fin lits.size) => by with_reducible
+        exact addClause #[-lits[i], -lits[j]]
   ).mapProp (by
     rcases lits with ⟨list⟩
     ext τ
@@ -58,14 +58,16 @@ def amoPairwise (lits : Array (Literal ν)) :
         · convert hτj
           simp
           omega
-        · omega
+        · simp
+          omega
       else
         have : j < i := by omega
         apply l ⟨j,hj⟩ ⟨i-(j+1),_⟩ hτj
         · convert hτi
           simp
           omega
-        · omega
+        · simp
+          omega
     · rintro r ⟨x,hx⟩ ⟨y,hy⟩ hτx hτy
       specialize r _ hτx _ hτy
       simp at r
