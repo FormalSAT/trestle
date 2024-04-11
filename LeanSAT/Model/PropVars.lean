@@ -8,7 +8,6 @@ Authors: Wojciech Nawrocki
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite
 import Mathlib.Tactic.ByContra
-import Std.Classes.SetNotation
 
 import LeanSAT.Model.PropFun
 
@@ -86,7 +85,7 @@ theorem exists_flip {φ : PropForm ν} {σ₁ σ₂ : PropAssignment ν} (h₁ :
     ∃ (x : ν) (τ : PropAssignment ν), σ₁ x ≠ σ₂ x ∧ τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ :=
   let s := φ.vars.filter fun x => σ₁ x ≠ σ₂ x
   have hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x := fun _ h => Finset.mem_filter.mp h |>.right
-  have hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x := by simp_all
+  have hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x := by simp_all [s]
   have ⟨x, τ, hx, hτ, hτ'⟩ := go h₁ h₂ s hS hSC
   ⟨x, τ, hS _ hx, hτ, hτ'⟩
 where
@@ -110,16 +109,16 @@ where
         -- If σ₁' still satisfies φ, proceed by induction.
         have hS' : ∀ x ∈ s', σ₁' x ≠ σ₂ x := fun x hMem => by
           have hX : x₀ ≠ x := fun h => hx₀ (h ▸ hMem)
-          simp only [σ₁.set_get_of_ne (!σ₁ x₀) hX]
+          simp only [σ₁', σ₁.set_get_of_ne (!σ₁ x₀) hX]
           exact hS _ (Finset.mem_insert_of_mem hMem)
         have hSC' : ∀ x ∈ φ.vars \ s', σ₁' x = σ₂ x := fun x hMem => by
           by_cases hX : x₀ = x
           case pos =>
             have := hS _ (Finset.mem_insert_self _ _)
-            simp only [← hX, PropAssignment.set_get, Bool.bnot_eq,
+            simp only [σ₁', ← hX, PropAssignment.set_get, Bool.bnot_eq,
                         this, not_false_eq_true]
           case neg =>
-            simp only [σ₁.set_get_of_ne _ hX]
+            simp only [σ₁', σ₁.set_get_of_ne _ hX]
             aesop
         have ⟨x, τ, hx, H⟩ := ih h₁' hS' hSC'
         exact ⟨x, τ, Finset.mem_insert_of_mem hx, H⟩
@@ -236,7 +235,7 @@ theorem semVars_neg (φ : PropFun ν) : φᶜ.semVars = φ.semVars := by
     simp only [satisfies_neg, not_not] at hτ hτ' ⊢
     let τ' := τ.set x (!τ x)
     have : (!τ' x) = τ x := by
-      simp only [τ.set_get x, Bool.not_not]
+      simp only [τ', τ.set_get x, Bool.not_not]
     refine ⟨τ', hτ', ?_⟩
     rw [τ.set_set, this, τ.set_same]
     exact hτ
@@ -295,11 +294,11 @@ theorem setMany_satisfies_iff_inter_semVars [DecidableEq ν]
   · simp
   next x vs hx ih =>
   if h : x ∈ φ.semVars then
-    rw [Finset.insert_eq, Finset.inter_distrib_right
+    rw [Finset.insert_eq, Finset.union_inter_distrib_right
         , Finset.singleton_inter_of_mem h]
     simp [PropAssignment.setMany_union]; apply ih
   else
-  simp [Finset.insert_eq, Finset.inter_distrib_right
+  simp [Finset.insert_eq, Finset.union_inter_distrib_right
       , Finset.singleton_inter_of_not_mem h
       , PropAssignment.setMany_union]
   rw [← ih _, ← τ.set_setMany_comm _ _ _ _ hx]

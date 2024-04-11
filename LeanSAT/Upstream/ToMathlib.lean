@@ -143,12 +143,12 @@ theorem Finset.biUnion_union [DecidableEq α] [DecidableEq β] (s1 s2 : Finset �
     · simp only [and_self, or_true, *]
 
 def Finset.getUnique (xs : Finset α) (h : ∃ x, xs = {x}) : α :=
-  xs.elim (fun L hL =>
+  xs.elim (fun L _hL =>
     match L with
     | [] => by
       exfalso; cases h; simp_all
       apply Multiset.not_mem_zero
-      rw [hL]
+      rw [_hL]
       apply Multiset.mem_singleton.mpr
       rfl
     | x::_ => x
@@ -226,7 +226,6 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
   q1.lift
     (fun a1 => q2.lift (fun a2 => ⟦(a1,a2)⟧) (by
       intro a b hab; simp
-      rw [Quotient.eq (r := s1.prod s2)]
       simp [hab]
       rw [←eq]
       ))
@@ -234,7 +233,6 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
       have ⟨q1,hq1⟩ := q1.exists_rep; cases hq1
       have ⟨q2,hq2⟩ := q2.exists_rep; cases hq2
       intro a b hab
-      simp; rw [@Quotient.eq _ (.prod _ _)]
       simp [hab]
       rw [←eq])
 
@@ -247,7 +245,6 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
   : Quotient.prod aa bb = Quotient.mk (s := sa.prod sb) (a,b) ↔ aa = ⟦ a ⟧ ∧ bb = ⟦ b ⟧ := by
   rcases aa.exists_rep with ⟨a',rfl⟩
   rcases bb.exists_rep with ⟨b',rfl⟩
-  simp [prod]; rw [Quotient.eq (r := sa.prod sb)]
   simp [Setoid.prod]
 
 def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s.map f where
@@ -375,7 +372,7 @@ theorem inf_compl_le_iff_le_sup : a ⊓ bᶜ ≤ c ↔ a ≤ b ⊔ c := by
 
 theorem le_iff_inf_compl_le_bot : a ≤ b ↔ a ⊓ bᶜ ≤ ⊥ := by
   conv => lhs; rhs; rw [← compl_compl b]
-  have : bᶜᶜ = bᶜᶜ ⊔ ⊥ := by exact sup_bot_eq.symm
+  have : bᶜᶜ = bᶜᶜ ⊔ ⊥ := by exact (sup_bot_eq _).symm
   rw [this]
   exact inf_le_iff_le_compl_sup.symm
 

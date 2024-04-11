@@ -154,7 +154,7 @@ def unlessOneOf (ls : Array (Literal ν)) (ve : VEncCNF ν α P)
     subst_vars
     simp only [EncCNF.LawfulState.interp] at *
     simp_all
-    clear! s''f s''e s''d sf se sd
+    clear! s''f s''e s''d se sd
     rintro _ _ rfl
     simp [Clause.satisfies_iff, not_or, PropPred.satisfies_def]
   ⟩
@@ -188,7 +188,7 @@ def withTemps (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
     next a ls_post_temps def_pair =>
     generalize_proofs h
     subst def_ls_post_pair
-    simp at def_ls_post; clear vMap assumeVars
+    simp [vMap, assumeVars] at def_ls_post; clear vMap assumeVars
     generalize def_ls_pre_temps : LawfulState.withTemps ls_pre = ls_pre_temps
     rw [def_ls_pre_temps] at def_pair
     -- extract relationship between ls_pre_temps and ls_post_temps
@@ -215,7 +215,7 @@ def withTemps (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
           use σ; simp
           tauto
         . let σ : PropAssignment (ν ⊕ Fin n) := fun | .inl x => τ x | _ => false
-          use σ; simp
+          use σ
           have : τ = PropAssignment.map Sum.inl σ := funext fun x => by simp only [PropAssignment.get_map]
           tauto
     · aesop
