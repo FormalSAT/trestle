@@ -378,9 +378,9 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     induction lits with
     | nil => rw [ext_iff] at h; simp [Array.mem_def] at h
     | cons hd tl ih =>
-    by_cases hr : any _ = ⊤
-    · have := ih hr
-      aesop
+    classical
+    refine if hr : any _ = ⊤ then have := ih hr; ?_ else ?_
+    · aesop
     · clear ih
       rw [PropFun.ext_iff] at hr h
       simp at hr h
