@@ -19,7 +19,7 @@ Add the following to your project's `lakefile`:
 require «lean-sat» from git
   "https://github.com/JamesGallicchio/LeanSAT" @ "main"
 ```
-The main branch is currently on Lean `v4.6.0`,
+The main branch is currently on Lean `v4.7.0`,
 and Lean still has breaking changes every minor revision,
 so expect it to not compile on any other version of Lean.
 
