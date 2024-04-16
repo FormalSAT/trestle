@@ -150,7 +150,7 @@ theorem coloringAssignment_exists_of_validColoring {G : Graph n} :
     have h_ne := hC huv
     generalize C u = Cu at h_ne ⊢
     generalize C v = Cv at h_ne ⊢
-    fin_cases Cu <;> fin_cases Cv <;> simp [← Fin.val_inj] at *
+    fin_cases Cu <;> fin_cases Cv <;> simp at *
 
 -- Now generate an actual CNF for a graph object
 def K8 : Graph 8 := completeGraph (Fin 8)
