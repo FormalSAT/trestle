@@ -4,11 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki
 -/
 
-import ProofChecker.Data.ICnf
-import ProofChecker.Data.Pog
-import ProofChecker.Model.PropVars
-import ProofChecker.Model.Extensions
-import ProofChecker.Count.PropForm
+import Experiments.CPOG.Data.ICnf
+import Experiments.CPOG.Data.Pog
+import Experiments.CPOG.Model.PropVars
+import Experiments.CPOG.Model.Extensions
+import Experiments.CPOG.Count.PropForm
 
 /-! Justifications of CPOG steps. -/
 
@@ -44,7 +44,7 @@ theorem addDisj_new_var_equiv {A : Set Var} (Γ l₁ l₂ φ₁ φ₂ : PropTerm
     | inl h =>
       have ⟨σ₁, hAgree₁, h₁⟩ := e₁ τ |>.mpr ⟨σ₂, hAgree, h⟩
       let σ₁' := σ₁.set s ⊤
-      have : σ₁' ⊨ .var s := by simp
+      have : σ₁' ⊨ .var s := by simp [σ₁']
       have hAgree₁' : σ₁'.agreeOn X σ₁ := σ₁.agreeOn_set_of_not_mem _ hMem
       have : σ₁'.agreeOn X τ := hAgree₁'.trans hAgree₁
       have : σ₁' ⊨ Γ := agreeOn_semVars (σ₁.agreeOn_set_of_not_mem _ hΓ) |>.mpr
@@ -55,7 +55,7 @@ theorem addDisj_new_var_equiv {A : Set Var} (Γ l₁ l₂ φ₁ φ₂ : PropTerm
     | inr h =>
       have ⟨σ₁, hAgree₁, h₁⟩ := e₂ τ |>.mpr ⟨σ₂, hAgree, h⟩
       let σ₁' := σ₁.set s true
-      have : σ₁' ⊨ .var s := by simp
+      have : σ₁' ⊨ .var s := by simp [σ₁']
       have hAgree₁' : σ₁'.agreeOn X σ₁ := σ₁.agreeOn_set_of_not_mem _ hMem
       have : σ₁'.agreeOn X τ := hAgree₁'.trans hAgree₁
       have : σ₁' ⊨ Γ := agreeOn_semVars (σ₁.agreeOn_set_of_not_mem _ hΓ) |>.mpr
@@ -113,7 +113,7 @@ theorem addConj_new_var_equiv₂ {A : Set Var} (Γ l₁ l₂ φ₁ φ₂ : PropT
     have hAgree₁₁' : σ₁.agreeOn A σ₁' := hUep hσ₁Γ hσ₁'Γ (hAgree₁.trans hAgree₁'.symm)
     have : σ₁ ⊨ l₂ := agreeOn_semVars (hAgree₁₁'.subset hL₂Γ) |>.mpr (by tauto)
     let σ₃ := σ₁.set p true
-    have : σ₃ ⊨ .var p := by simp
+    have : σ₃ ⊨ .var p := by simp [σ₃]
     have : σ₃ ⊨ l₁ := agreeOn_semVars (σ₁.agreeOn_set_of_not_mem _ hL₁) |>.mpr (by tauto)
     have : σ₃ ⊨ l₂ := agreeOn_semVars (σ₁.agreeOn_set_of_not_mem _ hL₂) |>.mpr (by tauto)
     have : σ₃ ⊨ Γ := agreeOn_semVars (σ₁.agreeOn_set_of_not_mem _ hΓ) |>.mpr (by tauto)
@@ -130,8 +130,8 @@ theorem addConj_new_var_equiv {A : Set Var} (G : Pog) (Γ : PropTerm Var) (ls : 
   intro hMem hX hΓ hUep hExt hLs τ
   refine ⟨?mp, ?mpr⟩ <;>
     simp only [PropForm.mk_arrayConj, satisfies_conj, satisfies_biImpl,
-      PropForm.satisfies_arrayConjTerm, Array.map_data, List.mem_map', and_imp,
-      forall_apply_eq_imp_iff₂, forall_exists_index, ILit.mk_toPropForm]
+      PropForm.satisfies_arrayConjTerm, Array.map_data, List.mem_map, forall_exists_index, and_imp,
+      forall_apply_eq_imp_iff₂, ILit.mk_toPropForm]
   case mp =>
     intro σ₁ hAgree hσ₁p hσ₁Γ hσ₁
     simp only [hσ₁p, true_iff, ILit.mk_toPropForm] at hσ₁
@@ -147,7 +147,7 @@ theorem addConj_new_var_equiv {A : Set Var} (G : Pog) (Γ : PropTerm Var) (ls : 
     intro σ₂ hAgree₂ hTpfs
     have ⟨σ₁, hAgree₁, h₁⟩ := hExt τ
     let σ₁' := σ₁.set p true
-    have hσ₁'p : σ₁' ⊨ .var p := by simp
+    have hσ₁'p : σ₁' ⊨ .var p := by simp [σ₁']
     have hAgree₁'A : σ₁'.agreeOn A σ₁ := σ₁.agreeOn_set_of_not_mem _ hMem
     have hAgree₁' : σ₁'.agreeOn X τ := hAgree₁'A.subset hX |>.trans hAgree₁
     have hσ₁'Γ : σ₁' ⊨ Γ := agreeOn_semVars (hAgree₁'A.subset hΓ) |>.mpr h₁

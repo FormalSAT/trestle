@@ -6,6 +6,7 @@ Authors: Leonardo de Moura, Mario Carneiro
 import Std.Data.AssocList
 import Std.Data.Nat.Basic
 import Std.Classes.BEq
+import Std.Data.Array
 
 namespace HashMap
 open Std
@@ -149,7 +150,7 @@ where
       let target := es.foldl reinsertAux target
       go (i+1) source target
     else target
-termination_by go i source _ => source.size - i
+  termination_by source.size - i
 
 /--
 Inserts key-value pair `a, b` into the map.
@@ -192,7 +193,7 @@ Applies `f` to each key-value pair `a, b` in the map. If it returns `some c` the
   have : m'.1.size.isPowerOfTwo := by
     have := Array.size_mapM (m := StateT (ULift Nat) Id) (go .nil) m.buckets.1
     simp [SatisfiesM_StateT_eq, SatisfiesM_Id_eq] at this
-    simp [this, Id.run, StateT.run, m.2.2]
+    simp [m', this, Id.run, StateT.run, m.2.2]
   ⟨m'.2.1, m'.1, this⟩
 where
   /-- Inner loop of `filterMap`. Note that this reverses the bucket lists,

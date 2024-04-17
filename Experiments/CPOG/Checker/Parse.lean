@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki
 -/
 
-import ProofChecker.Data.ICnf
-import ProofChecker.Checker.CheckerCore
+import Experiments.CPOG.Data.ICnf
+import Experiments.CPOG.Checker.CheckerCore
 
 def Except.ofOption (e : ε) : Option α → Except ε α
   | none   => .error e
@@ -87,7 +87,7 @@ def IClause.ofTokensBounded (bd : Nat) (tks : Array Token) : Except String IClau
 /-- Return a CNF computed from the tokens of a DIMACS CNF file, together with the variable count
 stored in the header. -/
 def ICnf.ofLines (lns : Array (Array Token)) : Except String (ICnf × Nat) := do
-  let some hdr := lns[0]? 
+  let some hdr := lns[0]?
     | throw s!"expected at least one line"
   let #[.str "p", .str "cnf", nVars, .int nClauses] := hdr
     | throw s!"unexpected header {hdr}"
@@ -112,7 +112,7 @@ def ICnf.readDimacsFile (fname : String) : IO (ICnf × Nat) := do
   match ofLines lns with
   | .ok v => return v
   | .error e => throw <| IO.userError e
-  
+
 def ICnf.toDimacs (cnf : ICnf) (nVars : Nat) : String := Id.run do
   let mut s := s!"p cnf {nVars} {cnf.size}\n"
   for C in cnf do
@@ -120,7 +120,7 @@ def ICnf.toDimacs (cnf : ICnf) (nVars : Nat) : String := Id.run do
       s := s ++ toString l ++ " "
     s := s ++ "0\n"
   return s
-  
+
 /-- Return a proof step given a DIMACS line. -/
 def CpogStep.ofTokens (tks : Array Token) : Except String CpogStep := do
   let toUpHints (tks : Array Token) : Except String (Array Nat) := do

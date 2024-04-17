@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Jeremy Avigad
 -/
 
-import ProofChecker.Data.Pog
-import ProofChecker.Count.PropForm
+import Experiments.CPOG.Data.Pog
+import Experiments.CPOG.Count.PropForm
 
 open Nat
 open PogElt
@@ -27,7 +27,7 @@ def conjProd' (nVars : Nat) {n : Nat} (g : Fin n → Nat) : Nat :=
 
 theorem conjProd_eq_conjProd' : conjProd = conjProd' := by
   ext nVars n f
-  rw [conjProd, conjProd', Array.foldr_eq_foldr_data, List.ofFn, Array.toList_eq]
+  rw [conjProd, conjProd', Array.foldr_eq_foldr_data, List.ofFn]
 
 def toCountArray (pog : Pog) (nVars : Nat) :
     { A : Array Nat // A.size = pog.elts.size } :=
@@ -143,11 +143,10 @@ where
         rw [conjProd_eq_conjProd', conjProd', PropForm.arrayConj, PropForm.listConj,
           countModels_foldr_conj]
         apply congr_arg
-        rw [←Array.toList_eq, ←List.ofFn, List.map_ofFn]
+        rw [←List.ofFn, List.map_ofFn]
         apply congr_arg
         ext j
         simp only [Function.comp_apply]
-        simp only [ILit.var_mkPos, natPred_succPNat, PropForm.withPolarity_mkPos, dif_pos ASizeLt]
         have harg : PNat.natPred (ILit.var args[j]) < A.size := by
           dsimp at hinv; rw [hinv, PNat.natPred_lt_natPred]
           exact hwf j
@@ -191,7 +190,7 @@ def conjProdW' {n : Nat} (g : Fin n → R) : R :=
 theorem conjProdW_eq_conjProdW' : @conjProdW R _ = @conjProdW' R _ := by
   apply funext; intro n
   apply funext; intro g
-  rw [conjProdW, conjProdW', Array.foldr_eq_foldr_data, List.ofFn, Array.toList_eq]
+  rw [conjProdW, conjProdW', Array.foldr_eq_foldr_data, List.ofFn]
 
 def toRingEvalArray (pog : Pog) (weight : Var → R) :
     { A : Array R // A.size = pog.elts.size } :=
@@ -307,11 +306,10 @@ where
         rw [conjProdW_eq_conjProdW', conjProdW', PropForm.arrayConj, PropForm.listConj,
           ringEval_foldr_conj]
         apply congr_arg
-        rw [←Array.toList_eq, ←List.ofFn, List.map_ofFn]
+        rw [←List.ofFn, List.map_ofFn]
         apply congr_arg
         apply funext; intro j
         simp only [Function.comp_apply]
-        simp only [ILit.var_mkPos, natPred_succPNat, PropForm.withPolarity_mkPos, dif_pos ASizeLt]
         have harg : PNat.natPred (ILit.var args[j]) < A.size := by
           dsimp at hinv; rw [hinv, PNat.natPred_lt_natPred]
           exact hwf j

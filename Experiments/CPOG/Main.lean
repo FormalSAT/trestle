@@ -6,8 +6,8 @@ Authors: Wojciech Nawrocki
 
 import Cli
 
-import ProofChecker.Checker.Parse
-import ProofChecker.Checker.CheckerCore
+import Experiments.CPOG.Checker.Parse
+import Experiments.CPOG.Checker.CheckerCore
 
 def runCheckCmd (p : Cli.Parsed) : IO UInt32 := do
   let cnfFname := p.positionalArg! "cnf"

@@ -5,13 +5,13 @@ Authors: Wojciech Nawrocki
 -/
 import Std.Data.List.Lemmas
 import Std.Data.Array.Lemmas
-import Std.Tactic.ShowTerm
+--import Std.Tactic.ShowTerm
 
 import Mathlib.Data.List.Perm
 
-import ProofChecker.Model.ToMathlib
-import ProofChecker.Data.HashMap.Basic
-import ProofChecker.Data.HashMap.WF
+import Experiments.CPOG.Model.ToMathlib
+import Experiments.CPOG.Data.HashMap.Basic
+import Experiments.CPOG.Data.HashMap.WF
 
 namespace HashMap
 open Std (AssocList)
@@ -91,7 +91,7 @@ theorem Pairwise_bne_toListModel (bkts : Buckets α β) (H : bkts.WF) :
       ∧ ∀ j, i ≤ j → (_ : j < bkts.val.size) →
         ∀ p ∈ acc, ∀ r ∈ bkts.val[j].toList, p.1 != r.1)
     ?h0 ?hf |>.left
-  case h0 => exact ⟨Pairwise.nil, fun.⟩
+  case h0 => exact ⟨Pairwise.nil, fun _ _ _ _ h => nomatch h⟩
   case hf =>
     intro i acc h
     refine ⟨pairwise_append.mpr ⟨h.left, ?bkt, ?accbkt⟩, ?accbkts⟩
@@ -157,6 +157,7 @@ theorem exists_of_toListModel_update_WF (bkts : Buckets α β) (H : bkts.WF) (i 
     have ⟨⟨j, hJ⟩, hEq⟩ := get_of_mem hBkt
     have hJ' : j < bkts.val.size := by
       apply Nat.lt_trans hJ
+      stop
       simp [Array.size, hTgt, Nat.lt_add_of_pos_right (Nat.succ_pos _)]
     have : ab ∈ (bkts.val[j]).toList := by
       suffices bkt = bkts.val[j] by rwa [this] at hAb
@@ -214,7 +215,7 @@ where
     case inr hI =>
       have : src.data.length ≤ i := by simp [Nat.le_of_not_lt, hI]
       simp [Perm.refl, drop_eq_nil_of_le this]
-    termination_by _ i src _ => src.size - i
+    termination_by src.size - i
 
 end Buckets
 
@@ -457,7 +458,7 @@ theorem insert_comm [LawfulBEq α] (m : HashMap α β) (a₁ a₂ : α) (b : β)
   intro a
   cases Bool.beq_or_bne a₁ a <;> cases Bool.beq_or_bne a₂ a <;>
     simp_all [findEntry?_insert, findEntry?_insert_of_ne]
-    
+
 /-! `contains` -/
 
 theorem contains_iff (m : HashMap α β) (a : α) :
@@ -470,7 +471,7 @@ theorem not_contains_iff (m : HashMap α β) (a : α) :
   apply Iff.intro
   . intro h; cases h' : find? m a <;> simp_all
   . intro h; simp_all
-  
+
 theorem not_contains_of_isEmpty (m : HashMap α β) (a : α) : m.isEmpty → m.contains a = false :=
   fun h => not_contains_iff _ _ |>.mpr (find?_of_isEmpty m a h)
 
@@ -503,7 +504,7 @@ theorem contains_insert (m : HashMap α β) (a a' : α) (b : β) :
     intro hEq
     rw [find?_insert _ _ hEq]
     exact ⟨_, rfl⟩
-  
+
 /-! `fold` -/
 
 /-- If an entry appears in the map, it will appear "last" in a commutative `fold` over the map. -/
@@ -515,7 +516,7 @@ theorem fold_of_mapsTo_of_comm [LawfulBEq α] (m : HashMap α β) (f : δ → α
     -- TODO: Might also have to assume assoc
     ∃ d, m.fold f init = f d a b :=
   sorry
-  
+
 /-- Analogous to `List.foldlRecOn`. -/
 def foldRecOn {C : δ → Sort _} (m : HashMap α β) (f : δ → α → β → δ) (init : δ) (hInit : C init)
     (hf : ∀ d a b, C d → m.find? a = some b → C (f d a b)) : C (m.fold f init) :=

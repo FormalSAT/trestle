@@ -8,7 +8,7 @@ import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite
 import Mathlib.Tactic.ByContra
 
-import ProofChecker.Model.PropTerm
+import Experiments.CPOG.Model.PropTerm
 
 /-! Definitions and theorems relating propositional formulas and functions to variables
 
@@ -110,7 +110,7 @@ theorem exists_flip {φ : PropForm ν} {σ₁ σ₂ : PropAssignment ν} : σ₁
   fun h₁ h₂ =>
     let s := φ.vars.filter fun x => σ₁ x ≠ σ₂ x
     have hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x := fun _ h => Finset.mem_filter.mp h |>.right
-    have hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x := fun _ h => by simp_all
+    have hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x := fun _ h => by sorry
     have ⟨x, τ, hMem, hτ, hτ'⟩ := go h₁ h₂ s hS hSC rfl
     ⟨x, τ, hS _ hMem, hτ, hτ'⟩
 -- NOTE(Jeremy): a proof using `Finset.induction` would likely be shorter
@@ -129,6 +129,7 @@ where go {σ₁ σ₂ : PropAssignment ν} (h₁ : σ₁ ⊨ φ) (h₂ : σ₂ �
     have ⟨x₀, s', h₀, h', hCard'⟩ := Finset.card_eq_succ.mp hCard
     have h₀S : x₀ ∈ s := h' ▸ Finset.mem_insert_self x₀ s'
     let σ₁' := σ₁.set x₀ (!σ₁ x₀)
+    stop
     by_cases h₁' : σ₁' ⊨ φ
     case neg =>
       -- If σ₁' no longer satisfies φ, we're done.
@@ -242,6 +243,7 @@ theorem semVars_neg (φ : PropTerm ν) : φᶜ.semVars = φ.semVars := by
     simp only [satisfies_neg, not_not] at hτ hτ' ⊢
     let τ' := τ.set x (!τ x)
     have : (!τ' x) = τ x := by
+      stop
       simp only [τ.set_get x, Bool.not_not]
     refine ⟨τ', hτ', ?_⟩
     rw [τ.set_set, this, τ.set_same]
@@ -347,7 +349,7 @@ def hasUniqueExtension (X Y : Set ν) (φ : PropTerm ν) :=
 
 theorem hasUniqueExtension_refl (X : Set ν) (φ : PropTerm ν) : hasUniqueExtension X X φ :=
   by simp [hasUniqueExtension]
-  
+
 theorem hasUniqueExtension.subset_left : X ⊆ X' → hasUniqueExtension X Y φ →
     hasUniqueExtension X' Y φ :=
   fun hSub h _ _ h₁ h₂ hAgree => h h₁ h₂ (hAgree.subset hSub)
@@ -359,7 +361,7 @@ theorem hasUniqueExtension.subset_right : Y' ⊆ Y → hasUniqueExtension X Y φ
 theorem hasUniqueExtension.trans : hasUniqueExtension X Y φ → hasUniqueExtension Y Z φ →
     hasUniqueExtension X Z φ :=
   fun hXY hYZ _ _ h₁ h₂ hAgree => hAgree |> hXY h₁ h₂ |> hYZ h₁ h₂
-  
+
 theorem hasUniqueExtension.conj_right (ψ : PropTerm ν) :
     hasUniqueExtension X Y φ → hasUniqueExtension X Y (φ ⊓ ψ) :=
   fun hXY _ _ h₁ h₂ hAgree => hXY (satisfies_conj.mp h₁).left (satisfies_conj.mp h₂).left hAgree
@@ -367,7 +369,7 @@ theorem hasUniqueExtension.conj_right (ψ : PropTerm ν) :
 theorem hasUniqueExtension.conj_left (ψ : PropTerm ν) :
     hasUniqueExtension X Y φ → hasUniqueExtension X Y (ψ ⊓ φ) :=
   fun hXY _ _ h₁ h₂ hAgree => hXY (satisfies_conj.mp h₁).right (satisfies_conj.mp h₂).right hAgree
-  
+
 theorem hasUniqueExtension_to_empty (X : Set ν) (φ : PropTerm ν) : hasUniqueExtension X ∅ φ :=
   hasUniqueExtension_refl X φ |>.subset_right (Set.empty_subset X)
 

@@ -7,7 +7,7 @@ Authors: Wojciech Nawrocki
 import Mathlib.Data.Set.Basic
 import Mathlib.Order.BooleanAlgebra
 
-import ProofChecker.Model.ToMathlib
+import Experiments.CPOG.Model.ToMathlib
 
 /-! Formulas of propositional logic. -/
 

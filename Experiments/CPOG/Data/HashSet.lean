@@ -6,7 +6,7 @@ Authors: Wojciech Nawrocki
 
 import Mathlib.Data.Finset.Basic
 
-import ProofChecker.Data.HashMap.Lemmas
+import Experiments.CPOG.Data.HashMap.Lemmas
 
 def HashSet (α : Type) [BEq α] [Hashable α] := HashMap α Unit
 
@@ -52,7 +52,7 @@ theorem toFinset_sub (s : HashSet α) (a : α) : a ∈ s.toFinset → s.contains
   intro _ a _ ih hFind hMem
   cases hMem with
   | inl h =>
-    apply HashMap.contains_iff _ _ |>.mpr 
+    apply HashMap.contains_iff _ _ |>.mpr
     exact h ▸ ⟨_, hFind⟩
   | inr h => exact ih h
 

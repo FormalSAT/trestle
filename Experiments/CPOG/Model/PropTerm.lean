@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Wojciech Nawrocki
 -/
 
-import ProofChecker.Model.PropForm
+import Experiments.CPOG.Model.PropForm
 
 /-! The Lindenbaum-Tarski algebra on propositional logic. We show that it is a Boolean algebra with
 ordering given by semantic entailment. -/
@@ -43,7 +43,7 @@ def neg : PropTerm ν → PropTerm ν :=
     intro _ _ h τ
     simp [h τ])
 
-def conj : PropTerm ν → PropTerm ν → PropTerm ν := 
+def conj : PropTerm ν → PropTerm ν → PropTerm ν :=
   Quotient.map₂ (.conj · ·) (by
     intro _ _ h₁ _ _ h₂ τ
     simp [h₁ τ, h₂ τ])
@@ -159,7 +159,7 @@ theorem entails_ext {φ₁ φ₂ : PropTerm ν} :
   have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
   simp only [← h₁, ← h₂, entails_mk]
   exact PropForm.entails_ext
-  
+
 theorem entails_refl (φ : PropTerm ν) : entails φ φ :=
   fun _ => le_rfl
 theorem entails.trans : entails φ₁ φ₂ → entails φ₂ φ₃ → entails φ₁ φ₃ :=
@@ -253,11 +253,11 @@ theorem satisfies_neg {τ : PropAssignment ν} : τ ⊨ (φᶜ) ↔ τ ⊭ φ :=
 
 @[simp]
 theorem satisfies_conj {τ : PropAssignment ν} : τ ⊨ φ₁ ⊓ φ₂ ↔ τ ⊨ φ₁ ∧ τ ⊨ φ₂ := by
-  simp [sEntails, satisfies, HasInf.inf]
+  simp [sEntails, satisfies, Inf.inf]
 
 @[simp]
 theorem satisfies_disj {τ : PropAssignment ν} : τ ⊨ φ₁ ⊔ φ₂ ↔ τ ⊨ φ₁ ∨ τ ⊨ φ₂ := by
-  simp [sEntails, satisfies, HasSup.sup]
+  simp [sEntails, satisfies, Sup.sup]
 
 @[simp]
 theorem satisfies_impl {τ : PropAssignment ν} : τ ⊨ φ₁ ⇨ φ₂ ↔ (τ ⊨ φ₁ → τ ⊨ φ₂) := by
@@ -271,14 +271,15 @@ theorem satisfies_impl' {τ : PropAssignment ν} : τ ⊨ φ₁ ⇨ φ₂ ↔ τ
 @[simp]
 theorem satisfies_biImpl {τ : PropAssignment ν} : τ ⊨ biImpl φ₁ φ₂ ↔ (τ ⊨ φ₁ ↔ τ ⊨ φ₂) := by
   simp [sEntails, satisfies]
-  
+
 instance : Nontrivial (PropTerm ν) where
   exists_pair_ne := by
     use ⊤, ⊥
     intro h
     have : ∀ (τ : PropAssignment ν), τ ⊨ ⊥ ↔ τ ⊨ ⊤ := fun _ => h ▸ Iff.rfl
     simp only [satisfies_tr, not_satisfies_fls] at this
-    apply this (fun _ => true)
+    specialize this (fun _ => true)
+    trivial
 
 theorem eq_top_iff {φ : PropTerm ν} : φ = ⊤ ↔ ∀ (τ : PropAssignment ν), τ ⊨ φ :=
   ⟨fun h => by simp [h], fun h => by ext; simp [h]⟩
@@ -306,7 +307,7 @@ theorem mk_tr : @Eq (PropTerm ν) ⟦.tr⟧ ⊤ := rfl
 theorem mk_fls : @Eq (PropTerm ν) ⟦.fls⟧ ⊥ := rfl
 
 @[simp]
-theorem mk_neg (φ : PropForm ν) : @Eq (PropTerm ν) ⟦.neg φ⟧ (⟦φ⟧ᶜ) := rfl
+theorem mk_neg (φ : PropForm ν) : @Eq (PropTerm ν) ⟦.neg φ⟧ ((⟦φ⟧)ᶜ) := rfl
 
 @[simp]
 theorem mk_conj (φ₁ φ₂ : PropForm ν) : @Eq (PropTerm ν) ⟦.conj φ₁ φ₂⟧ (⟦φ₁⟧ ⊓ ⟦φ₂⟧) := rfl

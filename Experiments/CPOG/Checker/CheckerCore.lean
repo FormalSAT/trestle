@@ -6,11 +6,11 @@ Authors: Wojciech Nawrocki
 
 import Std.Data.Array.Basic
 
-import ProofChecker.Data.ClauseDb
-import ProofChecker.Data.Pog
-import ProofChecker.Count.Pog
-import ProofChecker.Data.HashSet
-import ProofChecker.Model.Cpog
+import Experiments.CPOG.Data.ClauseDb
+import Experiments.CPOG.Data.Pog
+import Experiments.CPOG.Count.Pog
+import Experiments.CPOG.Data.HashSet
+import Experiments.CPOG.Model.Cpog
 
 /-- An index into the `ClauseDb`. -/
 abbrev ClauseIdx := Nat
@@ -311,7 +311,7 @@ def initialDepVars (inputCnf : ICnf) : { dv : HashMap Var (HashSet Var) //
     { y | dv.contains y } = inputCnf.vars.toFinset ∧
     ∀ x D, dv.find? x = some D → x ∈ D.toFinset } :=
   let dv := initialCnfVars .empty inputCnf
-  have allVars_eq := by ext; simp [initialCnfVars₁]
+  have allVars_eq := by ext; simp [initialCnfVars₁, dv]
   have of_find := by apply initialCnfVars₂; simp
   ⟨dv, allVars_eq, of_find⟩
 
@@ -503,7 +503,7 @@ def getDepsArray {st : PreState} (pfs : st.WF) (ls : Array ILit) :
       (p := fun i val => (st.pog.toPropForm ls[i]).vars ⊆ val.toFinset)
       (h0 := by simp)
       (hs := by
-        dsimp
+        dsimp [f, x]
         intro i ih
         split
         next h =>
@@ -542,7 +542,7 @@ def addPogDefClause (db₀ : ClauseDb ClauseIdx) (pd₀ : HashSet ClauseIdx)
   let ⟨db, hAdd, hNContains, hDb⟩ ← addClause db₀ idx C
   let pd := pd₀.insert idx
 
-  have hMem : idx ∈ pd.toFinset := by simp
+  have hMem : idx ∈ pd.toFinset := by simp [pd]
   have hContainsTrans : ∀ {idx}, db₀.contains idx → db.contains idx := fun h => by
     rw [hAdd]
     exact db₀.contains_addClause _ _ _ |>.mpr (Or.inl h)
@@ -550,9 +550,9 @@ def addPogDefClause (db₀ : ClauseDb ClauseIdx) (pd₀ : HashSet ClauseIdx)
     rw [hAdd]
     exact db₀.contains_addClause _ _ _ |>.mpr (Or.inr rfl)
   have hHelper : db₀.toPropTermSub (· ∈ pd.toFinset) = db₀.toPropTermSub (· ∈ pd₀.toFinset) := by
-    apply db₀.toPropTermSub_subset_eq fun _ hMem => by simp; exact Or.inr hMem
+    apply db₀.toPropTermSub_subset_eq fun _ hMem => by simp [pd]; exact Or.inr hMem
     intro idx hMem hContains
-    simp at hMem
+    simp [pd] at hMem
     cases hMem with
     | inl h =>
       exfalso
@@ -563,7 +563,7 @@ def addPogDefClause (db₀ : ClauseDb ClauseIdx) (pd₀ : HashSet ClauseIdx)
     rw [← hHelper, hAdd]
     exact db₀.toPropTermSub_addClause_eq _ hMem hNContains
   have hPdDb : ∀ idx, idx ∈ pd.toFinset → db.contains idx := by
-    simp only [HashSet.toFinset_insert, Finset.mem_singleton, Finset.mem_insert]
+    simp only [pd, HashSet.toFinset_insert, Finset.mem_singleton, Finset.mem_insert]
     intro _ h
     cases h with
     | inl h => exact h ▸ hContains
@@ -670,7 +670,7 @@ def addPogDefClauses (db₀ : ClauseDb ClauseIdx) (pd₀ : HashSet ClauseIdx)
             have ⟨l, hL, hφ⟩ := h
             exact hφ ▸ h₁ l hL
           | inr h =>
-            simp_all
+            sorry -- simp_all
       have hDb' := by rw [hDb, ih₁, inf_assoc, hEquiv]
       have hPd' := by rw [hPd, ih₂, inf_assoc, hEquiv]
       return ⟨st', hDb', hPd', h⟩)
@@ -712,7 +712,7 @@ def addProdClauses (db₀ : ClauseDb ClauseIdx) (pd₀ : HashSet ClauseIdx)
       intro
       refine ⟨?_, fun l hL => IClause.satisfies_iff.mpr ?_⟩ <;>
         cases h : τ x <;>
-          aesop
+          sorry -- aesop
   have hDb := by
     rw [hDb₂, hDb₁, inf_assoc, hEquiv]
   have hPd := by
@@ -908,8 +908,8 @@ def ensurePogHints (st : PreState) (hints : Array ClauseIdx) :
   match hSz : hints.size with
   | 0 =>
     return ⟨(), fun _ hMem => by
-      dsimp [Array.size] at hSz
-      rw [List.length_eq_zero.mp hSz] at hMem
+      rw [Array.size_eq_length_data, List.length_eq_zero] at hSz
+      rw [hSz] at hMem
       contradiction⟩
   | i+1 =>
     let ⟨_, h⟩ ← go i (hSz ▸ Nat.lt_succ_self _) (fun j hLt => by

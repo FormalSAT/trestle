@@ -51,10 +51,6 @@ theorem bne_symm [BEq α] [PartialEquivBEq α] {a b : α} : a != b → b != a :=
   fun h => Bool.not_eq_true_iff_ne_true.mpr fun h' =>
     Bool.bne_iff_not_beq.mp h (PartialEquivBEq.symm h')
 
-@[simp]
-theorem bne_iff_ne [BEq α] [LawfulBEq α] (a b : α) : a != b ↔ a ≠ b := by
-  simp [Bool.bne_iff_not_beq]
-
 /-! Maybe Std.Notation -/
 
 /-- Notation typeclass for semantic entailment `⊨`. -/
@@ -116,7 +112,7 @@ theorem find?_filter (l : List α) (p q : α → Bool) (h : ∀ a, p a → q a) 
   | nil => rfl
   | cons x xs ih =>
     dsimp [filter]
-    split <;> split <;> simp [*] at *
+    split <;> simp only [find?_cons] <;> split <;> simp [*] at *
 
 theorem find?_filter' (l : List α) (p q : α → Bool) (h : ∀ a, p a → !q a) :
     (l.filter q).find? p = none := by
@@ -207,7 +203,7 @@ example {x y : α} {p : α → Prop} : (p x → ¬p y) → (p y → ¬p x) :=
   fun h hY hX => h hX hY
 
 def unique.perm {l₁ l₂ : List α} {p : α → Prop} : l₁ ~ l₂ → l₁.unique p → l₂.unique p :=
-  fun h h₁ => h.pairwise h₁ fun _ _ H hB hA => H hA hB
+  fun h h₁ => h.pairwise h₁ fun H hB hA => H hA hB
 
 theorem find?_eq_of_perm_of_unique {l₁ l₂ : List α} {p : α → Bool} :
     l₁ ~ l₂ → l₁.unique (p ·) → l₁.find? p = l₂.find? p := by

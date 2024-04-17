@@ -6,11 +6,11 @@ Authors: Wojciech Nawrocki
 
 import Mathlib.Tactic.Linarith
 
-import ProofChecker.Data.HashMap.Lemmas
-import ProofChecker.Data.HashSet
-import ProofChecker.Model.ToMathlib
-import ProofChecker.Model.PropTerm
-import ProofChecker.Model.PropVars
+import Experiments.CPOG.Data.HashMap.Lemmas
+import Experiments.CPOG.Data.HashSet
+import Experiments.CPOG.Model.ToMathlib
+import Experiments.CPOG.Model.PropTerm
+import Experiments.CPOG.Model.PropVars
 
 abbrev Var := PNat
 
@@ -21,7 +21,7 @@ instance : ToString Var where
 
 instance : Hashable Var where
   hash v := hash v.val
-  
+
 instance : Ord Var where
   compare a b := compare a.val b.val
 
@@ -42,7 +42,7 @@ def mkNeg (x : Var) : ILit :=
 
 def mk (x : Var) (p : Bool) : ILit :=
   if p then mkPos x else mkNeg x
-  
+
 instance : Coe Var ILit :=
   ⟨mkPos⟩
 
@@ -155,7 +155,7 @@ def toPropTerm (l : ILit) : PropTerm Var :=
 theorem mk_toPropForm (l : ILit) : ⟦l.toPropForm⟧ = l.toPropTerm := by
   dsimp [toPropForm, toPropTerm]
   cases l.polarity <;> simp
-  
+
 @[simp]
 theorem vars_toPropForm (l : ILit) : l.toPropForm.vars = {l.var} := by
   dsimp [toPropForm]
@@ -173,7 +173,7 @@ theorem toPropTerm_mkNeg (x : Var) : (mkNeg x).toPropTerm = (.var x)ᶜ := by
 theorem toPropTerm_neg (l : ILit) : (-l).toPropTerm = l.toPropTermᶜ := by
   dsimp [toPropTerm]
   aesop
-  
+
 @[simp]
 theorem semVars_toPropTerm (l : ILit) : l.toPropTerm.semVars = {l.var} := by
   dsimp [toPropTerm]
@@ -236,24 +236,24 @@ instance : ToString IClause where
 theorem mem_vars (C : IClause) (x : Var) : x ∈ C.vars.toFinset ↔ ∃ l ∈ C.data, x = l.var := by
   rw [vars, Array.foldr_eq_foldr_data]
   induction C.data <;> aesop
-  
+
 def toPropForm (C : IClause) : PropForm Var :=
   C.data.foldr (init := .fls) (fun l φ => l.toPropForm.disj φ)
 
 def toPropTerm (C : IClause) : PropTerm Var :=
   C.data.foldr (init := ⊥) (fun l φ => l.toPropTerm ⊔ φ)
-  
+
 @[simp]
 theorem mk_toPropForm (C : IClause) : ⟦C.toPropForm⟧ = C.toPropTerm := by
   dsimp [toPropForm, toPropTerm]
   induction C.data <;> simp_all
-  
+
 @[simp]
 theorem vars_toPropForm (C : IClause) : C.toPropForm.vars = C.vars.toFinset := by
   ext x
   simp [mem_vars, toPropForm]
   induction C.data <;> simp_all [PropForm.vars]
-  
+
 open PropTerm
 
 theorem satisfies_iff {τ : PropAssignment Var} {C : IClause} :
@@ -287,7 +287,7 @@ theorem tautology_iff (C : IClause) :
       have := hEq τ₀
       have : τ₀ ⊨ l₀.toPropTerm := by tauto
       let τ₁ := τ₀.set l₀.var !l₀.polarity
-      have : τ₁ ⊭ l₀.toPropTerm := by simp [ILit.satisfies_iff]
+      have : τ₁ ⊭ l₀.toPropTerm := by simp [τ₁, ILit.satisfies_iff]
       have : τ₁ ⊭ toPropTerm ls.toArray := fun h => by
         have ⟨lₛ, hₛ, hτ⟩ := satisfies_iff.mp h
         simp only [satisfies_iff, not_exists, not_and] at h₀
@@ -319,7 +319,7 @@ def encodes (enc : HashMap Var Bool) (C : IClause) (start : Nat := 0) : Prop :=
     ∀ x : Var, enc.contains x ↔ ∃ j : Fin C.size, start ≤ j ∧ C[j].var = x
 
 theorem encodes_empty (C : IClause) : encodes HashMap.empty C (Array.size C) := by
-  simp [encodes]; intro j; exact not_le_of_lt j.isLt
+  simp [encodes]
 
 theorem not_tautology_of_encodes (C : IClause) (enc : HashMap Var Bool) (h : encodes enc C) :
     ¬ (toPropTerm C = ⊤) := by
@@ -356,7 +356,7 @@ theorem encodes_insert_of_find?_eq_none {C : IClause} {i : Nat} {enc : HashMap V
     constructor
     . rintro (⟨j, hile, rfl⟩ | rfl)
       . use j, (Nat.le_succ i).trans hile
-      . use ⟨i, ilt⟩; simp
+      . use ⟨i, ilt⟩
     . rintro ⟨j, hile, rfl⟩
       cases lt_or_eq_of_le hile
       case inl h' =>
@@ -374,7 +374,7 @@ theorem tautology_of_encodes_of_find?_eq_some
   rw [tautology_iff]
   use C[i], C.get_mem_data ⟨i, ilt⟩
   have : enc.contains C[i].var := by
-    rw [HashMap.contains_iff]; use p; exact h
+    rw [HashMap.contains_iff]; use p
   rw [henc.2] at this
   rcases this with ⟨j, hj, h'⟩
   use C[j], C.get_mem_data j
@@ -407,7 +407,7 @@ theorem encode_of_encodes_of_find?_eq_some
       case inl h' => use j, Nat.succ_le_of_lt h'
       case inr h' =>
         have : enc.contains C[i].var := by
-          rw [HashMap.contains_iff]; use p; exact h
+          rw [HashMap.contains_iff]; use p
         rw [henc.2] at this
         rcases this with ⟨j', hj', h''⟩
         use j', hj'
@@ -463,18 +463,18 @@ theorem mem_vars (φ : ICnf) (x : Var) : x ∈ φ.vars.toFinset ↔ ∃ C ∈ φ
 by
   simp only [vars, Array.foldr_eq_foldr_data]
   induction φ.data <;> aesop
-  
+
 def toPropForm (φ : ICnf) : PropForm Var :=
   φ.data.foldr (init := .tr) (fun l φ => l.toPropForm.conj φ)
 
 def toPropTerm (φ : ICnf) : PropTerm Var :=
   φ.data.foldr (init := ⊤) (fun l φ => l.toPropTerm ⊓ φ)
-  
+
 @[simp]
 theorem mk_toPropForm (φ : ICnf) : ⟦φ.toPropForm⟧ = φ.toPropTerm := by
   simp only [toPropForm, toPropTerm]
   induction φ.data <;> simp_all
-  
+
 @[simp]
 theorem vars_toPropForm (φ : ICnf) : φ.toPropForm.vars = φ.vars.toFinset := by
   ext x

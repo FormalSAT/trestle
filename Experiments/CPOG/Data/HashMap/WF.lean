@@ -3,7 +3,7 @@ Copyright (c) 2022 Mario Carneiro. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mario Carneiro
 -/
-import ProofChecker.Data.HashMap.Basic
+import Experiments.CPOG.Data.HashMap.Basic
 import Std.Data.List.Lemmas
 import Std.Data.Array.Lemmas
 
@@ -80,7 +80,7 @@ theorem expand_size [Hashable α] {buckets : Buckets α β} :
     (expand sz buckets).buckets.size = buckets.size := by
   rw [expand, go]
   · rw [Buckets.mk_size]; simp [Buckets.size]
-  · intro.
+  · intro _ _; contradiction
 where
   go (i source) (target : Buckets α β) (hs : ∀ j < i, source.data.getD j .nil = .nil) :
       (expand.go i source target).size =
@@ -108,7 +108,7 @@ where
       simp
       have := (hs j (Nat.lt_of_lt_of_le h₂ (Nat.not_lt.1 H))).symm
       rwa [List.getD_eq_get?, List.get?_eq_get, Option.getD_some] at this
-termination_by go i source _ _ => source.size - i
+  termination_by source.size - i
 
 theorem expand_WF.foldl [BEq α] [Hashable α] (rank : α → Nat) {l : List (α × β)} {i : Nat}
     (hl₁ : ∀ [PartialEquivBEq α] [LawfulHashable α], l.Pairwise fun a b => ¬(a.1 == b.1))
@@ -159,7 +159,7 @@ where
         | .inl hl => exact hs₁ _ hl
         | .inr e => exact e ▸ .nil
       · simp [Array.getElem_eq_data_get, List.get_set]; split
-        · intro.
+        · intro _ _; contradiction
         · exact hs₂ _ (by simp_all)
       · let rank (k : α) := ((hash k).toUSize % source.size).toNat
         have := expand_WF.foldl rank ?_ (hs₂ _ H) ht.1 (fun _ h₁ _ h₂ => ?_)
@@ -169,7 +169,7 @@ where
           refine ⟨Nat.le_of_lt this, fun _ h h' => Nat.ne_of_lt this ?_⟩
           exact LawfulHashable.hash_eq h' ▸ hs₂ _ H _ h
     · exact ht.1
-termination_by go i source _ _ _ _ => source.size - i
+  termination_by source.size - i
 
 theorem insert_size [BEq α] [Hashable α] {m : Imp α β} {k v}
     (h : m.size = m.buckets.size) :
@@ -231,7 +231,7 @@ theorem insert_WF [BEq α] [Hashable α] {m : Imp α β} {k v}
       | .inr h => exact H _ h
   · next h₁ =>
     rw [Bool.eq_false_iff] at h₁; simp at h₁
-    suffices _ by split <;> [exact this, refine expand_WF this]
+    suffices _ by split <;> [exact this; refine expand_WF this]
     refine h.update (.cons ?_) (fun H a h => ?_)
     · exact fun a h h' => h₁ a h (PartialEquivBEq.symm h')
     · cases h with
@@ -258,7 +258,7 @@ theorem erase_WF [BEq α] [Hashable α] {m : Imp α β} {k}
     (h : m.buckets.WF) : (erase m k).buckets.WF := by
   dsimp [erase, cond]; split
   · refine h.update (fun H => ?_) (fun H a h => ?_) <;> simp at h ⊢
-    · simp; exact H.sublist (List.eraseP_sublist _)
+    · exact H.sublist (List.eraseP_sublist _)
     · exact H _ (List.mem_of_mem_eraseP h)
   · exact h
 
@@ -289,7 +289,7 @@ theorem WF.filterMap {α β γ} {f : α → β → Option γ} [BEq α] [Hashable
   let g₁ (l : AssocList α β) := l.toList.filterMap (fun x => (f x.1 x.2).map (x.1, ·))
   have H1 (l n acc) : filterMap.go f acc l n =
       (((g₁ l).reverse ++ acc.toList).toAssocList, ⟨n.1 + (g₁ l).length⟩) := by
-    induction l generalizing n acc with simp [filterMap.go, *]
+    induction l generalizing n acc with simp [g₁, filterMap.go, *]
     | cons a b l => match f a b with
       | none => rfl
       | some c => simp; rw [Nat.add_right_comm]; rfl
@@ -300,7 +300,7 @@ theorem WF.filterMap {α β γ} {f : α → β → Option γ} [BEq α] [Hashable
       (l.map g, ⟨n.1 + .sum ((l.map g).map (·.toList.length))⟩) := by
     induction l generalizing n with
     | nil => rfl
-    | cons l L IH => simp [bind, StateT.bind, IH, H1, Nat.add_assoc]; rfl
+    | cons l L IH => simp [bind, StateT.bind, IH, H1, Nat.add_assoc]; stop {rfl}
   have H3 (l : List _) :
     (l.filterMap (fun (a, b) => (f a b).map (a, ·))).map (fun a => a.fst)
      |>.Sublist (l.map (·.1)) := by
@@ -317,6 +317,7 @@ theorem WF.filterMap {α β γ} {f : α → β → Option γ} [BEq α] [Hashable
   intro bk sz h e'; cases e'
   refine .mk (by simp [Buckets.size]) ⟨?_, fun i h => ?_⟩
   · simp [List.forall_mem_map_iff]
+    stop
     refine fun l h => (List.pairwise_reverse.2 ?_).imp (mt PartialEquivBEq.symm)
     have := H.out.2.1 _ h
     rw [← List.pairwise_map (R := (¬ · == ·))] at this ⊢
@@ -326,6 +327,7 @@ theorem WF.filterMap {α β γ} {f : α → β → Option γ} [BEq α] [Hashable
     simp [AssocList.All] at this ⊢
     rw [← List.forall_mem_map_iff
       (P := fun a => ((hash a).toUSize % m.buckets.val.data.length).toNat = i)] at this ⊢
+    stop
     exact fun _ h' => this _ ((H3 _).subset h')
 
 end Imp

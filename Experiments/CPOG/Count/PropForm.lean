@@ -7,7 +7,7 @@ Authors: Jeremy Avigad
 import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.BigOperators.Ring
-import ProofChecker.Data.Pog
+import Experiments.CPOG.Data.Pog
 
 open Finset
 
@@ -225,23 +225,24 @@ theorem models_neg_Disjoint (φ : PropForm ν) (s : Finset ν) :
 
 theorem models_conj {φ ψ: PropForm ν} (hdisj : φ.vars ∩ ψ.vars = ∅) :
   (φ.conj ψ).models ((φ.conj ψ).vars) =
-    ((φ.models φ.vars).product (ψ.models ψ.vars)).image (PropAssignment.cond φ.vars) := by
+    ((φ.models φ.vars) ×ˢ (ψ.models ψ.vars)).image (PropAssignment.cond φ.vars) := by
   symm; ext v
-  simp only [mem_image, mem_product, mem_models, Prod.exists, eval, Bool.and_eq_true,
-    PropAssignment.cond, vars]
+  simp only [mem_image, mem_product, mem_models, Prod.exists, vars, eval, Bool.and_eq_true]
   constructor
   . rintro ⟨v1, v2, ⟨⟨_, heval1⟩, ⟨hdef2, heval2⟩⟩, rfl⟩
     constructor
     . intro x hx
       rw [mem_union, not_or] at hx
-      dsimp; rw [if_neg hx.1, hdef2 hx.2]
+      simp only [PropAssignment.cond]
+      rw [if_neg hx.1, hdef2 hx.2]
     . constructor
       . rw [←heval1]; apply eval_ext
-        intro x hx; rw [if_pos hx]
+        intro x hx; simp only [PropAssignment.cond]; rw [if_pos hx]
       . rw [←heval2]; apply eval_ext
         intro x hx
         simp only [eq_empty_iff_forall_not_mem, mem_inter, not_and'] at hdisj
         have hx' : x ∉ φ.vars := hdisj _ hx
+        simp only [PropAssignment.cond]
         rw [if_neg hx']
   . intro ⟨hdef, heval1, heval2⟩
     use fun x => if x ∈ φ.vars then v x else false
@@ -259,13 +260,14 @@ theorem models_conj {φ ψ: PropForm ν} (hdisj : φ.vars ∩ ψ.vars = ∅) :
           apply eval_ext; intro x hx; rw [if_pos hx]
     . ext x
       have := @hdef x
+      simp only [PropAssignment.cond]
       split <;> simp_all
 
 theorem InjOn_cond (φ ψ : PropForm ν) {s t : Finset ν} (hdisj : s ∩ t = ∅) :
-  Set.InjOn (PropAssignment.cond s) <| (φ.models s).product (ψ.models t) := by
+  Set.InjOn (PropAssignment.cond s) <| ↑((φ.models s) ×ˢ (ψ.models t)) := by
     intro ⟨p11, p12⟩ hp1 ⟨p21, p22⟩ hp2
     simp only [coe_product, Set.mem_prod, mem_coe, mem_models] at hp1 hp2
-    simp only [PropAssignment.cond]
+    unfold PropAssignment.cond
     dsimp; intro h
     rw [Prod.mk.injEq]
     constructor
@@ -360,18 +362,19 @@ theorem card_models_vars {φ : PropForm ν} {s : Finset ν} (h : φ.vars ⊆ s) 
     card (φ.models s) = card (φ.models φ.vars) * 2^(card s - card φ.vars) := by
   let f (p : PropAssignment ν × Finset ν) : PropAssignment ν :=
     fun x => if x ∈ φ.vars then p.1 x else p.2.toPropAssignment x
-  have h1 : ((φ.models φ.vars).product (s \ φ.vars).powerset).image f = φ.models s := by
+  have h1 : ((φ.models φ.vars) ×ˢ (s \ φ.vars).powerset).image f = φ.models s := by
     ext v; simp only [mem_image, mem_product, mem_models, mem_powerset, Prod.exists]
     constructor
     { rintro ⟨v, t, ⟨⟨_, hevalv⟩, hh⟩, rfl⟩
       constructor
       . intro x hxns
         have : x ∉ φ.vars := fun h' => hxns (h h')
-        dsimp; rw [if_neg this, toPropAssignment_eq_false]
+        dsimp [f]; rw [if_neg this, toPropAssignment_eq_false]
         intro h'; apply hxns; exact subset_sdiff.mp hh |>.1 h'
       . rw [←hevalv]
         apply eval_ext
         intro x hx
+        dsimp [f]
         rw [if_pos hx] }
     intro ⟨hvdef, hevalv⟩
     use v.restrict φ.vars, (s \ φ.vars).filter (fun x => v x)
@@ -381,34 +384,33 @@ theorem card_models_vars {φ : PropForm ν} {s : Finset ν} (h : φ.vars ⊆ s) 
         . simp
         . rw [eval_restrict_vars, hevalv]
       . apply filter_subset
-    . ext x; dsimp; split
+    . ext x; dsimp [f]; split
       . next h => rw [v.restrict_pos h]
       . next hmem =>
           unfold Finset.toPropAssignment
           by_cases hxs : x ∈ s <;> split <;> simp_all [@hvdef x]
-  have h2 : Set.InjOn f <| (φ.models φ.vars).product (s \ φ.vars).powerset := by
+  have h2 : Set.InjOn f <| ↑((φ.models φ.vars) ×ˢ (s \ φ.vars).powerset) := by
     intro ⟨v1, t1⟩ h21 ⟨v2, t2⟩ h22 h23
     simp only [Set.mem_prod, mem_product, mem_coe, mem_models, Set.mem_preimage, mem_powerset,
-      and_imp, subset_sdiff, Prod.forall, Prod.mk.injEq] at h21 h22 h23 |-
+      and_imp, subset_sdiff, Prod.forall, Prod.mk.injEq] at h21 h22 h23 ⊢
     constructor
     . ext x
       by_cases hx : x ∈ φ.vars
       . have := congr_fun h23 x
-        simp [hx] at this; exact this
+        simp [hx, f] at this; exact this
       . rw [h21.1.1 hx, h22.1.1 hx]
     . ext x
-      simp at h21
       by_cases hx : x ∈ φ.vars
       . rw [eq_false (disjoint_right.mp h21.2.2 hx), eq_false (disjoint_right.mp h22.2.2 hx)]
       . have := congr_fun h23 x
-        simp [hx] at this
+        simp [hx, f] at this
         rw [←toPropAssignment_eq_true, this, toPropAssignment_eq_true]
   rw [←h1, card_image_of_injOn h2, card_product, card_powerset, card_sdiff h]
 
 theorem card_models_conj_aux {φ ψ: PropForm ν} (hdisj : φ.vars ∩ ψ.vars = ∅) :
     card ((φ.conj ψ).models (φ.conj ψ).vars) =
       card (φ.models φ.vars) * card (ψ.models ψ.vars) := by
-  rw [models_conj hdisj, card_image_of_injOn (InjOn_cond _ _ hdisj), card_product]
+  rw [models_conj hdisj, card_image_of_injOn (InjOn_cond φ ψ hdisj), card_product]
 
 @[simp] theorem card_models_conj {φ ψ : PropForm ν} {s : Finset ν}
       (hsub : φ.vars ∪ ψ.vars ⊆ s) (hdisj : vars φ ∩ vars ψ = ∅) :
@@ -493,7 +495,7 @@ theorem weightSum_insert (weight : ν → R) {φ : PropForm ν} {a : ν} {s : Fi
   rw [Finset.sum_image (injective_models_set h'), ←Finset.sum_add_distrib]
   apply Finset.sum_congr rfl
   intro τ hτ; rw [mem_models] at hτ
-  rw [Finset.prod_insert h', Finset.prod_insert h']; dsimp
+  rw [Finset.prod_insert h', Finset.prod_insert h']
   have : τ a ≠ true := by rw [hτ.1 h']; simp
   rw [if_neg this, PropAssignment.set_get, if_pos rfl]
   have : ∀ x, x = (1 - weight a) * x + weight a * x :=
@@ -504,9 +506,11 @@ theorem weightSum_insert (weight : ν → R) {φ : PropForm ν} {a : ν} {s : Fi
 
 theorem weightSum_of_vars_subset (weight : ν → R) {φ : PropForm ν} {s : Finset ν}
     (h : φ.vars ⊆ s) : weightSum weight φ s = weightSum weight φ φ.vars := by
-  suffices : ∀ t, φ.vars ∩ t = ∅ → weightSum weight φ φ.vars = weightSum weight φ (φ.vars ∪ t)
-  . specialize this (s \ φ.vars) (Finset.inter_sdiff_self _ _)
-    rw [this, Finset.union_sdiff_of_subset h]
+  suffices
+    ∀ t, φ.vars ∩ t = ∅ → weightSum weight φ φ.vars = weightSum weight φ (φ.vars ∪ t)
+    by
+      specialize this (s \ φ.vars) (Finset.inter_sdiff_self _ _)
+      rw [this, Finset.union_sdiff_of_subset h]
   intro t
   induction t using Finset.induction
   . next => simp
@@ -578,4 +582,3 @@ theorem ringEval_eq_weightSum (weight : ν → R) {φ : PropForm ν} (hdec : φ.
   case biImpl _ _ => rw [partitioned] at hdec; contradiction
 
 end PropForm
-
