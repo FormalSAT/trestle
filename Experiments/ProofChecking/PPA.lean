@@ -112,6 +112,7 @@ namespace PPA
     Assignment is determined by comparing the current generation (τ.generation)
     against the generation value stored at that variable's index.
     If not assigned, returns `none`. -/
+@[inline, always_inline]
 def varValue? (τ : PPA) (v : IVar) : Option Bool :=
   match τ.assignment.get? v.index with
   | none => none
@@ -123,6 +124,7 @@ def varValue? (τ : PPA) (v : IVar) : Option Bool :=
 
 /-- The value of the given literal in the current assignment, if assigned.
     Otherwise `none`. -/
+@[inline, always_inline]
 def litValue? (τ : PPA) (l : ILit) : Option Bool :=
   τ.varValue? (toVar l) |>.map (xor !(polarity l))
 
@@ -335,7 +337,7 @@ theorem litValue?_false_iff {τ : PPA} {l : ILit} :
     simp (config := {contextual := true}) [varValue?_false_iff, varValue?_true_iff]
 
 theorem litValue?_none_iff {τ : PPA} {l : ILit} :
-    τ.litValue? l = none ↔ ¬(τ.toPropFun ≤ l) ∧ ¬(τ.toPropFun ≤ (↑l)ᶜ):= by
+    τ.litValue? l = none ↔ ¬(τ.toPropFun ≤ l) ∧ ¬(τ.toPropFun ≤ (↑l)ᶜ) := by
   simp [litValue?, LitVar.toPropFun]
   cases (polarity l) <;>
     simp (config := {contextual := true}) [varValue?_none_iff]
@@ -521,7 +523,7 @@ theorem varValue?_setVar : (τ.setVar v b).varValue? v = some b := by
 theorem varValue?_setVar_of_ne {v v' : IVar} :
     v ≠ v' → ∀ (τ : PPA) (b : Bool), (τ.setVar v b).varValue? v' = τ.varValue? v' := by
   intro hne
-  simp [varValue?, setVar,Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [varValue?, setVar, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 @[simp]
 theorem varValue?_setLit : (τ.setLit l).varValue? (toVar l) = some (polarity l) := by
@@ -569,7 +571,7 @@ theorem varValue?_setVarFor_of_ne {v v' : IVar} :
     v ≠ v' → ∀ (τ : PPA) (b : Bool) (bumps : Nat),
       (τ.setVarFor v b bumps).varValue? v' = τ.varValue? v' := by
   intro hne
-  simp [varValue?, setVarFor, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [varValue?, setVarFor, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 @[simp]
 theorem varValue?_setLitFor : (τ.setLitFor l bumps).varValue? (toVar l) = some (polarity l) := by
@@ -774,7 +776,7 @@ theorem setVar_isSetFor (τ : PPA) (v : IVar) (b : Bool) : isSetFor (τ.setVar v
 theorem setVar_isSetFor_of_ne {v v' : IVar} :
     v ≠ v' → ∀ τ, isSetFor (τ.setVar v true) v' = isSetFor τ v' := by
   intro hne
-  simp [isSetFor, setVar, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSetFor, setVar, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 @[simp]
 theorem setLit_isSetFor (τ : PPA) (l : ILit) : isSetFor (τ.setLit l) (toVar l) = 1 :=
@@ -787,12 +789,12 @@ theorem setLit_isSetFor_negate (τ : PPA) (l : ILit) : isSetFor (τ.setLit (-l))
 theorem setLit_isSetFor_of_ne {l₁ l₂ : ILit} :
     toVar l₁ ≠ toVar l₂ → isSetFor (τ.setLit l₁) (toVar l₂) = isSetFor τ (toVar l₂) := by
   intro hne
-  simp [isSetFor, setLit, setVar, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSetFor, setLit, setVar, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 theorem setLit_isSetFor_of_ne' {l : ILit} {v : IVar} :
     toVar l ≠ v → isSetFor (τ.setLit l) v = isSetFor τ v := by
   intro hne
-  simp [isSetFor, setLit, setVar, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSetFor, setLit, setVar, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 @[simp]
 theorem setVarFor_isSetFor (τ : PPA) (v : IVar) (b : Bool) (bumps : Nat) :
@@ -818,14 +820,14 @@ theorem setLitFor_isSetFor_of_ne {l₁ l₂ : ILit} :
     toVar l₁ ≠ toVar l₂ → ∀ (bumps : Nat),
       isSetFor (τ.setLitFor l₁ bumps) (toVar l₂) = isSetFor τ (toVar l₂) := by
   intro hne bumps
-  simp [isSetFor, setLitFor, setVarFor, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSetFor, setLitFor, setVarFor, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 -- TODO: Standardize names
 theorem setLitFor_isSetFor_of_ne' {l : ILit} {v : IVar} :
     toVar l ≠ v → ∀ (bumps : Nat),
       isSetFor (τ.setLitFor l bumps) v = isSetFor τ v := by
   intro hne bumps
-  simp [isSetFor, setLitFor, setVarFor, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSetFor, setLitFor, setVarFor, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 @[simp]
 theorem isSet_setVar (τ : PPA) (v : IVar) (b : Bool) :
@@ -840,12 +842,12 @@ theorem isSet_setLit (τ : PPA) (l : ILit) :
 theorem isSet_setLit_of_ne {l₁ l₂ : ILit} :
     toVar l₁ ≠ toVar l₂ → ∀ τ, isSet (τ.setLit l₁) (toVar l₂) = isSet τ (toVar l₂) := by
   intro hne τ
-  simp [isSet, setLit, setVar, varValue?, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSet, setLit, setVar, varValue?, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 theorem isSet_setLit_of_ne' {l : ILit} {v : IVar} :
     toVar l ≠ v → ∀ τ, isSet (τ.setLit l) v = isSet τ v := by
   intro hne τ
-  simp [isSet, setLit, setVar, varValue?, Array.getElem?_setF' _ _ _ (mt PNat.natPred_inj.mp hne)]
+  simp [isSet, setLit, setVar, varValue?, Array.getElem?_setF' (mt PNat.natPred_inj.mp hne)]
 
 @[simp]
 theorem isSet_setVarFor (τ : PPA) (v : IVar) (b : Bool) (offset : Nat) :
@@ -1426,8 +1428,6 @@ where
 
 -- Cayden's alternate implementation of unit propagation (TODO: Compare for efficiency)
 
-section monadic
-
 -- Because unit prop might just want the result of C against τ, and no modify τ,
 -- the updated assignment is not returned in the unit case.
 inductive MUPResult where
@@ -1436,17 +1436,13 @@ inductive MUPResult where
   | unit (l : ILit)
   | multipleUnassignedLiterals
 
-inductive MUPDone where
-  | satisfied
-  | multipleUnassignedLiterals
+open Except MUPResult
 
-open Except MUPResult MUPDone
-
-abbrev UPBox := Except MUPDone (Option ILit)
-
-def pevalUP (τ : PPA) (unit? : Option ILit) (l : ILit) : UPBox :=
+/-- Evaluates the literal under the partial substitution. Works in the Exception
+    monad so that folding can return early if the clause is satisfied. -/
+def pevalM (τ : PPA) (unit? : Option ILit) (l : ILit) : Except Bool (Option ILit) :=
   match τ.litValue? l with
-  | some true => error .satisfied
+  | some true => error true
   | some false => ok unit?
   | none =>
     match unit? with
@@ -1454,168 +1450,241 @@ def pevalUP (τ : PPA) (unit? : Option ILit) (l : ILit) : UPBox :=
     | some u =>
       if u = l then ok unit?
       -- Assume tautology cannot occur in clause, so two unassiged literals exits early
-      else error .multipleUnassignedLiterals
+      else error false
+
+def unitPropM (τ : PPA) (C : IClause) : MUPResult :=
+  match C.foldlM (pevalM τ) none with
+  | ok none => .falsified
+  | ok (some lit) => .unit lit
+  | error true => .satisfied
+  | error false => .multipleUnassignedLiterals
+
+/-- A non-monadic implementation of unit propagation. It uses an internal
+    tail-recursive function to iterate across the clause, so that early
+    exit can be implemented.
+
+    A start and end index can be provided, in case `C` is a larger structure. -/
+def unitProp (τ : PPA) (C : IClause) (s : Nat := 0) (e : Nat := C.size) : MUPResult :=
+  let min_e := min e C.size
+  let rec go (i : Nat) (unit? : Option ILit) : MUPResult :=
+    if hi : i < min_e then
+      -- This is essentially a clone of `pevalUP` above, except without an Exception monad
+      let lit := C.get ⟨i, Nat.lt_of_lt_of_le hi (min_le_right e C.size)⟩
+      match τ.litValue? lit with
+      | some true => .satisfied
+      | some false => go (i + 1) unit?
+      | none =>
+        match unit? with
+        | none => go (i + 1) (some lit)
+        | some u =>
+          if u = lit then go (i + 1) unit?
+          else .multipleUnassignedLiterals
+    else
+      match unit? with
+      | none => .falsified
+      | some l => .unit l
+  termination_by (min e C.size) - i
+  go s none
+
+/-- Reordered arguments of `unitProp` so we can prove `LawfulUP` below. -/
+-- def unitProp' (s e : Nat) (τ : PPA) (C : IClause) : MUPResult :=
+--  unitProp τ C s e
+
+theorem unitProp_eq_unitProp' (τ : PPA) (C : IClause) (s e : Nat) :
+    unitProp τ C s e = unitProp τ (Array.toSubarray C s e).toArray := by
+  simp [unitProp]
+  have : ∃ n, n = e - s := by
+    use e - s
+    done
+  rcases this with ⟨n, hn⟩
+  stop
+  induction n
+  · have : s ≥ e := by
+      exact Nat.le_of_sub_eq_zero (id hn.symm)
+      done
+    rw [unitProp.go]
+
+    done
+  induction s with
+  | zero =>
+    done
+  done
+
+/-- A unit propagation function `UP` is lawful if it returns `MUPResult`s as expected. -/
+def LawfulUP (UP : PPA → IClause → MUPResult) : Prop :=
+  ∀ (τ : PPA) (C : IClause),
+    (UP τ C = .falsified → C.toPropFun ⊓ τ = ⊥)
+  ∧ (∀ {l : ILit}, UP τ C = .unit l →
+        l ∈ C ∧ τ.litValue? l = none ∧ C.toPropFun ⊓ τ ≤ l.toPropFun ⊓ τ)
+  ∧ (UP τ C = .satisfied → τ ≤ C.toPropFun)
+
+theorem LawfulUP_of_eq_of_LawfulUP {UP UP' : PPA → IClause → MUPResult} :
+    (∀ τ C, UP τ C = UP' τ C) → LawfulUP UP → LawfulUP UP' := by
+  intro h_eq h_lawful
+  intro τ C
+  have := h_lawful τ C
+  rw [h_eq τ C] at this
+  exact this
+
+theorem foldlM_pevalM_some {τ : PPA} {unit : ILit} :
+  τ.litValue? unit = none → ∀ (C : IClause),
+    ((C.foldlM (pevalM τ) (some unit) = ok (some unit) ∧ C.toPropFun ⊓ τ ≤ unit)
+    ∨ (C.foldlM (pevalM τ) (some unit) = error true ∧ τ ≤ C.toPropFun)
+    ∨ (C.foldlM (pevalM τ) (some unit) = error false)) := by
+  intro h_unit C
+  have ⟨C⟩ := C
+  induction' C with l ls ih generalizing τ
+  · simp [pure, Except.pure]
+  · simp only [Array.foldlM_cons, pevalM]
+    match hl : τ.litValue? l with
+    | none =>
+      by_cases h_eq : l = unit
+      · subst h_eq
+        simp only [↓reduceIte]
+        rcases ih h_unit with (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | h)
+        · left; use h₁
+          rw [Clause.toPropFun_cons, inf_sup_right]
+          exact sup_le inf_le_left h₂
+        · right; left; use h₁
+          rw [Clause.toPropFun_cons]
+          exact le_trans h₂ le_sup_right
+        · right; right; use h
+      · simp [Ne.symm h_eq]; right; right; rfl
+    | some true =>
+      right; left; use rfl
+      rw [litValue?_true_iff] at hl
+      rw [Clause.toPropFun_cons]
+      exact le_trans hl le_sup_left
+    | some false =>
+      rcases ih h_unit with (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | h)
+      · left; use h₁
+        rw [litValue?_false_iff, le_compl_iff_inf_le_bot, le_bot_iff, inf_comm] at hl
+        simp [Clause.toPropFun_cons, inf_sup_right, hl, h₂]
+      · right; left; use h₁
+        rw [Clause.toPropFun_cons]
+        exact le_trans h₂ le_sup_right
+      · right; right; use h
+
+theorem unitPropM_LawfulUP : LawfulUP unitPropM := by
+  rintro τ ⟨C⟩
+  induction' C with l ls ih generalizing τ
+  · simp [unitPropM, pure, Except.pure]
+  · rw [unitPropM, Array.foldlM_cons, pevalM]
+    match hl : τ.litValue? l with
+    | none =>
+      -- CC: Can probably be cleaned up, since the lemma above uses ∨, not →
+      rcases foldlM_pevalM_some hl { data := ls } with (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | h)
+      · split
+        <;> rename _ => h_cons
+        <;> try simp only [bind, Except.bind, h₁] at h_cons
+        <;> injection h_cons
+        · contradiction
+        · rename _ => h_lit; injection h_lit; rename _ => h_lit; subst h_lit
+          simp [← Array.mem_data, hl, inf_sup_right, h₂]
+      · split
+        <;> rename _ => h_cons
+        <;> try simp only [bind, Except.bind, h₁] at h_cons
+        · simp; exact le_sup_of_le_right h₂
+        · injection h_cons; contradiction
+      · split
+        <;> rename _ => h_cons
+        <;> try simp only [bind, Except.bind, h] at h_cons
+        <;> injection h_cons
+        · contradiction
+        · simp
+    | some true =>
+      rw [litValue?_true_iff] at hl
+      simp [bind, Except.bind, le_sup_of_le_left hl]
+    | some false =>
+      simp only [bind, Except.bind]
+      rcases ih τ with ⟨h₁, h₂, h₃⟩
+      rw [litValue?_false_iff, le_compl_iff_inf_le_bot, le_bot_iff, inf_comm] at hl
+      split
+      <;> rename _ => h_cons
+      · simp only [unitPropM, h_cons, forall_true_left] at h₁
+        simp [inf_sup_right, hl, h₁]
+      · rename ILit => l'
+        simp only [unitPropM, h_cons, forall_true_left] at h₂
+        replace h₂ := @h₂ l'
+        simp at h₂
+        rcases h₂ with ⟨h_mem, hτl', h_le⟩
+        simp [← Array.mem_data] at h_mem ⊢
+        use Or.inr h_mem, hτl'
+        simp [inf_sup_right, h_le, hl]
+      · simp only [unitPropM, h_cons, forall_true_left] at h₃
+        simp [le_sup_of_le_right h₃]
+      · simp
+
+theorem unitProp.go.some {τ : PPA} {unit : ILit} :
+  τ.litValue? unit = none → ∀ (C : IClause) (i : Nat),
+    ((unitProp.go τ C C.size i (some unit) = .unit unit ∧ C.toPropFun ⊓ τ ≤ unit)
+    ∨ (unitProp.go τ C C.size i (some unit) = .satisfied ∧ τ ≤ C.toPropFun)
+    ∨ (unitProp.go τ C C.size i (some unit) = .multipleUnassignedLiterals)) := by
+  sorry
+  done
+
+theorem unitProp_LawfulUP (s e : Nat) : LawfulUP unitProp := by
+  rintro τ ⟨C⟩
+  induction' C with l ls ih generalizing τ
+  stop
+  · simp [unitProp, unitProp.go]
+  · match hl : τ.litValue? l with
+    | none =>
+      rcases unitProp.go.some hl { data := ls } 0 with (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | h)
+      ·
+        done
+      done
+    done
+  done
+
+#exit
+
+/-- The "Bool" is true if satisfied, false if not. -/
+def pevalUP (τ : PPA) (unit? : Option ILit) (l : ILit) : Except Bool (Option ILit) :=
+  match τ.litValue? l with
+  | some true => error true
+  | some false => ok unit?
+  | none =>
+    match unit? with
+    | none => ok l
+    | some u =>
+      if u = l then ok unit?
+      -- Assume tautology cannot occur in clause, so two unassiged literals exits early
+      else error false
 
 def foldUP (τ : PPA) (C : IClause) := C.foldlM (pevalUP τ) none
 
-def unitProp (τ : PPA) (C : IClause) : MUPResult :=
-  match foldUP τ C with
+def unitPropRes (res : Except Bool (Option ILit)) : MUPResult :=
+  match res with
   | ok none => .falsified
   | ok (some lit) => .unit lit
-  | error .satisfied => .satisfied
-  | error .multipleUnassignedLiterals => .multipleUnassignedLiterals
+  | error true => .satisfied
+  | error false => .multipleUnassignedLiterals
 
-def motive_fn (τ : PPA) (C : IClause) : ℕ → Option ILit → Prop
-  | idx, none => ∀ ⦃i : Fin C.size⦄, i < idx → τ.litValue? C[i] = some false
-  | idx, some lit => lit ∈ C.data ∧ τ.litValue? lit = none ∧
-      (∀ ⦃j : Fin C.size⦄, j < idx → C[j] ≠ lit → τ.litValue? C[j] = some false)
+def unitProp (τ : PPA) (C : IClause) : MUPResult :=
+  unitPropRes (foldUP τ C)
 
-theorem SatisfiesM_UP (τ : PPA) (C : IClause) :
-    SatisfiesM (fun
-      -- If there are no unassigned literals, then all should be false
-      | none => ∀ l ∈ C.data, τ.litValue? l = some false
-      | some lit => lit ∈ C.data ∧ τ.litValue? lit = none ∧
-          (∀ l ∈ C.data, l ≠ lit → τ.litValue? l = some false)) (foldUP τ C) := by
-  have := C.SatisfiesM_foldlM (init := (none : Option ILit)) (f := pevalUP τ)
-    (motive := motive_fn τ C)
-    (h0 := by simp [motive_fn]) -- Why do I have to define it right above? Putting it inline with (motive :=) had sorryAx problems
-    (hf := by
-      unfold motive_fn
-      simp only [SatisfiesM_Except_eq, getElem_fin]
-      intro i box ih
-        -- Cayden question: Is this proof more compact if I use pattern-matching with intro?
-      intro
-      | none, hbox =>
-        intro j hj
-        unfold pevalUP at hbox
-        cases h_tau : τ.litValue? C[i.val] with
-        | none =>
-          simp [h_tau] at hbox
-          cases h_box : box with
-          | none => simp [h_box] at hbox
-          | some lit => by_cases h_lit : lit = C[i.val] <;> simp [h_box, h_lit] at hbox
-        | some b =>
-          cases h_box : box with
-          | none =>
-            subst h_box
-            rcases lt_or_eq_of_le (le_of_lt_succ hj) with (h | h)
-            · exact ih h
-            · cases b
-              · replace h := Fin.ext h; subst h; exact h_tau
-              · simp [h_tau] at hbox
-          | some lit => by_cases h_lit : lit = C[i.val] <;> cases b <;> simp [h_tau, h_box, h_lit] at hbox
-      | some lit, hbox =>
-        unfold pevalUP at hbox
-        cases h_tau : τ.litValue? C[i.val] with
-        | none =>
-          simp [h_tau] at hbox
-          cases h_box : box with
-          | none =>
-            subst h_box
-            simp at hbox
-            use Array.mem_data_iff_exists_fin.mpr ⟨i, hbox⟩, hbox ▸ h_tau
-            intro j hj₁ hj₂
-            rcases lt_or_eq_of_le (le_of_lt_succ hj₁) with (h | h)
-            · exact ih h
-            · simp at ih
-              replace h := Fin.ext h; subst h; rw [hbox] at hj₂; contradiction
-          | some l =>
-            subst h_box
-            by_cases hl : l = C[i.val]
-            · simp [hl] at hbox
-              rw [hbox] at hl
-              subst hl
-              rcases ih with ⟨hl₁, hl₂, ih⟩
-              use hl₁, hl₂
-              intro j hj₁ hj₂
-              rcases lt_or_eq_of_le (le_of_lt_succ hj₁) with (h | h)
-              · exact ih h hj₂
-              · replace h := Fin.ext h; subst h; rw [hbox] at hj₂; contradiction
-            · simp [hl] at hbox
-        | some b =>
-          cases b
-          · simp [h_tau] at hbox
-            subst hbox
-            rcases ih with ⟨hlit₁, hlit₂, ih⟩
-            use hlit₁, hlit₂
-            intro j hj₁ hj₂
-            rcases lt_or_eq_of_le (le_of_lt_succ hj₁) with (h | h)
-            · exact ih h hj₂
-            · replace h := Fin.ext h; subst h; exact h_tau
-          · simp [h_tau] at hbox)
-  apply SatisfiesM.imp this
-  intro
-  | none =>
-    intro h l hl
-    rcases Array.mem_data_iff_exists_fin.mp hl with ⟨i, rfl⟩
-    exact h i.isLt
-  | some lit =>
-    simp [motive_fn]
-    intro hlit₁ hlit₂ ih
-    use hlit₁, hlit₂
-    intro l hl₁ hl₂
-    rcases Array.mem_data_iff_exists_fin.mp hl₁ with ⟨i, rfl⟩
-    exact ih hl₂
-
--- Cayden TODO/Q: Allow for [pattern_match] on ResultT? What is [unbox]?
--- Cayden Q: when aesop can't solve something, why does [aesop?] not give anything?
-theorem contradiction_of_UP_falsified {τ : PPA} {C : IClause} :
-    τ.unitProp C = .falsified → τ.toPropFun ⊓ C.toPropFun ≤ ⊥ := by
-  unfold unitProp
-  intro h_falsified
-  split at h_falsified
-  <;> try simp at h_falsified
-  clear h_falsified
-  rename (foldUP τ C = ok none) => h
-  refine entails_ext.mpr fun τ' hτ' => ?_
-  rw [satisfies_conj] at hτ'
-  rcases hτ' with ⟨hττ', hCτ'⟩
-  have ⟨lit, hlit, hτ'lit⟩ := Clause.satisfies_iff.mp hCτ'
-  rw [← Array.mem_data] at hlit
-  have hlv := SatisfiesM_Except_eq.mp (SatisfiesM_UP τ C) none h lit hlit
-  clear h hCτ' hlit
-  have := satisfies_iff_vars.mp hττ'
-  replace hτ'lit := LitVar.satisfies_iff.mp hτ'lit
-  cases hpol : polarity lit
-  <;> simp [hpol] at hτ'lit
-  <;> simp [litValue?, hpol] at hlv
-  <;> rw [this hlv] at hτ'lit
-  <;> contradiction
-
--- Is it better to say that ¬(τ ≤ l), or that τ.litValue? l = none?
-theorem extended_of_UP_unit {τ : PPA} {C : IClause} {l : ILit} :
-    τ.unitProp C = .unit l →
-      l ∈ C ∧
-      τ.litValue? l = none ∧
-      C.toPropFun ⊓ τ.toPropFun ≤ l.toPropFun ⊓ τ := by
-  unfold unitProp
-  intro h_unit
-  split at h_unit
-  <;> try simp at h_unit
-  rename ILit => lit; subst h_unit
-  rename (foldUP τ C = ok (some lit)) => h
-  have hlv := SatisfiesM_Except_eq.mp (SatisfiesM_UP τ C) (some lit) h
-  clear h
-  rcases hlv with ⟨hlit, hτlit, ih⟩
-  rw [← Array.mem_data]
-  use hlit, hτlit
-  refine entails_ext.mpr fun τ' hτ' => ?_
-  rw [satisfies_conj] at hτ'; rcases hτ' with ⟨hCτ', hττ'⟩
-  rw [satisfies_iff_lits] at hττ'
-  rw [Clause.satisfies_iff] at hCτ'; rcases hCτ' with ⟨m, hm, hmτ'⟩
-  by_cases heq : m = lit
-  · subst heq
-    rw [← satisfies_iff_lits] at hττ'
-    rw [satisfies_conj]
-    exact ⟨hmτ', hττ'⟩
-  · rw [← Array.mem_data] at hm
-    replace ih := ih _ hm heq
-    have := litValue?_negate τ m
-    simp only [ih, Option.map_some', Bool.not_false] at this
-    have := hττ' this
-    simp at this
-    exact absurd hmτ' this
-
-end monadic /- section -/
+-- Alternate view of unit propagation, using indexes into an array
+def unitPropOnIndexes (τ : PPA) (C : IClause) (s e : Nat) : MUPResult :=
+  let min_e := min e C.size
+  let rec go (i : Nat) (unit? : Option ILit) : MUPResult :=
+    if hi : i < min_e then
+      -- This is essentially a clone of `pevalUP` above, except without an Exception monad
+      let lit := C.get ⟨i, Nat.lt_of_lt_of_le hi (min_le_right e C.size)⟩
+      match τ.litValue? lit with
+      | some true => .satisfied
+      | some false => go (i + 1) unit?
+      | none =>
+        match unit? with
+        | none => go (i + 1) (some lit)
+        | some u =>
+          if u = lit then go (i + 1) unit?
+          else .multipleUnassignedLiterals
+    else
+      match unit? with
+      | none => .falsified
+      | some l => .unit l
+  termination_by (min e C.size) - i
+  go s none
 
 end PPA

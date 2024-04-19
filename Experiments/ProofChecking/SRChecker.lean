@@ -22,12 +22,13 @@ open Except
 
 namespace PPA
 
+/-
 def unitPropFlat (τ : PPA) (F : RangeArray ILit) (i : Nat) : MUPResult :=
   match F.foldlM_index (pevalUP τ) none i with
   | ok none => .falsified
   | ok (some lit) => .unit lit
-  | error .satisfied => .satisfied
-  | error .multipleUnassignedLiterals => .multipleUnassignedLiterals
+  | error true => .satisfied
+  | error false => .multipleUnassignedLiterals -/
 
 -- TODO: Some correctness theorem relating this to unitProp
 
@@ -44,12 +45,13 @@ def seval (σ : PS) (p : Bool × Bool) (l : ILit) : Except Unit (Bool × Bool) :
   | .fls => ok (true, unassigned?)
   | .lit lit => ok (reduced? || (l != lit), true) -/
 
+/-
 def reduceFlat (σ : PS) (F : RangeArray ILit) (i : Nat) : ReductionResult :=
   match F.foldlM_index (seval σ) false i with
   | ok true => .reduced
   | ok false => .notReduced
   | error _ => .satisfied
-
+-/
 -- TODO: Some correctness theorem releating this to reduce
 
 end PS
@@ -117,9 +119,9 @@ def findRATHintIndex (ratIndex clauseId : Nat) (ratHints : Array (Nat × Array N
 def assumeRATClause (C : IClause) (σ : PS) (τ : PPA) : Except PPA PPA :=
   C.foldlM (init := τ) (fun τ lit =>
     match σ.litValue lit with
-    | .tr => error τ       -- (C|σ) is satisfied, so return early to report satisfied
-    | .fls => ok τ         -- Ignore the literal
-    | .lit l =>
+    | Sum.inr true => error τ       -- (C|σ) is satisfied, so return early to report satisfied
+    | Sum.inr false => ok τ         -- Ignore the literal
+    | Sum.inl l =>
       match τ.litValue? l with
       | some true => error τ    -- (C|σ)|τ is satisfied, so return early to report satisfied
       | some false => ok τ      -- Its negation is true in τ, so ignore the literal
@@ -135,7 +137,8 @@ def assumeWitness (σ : PS) (pivot : ILit) (A₁ : Array ILit) (A₂ : Array (IV
 def checkClause (F : ICnf) (σ : PS) (ratHints : Array (Nat × Array Nat))
     (p : PPA × Nat × Nat × Nat) (C : IClause) : Except Unit (PPA × Nat × Nat × Nat) :=
   let ⟨τ, ratIndex, index, bumpCounter⟩ := p
-  match σ.reduce C with
+  --let F := dbgTraceIfShared "Formula in checkClause" F
+  match σ.seval_fold C with
   | .satisfied => ok (τ, ratIndex, index + 1, bumpCounter)
   | .notReduced => ok (τ, ratIndex, index + 1, bumpCounter)
   | _ =>
@@ -168,8 +171,9 @@ def checkClause (F : ICnf) (σ : PS) (ratHints : Array (Nat × Array Nat))
     -- assumption of the candidate clause
     else error ()
 
+
 def checkLine (S : SRState) (line : SRLine) : Except Bool SRState :=
-  let ⟨F, τ, σ⟩ := S
+  let ⟨F, τ, σ⟩ := dbgTraceIfShared "Formula at start of checkLine" S
   let ⟨C, w_tf, w_maps, UPhints, RAThints⟩ := line
 
   -- Assumes the negation of the candidate clause, with "# of RAT hints" offset
@@ -197,11 +201,14 @@ def checkLine (S : SRState) (line : SRLine) : Except Bool SRState :=
 
       -- Assume the witness, under substitution (the function call resets σ)
       let σ := assumeWitness σ (C.get ⟨0, hCw.1⟩) w_tf w_maps
+      let F := dbgTraceIfShared "Formula" F
 
       -- Go through each clause in the formula to check RAT
       match F.foldlM (init := (⟨τ, 0, 0, 0⟩ : PPA × Nat × Nat × Nat)) (checkClause F σ RAThints) with
       | error () => error false
-      | ok (τ, _) => ok ⟨F.addClause C, τ, σ⟩ -- The RAT hint checked, so we continue
+      | ok (τ, _) =>
+        --let F := dbgTraceIfShared "Formula at end of checkLine" F
+        ok ⟨F.addClause C, τ, σ⟩ -- The RAT hint checked, so we continue
 
     else error false
 
@@ -215,6 +222,7 @@ def checkProof (F : ICnf) (proof : Array SRLine) : Bool :=
 
 /-! # flat version -/
 
+/-
 structure FlatState where
   formula : RangeArray ILit -- Accumulated formula
   τ : PPA                   -- Partial assignment, to store candidate and RAT negations
@@ -359,6 +367,7 @@ def checkLineFlat (S : FlatState) (line : SRLine) : Except Bool FlatState :=
       error false
 
 #exit
+-/
 
 /-! # correctness -/
 
@@ -501,8 +510,6 @@ theorem fold_UP_ok {F : ICnf} {A : Array Nat} {offset : Nat} {τ τ' : PPA} :
       have := inf_le_inf_left F.toPropFun (ge_of_applyUPHint_ok h_apply)
       rw [← inf_assoc, inf_idem] at this
       exact ⟨le_trans this ih₁, extended_trans (extended_setLitFor_of_none hl offset) ih₂⟩
-
-#exit
 
 theorem assumeRATClause_ok {C : IClause} {σ : PS} {τ τ' : PPA} :
     assumeRATClause C σ τ = ok τ' →

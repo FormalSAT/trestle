@@ -26,113 +26,75 @@ import LeanSAT.Model.PropFun
 
 open Array Nat Fin
 
-namespace Fin
-
-/-- Monadically folds from start to stop along the Fin, including end. -/
-def foldRangeM {β : Type v} {m : Type v → Type w} [Monad m]
-    {n : Nat} (f : Fin n → β → m β) (init : β) (s e : Fin n) : m β :=
-  if s > e then
-    return init
-  else
-    let rec loop (i : Fin n) (b : β) : m β := do
-      if h : i < e then
-        loop ⟨i.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ (← f ⟨i, by exact lt_trans h e.isLt⟩ b)
-      else
-        f i b
-    termination_by e.val - i.val
-    loop s init
-
-def foldRange {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) : β :=
-  Id.run <| foldRangeM f init s e
-
-@[simp]
-theorem foldRangeM_eq {β : Type v} {m : Type v → Type w} [Monad m]
-    (f : Fin n → β → m β) (init : β) (s : Fin n) :
-    foldRangeM f init s s = f s init := by
-  simp [foldRange, foldRangeM, foldRangeM.loop]
-
-theorem foldRangeM_lt {β : Type v} {m : Type v → Type w} [Monad m]
-    (f : Fin n → β → m β) (init : β) (s e : Fin n) (h : s < e) :
-    foldRangeM f init s e = do
-      { foldRangeM f (← f s init) ⟨s.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ e } := by
-  simp [foldRange, foldRangeM]
-  rw [foldRangeM.loop]
-  simp [h]
-  sorry
-
-theorem foldRangeM_gt {β : Type v} {m : Type v → Type w} [Monad m]
-    (f : Fin n → β → m β) (init : β) (s e : Fin n) (h : e < s) :
-    foldRangeM f init s e = return init := by
-  simp [foldRange, foldRangeM]
-  rw [foldRangeM.loop]
-  simp [h, not_le_of_gt h]
-
-@[simp]
-theorem foldRange_eq {β : Type v} (f : Fin n → β → β) (init : β) (s : Fin n) :
-    foldRange f init s s = f s init := by
-  simp [foldRange, foldRangeM, Id.run, foldRangeM.loop]
-
---theorem foldRange_lt {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) (h : s ≤ e) :
---    foldRange f init s e = foldRange f (f s init) ⟨s.val + 1, lt_of_le_of_lt (Nat.succ_le_of_lt h) e.isLt⟩ e := by
---  simp [foldRange, foldRangeM]
---  rw [foldRangeM.loop]
---  simp [h]
-
---theorem foldRange_gt {β : Type v} (f : Fin n → β → β) (init : β) (s e : Fin n) (h : e < s) :
---    foldRange f init s e = init := by
---  simp [foldRange, foldRangeM, Id.run]
---  rw [foldRangeM.loop]
---  simp [h]
---  exact fun hcon => absurd (le_of_lt hcon) (not_le_of_gt h)
-
-
-def isMaxElem (i : Fin n) : Prop := ∀ (j : Fin n), i ≤ j
-
-instance : Decidable (isMaxElem i) := by
-  simp [isMaxElem]
-  apply inferInstance
-
-theorem isMaxElem_iff {i : Fin n} : i.isMaxElem ↔ i.val + 1 = n := by sorry
-
-theorem not_isMaxElem_iff {i : Fin n} : ¬ i.isMaxElem ↔ i.val + 1 < n := by sorry
-
-def predMax (i : Fin (n + 1)) (h : ¬ i.isMaxElem) : Fin n :=
-  ⟨i.val, by
-    rcases i with ⟨i, hi⟩
-    have := not_isMaxElem_iff.mp h
-    simp at this
-    exact this⟩
-
-@[simp]
-theorem predMax_val_eq : (predMax i h).val = i.val := rfl
-
-def ofEq (i : Fin n) (h : n = m) : Fin m :=
-  ⟨i.val, by rcases i with ⟨i, hi⟩; rw [h] at hi; exact hi⟩
-
-theorem ofEq_val_eq (i : Fin n) (h : n = m) : (ofEq i h).val = i.val := rfl
-
-end Fin
+theorem Int.neg_cast_le (n : Nat) : -(n : Int) ≤ 0 := by simp
 
 universe u v w
 
+namespace RangeArray
+
+-- CC: TODO better names
+@[inline, always_inline]
+private def markIndexAsDeleted (i : Int) : Int :=
+  if i ≥ 0 then -i - 1 else i
+
+@[inline, always_inline]
+private def getIndexFromMarkedIndex (i : Int) : Nat :=
+  if i ≥ 0 then i.natAbs else i.natAbs - 1
+
+@[simp]
+theorem markIndexAsDeleted_coe (n : Nat) : markIndexAsDeleted n = -n - 1 := by
+  simp [markIndexAsDeleted]
+
+@[simp]
+theorem getIndexFromMarkedIndex_coe (n : Nat) : getIndexFromMarkedIndex n = n := by
+  simp [getIndexFromMarkedIndex]
+
+@[simp]
+theorem markIndex_getIndex_coe (n : Nat) : getIndexFromMarkedIndex (markIndexAsDeleted n) = n := by
+  simp [markIndexAsDeleted, getIndexFromMarkedIndex]
+  split
+  · rename _ => h
+    -- CC: Potentially make this a lemma?
+    exact absurd h (Int.not_lt.mpr (Int.neg_cast_le n))
+  · rw [← neg_add', Int.natAbs_neg, ← Nat.cast_one, ← Nat.cast_add, Int.natAbs_cast]
+    exact add_tsub_cancel_right _ _
+
+end RangeArray
+
 /-
   A structure with a single pool of data in an array, and a system for marking
-  contiguous regions of that pool into pieces. Also handles deletions.
+  contiguous regions of that pool into (adjacent, non-overlapping) pieces.
+  Also handles deletions.
 -/
 structure RangeArray (α : Type u) where
-  /-- The pool of data. Data is added groups, or sub-arrays, at a time.
+  /-- The pool of data. Data is added in groups, or sub-arrays, at a time.
       These sub-arrays, called "containers", are demarcated by `indexes`
       as 0-indexed Nat pointers into `data`. -/
   data : Array α
 
   /-- We take the convention that `indexes.size` is the number of "committed"
-      elements in the data array. The Bool indicates whether the
+      elements in the data array. The sign of the Int indicates whether the
       container under that index in `data` has been deleted.
+
       The size of a container is the difference between the absolute values of
       the index and its next highest neighbor (or `data.size` if at the end).
-      Indexes are (not necessarily strictly) monotonically increasing.  -/
-  indexes : Array (Nat × Bool)
+      Indexes are (not necessarily strictly) monotonically increasing.
 
+      Deleting a container does not delete the underlying region in `data`.
+      Instead, we leave that for garbage collection.
+
+      Rather, a deleted region has its index mapped via v ↦ (-v - 1), so
+      that the sizes of adjacent containers can still be computed.
+      Of course, a simple negation and absolute value mapping is most desirable,
+      but Lean sets -0 = 0, and so we cannot differentiate between a deleted
+      0-sized starting container and a non-deleted one.  -/
+  indexes : Array Int
+
+  /-- The (logical) size of the `data` array. Uncommitted elements will increase
+        `data.size`, but will leave size unchanged. -/
+  dataSize : Nat
+
+  -- CC: An alternate formulation of `indexes`, using LeanColls
   -- size : Nat
   --indexes : ArrayN Int size     -- Using LeanColls `ArrayN`
 
@@ -141,11 +103,16 @@ structure RangeArray (α : Type u) where
 
   /-- Invariants -/
 
-  -- All indexes never exceed data.size
-  h_indexes : ∀ (i : Fin indexes.size), (indexes.get i).1 ≤ data.size
+  h_size : dataSize ≤ data.size
 
-  h_indexes_inc : ∀ (i : Nat) (hi : i + 1 < indexes.size),
-    (indexes.get ⟨i, lt_of_succ_lt hi⟩).1 ≤ (indexes.get ⟨i + 1, hi⟩).1
+  -- No index exceeds data.size
+  h_indexes : ∀ {i : Nat} (hi : i < indexes.size),
+    RangeArray.getIndexFromMarkedIndex (indexes.get ⟨i, hi⟩) ≤ dataSize
+
+  -- The indexes are monotonically increasing in (unmarked) value
+  h_indexes_inc : ∀ {i : Nat} (hi : i + 1 < indexes.size),
+    RangeArray.getIndexFromMarkedIndex (indexes.get ⟨i, lt_of_succ_lt hi⟩) ≤
+    RangeArray.getIndexFromMarkedIndex (indexes.get ⟨i + 1, hi⟩)
 
 /-
 CNF: <20 clauses>
@@ -185,61 +152,125 @@ variable {α : Type u} (A : RangeArray α) (v : α)
 def mkRangeArray (n : Nat) (v : α) : RangeArray α := {
   data := Array.mkArray n v
   indexes := Array.empty
+  dataSize := n
   deletedSize := 0
-  h_indexes := by simp; rintro ⟨i, hi⟩; contradiction
+  h_size := by simp
+  h_indexes := by simp; intro i hi; contradiction
   h_indexes_inc := by simp; intro i hi; contradiction
 }
 
-def empty : RangeArray α := {
-  data := Array.empty
-  indexes := Array.empty
+def empty (size : Nat := 100) : RangeArray α := {
+  data := Array.mkEmpty size
+  indexes := Array.mkEmpty size
+  dataSize := 0
   deletedSize := 0
-  h_indexes := by simp; rintro ⟨i, hi⟩; contradiction
-  h_indexes_inc := by simp; intro i hi; contradiction
+  h_size := by simp
+  h_indexes := by simp
+  h_indexes_inc := by simp
 }
 
 /-- The number of indexes, or containers in the `data` array. -/
 abbrev size : Nat := A.indexes.size
 
 /-- The size of the underlying data array. -/
-abbrev dsize : Nat := A.data.size
+abbrev dsize : Nat := A.dataSize
 
-/-- Adds a container. If the container is empty, it's automatically deleted. -/
+/-- Adds a container. Any uncommitted elements are also part of the container. -/
 def add (arr : Array α) := { A with
   data := A.data ++ arr
-  indexes := A.indexes.push ⟨A.data.size, arr.size = 0⟩
+  indexes := A.indexes.push A.dsize
+  dataSize := A.data.size + arr.size
+  h_size := by simp [size_append, A.h_size]
   h_indexes := by
-    rintro ⟨i, hi⟩
-    simp [size_append] at hi ⊢
+    simp
+    intro i hi
     rcases eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi)
-    · simp
+    · simp [le_add_right A.h_size]
     · simp [get_push, hi]
-      exact le_add_right (A.h_indexes ⟨i, hi⟩)
+      exact le_trans (A.h_indexes hi) (le_add_right A.h_size)
   h_indexes_inc := by
     intro i hi
-    simp [size_append] at hi ⊢
-    have := A.h_indexes_inc
-    sorry
+    simp at hi
+    simp [get_push, hi]
+    rcases eq_or_lt_of_le (succ_le_of_lt hi) with (hi' | hi')
+    · rw [succ_eq_add_one] at hi'
+      simp [hi']
+      exact A.h_indexes _
+    · simp [hi']
+      exact A.h_indexes_inc hi'
 }
 
-#check Prod.map
-#check Prod.fst
-#check Prod.eta
+/-- Adds a single element to the underlying data array, without adding a new index. -/
+def addElement : RangeArray α := { A with
+  data := A.data.push v
+  h_size := by simp [size_push]; exact le_succ_of_le A.h_size
+}
 
-def addEmptyUntil (desiredSize : Nat) : RangeArray α :=
+/-- Creates a new container that contains any elements added via `addElement`. -/
+def commit : RangeArray α := { A with
+  indexes := A.indexes.push A.dsize
+  dataSize := A.data.size
+  h_size := le.refl
+  h_indexes := by
+    simp
+    intro i hi
+    rcases eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi)
+    · simp [le_add_right A.h_size]
+      exact A.h_size
+    · simp [get_push, hi]
+      exact le_trans (A.h_indexes hi) A.h_size
+  h_indexes_inc := by
+    intro i hi
+    simp at hi
+    simp [get_push, hi]
+    rcases eq_or_lt_of_le (succ_le_of_lt hi) with (hi' | hi')
+    · rw [succ_eq_add_one] at hi'
+      simp [hi']
+      exact A.h_indexes _
+    · simp [hi']
+      exact A.h_indexes_inc hi'
+}
+
+/-- Creates a new container that contains any elements added via `addElement`,
+    but that container is marked as deleted. -/
+def commitDeleted : RangeArray α := { A with
+  indexes := A.indexes.push (markIndexAsDeleted A.dsize)
+  dataSize := A.data.size
+  h_size := le.refl
+  h_indexes := by
+    intro i hi
+    simp at hi
+    rcases eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi)
+    · simp [get_push, -markIndexAsDeleted_coe]
+      exact A.h_size
+    · simp [get_push, hi]
+      exact le_trans (A.h_indexes hi) A.h_size
+  h_indexes_inc := by
+    intro i hi
+    simp at hi
+    simp [get_push, hi, -markIndexAsDeleted_coe]
+    rcases eq_or_lt_of_le (succ_le_of_lt hi) with (hi' | hi')
+    · rw [succ_eq_add_one] at hi'
+      simp [hi', -markIndexAsDeleted_coe]
+      exact A.h_indexes _
+    · simp [hi']
+      exact A.h_indexes_inc hi'
+}
+
+def commitEmptyUntil (desiredSize : Nat) : RangeArray α :=
   let rec loop (n : Nat) (A' : RangeArray α) : RangeArray α :=
     match n with
     | 0 => A'
-    | n + 1 => loop n (A'.add #[])
+    | n + 1 => loop n A'.commitDeleted
   loop (desiredSize - A.size) A
 
 /-- Gets the index of the ith container. -/
 def index (i : Nat) : Nat :=
-  if hi : i < A.size then (A.indexes.get ⟨i, hi⟩).1
+  if hi : i < A.size then getIndexFromMarkedIndex (A.indexes.get ⟨i, hi⟩)
   else 0
 
 def isDeleted (i : Nat) : Bool :=
-  if hi : i < A.size then (A.indexes.get ⟨i, hi⟩).2
+  if hi : i < A.size then (A.indexes.get ⟨i, hi⟩) < 0
   else true
 
 /-- Gets the size of the range under the provided index. -/
@@ -248,36 +279,107 @@ def rsize (i : Nat) : Nat :=
   else if i + 1 = A.size then A.dsize - A.index i
   else 0
 
+def uncommittedSize : Nat := A.dsize - A.dataSize
+
+@[inline, always_inline]
+def get (i : Fin A.data.size) : α :=
+  A.data.get i
+
+@[inline, always_inline]
+def get? (i : Nat) : Option α :=
+  A.data.get? i
+
+@[inline, always_inline]
+def getO (i : Fin A.size) (offset : Fin (A.rsize i)) : α :=
+  A.data.get ⟨A.index i + offset.val, by sorry⟩
+
+@[inline, always_inline]
+def getO? (i offset : Nat) : Option α :=
+  A.data.get? (A.index i + offset)
+
 def delete (i : Nat) : RangeArray α :=
-  if hi : i < A.size then
-    { A with
-        indexes := A.indexes.set ⟨i, hi⟩ ⟨(A.indexes.get ⟨i, hi⟩).1, true⟩
-        deletedSize := A.deletedSize + A.rsize i
-        h_indexes := by sorry
-        h_indexes_inc := by sorry }
+  if hi : i < A.size then { A with
+    indexes := A.indexes.set ⟨i, hi⟩ (markIndexAsDeleted (A.indexes.get ⟨i, hi⟩))
+    deletedSize := A.deletedSize + A.rsize i
+    h_indexes := by
+      simp
+      intro j hj
+      stop
+      by_cases hij : i = j
+      · subst hij
+        rw [Array.get_set]
+        simp [getIndexFromMarkedIndex, markIndexAsDeleted]
+        split
+        · rename _ => h
+          simp
+          have : -(A.indexes[i]) ≤ 0 := Int.neg_nonpos_of_nonneg h
+          have : ¬(1 ≤ -A.indexes[i]) := Int.not_lt.mpr this
+          simp [this]
+          rw [← neg_add', Int.natAbs_neg]
+          have : 0 ≤ A.indexes[i] + 1 := by sorry
+          sorry
+          done
+      done
+    h_indexes_inc := by
+      intro j hj
+      stop
+      done
+  }
   else A
 
 @[simp] theorem size_empty : (empty : RangeArray α).size = 0 := rfl
-@[simp] theorem dsize_empty : (empty : RangeArray α).dsize = 0 := by simp [empty, dsize]; rfl
+@[simp] theorem dsize_empty : (empty : RangeArray α).dsize = 0 := by simp [empty, dsize]
 @[simp] theorem rsize_empty : (empty : RangeArray α).rsize 0 = 0 := by simp [empty]; rfl
 @[simp] theorem size_add (arr : Array α) : (A.add arr).size = A.size + 1 := by simp [add, size]
-@[simp] theorem dsize_push (arr : Array α) : (A.add arr).dsize = A.dsize + arr.size :=
-  by simp [add, dsize, size_append]
 
-@[simp]
-theorem rsize_push (arr : Array α) (i : Nat) :
-    (A.add arr).rsize i = if hi : i = A.size then arr.size else A.rsize i
-  := by sorry
-  /-
-  simp [push, rsize]
-  rcases i with ⟨i, hi⟩
-  by_cases h_index : i + 1 < A.size
-  · simp [h_index, Nat.ne_of_lt h_index]; rfl
-  · simp [h_index]
-    simp at h_index
-    simp [le_antisymm h_index (succ_le_of_lt hi), index]
-    rw [Nat.sub_add_comm]
-    exact A.h_indexes _ -/
+
+structure models (R : RangeArray α) (as : Array (Array α)) (c : Array α) : Prop where
+  (h_size₁ : R.size = as.size)
+  (h_size₂ : R.data.size - R.dsize = c.size)
+  (h_sizes : ∀ {i : Nat} (hi : i < as.size), R.rsize i = (as.get ⟨i, hi⟩).size)
+  (h_agree : ∀ {i : Nat} (hi : i < as.size), !R.isDeleted i →
+      (∀ {j : Nat} (hj : j < (as.get ⟨i, hi⟩).size),
+        R.getO ⟨i, h_size₁ ▸ hi⟩ ⟨j, h_sizes hi ▸ hj⟩ = (as.get ⟨i, hi⟩).get ⟨j, hj⟩))
+  (h_uncommitted : ∀ {i : Nat} (hi : i < c.size),
+      R.get ⟨R.dsize + i, by rw [← h_size₂] at hi; exact add_lt_of_lt_sub' hi⟩ = c.get ⟨i, hi⟩)
+
+theorem models_empty (size : Nat) : models (empty size) (#[] : Array (Array α)) #[] := by
+  constructor <;> simp [empty]
+
+variable {R : RangeArray α} {as : Array (Array α)} {c : Array α}
+
+theorem models_add : models R as c → ∀ (arr : Array α), models (R.add arr) (as.push (c ++ arr)) #[] := by
+  rintro h_models ⟨arr⟩
+  induction' arr with x xs ih generalizing c
+  · stop
+    constructor <;> simp [add, getOffset]
+    · intro i hi h_del j hj
+      stop
+      done
+    done
+  · stop
+  done
+
+theorem models_add_of_empty : models R as #[] → ∀ (arr : Array α), models (R.add arr) (as.push arr) #[] := by
+  intro h_models arr
+  convert models_add h_models arr
+  exact (nil_append arr).symm
+
+theorem models_addElement : models R as c → ∀ (a : α), models (R.addElement a) as (c.push a) := by
+  stop
+  done
+
+theorem models_commit : models R as c → models (R.commit) (as.push c) #[] := by
+  stop
+  done
+
+theorem models_delete {i : Nat} : models R as c → models (R.delete i) as c := by
+  stop
+  done
+
+--theorem fn_eq_of_models : models R as c → ∀ (f : Nat → α)
+
+#exit
 
 theorem index_OoB {A : RangeArray α} {i : Nat} : i ≥ A.size → A.index i = 0 := by
   simp [index]
@@ -318,20 +420,17 @@ def foldlM_index {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α 
 def foldl_index {β : Type v} (f : β → α → β)
     (init : β) (A : RangeArray α) (i : Nat) : β :=
   A.data.foldl f init (A.index i) (A.index i + A.rsize i)
-  --Id.run <| A.foldlM_index f init i
 
 @[simp]
 theorem foldlM_index_empty {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → α → m β) (init : β) (i : Nat) :
       (empty : RangeArray α).foldlM_index f init i = return init := by
   simp [foldlM_index, empty]
-  exact Array.foldlM_empty _ _ _ _
 
 @[simp]
 theorem foldl_index_empty {β : Type v} (f : β → α → β) (init : β) (i : Nat) :
       (empty : RangeArray α).foldl_index f init i = init := by
   simp [foldl_index, empty]
-  exact Array.foldl_empty _ _ _ _
 
 @[simp]
 theorem foldlM_index_add {β : Type v} {m : Type v → Type w} [Monad m]

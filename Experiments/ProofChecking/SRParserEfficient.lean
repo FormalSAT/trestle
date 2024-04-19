@@ -9,7 +9,7 @@ Carnegie Mellon University
 
 import LeanSAT.Solver.Dimacs
 import Experiments.ProofChecking.RangeArray
-import Experiments.ProofChecking.SRChecker
+import Experiments.ProofChecking.SRCheckerEfficient
 
 import Std
 
@@ -173,7 +173,7 @@ def parseSRAtom (pivot : Option ILit) (p : SRLine × SRParsingMode) (s : String)
           return ⟨line, .rat_hints ⟨h, hints.push (n.natAbs - 1)⟩⟩
       | .done_with_line => throw s!"Addition line continued after last ending 0"
 
-def parseLSRLine (p : Nat × Array (SRLine ⊕ SRDeletionLine)) (s : String) : Except String (Nat × Array (SRLine ⊕ SRDeletionLine)) :=
+/-def parseLSRLine (p : Nat × Array (SRLine ⊕ SRDeletionLine)) (s : String) : Except String (Nat × Array (SRLine ⊕ SRDeletionLine)) :=
   let ⟨maxId, lines⟩ := p
   match s.splitOn " " with
   | [] => throw "Empty line"
@@ -222,14 +222,65 @@ def parseLSRLine (p : Nat × Array (SRLine ⊕ SRDeletionLine)) (s : String) : E
                 if mode != .done_with_line then
                   throw "Addition line didn't end with 0"
                 else
-                  return ⟨id, lines.push (.inl line)⟩
+                  return ⟨id, lines.push (.inl line)⟩ -/
 
+def parseLSRLine (maxId : Nat) (s : String) : Except String (Nat × (SRLine ⊕ SRDeletionLine)) :=
+  match s.splitOn " " with
+  | [] => throw "Empty line"
+  | [_] => throw s!"Single atom line: {s}, with id {maxId}"
+  | (id :: hd :: tls) =>
+    match hd with
+    | "d" =>
+      -- Check to make sure the maxId is (non-strictly) monotonically increasing
+      match id.toNat? with
+      | none => throw "Line ID is not a number"
+      | some id =>
+        if id < maxId then
+          throw "Deletion line id is not increasing"
+        else
+          match tls.foldlM (fun arr str =>
+            match str.toNat? with
+            | none => throw (throw s!"{str} was not a number")
+            | some 0 => throw (return arr)
+            | some (n + 1) => return arr.push n) #[] with
+          | ok _ => throw "Zero not found on deletion line"
+          | error e => return ⟨max id maxId, .inr (SRDeletionLine.mk (← e))⟩
+    | _ =>
+      -- We have an addition line, so the maxId should strictly increase
+      match id.toNat? with
+      | none => throw "Line ID is not a number"
+      | some id =>
+        if id ≤ maxId then
+          throw s!"Addition line id is not increasing: parsed {id}, max {maxId}"
+        else
+          match hd.toInt? with
+          | none => throw "Pivot is not a number"
+          | some n =>
+            let line : SRLine := ⟨#[], #[], #[], #[], #[]⟩
+            if hn : n = 0 then
+              match tls.foldlM (parseSRAtom none) ⟨line, .up_hints⟩ with
+              | error str => throw str
+              | ok ⟨line, mode⟩ =>
+                if mode != .done_with_line then
+                  throw "Addition line for empty clause didn't end with 0"
+                else
+                  return ⟨id, .inl line⟩
+            else
+              match tls.foldlM (parseSRAtom (some ⟨n, hn⟩)) ⟨{ line with clause := line.clause.push ⟨n, hn⟩ }, .clause⟩ with
+              | error str => throw str
+              | ok ⟨line, mode⟩ =>
+                if mode != .done_with_line then
+                  throw "Addition line didn't end with 0"
+                else
+                  return ⟨id, .inl line⟩
+
+/-
 def parseLSRFile (formulaSize : Nat) (s : String) : Except String (Array (SRLine ⊕ SRDeletionLine)) :=
   match s.splitOn "\n"
     |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
     |>.foldlM parseLSRLine ⟨formulaSize, #[]⟩ with
   | error e => throw e
-  | ok ⟨_, lines⟩ => return lines
+  | ok ⟨_, lines⟩ => return lines -/
 
 
 end SRParser
@@ -238,39 +289,22 @@ def main (args : List String) : IO Unit := do
   let cnfFile := args[0]!
   let lsrFile := args[1]!
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
-  --let res ← fromFileEnc cnfFile
   let F ← IO.ofExcept <| SRParser.parseFormula contents RangeArray.empty
-  --let cnf ← IO.ofExcept <| SRParser.parseFormula contents (#[] : ICnf)
   IO.println s!"Formula has {F.size} clauses"
-  --IO.println s!"Formula has {cnf.size} clauses"
 
   let lsrContents ← IO.FS.withFile lsrFile .read (·.readToEnd)
-  let lines ← IO.ofExcept <| SRParser.parseLSRFile (F.size) lsrContents
-  --IO.println s!"LSR file has {lines.size} lines"
-  --IO.println s!"{F}"
-  --for line in lines do
-  --  match line with
-  --  | .inl l => IO.println s!"{l.clause} {l.witness_lits} p {l.witness_maps} 0 {l.up_hints} {l.rat_hints} 0"
-  --  | .inr _ => continue
+  let lines := lsrContents.splitOn "\n"
+    |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
+  --let lines ← IO.ofExcept <| SRParser.parseLSRFile (F.size) lsrContents
 
   match lines.foldlM (init := ⟨F, PPA.new 100, PS.new 100⟩)
     (fun S line =>
-      match line with
-      | .inl l => SR.checkLineFlat S l
-      | .inr l =>
+      match SRParser.parseLSRLine F.size line with
+      | .error _ => throw false
+      | .ok ⟨_, Sum.inl l⟩ => SR.checkLineFlat S l
+      | .ok (_, .inr l) =>
         let ⟨F, τ, σ⟩ := S
         return ⟨l.clauses.foldl RangeArray.delete F, τ, σ⟩) with
   | Except.ok _ => IO.println "c Flat Proof failed to derive the empty clause, but is otherwise valid"
   | Except.error false => IO.println "c Flat Proof failed"
   | Except.error true => IO.println "s VERIFIED UNSAT"
-
-
-  /-
-  match lines.foldlM (init := (⟨cnf, PPA.new 100, PS.new 100⟩ : SR.SRState)) ((fun S line =>
-    match line with
-    | .inl l => SR.checkLine S l
-    | .inr _ => throw false)) with
-  | .ok _ => IO.println s!"Proof was valid but failed to derive the empty clause"
-  | .error true => IO.println "s VERIFIED UNSAT"
-  | .error false => IO.println "c Proof failed"
--/
