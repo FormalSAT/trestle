@@ -25,7 +25,6 @@ import LeanSAT.Model.PropFun
 
 import LeanColls
 open LeanColls
-#check Seq
 
 open Array Nat Fin
 
@@ -131,6 +130,7 @@ structure RangeArray (α : Type u) where
   /-- Invariants -/
 
   h_size : dataSize ≤ Size.size data
+  h_dataSize_empty : Size.size indexes = 0 → dataSize = 0
 
   -- No index exceeds `dataSize`
   h_indexes : ∀ {i : Nat} (hi : i < Size.size indexes),
@@ -185,15 +185,16 @@ abbrev usize : Nat := (Size.size A.data) - A.dsize
 
 -- Initialize a RangeArray with some data.
 -- We don't use this operation for proof checking, so no theorems are proved about it.
-def mkRangeArray (n : Nat) (v : α) : RangeArray α := {
+/- def mkRangeArray (n : Nat) (v : α) : RangeArray α := {
   data := Array.mkArray n v
   indexes := Insert.empty
   dataSize := n
   deletedSize := 0
   h_size := by simp [Size.size]
+  h_dataSize_empty := by simp [Size.size]
   h_indexes := by intro i hi; contradiction
   h_indexes_inc := by intro i j hi hj; contradiction
-}
+} -/
 
 def empty (size : Nat := 100) : RangeArray α := {
   data := Array.mkEmpty size
@@ -201,11 +202,13 @@ def empty (size : Nat := 100) : RangeArray α := {
   dataSize := 0
   deletedSize := 0
   h_size := by simp
+  h_dataSize_empty := by simp
   h_indexes := by simp [LeanColls.size]
   h_indexes_inc := by simp [LeanColls.size]
 }
 
 /-- Adds a single element to the underlying data array, without adding a new index. -/
+--@[inline, always_inline, specialize]
 def push : RangeArray α := { A with
   data := Seq.snoc A.data v
   h_size := by simp [Seq.size_snoc]; exact le_succ_of_le A.h_size
@@ -225,6 +228,7 @@ def commit : RangeArray α := { A with
   indexes := Seq.snoc A.indexes (A.dsize : Int)
   dataSize := Size.size A.data
   h_size := le.refl
+  h_dataSize_empty := by simp
   h_indexes := by
     simp
     intro i hi
@@ -247,45 +251,69 @@ def commit : RangeArray α := { A with
 
 /-- Gets the index of the ith container. -/
 @[inline, always_inline]
-def index (i : Fin A.size) : Nat :=
+def indexFin (i : Fin A.size) : Nat :=
   getIndexFromMarkedIndex (Seq.get A.indexes i)
 
 /- Indexes outside `A.size` are 0. -/
-/- @[inline, always_inline]
-def index? (i : Nat) : Nat :=
+@[inline, always_inline]
+def index (i : Nat) : Nat :=
   if hi : i < A.size then
-    A.index ⟨i, hi⟩
-  else
-    0 -/
+    indexFin A ⟨i, hi⟩
+  else 0
+
+theorem indexFin_eq_index {i : Nat} (hi : i < A.size) : A.indexFin ⟨i, hi⟩ = A.index i := by
+  simp [index, hi]
+
+theorem indexFin_eq_index?' (i : Fin A.size) : A.indexFin i = A.index i.val := by
+  simp [index]
 
 /-- Checks whether the ith container is deleted. -/
 @[inline, always_inline]
-def isDeleted (i : Fin A.size) : Bool :=
+def isDeletedFin (i : Fin A.size) : Bool :=
   (Seq.get A.indexes i) < 0
 
 /- Checks whether the ith container is deleted.
     Containers outside of `A.size` are considered deleted. -/
-/- def isDeleted? (i : Nat) : Bool :=
-  if hi : i < A.size then
-    A.isDeleted ⟨i, hi⟩
-  else
-    true -/
+def isDeleted (i : Nat) : Bool :=
+  if hi : i < A.size then isDeletedFin A ⟨i, hi⟩
+  else true
+
+theorem isDeletedFin_eq_isDeleted {i : Nat} (hi : i < A.size) :
+    A.isDeletedFin ⟨i, hi⟩ = A.isDeleted i := by
+  simp [isDeleted, hi]
+
+theorem isDeletedFin_eq_isDeleted' (i : Fin A.size) : A.isDeletedFin i = A.isDeleted i.val := by
+  simp [isDeleted]
 
 /-- Gets the size of the container under the provided index.
     The size of the most-recently-added container is the old `A.usize`.
 
     Note that the `rsize` of a deleted container can be computed, but is
-    undefined, since garbage collection might discard deleted containers. -/
-def rsize (i : Fin A.size) : Nat :=
+    undefined, since garbage collection might discard deleted containers.
+
+    CC: Should we say that `rsize` of a deleted container is 0? -/
+@[inline, always_inline]
+def rsizeFin (i : Fin A.size) : Nat :=
   if hi : i.val + 1 < A.size then
-    A.index ⟨i.val + 1, hi⟩ - A.index i
+    A.indexFin ⟨i.val + 1, hi⟩ - A.index i
   else if i + 1 = A.size then
     A.dsize - A.index i
   else 0
 
-def delete (i : Fin A.size) : RangeArray α := { A with
+def rsize (i : Nat) : Nat :=
+  if hi : i < A.size then A.rsizeFin ⟨i, hi⟩
+  else 0
+
+theorem rsizeFin_eq_rsize {i : Nat} (hi : i < A.size) : A.rsizeFin ⟨i, hi⟩ = A.rsize i := by
+  simp [rsize, hi]
+
+theorem rsizeFin_eq_rsize' (i : Fin A.size) : A.rsizeFin i = A.rsize i.val := by
+  simp [rsize]
+
+def deleteFin (i : Fin A.size) : RangeArray α := { A with
   indexes := Seq.set A.indexes i (markIndexAsDeleted (Seq.get A.indexes i))
   deletedSize := A.deletedSize + A.rsize i
+  h_dataSize_empty := by simp; exact A.h_dataSize_empty
   h_indexes := by
     simp [Seq.get_set]
     rcases i with ⟨i, hi⟩
@@ -305,8 +333,14 @@ def delete (i : Fin A.size) : RangeArray α := { A with
       <;> simp [hik, A.h_indexes_inc hjk]
 }
 
-/- def delete? (i : Nat) : RangeArray α :=
-  if hi : i < A.size then A.delete ⟨i, hi⟩ else A -/
+def delete (i : Nat) : RangeArray α :=
+  if hi : i < A.size then A.deleteFin ⟨i, hi⟩ else A
+
+theorem deleteFin_eq_delete {i : Nat} (hi : i < A.size) : A.deleteFin ⟨i, hi⟩ = A.delete i := by
+  simp [delete, hi]
+
+theorem deleteFin_eq_delete' (i : Fin A.size) : A.deleteFin i = A.delete i.val := by
+  simp [delete]
 
 -- CC: Can be implemented as `commit`, then `delete`.
 /-- Creates a new container that contains any elements added via `addElement`,
@@ -315,6 +349,7 @@ def commitDeleted : RangeArray α := { A with
   indexes := Seq.snoc A.indexes (markIndexAsDeleted A.dsize)
   dataSize := A.data.size
   h_size := le.refl
+  h_dataSize_empty := by simp
   h_indexes := by
     simp
     intro i hi
@@ -354,6 +389,7 @@ def append' (arr : Array α) := { A with
   indexes := Seq.snoc A.indexes (A.dsize : Int)
   dataSize := (Size.size A.data) + (Size.size arr)
   h_size := by simp [size_append, A.h_size]
+  h_dataSize_empty := by simp [size_append, A.h_dataSize_empty]
   h_indexes := by
     simp
     intro i hi
@@ -377,7 +413,7 @@ def append' (arr : Array α) := { A with
 
 section lemmas
 
-variable {A : RangeArray α} {i : Nat} (hi : i < A.size)
+variable (A : RangeArray α) (v : α) (i : Nat)
 
 /-! # empty -/
 
@@ -396,32 +432,52 @@ theorem usize_empty (n : Nat) : (empty n : RangeArray α).usize = 0 := by
 /-! # push -/
 
 @[simp]
-theorem size_push (A : RangeArray α) (v : α) : (A.push v).size = A.size := by simp [push, size]
+theorem size_push : (A.push v).size = A.size := by simp [push, size]
 
 @[simp]
-theorem dsize_push (A : RangeArray α) (v : α) : (A.push v).dsize = A.dsize := by simp [push, dsize]
+theorem dsize_push : (A.push v).dsize = A.dsize := by simp [push, dsize]
 
 @[simp]
-theorem usize_push (A : RangeArray α) (v : α) : (A.push v).usize = A.usize + 1 := by
+theorem usize_push : (A.push v).usize = A.usize + 1 := by
   simp [push, usize, dsize, Nat.sub_add_comm A.h_size]
 
-@[simp]
-theorem rsize_push (i : Fin A.size) (v : α) : (A.push v).rsize i = A.rsize i := by
-  simp [push, rsize]; rfl
+-- CC: including both sets of theorems would look like this, but the `Nat` verison is more general.
+theorem rsizeFin_push {A : RangeArray α} {i : Nat} (hi : i < A.size) (v : α) :
+    (A.push v).rsizeFin ⟨i, hi⟩ = A.rsizeFin ⟨i, hi⟩ := by
+  simp [push, rsizeFin]
+  stop
+  done
+
+theorem rsize_push_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) (v : α) :
+    (A.push v).rsize i = A.rsize i := by
+  simp [push, rsize, hi, size, lt_succ_of_lt hi]
+  stop
+  done
 
 @[simp]
-theorem isDeleted_push (i : Fin A.size) (v : α) : (A.push v).isDeleted i = A.isDeleted i := by
-  simp [push, isDeleted]
+theorem rsize_push_eq : (A.push v).rsize A.size = A.usize + 1 := by
+  simp [push, rsize, usize, dsize, Nat.sub_add_comm A.h_size]
+  stop
+  done
 
-theorem delete_push_comm (i : Fin A.size) (v : α) : (A.push v).delete i = (A.delete i).push v := by
-  simp [push, delete]; rfl
+@[simp]
+theorem isDeleted_push : (A.push v).isDeleted i = A.isDeleted i := by
+  simp [push, isDeleted, isDeletedFin, size]
+
+theorem delete_push_comm : (A.push v).delete i = (A.delete i).push v := by
+  simp_rw [delete]
+  split <;> rename _ => hi <;> rw [size_push] at hi
+  · simp [push, delete, deleteFin, hi]
+    stop
+    done
+  · simp [hi]
 
 theorem clear_of_usize_zero : A.usize = 0 → A.clear = A := by
   intro hu
   simp [clear, hu]
 
 @[simp]
-theorem clear_push (v : α) : (A.push v).clear = A.clear := by
+theorem clear_push : (A.push v).clear = A.clear := by
   simp [clear, push, Seq.snoc, Array.push, usize, dsize, LeanColls.size, Array.size_append]
   have h_le := A.h_size
   simp [dataSize, dsize, LeanColls.size] at h_le
@@ -478,7 +534,7 @@ theorem usize_clear (A : RangeArray α) : A.clear.usize = 0 := by
   · assumption
   · simp [LeanColls.size]
 
-theorem rsize_clear : A.clear.rsize ⟨i, by rwa [size_clear]⟩ = A.rsize ⟨i, hi⟩ := by
+theorem rsize_clear : A.clear.rsize i = A.rsize i := by
   simp [clear, rsize]
   stop
   split <;> rename _ => h₁
@@ -498,63 +554,122 @@ theorem clear_clear : A.clear.clear = A.clear := by
 /-! # delete -/
 
 @[simp]
-theorem size_delete (i : Fin A.size) : (A.delete i).size = A.size := by
-  simp [delete, size]
+theorem size_delete : (A.delete i).size = A.size := by
+  rw [delete]
+  split <;> rename _ => hi
+  · simp [deleteFin, hi, size]
+  · rfl
 
 @[simp]
-theorem dsize_delete (i : Fin A.size) : (A.delete i).dsize = A.dsize := by
-  simp [delete, dsize]
+theorem dsize_delete : (A.delete i).dsize = A.dsize := by
+  rw [delete]
+  split <;> rename _ => hi
+  · simp [delete, deleteFin, hi, dsize]
+  · rfl
 
 @[simp]
-theorem usize_delete (i : Fin A.size) : (A.delete i).usize = A.usize := by
-  simp [delete, usize]
+theorem usize_delete : (A.delete i).usize = A.usize := by
+  rw [delete]
+  split <;> rename _ => hi
+  · simp [delete, deleteFin, hi, usize]
+  · rfl
 
-theorem rsize_delete_ne {i j : Fin A.size} (hij: i ≠ j) :
-    !(A.isDeleted j) → (A.delete i).rsize ⟨j.val, by rw [size_delete _]; exact j.isLt⟩ = A.rsize j := by
+theorem index_delete_ne (A : RangeArray α) {i j : Nat} (hij : i ≠ j) :
+    (A.delete i).index j = A.index j := by
   sorry
   done
+
+theorem rsize_delete_ne {A : RangeArray α} {i j : Nat} (hij : i ≠ j) :
+    A.isDeleted j = false → (A.delete i).rsize j = A.rsize j := by
+  sorry
+  done
+
+@[simp]
+theorem isDeleted_delete_eq : (A.delete i).isDeleted i = true := by
+  simp [isDeleted, isDeletedFin, delete, deleteFin, size]
+  stop
+  done
+
+theorem isDeleted_delete_ne (A : RangeArray α) {i j : Nat} (hij : i ≠ j) :
+    (A.delete i).isDeleted j = A.isDeleted j := by
+  sorry
+  done
+
+theorem isDeleted_delete (i j : Nat) : (A.delete i).isDeleted j =
+    if i = j then true else A.isDeleted j := by
+  split <;> rename _ => hij
+  · subst hij; exact isDeleted_delete_eq A i
+  · exact isDeleted_delete_ne A hij
 
 /-! # commit -/
 
 @[simp]
-theorem size_commit (A : RangeArray α) : A.commit.size = A.size + 1 := by
+theorem size_commit : A.commit.size = A.size + 1 := by
   simp [commit, size]
 
 @[simp]
-theorem dsize_commit (A : RangeArray α) : A.commit.dsize = Size.size A.data := by
+theorem dsize_commit : A.commit.dsize = Size.size A.data := by
   simp [commit, dsize]
 
 @[simp]
-theorem usize_commit (A : RangeArray α) : A.commit.usize = 0 := by
+theorem usize_commit : A.commit.usize = 0 := by
   simp [usize, commit, dsize]
 
-theorem rsize_commit_lt : (A.commit).rsize ⟨i, by rw [size_commit]; exact lt_succ_of_lt hi⟩ = A.rsize ⟨i, hi⟩ := by
+theorem index_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) :
+    (A.commit).index i = A.index i := by
   rw [size] at hi
-  simp [commit, rsize, size, hi]
-  split <;> rename _ => hi'
-  · simp [hi', lt_of_succ_lt hi', index, Seq.get_snoc]
-  · have := le_antisymm (Nat.succ_le_of_lt hi) (not_lt.mp hi')
-    rw [succ_eq_add_one] at this
-    simp [this, index, Seq.get_snoc, hi]
+  simp [commit, size, hi, lt_succ_of_lt hi, index, indexFin, Seq.get_snoc]
 
 @[simp]
-theorem rsize_commit_eq (A : RangeArray α) : (A.commit).rsize ⟨A.size, by simp [size_commit]⟩ = A.usize := by
-  simp [commit, rsize, dsize, size, index, Seq.get_snoc]
+theorem index_commit_eq : (A.commit).index A.size = A.dsize := by
+  simp [commit, index, indexFin, Seq.get_snoc, size]
 
-theorem rsize_commit (A : RangeArray α) {i : Nat} (hi : i < (A.commit).size) :
-    (A.commit).rsize ⟨i, hi⟩ =
-      if hi' : i = A.size then
-        A.usize
-      else
-        A.rsize ⟨i, by rw [size_commit] at hi; exact lt_of_le_of_ne (le_of_lt_succ hi) hi'⟩ := by
-  simp at hi
-  by_cases hi' : i = A.size
-  <;> simp [hi']
-  exact rsize_commit_lt (lt_of_le_of_ne (le_of_lt_succ hi) hi')
+theorem index_commit_gt {A : RangeArray α} {i : Nat} (hi : i > A.size) :
+    (A.commit).index i = 0 := by
+  rw [size] at hi
+  simp [commit, index, indexFin, size, hi]
+  intro h
+  exact absurd hi (not_lt_of_ge (le_of_lt_succ h))
+
+-- CC: can probably be cleaned up with index theorems
+theorem rsize_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) :
+    (A.commit).rsize i = A.rsize i := by
+  rw [size] at hi
+  simp [commit, rsize, rsizeFin, size, hi, lt_succ_of_lt hi]
+  split <;> rename _ => hi'
+  · stop
+    simp [hi', lt_of_succ_lt hi', index, indexFin, Seq.get_snoc, size, lt_succ_of_lt hi]
+  · stop
+    have := le_antisymm (Nat.succ_le_of_lt hi) (not_lt.mp hi')
+    rw [succ_eq_add_one] at this
+    simp [this, size, index, indexFin, Seq.get_snoc, hi, lt_succ_of_lt hi]
+
+@[simp]
+theorem rsize_commit_eq : (A.commit).rsize A.size = A.usize := by
+  simp [commit, rsize, rsizeFin, dsize, size, index, indexFin, Seq.get_snoc]
+  stop
+  done
+
+theorem rsize_commit_gt {A : RangeArray α} {i : Nat} (hi : i > A.size) :
+    (A.commit).rsize i = 0 := by
+  rw [size] at hi
+  simp [commit, rsize, rsizeFin, size, hi]
+  intro h
+  stop
+  exact absurd hi (not_lt_of_ge (le_of_lt_succ h))
 
 @[simp]
 theorem clear_commit (A : RangeArray α) : A.commit.clear = A.commit := by
   simp [commit, clear]
+
+theorem isDeleted_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) :
+    (A.commit).isDeleted i = A.isDeleted i := by
+  rw [size] at hi
+  simp [commit, isDeleted, isDeletedFin, size, hi, lt_succ_of_lt hi, Seq.get_snoc]
+
+@[simp]
+theorem isDeleted_commit_eq : (A.commit).isDeleted A.size = false := by
+  simp [commit, isDeleted, isDeletedFin, size, Seq.get_snoc]
 
 /-! # append -/
 
@@ -566,7 +681,9 @@ theorem append_empty (A : RangeArray α) : A.append Array.empty = A.clear.commit
 theorem append_nil (A : RangeArray α) : A.append { data := [] } = A.clear.commit :=
   append_empty A
 
-theorem append_eq_append'_aux (A : RangeArray α) (arr : Array α) :
+variable (arr : Array α)
+
+theorem append_eq_append'_aux :
   ((arr.foldl (init := A) (fun A' v => A'.push v)) |>.commit) = A.append' arr := by
   have ⟨L⟩ := arr
   rw [append']
@@ -585,17 +702,17 @@ theorem append_eq_append'_aux (A : RangeArray α) (arr : Array α) :
     · simp [LeanColls.size, succ_eq_add_one]
       rw [add_assoc, add_comm 1 (List.length xs)]
 
-theorem append_eq_append' (A : RangeArray α) (arr : Array α) : A.append arr = (A.clear).append' arr := by
+theorem append_eq_append' : A.append arr = (A.clear).append' arr := by
   rw [append, append_eq_append'_aux A.clear arr]
 
+-- CC: This might be unneeded?
 @[simp]
-theorem append_indexes (A : RangeArray α) (arr : Array α) :
-    (A.append arr).indexes = Seq.snoc A.indexes (A.dsize : Int) := by
+theorem append_indexes : (A.append arr).indexes = Seq.snoc A.indexes (A.dsize : Int) := by
   rw [append_eq_append']
   simp [append']
 
 @[simp]
-theorem size_append (A : RangeArray α) (arr : Array α) : (A.append arr).size = A.size + 1 := by
+theorem size_append : (A.append arr).size = A.size + 1 := by
   have ⟨L⟩ := arr
   cases L
   · simp
@@ -603,110 +720,150 @@ theorem size_append (A : RangeArray α) (arr : Array α) : (A.append arr).size =
     simp [append', size]
 
 @[simp]
-theorem dsize_append (A : RangeArray α) (arr : Array α) : (A.append arr).dsize = A.dsize + Size.size arr := by
+theorem dsize_append : (A.append arr).dsize = A.dsize + Size.size arr := by
   have ⟨L⟩ := arr
   cases L
   · simp [append, usize, dsize]; rfl
   · simp [append_eq_append', append', dsize]
 
-theorem lt_size_append_of_lt_size (arr : Array α) : i < (A.append arr).size := by
+theorem lt_size_append_of_lt_size {A : RangeArray α} {i : Nat} (hi : i < A.size)
+    (arr : Array α) : i < (A.append arr).size := by
   simp; exact lt_succ_of_lt hi
 
-theorem index_append_lt (arr : Array α) :
-    (A.append arr).index ⟨i, lt_size_append_of_lt_size hi _⟩ = A.index ⟨i, hi⟩ := by
-  simp [append_eq_append', append', index, Seq.get_snoc, hi]
-  congr 1
-  stop
-  done
+theorem index_append_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) (arr : Array α) :
+    (A.append arr).index i = A.index i := by
+  rw [append_eq_append']
+  rw [size] at hi
+  simp [append', hi, lt_succ_of_lt hi, size]
+  simp [index, indexFin, size, hi, lt_succ_of_lt hi, Seq.get_snoc]
 
 @[simp]
-theorem index_append_eq (arr : Array α) :
-    (A.append arr).index ⟨A.size, by simp [size_append]⟩ = A.dsize := by
-  simp [append, index, Seq.get_snoc]
+theorem index_append_eq : (A.append arr).index A.size = A.dsize := by
+  rw [append_eq_append', append']
+  simp [index, indexFin, size, Seq.get_snoc]
+
+theorem rsize_append_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) (arr : Array α) :
+    (A.append arr).rsize i = A.rsize i := by
+  rw [append_eq_append']
+  rw [size] at hi
+  simp [append', hi, lt_succ_of_lt hi, size]
+  simp [rsize, rsizeFin, index, indexFin, size, hi, lt_succ_of_lt hi, Seq.get_snoc]
+  split <;> rename _ => hi'
+  · stop
+    congr 1
+  · stop
+    have := le_antisymm (Nat.succ_le_of_lt hi) (not_lt.mp hi')
+    rw [succ_eq_add_one] at this
+    simp [this]
+
+theorem rsize_append_eq : (A.append arr).rsize A.size = Size.size arr := by
+  simp [rsize, rsizeFin]
   stop
   done
-
-theorem index_append (arr : Array α) {i : Nat} (hi : i < (A.append arr).size) :
-    (A.append arr).index ⟨i, hi⟩ =
-      if hi' : i = A.size then
-        A.dsize
-      else
-        A.index ⟨i, by rw [size_append] at hi; exact lt_of_le_of_ne (le_of_lt_succ hi) hi'⟩ := by
-  simp at hi
-  by_cases hi' : i = A.size
-  <;> simp [hi']
-  exact index_append_lt (lt_of_le_of_ne (le_of_lt_succ hi) hi') _
-
-theorem rsize_append_lt (arr : Array α) :
-    (A.append arr).rsize ⟨i, lt_size_append_of_lt_size hi _⟩ = A.rsize ⟨i, hi⟩ := by
-  rcases arr with ⟨L⟩
-  simp [rsize, hi]
-  split <;> rename _ => hi'
-  · simp [index_append_lt hi, index_append_lt hi']
-  · simp at hi'
-    have := le_antisymm (succ_le_of_lt hi) hi'
-    rw [succ_eq_add_one] at this
-    simp [index_append_lt hi, this]
-
-theorem rsize_append_eq (A : RangeArray α) (arr : Array α) :
-    (A.append arr).rsize ⟨A.size, by simp [size_append]⟩ = Size.size arr := by
-  simp [rsize]
 
 @[simp]
 theorem usize_append (arr : Array α) : (A.append arr).usize = 0 := by
   simp [append_eq_append', append']
 
+theorem isDeleted_append_lt {A : RangeArray α} {i : Nat} (hi : i < A.size) (arr : Array α) :
+    (A.append arr).isDeleted i = A.isDeleted i := by
+  rw [append_eq_append']
+  rw [size] at hi
+  simp [append', hi, lt_succ_of_lt hi, size]
+  simp [isDeleted, isDeletedFin, hi, lt_succ_of_lt hi, Seq.get_snoc, size]
+
+theorem isDeleted_append_eq : (A.append arr).isDeleted A.size = false := by
+  rw [append_eq_append']
+  simp [append', isDeleted, isDeletedFin, size, Seq.get_snoc]
+
 /-! # index -/
 
 @[simp]
 theorem index_push (i : Fin A.size) : (A.push v).index i = A.index i := by
-  simp [push, index]
-
-/-
-theorem isDeleted_append_lt (arr : Array α) :
-    (A.append arr).isDeleted ⟨i, by rw [size_append]; exact lt_succ_of_lt hi⟩ = A.isDeleted ⟨i, hi⟩ := by
-  simp [append, isDeleted, Seq.get_snoc, hi]
-
-@[simp]
-theorem isDeleted_append_eq (arr : Array α) :
-    (A.append arr).isDeleted ⟨A.size, by simp [size_append]⟩ = false := by
-  simp [append, isDeleted, Seq.get_snoc]
-
-theorem isDeleted_append (arr : Array α) {i : Nat} (hi : i < (A.append arr).size) :
-    (A.append arr).isDeleted ⟨i, hi⟩ =
-      if hi' : i = A.size then
-        false
-      else
-        A.isDeleted ⟨i, by rw [size_append] at hi; exact lt_of_le_of_ne (le_of_lt_succ hi) hi'⟩ := by
-  simp at hi
-  by_cases hi' : i = A.size
-  <;> simp [hi']
-  exact isDeleted_append_lt (lt_of_le_of_ne (le_of_lt_succ hi) hi') _
-
-theorem delete_push_comm (i : Fin A.size) : (A.push v).delete i = (A.delete i).push v := by
-  simp [push, delete]
-  done
-
-theorem isDeleted_deleted (i j : Nat) : (A.delete? i).isDeleted? j =
-    if i = j then true else A.isDeleted? j := by
-  sorry
-  done -/
+  simp [push, index, indexFin]
 
 end lemmas
 
+/-! # get -/
+
 @[inline, always_inline]
-def get (i : Fin A.data.size) : α :=
-  A.data.get i
+def getFin (i : Fin (Size.size A.data)) : α :=
+  Seq.get A.data i
 
-/-@[inline, always_inline]
-def get? (i : Nat) : Option α :=
-  A.data.get? i -/
+@[inline, always_inline]
+def get [Inhabited α] (i : Nat) : α :=
+  if hi : i < Size.size A.data then
+    A.getFin ⟨i, hi⟩
+  else default
 
+variable [Inhabited α]
+
+theorem getFin_eq_get {i : Nat} (hi : i < Size.size A.data) : A.getFin ⟨i, hi⟩ = A.get i := by
+  simp [get, hi]
+
+theorem getFin_eq_get' (i : Fin (Size.size A.data)) : A.getFin i = A.get i.val := by
+  simp [get]
+
+theorem get_push_lt {A : RangeArray α} {i : Nat} (hi : i < Size.size A.data) (v : α) :
+    (A.push v).get i = A.get i := by
+  simp [get, getFin, push, hi, Seq.get_snoc, lt_succ_of_lt hi]
+
+@[simp]
+theorem get_push_eq : (A.push v).get (Size.size A.data) = v := by
+  simp [get, getFin, push, Seq.get_snoc]
+
+theorem get_push_gt {A : RangeArray α} {i : Nat} (hi : i > Size.size A.data) (v : α) :
+    (A.push v).get i = default := by
+  replace hi := succ_le_of_lt hi
+  rw [succ_eq_add_one] at hi
+  have := (not_lt.mpr hi)
+  simp [get, push, Seq.size_snoc, this]
+
+
+theorem get_clear_lt {A : RangeArray α} {i : Nat} (hi : i < Size.size A.data) :
+    (A.clear).get i = A.get i := by
+  simp [get, getFin, clear, hi]
+  stop
+  split <;> rename _ => hu
+  ·
+    done
+  done
+
+theorem get_clear_ge {A : RangeArray α} {i : Nat} (hi : i ≥ Size.size A.data) :
+    (A.clear).get i = default := by
+  simp [get, getFin, clear, hi]
+  stop
+  split <;> rename _ => hu
+  ·
+    done
+  done
+
+theorem get_append_lt {A : RangeArray α} {i : Nat} (hi : i < A.dsize) (arr : Array α) :
+    (A.append arr).get i = A.get i := by
+  rw [append_eq_append']
+  simp [append']
+  have hi₁ : i < dsize A + LeanColls.size arr := Nat.lt_add_right (LeanColls.size arr) hi
+  have hi₂ := lt_of_lt_of_le hi A.h_size
+  simp [get, append', hi₁, hi₂, getFin]
+  sorry
+  done
+
+/-
+theorem get_append_ge {A : RangeArray α} {i : Nat} (hi : i ≥ A.dsize) (arr : Array α) :
+    (A.append arr).get i = arr.get (i - A.dsize) := by
+  rw [append_eq_append']
+  simp [append']
+  have hi₁ : i ≥ dsize A := hi
+  have hi₂ := Nat.sub_lt_of_lt_add hi₁
+  simp [get, append', hi₁, hi₂, getFin]
+  sorry
+  done -/
 theorem index_add_offset_in_range {A : RangeArray α}
-      (i : Fin A.size) (offset : Fin (A.rsize i)) :
-    A.index i + offset.val < A.data.size := by
+      (i : Fin A.size) (offset : Fin (A.rsizeFin i)) :
+    A.indexFin i + offset.val < Size.size A.data := by
   rcases i with ⟨i, hi⟩
   rcases offset with ⟨offset, h_offset⟩
+  stop
   simp [rsize] at h_offset
   rcases eq_or_lt_of_le (succ_le_of_lt hi) with (hi' | hi')
   · rw [succ_eq_add_one] at hi'
@@ -719,92 +876,325 @@ theorem index_add_offset_in_range {A : RangeArray α}
     apply lt_of_lt_of_le _ A.h_size
     apply lt_of_lt_of_le (add_lt_of_lt_sub' h_offset) (A.h_indexes hi')
 
-@[inline, always_inline]
-def getO (i : Fin A.size) (offset : Fin (A.rsize i)) : α :=
-  A.data.get ⟨A.index i + offset.val, index_add_offset_in_range i offset⟩
+/-! # oget and uget -/
 
-/-@[inline, always_inline]
-def getO? (i offset : Nat) : Option α :=
-  A.data.get? ((A.index? i) + offset) -/
+@[inline, always_inline]
+def ogetFin {A : RangeArray α} (i : Fin A.size) (offset : Fin (A.rsizeFin i)) : α :=
+  A.getFin ⟨A.indexFin i + offset.val,
+      index_add_offset_in_range i offset⟩
+
+@[inline, always_inline]
+def oget (i offset : Nat) : α :=
+  if hi : i < A.size then
+    if ho : offset < A.rsizeFin ⟨i, hi⟩ then
+      A.ogetFin ⟨i, hi⟩ ⟨offset, ho⟩
+    else default
+  else default
+
+@[inline, always_inline]
+def ugetFin {A : RangeArray α} (i : Fin A.usize) : α :=
+  A.getFin ⟨A.dsize + i.val, Nat.add_lt_of_lt_sub' i.isLt⟩
+
+@[inline, always_inline]
+def uget (i : Nat) : α :=
+  if hi : i < A.usize then
+    A.ugetFin ⟨i, hi⟩
+  else default
+
+theorem oget_push_lt {A : RangeArray α} {i offset : Nat} (hi : i < A.size) (ho : offset < A.rsize i) (v : α) :
+    (A.push v).oget i offset = A.oget i offset := by
+  simp [oget, hi, ho]
+  simp [rsize, hi] at ho
+  simp [ho]
+  stop
+  split
+  ·
+    done
+  stop
+  split <;> rename _ => hi
+  · split <;> rename _ => ho
+    · rw [ogetFin]
+      simp [push, Seq.get_snoc, indexFin]
+      done
+    done
+  done
+
+theorem oget_push_lt' {A : RangeArray α} {i offset : Nat} (h : A.index i + offset < Size.size A.data) (v : α) :
+    (A.push v).oget i offset = A.oget i offset := by
+  simp [oget]
+  stop
+  split <;> rename _ => hi
+  · split <;> rename _ => ho
+    · rw [ogetFin]
+      simp [push, Seq.get_snoc, indexFin]
+      done
+    done
+  done
+
+theorem oget_push_eq_lt {A : RangeArray α} {offset : Nat} (ho : offset < A.usize) (v : α) :
+    (A.push v).oget A.size offset = A.oget A.size offset := by
+  stop
+  done
+
+@[simp]
+theorem oget_push_eq_eq : (A.push v).oget A.size A.usize = v := by
+  stop
+  done
+
+theorem oget_commit_lt {A : RangeArray α} {i offset : Nat} (hi : i < A.size) (ho : offset < A.rsize i) :
+    (A.commit).oget i offset = A.oget i offset := by
+  simp [oget]
+  stop
+  split <;> rename _ => hi
+  · split <;> rename _ => ho
+    · rw [ogetFin]
+      simp [commit, Seq.get_snoc, indexFin]
+      done
+    done
+  done
+
+theorem oget_commit_eq {A : RangeArray α} {offset : Nat} (ho : offset < A.usize) :
+    (A.commit).oget A.size offset = A.uget offset := by
+  stop
+  done
+
+theorem oget_delete_ne (A : RangeArray α) {i j offset : Nat} (hij : i ≠ j) :
+    (A.delete i).oget j offset = A.oget j offset := by
+  stop
+  done
+
+theorem uget_push_lt {A : RangeArray α} {i : Nat} (hi : i < A.usize) (v : α) :
+    (A.push v).uget i = A.uget i := by
+  simp [uget]
+  stop
+  done
+
+@[simp]
+theorem uget_push_eq : (A.push v).uget A.usize = v := by
+  stop
+  done
+
+theorem uget_delete {A : RangeArray α} {i : Nat} (hi : i < A.usize) (j : Nat) :
+    (A.delete j).uget i = A.uget i := by
+  stop
+  done
 
 structure models (R : RangeArray α) (Ls : List (Option (List α))) (L : List α) : Prop where
   (h_size₁ : R.size = Size.size Ls)
   (h_size₂ : R.usize = Size.size L)
   (h_some : ∀ {i : Nat} (hi : i < Size.size Ls),
-    R.isDeleted ⟨i, h_size₁ ▸ hi⟩ = (Seq.get Ls ⟨i, hi⟩ = none))
-  (h_sizes : ∀ {i : Nat} (hi : i < Size.size Ls),
-    Seq.get Ls ⟨i, hi⟩
-    R.rsize ⟨i, h_size₁ ▸ hi⟩ = Size.size (Seq.get Ls ⟨i, hi⟩))
-  (h_agree : ∀ {i : Nat} (hi : i < Size.size Ls), !R.isDeleted ⟨i, h_size₁ ▸ hi⟩ →
-      (∀ {j : Nat} (hj : j < (Size.size (Seq.get Ls ⟨i, hi⟩))),
-        R.getO ⟨i, h_size₁ ▸ hi⟩ ⟨j, h_sizes hi ▸ hj⟩ = Seq.get (Seq.get Ls ⟨i, hi⟩) ⟨j, hj⟩))
+    R.isDeleted i = (Seq.get Ls ⟨i, hi⟩ = none))
+  (h_sizes : ∀ {i : Nat} (hi : i < Size.size Ls) {sL : List α},
+    Seq.get Ls ⟨i, hi⟩ = some sL → R.rsize i = Size.size sL)
+  (h_agree : ∀ {i : Nat} (hi : i < Size.size Ls) {sL : List α},
+      Seq.get Ls ⟨i, hi⟩ = some sL →
+        (∀ {j : Nat} (hj : j < (Size.size sL)),
+          R.oget i j = Seq.get sL ⟨j, hj⟩))
   (h_uncommitted : ∀ {i : Nat} (hi : i < Size.size L),
-      R.get ⟨R.dsize + i, by rw [← h_size₂] at hi; exact add_lt_of_lt_sub' hi⟩ = Seq.get L ⟨i, hi⟩)
+      R.uget i = Seq.get L ⟨i, hi⟩)
 
-theorem models_empty (size : Nat) : models (empty size) ([] : List (List α)) [] := by
+     -- CC: Note to induct on the size of an array, introduce an explicit variable
+     -- ∀ n A, n = size A → ...
+
+theorem models_empty (size : Nat) : models (empty size) ([] : List (Option (List α))) [] := by
   constructor <;> simp
 
-theorem models_push : models A Ls L → models (A.push v) Ls (Seq.snoc L v) := by
-  intro h_models
-  constructor <;> simp [push]
+theorem models_push : models A Ls L → ∀ (v : α), models (A.push v) Ls (Seq.snoc L v) := by
+  intro h_models v
+  constructor
+  · simp [h_models.h_size₁]
+  · simp [h_models.h_size₂]
+  · refine h_models.h_some
+  · intro i hi sL hsL
+    rw [← h_models.h_size₁] at hi
+    rw [rsize_push_lt hi]
+    rw [h_models.h_size₁] at hi
+    exact h_models.h_sizes hi hsL
+  · intro i hi sL hsL j hj
+    have hi₁ := h_models.h_size₁.symm ▸ hi
+    have hj₁ := (h_models.h_sizes hi hsL).symm ▸ hj
+    rw [oget_push_lt hi₁ hj₁ v]
+    exact h_models.h_agree hi hsL hj
   · intro i hi
-    intro h_del
-    intro j hj
+    have hi₁ := hi
+    rw [Seq.size_snoc, ← h_models.h_size₂] at hi₁
+    rcases eq_or_lt_of_le (le_of_lt_succ hi₁) with (hi' | hi')
+    · conv => lhs; simp [hi']
+      rw [h_models.h_size₂] at hi'
+      simp [Seq.get_snoc, hi']
+    · conv => lhs; simp [uget_push_lt hi']
+      rw [Seq.get_snoc]
+      rw [h_models.h_size₂] at hi'
+      split <;> rename _ => hi₂
+      · exact h_models.h_uncommitted hi'
+      · simp at hi₂ hi
+        have := le_antisymm hi₂ (le_of_lt_succ hi)
+        rw [this] at hi'
+        exact absurd hi' (not_lt.mpr (le_refl _))
+
+theorem models_commit : models A Ls L → models (A.commit) (Seq.snoc Ls (some L)) [] := by
+  intro h_models
+  constructor
+  · simp [h_models.h_size₁]
+  · simp [h_models.h_size₂]
+  · intro i hi
+    have hi₁ := hi
+    simp at hi₁
+    simp [Seq.get_snoc, -eq_iff_iff]
+    split <;> rename _ => hi₂
+    · rw [← h_models.h_size₁] at hi₂
+      conv => lhs; simp [isDeleted_commit_lt hi₂]
+      rw [h_models.h_size₁] at hi₂
+      exact h_models.h_some hi₂
+    · simp only [not_lt] at hi₂
+      have := le_antisymm (le_of_lt_succ hi₁) hi₂
+      rw [← h_models.h_size₁] at this
+      simp [this]
+  · intro i hi sL hsL
+    simp at hi
+    rcases eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi₂)
+    · conv => lhs; rw [← h_models.h_size₁]
+      simp [h_models.h_size₂]
+      simp [Seq.get_snoc] at hsL
+      subst hsL
+      rfl
+    · rw [← h_models.h_size₁] at hi₂
+      rw [rsize_commit_lt hi₂]
+      rw [h_models.h_size₁] at hi₂
+      simp [Seq.get_snoc, hi₂] at hsL
+      exact h_models.h_sizes hi₂ hsL
+  · intro i hi sL hsL j hj
+    have hi₁ := hi
+    simp at hi₁
+    rcases eq_or_lt_of_le (le_of_lt_succ hi₁) with (hi₂ | hi₂)
+    · simp [hi₂] at hsL
+      subst hsL
+      rw [← h_models.h_size₁] at hi₂
+      rw [hi₂, oget_commit_eq ((h_models.h_size₂).symm ▸ hj)]
+      exact h_models.h_uncommitted hj
+    · simp [Seq.get_snoc, hi₂] at hsL
+      rw [← h_models.h_sizes hi₂ hsL] at hj
+      rw [← h_models.h_size₁] at hi₂
+      rw [oget_commit_lt hi₂ hj]
+      rw [h_models.h_size₁] at hi₂
+      rw [h_models.h_sizes hi₂ hsL] at hj
+      exact h_models.h_agree hi₂ hsL hj
+  · simp
+
+theorem models_delete : models A Ls L → ∀ {i : Nat} (hi : i < Size.size Ls), models (A.delete i) (Seq.set Ls ⟨i, hi⟩ none) L := by
+  intro h_models i hi
+  constructor
+  · simp [h_models.h_size₁]
+  · simp [h_models.h_size₂]
+  · intro j hj
+    by_cases hij : i = j
+    · simp [hij]
+    · rw [isDeleted_delete_ne A hij]
+      simp [Seq.get_set, hij, -eq_iff_iff]
+      simp at hj
+      exact h_models.h_some hj
+  · intro j hj sL hsL
+    by_cases hij : i = j
+    · simp [Seq.get_set, hij] at hsL
+    · simp [Seq.get_set, hij] at hsL
+      simp at hj
+      have := h_models.h_some hj
+      simp [hsL] at this
+      rw [rsize_delete_ne hij this]
+      exact h_models.h_sizes hj hsL
+  · intro j hj sL hsL k hk
+    by_cases hij : i = j
+    <;> simp [Seq.get_set, hij] at hsL
+    simp at hj
+    have := h_models.h_some hj
+    simp [hsL] at this
+    rw [oget_delete_ne A hij]
+    exact h_models.h_agree hj hsL hk
+  · intro j hj
+    simp [uget_delete (h_models.h_size₂.symm ▸ hj)]
+    exact h_models.h_uncommitted hj
+
+theorem exists_model (A : RangeArray α) : ∃ (Ls : List (Option (List α))) (L : List α), models A Ls L := by
+  rcases A with ⟨data, indexes, dataSize, _, h_size, h_dataSize_empty, h_indexes, h_indexes_inc⟩
+  rcases data with ⟨data⟩
+  rcases indexes with ⟨indexes⟩
+  -- CC: We might want to induct instead on indexes.size and "go backwards"
+  induction' indexes with i is ih generalizing data
+  · use [], data
+    simp [LeanColls.size] at h_dataSize_empty
+    constructor <;> try simp [size] <;> try rfl
+    · simp [usize, dsize, h_dataSize_empty]; rfl
+    · intro i hi
+      stop
+      done
 
     done
-  · exact h_models.h_size₂
-  · intro i hi
-    exact h_models.h_sizes hi
-  · intro i hi h_del j hj
-    exact h_models.h_agree hi h_del hj
-  · intro i hi
-    exact h_models.h_uncommitted hi
+  stop
+  done
+
+/-! # fold -/
+
+@[inline, always_inline, specialize]
+def foldlM_index {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α → m β)
+    (init : β) (A : RangeArray α) (i : Nat) : m β :=
+  if isDeleted A i = false then
+    A.data.foldlM f init (A.index i) (A.index i + A.rsize i)
+  else return init
+
+@[inline, always_inline, specialize]
+def foldl_index {β : Type v} (f : β → α → β)
+    (init : β) (A : RangeArray α) (i : Nat) : β :=
+  if isDeleted A i = false then
+    A.data.foldl f init (A.index i) (A.index i + A.rsize i)
+  else init
+
+@[inline, always_inline, specialize]
+def foldlM_indexHyps {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α → m β)
+    (init : β) (A : RangeArray α) (i : Fin A.size) (h_del : A.isDeletedFin i = false) : m β :=
+  A.data.foldlM f init (A.indexFin i) (A.indexFin i + A.rsizeFin i)
+
+@[inline, always_inline, specialize]
+def foldl_indexHyps {β : Type v} (f : β → α → β)
+    (init : β) (A : RangeArray α) (i : Fin A.size) (h_del : A.isDeletedFin i = false) : β :=
+  A.data.foldl f init (A.indexFin i) (A.indexFin i + A.rsizeFin i)
+
+@[inline, always_inline, specialize]
+def ufoldlM {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α → m β)
+    (init : β) (A : RangeArray α) : m β :=
+  A.data.foldlM f init A.dsize (A.dsize + A.usize)
+
+@[inline, always_inline, specialize]
+def ufoldl {β : Type v} (f : β → α → β)
+    (init : β) (A : RangeArray α) : β :=
+  A.data.foldl f init A.dsize (A.dsize + A.usize)
 
 #exit
 
-structure models (R : RangeArray α) (as : Array (Array α)) (c : Array α) : Prop where
-  (h_size₁ : R.size = as.size)
-  (h_size₂ : R.data.size - R.dsize = c.size)
-  (h_sizes : ∀ {i : Nat} (hi : i < as.size), R.rsize i = (as.get ⟨i, hi⟩).size)
-  (h_agree : ∀ {i : Nat} (hi : i < as.size), !R.isDeleted i →
-      (∀ {j : Nat} (hj : j < (as.get ⟨i, hi⟩).size),
-        R.getO ⟨i, h_size₁ ▸ hi⟩ ⟨j, h_sizes hi ▸ hj⟩ = (as.get ⟨i, hi⟩).get ⟨j, hj⟩))
-  (h_uncommitted : ∀ {i : Nat} (hi : i < c.size),
-      R.get ⟨R.dsize + i, by rw [← h_size₂] at hi; exact add_lt_of_lt_sub' hi⟩ = c.get ⟨i, hi⟩)
+-- Kind of like a Seq
+class RangeArrayApi (C : Type _) where
+  size : C → Nat
+  rsize : (cont : C) → (i : Fin (size cont)) → Nat
+  get : (cont : C) → (i : Fin (size cont)) → (offset : Fin (rsize cont i)) → α
+  isDeleted : C → Nat → Bool
+  foldlM {β : Type v} {m : Type v → Type w} [Monad m] :
+    (f : β → α → m β) → (init : β)
+      → (cont : C) → (i : Nat) → m β
+  foldl {β : Type v} :
+    (f : β → α → β) → (init : β)
+      → (cont : C) → (i : Nat) → β
+      --fun f init cont i hi =>
+      --  Id.run <| @foldlM β Id _ f init cont i hi
 
-theorem models_empty (size : Nat) : models (empty size) (#[] : Array (Array α)) #[] := by
-  constructor <;> simp [empty]
 
-variable {R : RangeArray α} {as : Array (Array α)} {c : Array α}
 
-theorem models_add : models R as c → ∀ (arr : Array α), models (R.add arr) (as.push (c ++ arr)) #[] := by
-  rintro h_models ⟨arr⟩
-  induction' arr with x xs ih generalizing c
-  · stop
-    constructor <;> simp [add, getOffset]
-    · intro i hi h_del j hj
-      stop
-      done
-    done
-  · stop
-  done
+#exit
 
 theorem models_add_of_empty : models R as #[] → ∀ (arr : Array α), models (R.add arr) (as.push arr) #[] := by
   intro h_models arr
   convert models_add h_models arr
   exact (nil_append arr).symm
 
-theorem models_push : models R as c → ∀ (a : α), models (R.push a) as (c.push a) := by
-  stop
-  done
 
-theorem models_commit : models R as c → models (R.commit) (as.push c) #[] := by
-  stop
-  done
-
-theorem models_delete {i : Nat} : models R as c → models (R.delete i) as c := by
-  stop
-  done
 
 --theorem fn_eq_of_models : models R as c → ∀ (f : Nat → α)
 
@@ -840,15 +1230,7 @@ theorem index_add_rsize_of_eq {A : RangeArray α} {i : Nat} :
 
 /-! # fold -/
 
-@[inline, specialize]
-def foldlM_index {β : Type v} {m : Type v → Type w} [Monad m] (f : β → α → m β)
-    (init : β) (A : RangeArray α) (i : Nat) : m β :=
-  A.data.foldlM f init (A.index i) (A.index i + A.rsize i)
 
-@[inline]
-def foldl_index {β : Type v} (f : β → α → β)
-    (init : β) (A : RangeArray α) (i : Nat) : β :=
-  A.data.foldl f init (A.index i) (A.index i + A.rsize i)
 
 @[simp]
 theorem foldlM_index_empty {β : Type v} {m : Type v → Type w} [Monad m]

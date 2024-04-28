@@ -138,18 +138,23 @@ theorem mkPos_or_mkNeg (l : L) : l = mkPos (toVar l) ∨ l = mkNeg (toVar l) := 
   dsimp [toPropFun]
   aesop
 
-theorem ext_iff (l1 l2 : L) : l1 = l2 ↔ toVar l1 = toVar l2 ∧ polarity l1 = polarity l2 := by
+theorem ext_iff (l₁ l₂ : L) : l₁ = l₂ ↔ toVar l₁ = toVar l₂ ∧ polarity l₁ = polarity l₂ := by
   constructor
   · rintro rfl; simp
   · aesop
 
-@[simp] theorem neg_eq_neg (l1 l2 : L) : -l1 = -l2 ↔ l1 = l2 := by
+@[simp] theorem neg_eq_neg (l₁ l₂ : L) : -l₁ = -l₂ ↔ l₁ = l₂ := by
   constructor
   · rw [ext_iff, ext_iff (L := L)]; simp
   · rintro rfl; rfl
 
 @[simp] theorem neg_neg (l : L) : - (- l) = l := by
   rw [ext_iff]; simp
+
+theorem neg_eq_iff_eq_neg {l₁ l₂ : L} : -l₁ = l₂ ↔ l₁ = -l₂ := by
+  constructor
+  · intro h; rw [← h, neg_neg]
+  · intro h; rw [h, neg_neg]
 
 -- CC: Reasoning about literal equality wrt polarity and toVar runs into a lot of cases.
 --     These lemmas fill in the gaps.

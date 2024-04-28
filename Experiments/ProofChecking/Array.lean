@@ -385,11 +385,48 @@ theorem get_setF' (A : Array α) (i : Nat) (v default : α) :
     (A.setF i v default)[i]? = some v := by
   sorry
 
-theorem getElem?_setF' (A : Array α) {i j : Nat} (v default : α) :
-    i ≠ j → (A.setF i v default)[j]? = A[j]? := by
+theorem getElem?_setF' {i j : Nat} :
+    i ≠ j → ∀ (A : Array α) (v default), (A.setF i v default)[j]? = A[j]? := by
   sorry
   done
 
 end setF /- section -/
 
 end Array
+
+#exit
+
+-- CC: Finally biting the bullet and proving things about Subarrays.
+-- CC: Have fun moving this into LeanColls, James!
+namespace Subarray
+
+theorem size_toArray_eq_size (A : Subarray α) :
+    A.toArray.size = A.stop - A.start := by
+  simp [toArray, Array.ofSubarray]
+  done
+
+theorem size_eq (A : Array α) (s e : Nat) :
+
+(Array.size (Subarray.toArray (Array.toSubarray C s e)))
+
+/-
+structure Subarray (α : Type u)  where
+  as : Array α
+  start : Nat
+  stop : Nat
+  h₁ : start ≤ stop
+  h₂ : stop ≤ as.size
+
+Array.foldl : {α : Type u} → {β : Type v} →
+  (β → α → β) → β → (as : Array α) → optParam Nat 0 → optParam Nat (Array.size as) → β
+-/
+
+/-
+#check Subarray.foldl
+
+theorem foldl_eq_array_foldl (f : β → α → β) (init : β) (A : Subarray α)
+(A : Array α) {s e : Nat} (h₁ : s ≤ e) (h₂ : e ≤ A.size) (s : Subarray A) (f : β → α → β) (init : β) :
+    s.foldl f init = (s.toSlice.foldl f init) := by
+  simp [Subarray.foldl, Subarray.toSlice, Array.foldl_eq_foldl] -/
+
+end Subarray

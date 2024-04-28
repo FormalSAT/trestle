@@ -663,6 +663,7 @@ open ReductionResult
 /- Reduction without tautology checking -/
 
 -- Evaluate the provided literal under the PS
+@[inline, always_inline]
 def seval (σ : PS) (l : ILit) : ReductionResult :=
   match σ.litValue l with
   | Sum.inr true => satisfied
@@ -682,6 +683,7 @@ def varValue (σ : PS) (v : IVar) : PSV :=
     else
       Sum.inl (mkPos v)
 -/
+@[inline, always_inline]
 def seval' (σ : PS) (l : ILit) : ReductionResult :=
   if hl : l.index < σ.gens.size then
     let gen := σ.gens.get ⟨l.index, hl⟩

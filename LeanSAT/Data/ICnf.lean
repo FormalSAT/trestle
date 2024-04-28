@@ -52,6 +52,8 @@ end IVar
 def ILit := { i : Int // i ≠ 0 }
   deriving DecidableEq, Repr
 
+instance : Inhabited ILit := ⟨1, by decide⟩
+
 instance : LitVar ILit IVar where
   negate l := ⟨-l.val, Int.neg_ne_zero.mpr l.property⟩
   mkPos x := ⟨Int.ofNat x.val, by simp⟩

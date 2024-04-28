@@ -24,6 +24,9 @@ import Experiments.ProofChecking.Array
 
 import Mathlib.Data.Nat.Basic
 
+import LeanColls
+open LeanColls
+
 open LeanSAT Model Nat
 open LitVar ILit IVar LawfulLitVar
 open PropFun
@@ -306,7 +309,7 @@ theorem varValue?_none_iff {τ : PPA} {v : IVar} :
         PropAssignment.set_get_of_ne _ _ this
       have hσ : σ ⊨ τ.toPropFun := (agreeOn_semVars this).mpr τ.toSatAssignment_satisfies
       have : σ ⊭ .var v := by
-        simp only [satisfies_var, PropAssignment.set_get, not_false_eq_true]
+        simp [satisfies_var, PropAssignment.set_get, not_false_eq_true, σ]
       exact this (entails_ext.mp hLt σ hσ)
     · intro hLt
       let σ := τ.toSatAssignment.set v true
@@ -315,8 +318,8 @@ theorem varValue?_none_iff {τ : PPA} {v : IVar} :
         PropAssignment.set_get_of_ne _ _ this
       have hσ : σ ⊨ τ.toPropFun := (agreeOn_semVars this).mpr τ.toSatAssignment_satisfies
       have : σ ⊭ (.var v)ᶜ := by
-        simp only [PropFun.satisfies_neg, satisfies_var, PropAssignment.set_get, not_true_eq_false,
-          not_false_eq_true]
+        simp only [PropFun.satisfies_neg, satisfies_var, PropAssignment.set_get,
+          not_true_eq_false, not_false_eq_true, σ]
       exact this (entails_ext.mp hLt σ hσ)
   · rintro ⟨h₁, h₂⟩
     match hτ : varValue? τ v with
@@ -389,7 +392,7 @@ theorem setVar_le_maxGen (τ : PPA) (i : Nat) (b : Bool) (gen : Nat) :
   rcases this with h | h | h
   . exact le_max_of_le_left (τ.le_maxGen _ h)
   . simp [h]
-  . cases b <;> simp [h]
+  . cases b <;> simp [h, v]
 
 /-- Set the given variable to `b` for the current generation. -/
 def setVar (τ : PPA) (v : IVar) (b : Bool) : PPA :=
@@ -746,6 +749,11 @@ def isSet (τ : PPA) (v : IVar) : Prop :=
 def isSetFor (τ : PPA) (v : IVar) : Nat :=
   ((τ.assignment.getD v.index 0).natAbs + 1) - τ.generation.val
 
+theorem isSet_of_varValue?_some {τ : PPA} {v : IVar} :
+    τ.varValue? v = some b → isSet τ v := by
+  intro h
+  simp [isSet, h]
+
 theorem isSetFor_pos_iff : isSetFor τ v > 0 ↔ isSet τ v := by
   simp [isSet, isSetFor, varValue?]
   match hv : τ.assignment[v.index]? with
@@ -883,6 +891,13 @@ theorem isSetFor_bump {τ : PPA} {v : IVar} :
     isSetFor τ.bump v = isSetFor τ v - 1 := by
   simp [isSetFor, bump, ← sub_add_eq, ← Nat.add_sub_add_right]
 
+theorem isSet_of_isSet_bump {τ : PPA} {v : IVar} :
+    isSet τ.bump v → isSet τ v := by
+  intro h
+  rw [← isSetFor_pos_iff] at h ⊢
+  simp at h
+  exact lt_trans zero_lt_one h
+
 @[simp]
 theorem isSetFor_reset (τ : PPA) (v : IVar) : isSetFor τ.reset v = 0 :=
   isSetFor_zero_iff.mpr (varValue?_reset τ v)
@@ -970,6 +985,18 @@ theorem uniform_new (maxVar : Nat) (offset : Nat) : uniform (new maxVar) offset 
 theorem uniform_reset (τ : PPA) (offset : Nat) : uniform τ.reset offset := by
   simp [uniform, isSet, isSetFor, varValue?_reset]
 
+theorem uniform_bump {τ : PPA} {offset : Nat} : uniform τ offset → uniform τ.bump (offset - 1) := by
+  intro h_uni v hv
+  have h_set := isSet_of_isSet_bump hv
+  have h_setFor := h_uni _ h_set
+  simp [h_setFor]
+  match offset with
+  | zero =>
+    rw [Nat.zero_add] at h_setFor
+    rw [← isSetFor_pos_iff] at h_set hv
+    simp [h_setFor] at hv
+  | succ offset => simp
+
 theorem uniform_of_extended_reset {τ₁ τ₂ : PPA} {offset : Nat} :
     extended (τ₁.reset) τ₂ offset → uniform τ₂ offset := by
   simp [extended, uniform]
@@ -980,11 +1007,34 @@ theorem uniform_of_uniform_of_extended {τ₁ τ₂ : PPA} {offset : Nat} :
   intro hτ₁ h_ext v hv
   by_cases isSet τ₁ v <;> aesop
 
-theorem uniform_bump_of_uniform_of_extended {τ₁ τ₂ : PPA} {offset : Nat} :
-    offset > 1 → uniform τ₁ offset → extended τ₁ τ₂ 0 →
-      uniform τ₂.bump (offset - 1) ∧ τ₂.bump.toPropFun = τ₁.toPropFun := by
-  sorry
-  done
+/-theorem uniform_bump_of_uniform_succ_of_extended {τ₁ τ₂ : PPA} {offset : Nat} :
+    uniform τ₁ (offset + 2) → extended τ₁ τ₂ 0 →
+      uniform τ₂.bump (offset + 1) ∧ τ₂.bump.toPropFun = τ₁.toPropFun := by
+  intro h_uni h_ext
+  constructor
+  · have := uniform_of_uniform_of_extended h_uni h_ext
+    intro v hv
+    have := isSet_of_isSet_bump hv
+    by_cases hτ₁ : τ₁.isSet v
+    · rcases (h_ext v).1 hτ₁ with ⟨h₁, h₂⟩
+      have := h_uni _ hτ₁
+      rw [← h₁] at this
+      simp [this]
+    · have := (h_ext v).2 hτ₁ this
+      simp at this
+      simp [← isSetFor_pos_iff, this] at hv
+  · ext τ
+    constructor
+    · intro hτ₂
+      rw [satisfies_iff_vars] at hτ₂ ⊢
+      intro v b hv
+      rcases (h_ext v).1 (isSet_of_varValue?_some hv) with ⟨h₁, h₂⟩
+      rw [← h₂] at hv
+      apply hτ₂
+
+      done
+
+    done -/
 
 /-! Assuming negated clauses -/
 
@@ -1044,20 +1094,35 @@ def assumeNegatedClause (τ : PPA) (C : IClause) : Except PPA PPA :=
 -- (i.e., their negations are set to true) with the provided offset. If the
 -- provided PPA satisfies the clause, then an error is thrown.
 -- Any literal that is initially set to true, it's "bump" value is untouched.
-def assumeNegatedClauseFor (τ : PPA) (C : IClause) (bumps : Nat) : Except PPA PPA :=
+def assumeNegatedClauseForM (τ : PPA) (C : IClause) (bumps : Nat) : Except PPA PPA :=
   C.foldlM (init := τ) (fun τ l =>
     match τ.litValue? l with
     | none       => .ok <| τ.setLitFor (-l) bumps
     | some false => .ok <| τ
     | some true  => .error τ)
 
+-- A potentially faster implementation, that is still in the `Except` monad
+-- but which uses a tail-recursive function.
+def assumeNegatedClauseFor (τ : PPA) (C : IClause) (bumps : Nat) : Except PPA PPA :=
+  let rec loop (i : Nat) (τ : PPA) : Except PPA PPA :=
+    if h : i < Size.size C then
+      let l := Seq.get C ⟨i, h⟩
+      match τ.litValue? l with
+      | none       => loop (i + 1) (τ.setLitFor (-l) bumps)
+      | some false => loop (i + 1) τ
+      | some true  => .error τ
+    else
+      .ok τ
+  termination_by Size.size C - i
+  loop 0 τ
+
 section assumeNegatedClause
 
 variable {τ τ' : PPA} {C : IClause} {bumps : Nat}
 
-theorem assumeNegatedClause_eq_assumeNegatedClauseFor (τ : PPA) (C : IClause) :
-    τ.assumeNegatedClause C = τ.assumeNegatedClauseFor C 0 := by
-  simp [assumeNegatedClause, assumeNegatedClauseFor, setLit_eq_setLitFor]
+theorem assumeNegatedClause_eq_assumeNegatedClauseForM (τ : PPA) (C : IClause) :
+    τ.assumeNegatedClause C = τ.assumeNegatedClauseForM C 0 := by
+  simp [assumeNegatedClause, assumeNegatedClauseForM, setLit_eq_setLitFor]
 
 @[simp]
 theorem assumeNegatedClause_empty (τ : PPA) : τ.assumeNegatedClause #[] = .ok τ := by
@@ -1065,21 +1130,29 @@ theorem assumeNegatedClause_empty (τ : PPA) : τ.assumeNegatedClause #[] = .ok 
 
 @[simp]
 theorem assumedNegatedClauseFor_empty (τ : PPA) (bumps : Nat) :
-    τ.assumeNegatedClauseFor #[] bumps = .ok τ := by
-  simp [assumeNegatedClauseFor]; rfl
+    τ.assumeNegatedClauseForM #[] bumps = .ok τ := by
+  simp [assumeNegatedClauseForM]; rfl
 
 @[simp]
-theorem assumeNegatedClauseFor_nil (τ : PPA) (bumps : Nat) :
-    τ.assumeNegatedClauseFor { data := [] } bumps = .ok τ := by
-  simp [assumeNegatedClauseFor]; rfl
+theorem assumeNegatedClauseForM_nil (τ : PPA) (bumps : Nat) :
+    τ.assumeNegatedClauseForM { data := [] } bumps = .ok τ := by
+  simp [assumeNegatedClauseForM]; rfl
 
-theorem assumeNegatedClauseFor_ok :
-    (τ.assumeNegatedClauseFor C bumps) = .ok τ' →
+def LawfulAssumeNegatedClauseFor (f : PPA → IClause → Nat → Except PPA PPA) : Prop :=
+  ∀ {τ τ' : PPA} {C : IClause} {bumps : Nat},
+    (f τ C bumps = .error τ' → τ.toPropFun ≤ C) ∧
+    (f τ C bumps = .ok τ' →
+      τ'.toPropFun = ↑τ ⊓ (↑C)ᶜ ∧ extended τ τ' bumps)
+
+-- CC: There's an argument that these should be kept in separate lemmas, for usability.
+--     There's also argument that they be combined into `Lawful`.
+theorem assumeNegatedClauseForM_ok :
+    (τ.assumeNegatedClauseForM C bumps) = .ok τ' →
       τ'.toPropFun = ↑τ ⊓ (↑C)ᶜ ∧ extended τ τ' bumps := by
   have ⟨C⟩ := C
   induction' C with l ls ih generalizing τ
   · simp; rintro rfl; simp
-  · simp [assumeNegatedClauseFor, -Array.size_mk] at ih ⊢
+  · simp [assumeNegatedClauseForM, -Array.size_mk] at ih ⊢
     cases hτ : τ.litValue? l
     <;> simp [hτ]
     <;> rw [← inf_assoc]
@@ -1095,12 +1168,12 @@ theorem assumeNegatedClauseFor_ok :
         rwa [hτ] at this
       · contradiction
 
-theorem assumeNegatedClauseFor_error :
-    (τ.assumeNegatedClauseFor C bumps) = .error τ' → τ.toPropFun ≤ C := by
+theorem assumeNegatedClauseForM_error :
+    (τ.assumeNegatedClauseForM C bumps) = .error τ' → τ.toPropFun ≤ C := by
   have ⟨C⟩ := C
   induction' C with l ls ih generalizing τ
   · simp [toPropFun_ne_bot]
-  · simp [assumeNegatedClauseFor, -Array.size_mk]
+  · simp [assumeNegatedClauseForM, -Array.size_mk]
     cases hτ : τ.litValue? l
     <;> simp [hτ]
     <;> intro h
@@ -1114,13 +1187,55 @@ theorem assumeNegatedClauseFor_error :
       · rw [litValue?_true_iff] at hτ
         exact le_sup_of_le_left hτ
 
+/-
+theorem assumeNegatedClauseForM_Lawful : LawfulAssumeNegatedClauseFor assumeNegatedClauseForM := by
+  rintro τ τ' ⟨C⟩ bumps
+  rw [assumeNegatedClauseForM]
+  induction C generalizing τ with
+  | nil => simp [pure, Except.pure]; rintro rfl; simp
+  | cons l ls ih =>
+    simp [-Array.size_mk] at ih ⊢
+    cases hl : τ.litValue? l
+    <;> simp [hl]
+    <;> rw [← inf_assoc]
+    · rw [← litValue?_negate_none_iff] at hl
+      rcases @ih (τ.setLitFor (-l) bumps) with ⟨ih₁, ih₂⟩
+      constructor
+      · intro h
+        have := ih₁ h
+        simp [toPropFun_setLit_of_none hl, inf_compl_le_iff_le_sup] at this
+        exact this
+      · intro h
+        rcases ih₂ h with ⟨h₁, h₂⟩
+        simp [toPropFun_setLit_of_none hl] at h₁
+        exact ⟨h₁, extended_trans (extended_setLitFor_of_none hl _) h₂⟩
+    · rename Bool => b
+      cases b
+      · rcases @ih τ with ⟨ih₁, ih₂⟩
+        constructor
+        · exact fun h => le_sup_of_le_right (ih₁ h)
+        · intro h
+          have := ih₂ h
+          rw [litValue?_false_iff_eq_inf] at hl
+          rwa [hl] at this
+      · simp
+        rw [litValue?_true_iff] at hl
+        constructor
+        · exact fun _ => le_sup_of_le_left hl
+        · intro h_con; contradiction -/
+
+theorem assumeNegatedClauseForM_Lawful : LawfulAssumeNegatedClauseFor assumeNegatedClauseForM := by
+  intro τ τ' C bumps
+  exact ⟨assumeNegatedClauseForM_error, assumeNegatedClauseForM_ok⟩
+
+/-
 -- TODO: Is this used?
-theorem assumeNegatedClauseFor_error_of_le {τ : PPA} {C : IClause} (bumps : Nat) :
-    τ.toPropFun ≤ C → ∃ τ', (τ.assumeNegatedClauseFor C bumps) = .error τ' := by
+theorem assumeNegatedClauseForM_error_of_le {τ : PPA} {C : IClause} (bumps : Nat) :
+    τ.toPropFun ≤ C → ∃ τ', (τ.assumeNegatedClauseForM C bumps) = .error τ' := by
   have ⟨C⟩ := C
   induction' C with l ls ih generalizing τ
   · simp [toPropFun_ne_bot]
-  · simp [assumeNegatedClauseFor, -Array.size_mk]
+  · simp [assumeNegatedClauseForM, -Array.size_mk]
     intro h
     cases hτ : τ.litValue? l
     · have : toPropFun (setLitFor τ (-l) bumps) = τ.toPropFun ⊓ lᶜ := by
@@ -1141,8 +1256,8 @@ theorem assumeNegatedClauseFor_error_of_le {τ : PPA} {C : IClause} (bumps : Nat
 --     that up for this theorem seems like overkill.
 -- CC TODO: Lots of duplication. Clean up with lemmas later.
 -- TODO: Remove?
-theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat} :
-    (τ.assumeNegatedClauseFor C bumps) = .ok τ' →
+theorem assumeNegatedClauseForM_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat} :
+    (τ.assumeNegatedClauseForM C bumps) = .ok τ' →
       ∀ (l : ILit), (l ∈ C →
         (τ'.litValue? l = some false) ∧
         (τ.litValue? l = none → τ'.isSetFor (toVar l) = bumps + 1) ∧
@@ -1153,7 +1268,7 @@ theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat
   · simp [← Array.mem_data]; rintro rfl l; exact ⟨rfl, rfl⟩
   · intro h
     have h_copy := h
-    simp [assumeNegatedClauseFor, ← Array.mem_data, -Array.size_mk] at h ⊢
+    simp [assumeNegatedClauseForM, ← Array.mem_data, -Array.size_mk] at h ⊢
     simp [← Array.mem_data] at ih
     intro l'
     constructor
@@ -1172,7 +1287,7 @@ theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat
                 exact ⟨_, hlsn, by simp⟩
               replace this : τ.toPropFun ≤ ({ data := l' :: ls } : IClause) := by
                 rw [this]; exact le_top
-              rcases assumeNegatedClauseFor_error_of_le bumps this with ⟨τ'', hτ''⟩
+              rcases assumeNegatedClauseForM_error_of_le bumps this with ⟨τ'', hτ''⟩
               rw [hτ''] at h_copy
               injection h_copy
             · rcases (ih h l').2 hls hlsn with ⟨h₁, h₂⟩
@@ -1189,7 +1304,7 @@ theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat
                 exact ⟨_, hlsn, by simp⟩
               replace this : τ.toPropFun ≤ ({ data := l' :: ls } : IClause) := by
                 rw [this]; exact le_top
-              rcases assumeNegatedClauseFor_error_of_le bumps this with ⟨τ'', hτ''⟩
+              rcases assumeNegatedClauseForM_error_of_le bumps this with ⟨τ'', hτ''⟩
               rw [hτ''] at h_copy
               injection h_copy
             · rcases (ih h l').2 hls hlsn with ⟨h₁, h₂⟩
@@ -1197,7 +1312,7 @@ theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat
               exact ⟨h₁, h₂⟩
         · have : τ.toPropFun ≤ ({ data := l' :: ls } : IClause) := by
             simp [le_sup_of_le_left (litValue?_true_iff.mp heq)]
-          rcases assumeNegatedClauseFor_error_of_le bumps this with ⟨τ'', hτ''⟩
+          rcases assumeNegatedClauseForM_error_of_le bumps this with ⟨τ'', hτ''⟩
           rw [hτ''] at h_copy
           injection h_copy
       · split at h <;> rename litValue? τ l = _ => heq
@@ -1213,7 +1328,7 @@ theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat
               exact hmem
             replace this : τ.toPropFun ≤ ({ data := -l' :: ls } : IClause) := by
               rw [this]; exact le_top
-            rcases assumeNegatedClauseFor_error_of_le bumps this with ⟨τ'', hτ''⟩
+            rcases assumeNegatedClauseForM_error_of_le bumps this with ⟨τ'', hτ''⟩
             rw [hτ''] at h_copy
             injection h_copy
           · have : toVar (-l) ≠ toVar l' := by simp [hll']
@@ -1233,13 +1348,13 @@ theorem assumeNegatedClauseFor_ok_spec {τ τ' : PPA} {C : IClause} {bumps : Nat
         rw [setLitFor_isSetFor_of_ne this] at h₂
         exact ⟨h₁, h₂⟩
       · exact (ih h l').2 hmem h_neg_mem
-      · injection h
+      · injection h -/
 
 /-
 For a general statement, we might say something like:
 
-theorem assumeNegatedClauseFor_ok {τ τ' : PPA} {C : IClause} {bumps : Nat} :
-    (τ.assumeNegatedClauseFor C bumps) = .ok τ' →
+theorem assumeNegatedClauseForM_ok {τ τ' : PPA} {C : IClause} {bumps : Nat} :
+    (τ.assumeNegatedClauseForM C bumps) = .ok τ' →
       ∀ (l : ILit), (l ∈ C →
         (τ'.litValue? l = some false) ∧
         (τ.litValue? l = none → τ'.isSetFor (toVar l) = bumps + 1) ∧
@@ -1252,22 +1367,81 @@ the complicated expression above as a postcondition.
 -/
 
 -- Just to simplify things, we include the postcondition from aNCF_ok
-theorem assumeNegatedClauseFor_reset_ok {τ τ' : PPA} {C : IClause} {bumps : Nat} :
-  (τ.reset.assumeNegatedClauseFor C bumps) = .ok τ' →
+theorem assumeNegatedClauseForM_reset_ok {τ τ' : PPA} {C : IClause} {bumps : Nat} :
+  (τ.reset.assumeNegatedClauseForM C bumps) = .ok τ' →
     τ'.toPropFun = (C.toPropFun)ᶜ ∧ uniform τ' bumps := by
   intro h
-  have := assumeNegatedClauseFor_ok h
+  have := assumeNegatedClauseForM_ok h
   simp at this
   rcases this with ⟨h₁, h₂⟩
   exact ⟨h₁, uniform_of_extended_reset h₂⟩
+
+theorem assumeNegatedClauseFor.loop.cons_aux (τ : PPA) (l : ILit) (bumps : Nat)
+      {ls : List ILit} {i j : Nat} :
+    j = ls.length - i → assumeNegatedClauseFor.loop { data := l :: ls } bumps (i + 1) τ =
+      assumeNegatedClauseFor.loop { data := ls } bumps i τ := by
+  intro hj
+  induction j generalizing τ i with
+  | zero =>
+    have := Nat.le_of_sub_eq_zero hj.symm
+    unfold loop
+    simp [LeanColls.size, not_lt.mpr this, not_lt.mpr (succ_le_succ_iff.mpr this)]
+  | succ j ih =>
+    rw [succ_eq_add_one] at hj
+    unfold loop
+    simp [LeanColls.size, succ_eq_add_one]
+    have hi : i < List.length ls := by
+      apply Nat.lt_of_sub_pos
+      rw [← hj]
+      exact Nat.zero_lt_succ j
+    simp [hi]
+    have : Seq.get ({data := l :: ls} : IClause) ⟨i + 1, succ_lt_succ hi⟩
+      = Seq.get ({data := ls} : IClause) ⟨i, hi⟩ := rfl
+    rw [this]
+    split <;> rename _ => h_get
+    <;> simp [h_get]
+    · apply @ih (setLitFor τ (-Seq.get ({ data := ls } : IClause) { val := i, isLt := hi }) bumps) (i + 1)
+      rw [← Nat.sub_sub, ← hj, Nat.add_sub_cancel]
+    · apply @ih τ
+      rw [← Nat.sub_sub, ← hj, Nat.add_sub_cancel]
+
+theorem assumeNegatedClauseFor.loop.cons (τ : PPA) (l : ILit) (ls : List ILit) (bumps i : Nat) :
+    assumeNegatedClauseFor.loop { data := l :: ls } bumps (i + 1) τ
+      = assumeNegatedClauseFor.loop { data := ls } bumps i τ :=
+  @assumeNegatedClauseFor.loop.cons_aux τ l bumps ls i (ls.length - i) rfl
+
+theorem assumeNegatedClauseFor_eq_assumeNegatedClauseForM (τ : PPA) (C : IClause) (bumps : Nat) :
+    τ.assumeNegatedClauseFor C bumps = τ.assumeNegatedClauseForM C bumps := by
+  have ⟨C⟩ := C
+  induction C generalizing τ with
+  | nil =>
+    simp [assumeNegatedClauseFor]
+    unfold assumeNegatedClauseFor.loop
+    simp [LeanColls.size]
+  | cons l ls ih =>
+    rw [assumeNegatedClauseFor, assumeNegatedClauseForM, Array.foldlM_cons,
+      assumeNegatedClauseFor.loop]
+    split <;> rename _ => hi
+    · have h_get : Seq.get ({ data := l :: ls } : IClause) ⟨0, hi⟩ = l := rfl
+      simp only [h_get]
+      split <;> rename _ => hl
+      · rw [assumeNegatedClauseFor.loop.cons]
+        exact ih _
+      · rw [assumeNegatedClauseFor.loop.cons]
+        exact ih _
+      · rfl
+    · simp [LeanColls.size] at hi
+
+
 
 end assumeNegatedClause /- section -/
 
 /-! ## Tautology checking -/
 
-/-- Check if the given clause is a tautology.
+/- Check if the given clause is a tautology.
 The current partial assignment is reset,
 and the returned assignment is unspecified. -/
+/-
 def checkTauto (τ : PPA) (C : IClause) : PPA × { b : Bool // b ↔ C.toPropFun = ⊤ } :=
   go 0 ⟨τ.reset, by simp [Clause.toPropFun]⟩
 where
@@ -1276,7 +1450,9 @@ where
   if hLt : i < C.size then
     let l := C[i]'hLt
     have hCl : Clause.toPropFun ⟨C.data.take (i+1)⟩ = Clause.toPropFun ⟨C.data.take i⟩ ⊔ l := by
-      simp [List.take_succ, List.get?_eq_get hLt, Array.getElem_eq_data_get]
+      simp [List.take_succ, List.get?_eq_get hLt, Array.getElem_eq_data_get, τ.property]
+      stop
+      done
     match h : τ.val.litValue? l with
     | some true =>
       (τ.val, ⟨true, by
@@ -1316,7 +1492,7 @@ where
       have that : C = { data := C.data } := rfl
       simp_rw [C.data.take_length_le this, ← that, h, compl_eq_top] at hEq
       assumption⟩)
-termination_by C.size - i
+termination_by C.size - i -/
 
 /-! ## Unit propagation -/
 
@@ -1326,7 +1502,7 @@ termination_by C.size - i
 --                (h₁ : C.toPropFun ⊓ τ.toPropFun = τ'.toPropFun)
 --                (h₂ : τ.litValue? l = none ∧ τ'.litValue? l = some true)
 
-inductive UPResult (τ τ' : PPA) (C : IClause) where
+inductive DepUPResult (τ τ' : PPA) (C : IClause) where
   | contradiction (h : C.toPropFun ⊓ τ.toPropFun = ⊥)
   /-- Under `τ`, `C` became a unit clause `[l]`.
   The assignment was extended by that literal, i.e., `τ' = τ ⊓ l`. -/
@@ -1344,14 +1520,15 @@ Otherwise compute the reduced clause `C' = {l ∈ C | ¬l ∉ τ}`.
 If `C' = [u]` is a unit, extend `τ` by `u` and return `extended`.
 If `C'` has become empty (is falsified), return `contradiction`.
 If `C'` is not a unit and not falsified, return `notUnit`. -/
-def propagateUnit (τ : PPA) (C : IClause) : (τ' : PPA) × UPResult τ τ' C :=
+/-
+def propagateUnit (τ : PPA) (C : IClause) : (τ' : PPA) × DepUPResult τ τ' C :=
   go 0 none Option.all_none (by simp only [not_lt_zero', IsEmpty.forall_iff, implies_true])
 where
   /-- If `unit? = some u`, then `u` is a literal in the clause that is not falsified by `τ`.
   It may therefore be the case that `C' = [u]` -/
   go (i : Nat) (unit? : Option ILit) (hUnit : unit?.all fun u => u ∈ C.data ∧ τ.litValue? u = none)
-      (hLits : ∀ (j : Fin C.size), j.val < i → unit? = some C[j] ∨ τ.toPropFun ≤ (C[j].toPropFun)ᶜ) :
-      (τ' : PPA) × UPResult τ τ' C :=
+      (hLits : ∀ (j : Fin C.size), j.val < i → unit? = some C[j] ∨ τ.toPropFun ≤ ((C.get j).toPropFun)ᶜ) :
+      (τ' : PPA) × DepUPResult τ τ' C :=
     if hi : i < C.size then
       let l := C[i]'hi
       match hl : τ.litValue? l with
@@ -1424,22 +1601,23 @@ where
               rwa [hi]
             . exfalso
               exact (satisfies_neg.mp <| entails_ext.mp hτl _ hστ) (hi ▸ hσl))⟩
-  termination_by C.size - i
+  termination_by C.size - i -/
 
 -- Cayden's alternate implementation of unit propagation (TODO: Compare for efficiency)
 
 -- Because unit prop might just want the result of C against τ, and no modify τ,
 -- the updated assignment is not returned in the unit case.
-inductive MUPResult where
+inductive UPResult where
   | falsified
   | satisfied
   | unit (l : ILit)
   | multipleUnassignedLiterals
 
-open Except MUPResult
+open Except UPResult
 
 /-- Evaluates the literal under the partial substitution. Works in the Exception
     monad so that folding can return early if the clause is satisfied. -/
+@[inline, always_inline]
 def pevalM (τ : PPA) (unit? : Option ILit) (l : ILit) : Except Bool (Option ILit) :=
   match τ.litValue? l with
   | some true => error true
@@ -1452,24 +1630,26 @@ def pevalM (τ : PPA) (unit? : Option ILit) (l : ILit) : Except Bool (Option ILi
       -- Assume tautology cannot occur in clause, so two unassiged literals exits early
       else error false
 
-def unitPropM (τ : PPA) (C : IClause) : MUPResult :=
-  match C.foldlM (pevalM τ) none with
-  | ok none => .falsified
-  | ok (some lit) => .unit lit
-  | error true => .satisfied
-  | error false => .multipleUnassignedLiterals
+@[inline, always_inline, reducible]
+def unitPropM_Except : Except Bool (Option ILit) → UPResult
+  | ok none => falsified
+  | ok (some lit) => unit lit
+  | error true => satisfied
+  | error false => multipleUnassignedLiterals
+
+def unitPropM (τ : PPA) (C : IClause) : UPResult :=
+  unitPropM_Except <| C.foldlM (pevalM τ) none
 
 /-- A non-monadic implementation of unit propagation. It uses an internal
     tail-recursive function to iterate across the clause, so that early
     exit can be implemented.
 
     A start and end index can be provided, in case `C` is a larger structure. -/
-def unitProp (τ : PPA) (C : IClause) (s : Nat := 0) (e : Nat := C.size) : MUPResult :=
-  let min_e := min e C.size
-  let rec go (i : Nat) (unit? : Option ILit) : MUPResult :=
-    if hi : i < min_e then
+def unitProp (τ : PPA) (C : IClause) : UPResult :=
+  let rec go (i : Nat) (unit? : Option ILit) : UPResult :=
+    if hi : i < Size.size C then
       -- This is essentially a clone of `pevalUP` above, except without an Exception monad
-      let lit := C.get ⟨i, Nat.lt_of_lt_of_le hi (min_le_right e C.size)⟩
+      let lit := Seq.get C ⟨i, hi⟩
       match τ.litValue? lit with
       | some true => .satisfied
       | some false => go (i + 1) unit?
@@ -1483,42 +1663,18 @@ def unitProp (τ : PPA) (C : IClause) (s : Nat := 0) (e : Nat := C.size) : MUPRe
       match unit? with
       | none => .falsified
       | some l => .unit l
-  termination_by (min e C.size) - i
-  go s none
-
-/-- Reordered arguments of `unitProp` so we can prove `LawfulUP` below. -/
--- def unitProp' (s e : Nat) (τ : PPA) (C : IClause) : MUPResult :=
---  unitProp τ C s e
-
-theorem unitProp_eq_unitProp' (τ : PPA) (C : IClause) (s e : Nat) :
-    unitProp τ C s e = unitProp τ (Array.toSubarray C s e).toArray := by
-  simp [unitProp]
-  have : ∃ n, n = e - s := by
-    use e - s
-    done
-  rcases this with ⟨n, hn⟩
-  stop
-  induction n
-  · have : s ≥ e := by
-      exact Nat.le_of_sub_eq_zero (id hn.symm)
-      done
-    rw [unitProp.go]
-
-    done
-  induction s with
-  | zero =>
-    done
-  done
+  termination_by Size.size C - i
+  go 0 none
 
 /-- A unit propagation function `UP` is lawful if it returns `MUPResult`s as expected. -/
-def LawfulUP (UP : PPA → IClause → MUPResult) : Prop :=
+def LawfulUP (UP : PPA → IClause → UPResult) : Prop :=
   ∀ (τ : PPA) (C : IClause),
     (UP τ C = .falsified → C.toPropFun ⊓ τ = ⊥)
   ∧ (∀ {l : ILit}, UP τ C = .unit l →
         l ∈ C ∧ τ.litValue? l = none ∧ C.toPropFun ⊓ τ ≤ l.toPropFun ⊓ τ)
   ∧ (UP τ C = .satisfied → τ ≤ C.toPropFun)
 
-theorem LawfulUP_of_eq_of_LawfulUP {UP UP' : PPA → IClause → MUPResult} :
+theorem LawfulUP_of_eq_of_LawfulUP {UP UP' : PPA → IClause → UPResult} :
     (∀ τ C, UP τ C = UP' τ C) → LawfulUP UP → LawfulUP UP' := by
   intro h_eq h_lawful
   intro τ C
@@ -1526,6 +1682,7 @@ theorem LawfulUP_of_eq_of_LawfulUP {UP UP' : PPA → IClause → MUPResult} :
   rw [h_eq τ C] at this
   exact this
 
+-- A lemma for when `pevalM` carries along `some` as its accumulator.
 theorem foldlM_pevalM_some {τ : PPA} {unit : ILit} :
   τ.litValue? unit = none → ∀ (C : IClause),
     ((C.foldlM (pevalM τ) (some unit) = ok (some unit) ∧ C.toPropFun ⊓ τ ≤ unit)
@@ -1569,7 +1726,7 @@ theorem unitPropM_LawfulUP : LawfulUP unitPropM := by
   rintro τ ⟨C⟩
   induction' C with l ls ih generalizing τ
   · simp [unitPropM, pure, Except.pure]
-  · rw [unitPropM, Array.foldlM_cons, pevalM]
+  · rw [unitPropM, unitPropM_Except, Array.foldlM_cons, pevalM]
     match hl : τ.litValue? l with
     | none =>
       -- CC: Can probably be cleaned up, since the lemma above uses ∨, not →
@@ -1615,76 +1772,78 @@ theorem unitPropM_LawfulUP : LawfulUP unitPropM := by
         simp [le_sup_of_le_right h₃]
       · simp
 
-theorem unitProp.go.some {τ : PPA} {unit : ILit} :
-  τ.litValue? unit = none → ∀ (C : IClause) (i : Nat),
-    ((unitProp.go τ C C.size i (some unit) = .unit unit ∧ C.toPropFun ⊓ τ ≤ unit)
-    ∨ (unitProp.go τ C C.size i (some unit) = .satisfied ∧ τ ≤ C.toPropFun)
-    ∨ (unitProp.go τ C C.size i (some unit) = .multipleUnassignedLiterals)) := by
-  sorry
-  done
+theorem unitProp.go.cons_aux (τ : PPA) (l : ILit) {ls : List ILit} {i j : Nat} :
+    j = ls.length - i → unitProp.go τ { data := l :: ls } (i + 1) = unitProp.go τ { data := ls } i := by
+  intro hj
+  ext unit?
+  induction j generalizing τ unit? i with
+  | zero =>
+    have : i ≥ ls.length := Nat.le_of_sub_eq_zero hj.symm
+    unfold go
+    simp [LeanColls.size, not_lt.mpr this, not_lt.mpr (succ_le_succ_iff.mpr this)]
+  | succ j ih =>
+    rw [succ_eq_add_one] at hj
+    unfold go
+    simp [LeanColls.size, succ_eq_add_one]
+    have hi : i < List.length ls := by
+      apply Nat.lt_of_sub_pos
+      rw [← hj]
+      exact Nat.zero_lt_succ j
+    simp [hi]
+    have : Seq.get ({data := l :: ls} : IClause) ⟨i + 1, succ_lt_succ hi⟩
+      = Seq.get ({data := ls} : IClause) ⟨i, hi⟩ := rfl
+    rw [this]
+    split <;> rename _ => h_get
+    <;> simp [h_get]
+    · apply @ih τ (i + 1)
+      rw [← Nat.sub_sub, ← hj, Nat.add_sub_cancel]
+    · match unit? with
+      | none =>
+        apply @ih τ (i + 1)
+        rw [← Nat.sub_sub, ← hj, Nat.add_sub_cancel]
+      | some u =>
+        by_cases h_eq : u = Seq.get ({ data := ls } : IClause) ⟨i, hi⟩
+        · simp only [h_eq]
+          apply @ih τ (i + 1)
+          rw [← Nat.sub_sub, ← hj, Nat.add_sub_cancel]
+        · simp only [h_eq]; rfl
 
-theorem unitProp_LawfulUP (s e : Nat) : LawfulUP unitProp := by
-  rintro τ ⟨C⟩
-  induction' C with l ls ih generalizing τ
-  stop
-  · simp [unitProp, unitProp.go]
-  · match hl : τ.litValue? l with
-    | none =>
-      rcases unitProp.go.some hl { data := ls } 0 with (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | h)
-      ·
-        done
-      done
-    done
-  done
+theorem unitProp.go.cons (τ : PPA) (l : ILit) (ls : List ILit) (i : Nat) :
+    unitProp.go τ { data := l :: ls } (i + 1) = unitProp.go τ { data := ls } i :=
+  @unitProp.go.cons_aux τ l ls i (ls.length - i) rfl
 
-#exit
-
-/-- The "Bool" is true if satisfied, false if not. -/
-def pevalUP (τ : PPA) (unit? : Option ILit) (l : ILit) : Except Bool (Option ILit) :=
-  match τ.litValue? l with
-  | some true => error true
-  | some false => ok unit?
-  | none =>
-    match unit? with
-    | none => ok l
-    | some u =>
-      if u = l then ok unit?
-      -- Assume tautology cannot occur in clause, so two unassiged literals exits early
-      else error false
-
-def foldUP (τ : PPA) (C : IClause) := C.foldlM (pevalUP τ) none
-
-def unitPropRes (res : Except Bool (Option ILit)) : MUPResult :=
-  match res with
-  | ok none => .falsified
-  | ok (some lit) => .unit lit
-  | error true => .satisfied
-  | error false => .multipleUnassignedLiterals
-
-def unitProp (τ : PPA) (C : IClause) : MUPResult :=
-  unitPropRes (foldUP τ C)
-
--- Alternate view of unit propagation, using indexes into an array
-def unitPropOnIndexes (τ : PPA) (C : IClause) (s e : Nat) : MUPResult :=
-  let min_e := min e C.size
-  let rec go (i : Nat) (unit? : Option ILit) : MUPResult :=
-    if hi : i < min_e then
-      -- This is essentially a clone of `pevalUP` above, except without an Exception monad
-      let lit := C.get ⟨i, Nat.lt_of_lt_of_le hi (min_le_right e C.size)⟩
-      match τ.litValue? lit with
-      | some true => .satisfied
-      | some false => go (i + 1) unit?
+theorem unitProp_eq_unitPropM_aux (τ : PPA) (C : IClause) (unit? : Option ILit) :
+    unitProp.go τ C 0 unit? = unitPropM_Except (C.foldlM (pevalM τ) unit?) := by
+  have ⟨C⟩ := C
+  induction C generalizing τ unit? with
+  | nil =>
+    cases unit?
+    <;> simp [unitProp.go, unitPropM_Except, LeanColls.size, pure, Except.pure]
+  | cons l ls ih =>
+    rw [unitProp.go, Array.foldlM_cons, pevalM]
+    split <;> rename _ => hi
+    · have h_get_l : Seq.get ({ data := l :: ls } : IClause) ⟨0, hi⟩ = l := rfl
+      simp only [unitProp.go.cons]
+      match hl : τ.litValue? l with
       | none =>
         match unit? with
-        | none => go (i + 1) (some lit)
+        | none => exact ih τ (some l)
         | some u =>
-          if u = lit then go (i + 1) unit?
-          else .multipleUnassignedLiterals
-    else
-      match unit? with
-      | none => .falsified
-      | some l => .unit l
-  termination_by (min e C.size) - i
-  go s none
+          by_cases h_eq : u = l
+          <;> simp only [h_get_l, h_eq]
+          · exact ih τ (some l)
+          · rfl
+      | some true => rfl
+      | some false => exact ih τ unit?
+      done
+    · simp [LeanColls.size] at hi
+
+theorem unitProp_eq_unitPropM (τ : PPA) (C : IClause) :
+    unitProp τ C = unitPropM τ C := by
+  rw [unitProp, unitPropM]
+  exact unitProp_eq_unitPropM_aux τ C none
+
+theorem unitProp_LawfulUP : LawfulUP unitProp :=
+  LawfulUP_of_eq_of_LawfulUP (fun τ C => (unitProp_eq_unitPropM τ C).symm) unitPropM_LawfulUP
 
 end PPA

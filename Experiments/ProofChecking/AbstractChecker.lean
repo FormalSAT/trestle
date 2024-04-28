@@ -103,6 +103,7 @@ class SRChecker (FC : Type _) [FaC FC] where
   applyUPHints : FC → PPA → Nat → Array Nat → (UPResult × PPA)
   assumeWitness : PS → ILit → Array ILit → Array ILit → PS
   assumeRAT : (F : FC) → (Fin (size F)) → PS → PPA → (AssumeRATResult × PPA)
+  checkRATClauses : (F : FC) → PS → PPA → Array Nat → Array (Array Nat)
 #exit
 
 class LawfulFaC (FC : Type _) [FaC FC] where
