@@ -91,11 +91,11 @@ instance : LawfulLitVar ILit IVar where
       intro h₁ h₂
       apply Subtype.ext
       apply this
-      . exact Subtype.mk_eq_mk.mp h₁
-      . exact polarity_eq.mp h₂
+      · exact Subtype.mk_eq_mk.mp h₁
+      · exact polarity_eq.mp h₂
     intro l₁ l₂ h₁ h₂
     cases Int.natAbs_eq_natAbs_iff.mp h₁
-    . assumption
+    · assumption
     next h =>
       rw [h] at h₂
       have : l₂ = 0 := Int.eq_zero_of_lt_neg_iff_lt l₂ h₂
@@ -114,10 +114,10 @@ protected abbrev index (l : ILit) : Nat := (toVar l).index
 protected abbrev fromIndex (n : Nat) : ILit := IVar.fromIndex n
 
 @[simp] theorem index_lt_val (l : ILit) : l.index < l.val.natAbs := by
-  exact Nat.pred_lt' (Int.natAbs_pos.mpr l.property)
+  exact Nat.pred_lt_of_lt (Int.natAbs_pos.mpr l.property)
 
 @[simp] theorem index_lt_toVar_val (l : ILit) : l.index < (toVar l).val := by
-  exact Nat.pred_lt' (Int.natAbs_pos.mpr l.property)
+  exact Nat.pred_lt_of_lt (Int.natAbs_pos.mpr l.property)
 
 theorem exists_succ_toVar (l : ILit) : ∃ n, (toVar l).val = n + 1 := by
   exact Nat.exists_eq_add_of_le' (toVar l).property

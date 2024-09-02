@@ -12,7 +12,7 @@ import LeanSAT.Model.PropVars
 import LeanSAT.Model.Map
 import LeanSAT.Model.Subst
 
-import Std.Data.Array.Basic
+import Batteries.Data.Array.Basic
 
 namespace LeanSAT
 
@@ -113,9 +113,9 @@ attribute [ext] LawfulLitVar.ext
 theorem mkPos_or_mkNeg (l : L) : l = mkPos (toVar l) ∨ l = mkNeg (toVar l) := by
   rw [← eta l]
   cases polarity l
-  . apply Or.inr
+  · apply Or.inr
     simp [mkLit]
-  . apply Or.inl
+  · apply Or.inl
     simp [mkLit]
 
 @[simp] theorem toPropForm_mkPos (x : ν) : toPropForm (mkPos (L := L) x) = .var x := by
@@ -239,20 +239,20 @@ theorem eq_of_flip {τ : PropAssignment ν} {l : L} {x : ν} {p : Bool} :
   simp only [satisfies_iff]
   intro h hSet
   by_cases hEq : x = toVar l
-  . rw [hEq, τ.set_get] at hSet
+  · rw [hEq, τ.set_get] at hSet
     simp [hSet, hEq]
-  . exfalso; exact h (τ.set_get_of_ne p hEq ▸ hSet)
+  · exfalso; exact h (τ.set_get_of_ne p hEq ▸ hSet)
 
 theorem eq_of_flip' {τ : PropAssignment ν} {l : L} {x : ν} {p : Bool} :
     τ ⊨ toPropFun l → τ.set x p ⊭ toPropFun l → l = mkLit L x !p := by
   simp only [satisfies_iff]
   intro h hSet
   by_cases hEq : x = toVar l
-  . rw [hEq, τ.set_get] at hSet
+  · rw [hEq, τ.set_get] at hSet
     have : (!p) = polarity l := by
       simp [Bool.bnot_eq, hSet]
     simp [hEq, this]
-  . exfalso; exact hSet (τ.set_get_of_ne p hEq ▸ h)
+  · exfalso; exact hSet (τ.set_get_of_ne p hEq ▸ h)
 
 theorem toPropFun.inj [LawfulLitVar L ν] : (toPropFun (L := L)).Injective := by
   intro l1 l2 h; simp [toPropFun] at h
@@ -315,14 +315,30 @@ instance : LitVar (L1 ⊕ L2) (V1 ⊕ V2) where
 
 instance [LawfulLitVar L1 V1] [LawfulLitVar L2 V2]
     : LawfulLitVar (L1 ⊕ L2) (V1 ⊕ V2) where
-  toVar_mkPos     := by intro; simp [instLitVarSumSum]; aesop
-  toVar_mkNeg     := by intro; simp [instLitVarSumSum]; aesop
-  toVar_negate    := by intro; unfold instLitVarSumSum; simp [Neg.neg]; aesop
-  polarity_mkPos  := by intro; simp [instLitVarSumSum]; aesop
-  polarity_mkNeg  := by intro; simp [instLitVarSumSum]; aesop
-  polarity_negate := by intro; unfold instLitVarSumSum; simp [Neg.neg]; aesop
-  ext := by rintro (l1|l2) (l1'|l2') <;> simp [instLitVarSumSum]
-                                      <;> apply LawfulLitVar.ext
+  toVar_mkPos     := by intro x; cases x <;> simp [mkPos, toVar]
+  toVar_mkNeg     := by intro x; cases x <;> simp [mkNeg, toVar]
+  toVar_negate    := by
+    intro l
+    cases l
+    <;> rename_i x
+    · have : -((Sum.inl x) : L1 ⊕ L2) = Sum.inl (-x) := rfl
+      simp only [toVar, this, Sum.map_inl, toVar_negate]
+    · have : -((Sum.inr x) : L1 ⊕ L2) = Sum.inr (-x) := rfl
+      simp only [toVar, this, Sum.map_inr, toVar_negate]
+  polarity_mkPos  := by intro x; cases x <;> simp [mkPos, polarity]
+  polarity_mkNeg  := by intro x; cases x <;> simp [mkNeg, polarity]
+  polarity_negate := by
+    intro l
+    cases l
+    <;> rename_i x
+    · have : -((Sum.inl x) : L1 ⊕ L2) = Sum.inl (-x) := rfl
+      simp only [polarity, this, polarity_negate]
+    · have : -((Sum.inr x) : L1 ⊕ L2) = Sum.inr (-x) := rfl
+      simp only [polarity, this, polarity_negate]
+  ext := by
+    rintro (l1|l2) (l1'|l2')
+    <;> simp [toVar, polarity]
+    <;> apply LawfulLitVar.ext
 
 @[simp] theorem polarity_inl (l : L1)
   : polarity (L := L1 ⊕ L2) (ν := V1 ⊕ V2) (Sum.inl l) = polarity l := rfl

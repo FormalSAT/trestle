@@ -1,7 +1,6 @@
-import Std
 import Init.Data.Nat.Basic
 import LeanSAT.Upstream.ToStd
-import Std.Data.List.Lemmas
+import Batteries.Data.List.Lemmas
 
 @[simp] def comm_in_second_arg (f : β → α → β) : Prop :=
   ∀ (b : β) (a₁ a₂ : α), f (f b a₁) a₂ = f (f b a₂) a₁
@@ -382,7 +381,7 @@ theorem mem_setF (A : Array α) (i : Nat) (v default : α) :
   intro a ha
   by_cases h : i < A.size
   . simp [Array.setF_eq_set h] at ha
-    rcases List.mem_set ha with (ha | rfl)
+    rcases List.mem_or_eq_of_mem_set ha with (ha | rfl)
     · exact Or.inl ha
     · right; right; rfl
   . rw [Nat.not_lt] at h

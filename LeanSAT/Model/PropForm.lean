@@ -159,8 +159,8 @@ theorem entails_ext : entails φ₁ φ₂ ↔ (∀ (τ : PropAssignment ν), τ 
   have : ∀ τ, (φ₁.eval τ → φ₂.eval τ) ↔ φ₁.eval τ ≤ φ₂.eval τ := by
     intro τ
     cases (eval τ φ₁)
-    . simp
-    . simp only [true_implies]
+    · simp
+    · simp only [true_implies]
       exact ⟨fun h => h ▸ le_rfl, top_unique⟩
   simp [sEntails, entails, satisfies, this]
 

@@ -1,3 +1,16 @@
+theorem oget_push_lt {A : RangeArray α} {i offset : Nat}
+      (hi : i < A.size) (ho : offset < A.rsizeFin ⟨i, hi⟩) (v : α) :
+    (A.push v).oget i offset = A.oget i offset := by
+  rw [rsizeFin_eq_rsize] at ho
+  simp [rsize, hi] at ho
+  simp [oget, hi, ho, ogetFin]
+  have h_add := indexFin_add_rsizeFin_le_size ⟨i, hi⟩
+  simp_rw [getFin_eq_get, indexFin_eq_index, rsizeFin_eq_rsize] at h_add ⊢
+  rw [rsizeFin_eq_rsize] at ho
+  have : index A i + offset < index A i + rsize A i := by omega
+  have := lt_of_lt_of_le this h_add
+  simp [get_push_lt this v]
+
 -- CC: An attempt to get parsing faster, given that the Except monad can be expensive
 def parseLSRLine'_aux (pivot : Option ILit) (line : SRAdditionLine) (mode : SRParsingMode) : List String → Except String (SRAdditionLine × SRParsingMode)
   | [] => ok (line, mode)

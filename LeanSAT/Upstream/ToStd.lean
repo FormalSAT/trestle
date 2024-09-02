@@ -5,7 +5,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio, Cayden Codel
 -/
 
-import Std
+import Batteries
 
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
@@ -15,25 +15,9 @@ def List.enum' (L : List α) : List (Fin L.length × α) :=
     | (x :: xs), h =>
       (⟨i, (h.symm ▸ Nat.lt_add_of_pos_right (Nat.zero_lt_succ _))⟩, x)
       :: go xs (i+1) (by
-        simp [←h, Nat.add_succ, Nat.succ_add])
+        rw [← h, Nat.add_succ, Nat.succ_add, Nat.succ_eq_add_one, length, Nat.add_assoc]
+      )
   go L 0 (by simp)
-
-theorem List.mem_set : ∀ {l : List α} {i : Nat} {a a' : α},
-    a' ∈ l.set i a → a' ∈ l ∨ a' = a
-  | nil, _, _, _, h => Or.inl h
-  | cons _ bs, 0, _, _, h => by
-    simp only [set, mem_cons] at h ⊢
-    cases h
-    · right; assumption
-    · left; right; assumption
-  | cons b bs, Nat.succ n, _, _, h => by
-    simp only [set, mem_cons] at h ⊢
-    cases h
-    . left; left; assumption
-    · rename _ => h
-      cases mem_set h
-      · left; right; assumption
-      · right; assumption
 
 def Fin.pred? : Fin n → Option (Fin n)
 | ⟨0, _⟩ => none
@@ -90,7 +74,7 @@ theorem Array.init_succ {f : Fin n.succ → α}
     ).push (f ⟨n, by exact Nat.le_refl _⟩)
   := by
   simp [init, Id.run, forIn', Std.Range.forIn']
-  suffices ∀ i (hi : i ≤ n) o (_ : o.size = n-i),
+  suffices ∀ i (_ : i ≤ n) o (_ : o.size = n-i),
     Std.Range.forIn'.loop (m := Id) 0 n.succ 1
       (fun i h r => ForInStep.yield (push r (f ⟨i, h.2⟩)))
       i.succ (n-i)
@@ -119,8 +103,7 @@ theorem Array.init_succ {f : Fin n.succ → α}
     have hn' : n - Nat.succ i < Nat.succ n := Nat.le_step hn
     simp [hn, hn']
     have : n - Nat.succ i + 1 = n - i := by
-      simp [Nat.sub_succ]
-      rw [Nat.add_one, Nat.succ_pred_eq_of_pos (Nat.zero_lt_sub_of_lt hi)]
+      rw [Nat.sub_succ, Nat.add_one, Nat.succ_pred_eq_of_pos (Nat.zero_lt_sub_of_lt hi)]
     suffices ∀ j, j = n - Nat.succ i + 1 →
       Std.Range.forIn'.loop (m := Id)  _ _ _ _ _ j (Nat.zero_le _) _
       = push (Std.Range.forIn'.loop (m := Id) _ _ _ _ _ j (Nat.zero_le _) _) _
@@ -167,12 +150,12 @@ def Array.pop? (A : Array α) :=
   | none => none
   | some a => some (A.pop, a)
 
-@[simp] theorem Array.size_pop?
-  : A.pop? = some (A', a) → size A' + 1 = size A
-  := by rcases A with ⟨h,t⟩
-          <;> simp [pop?, back?, getElem?, pop]
-        rintro rfl
-        simp
+theorem Array.size_pop?
+  : A.pop? = some (A', a) → size A' + 1 = size A := by
+  rcases A with ⟨h,t⟩
+  <;> simp [pop?, back?, getElem?, pop, decidableGetElem?]
+  rintro rfl rfl
+  simp only [size_mk, List.length_dropLast, List.length_cons, Nat.add_sub_cancel]
 
 def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
   if h : A.size > 0 then
@@ -183,15 +166,15 @@ def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
 
 theorem Array.mkArray_succ (n : Nat) (a : α) :
     Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
-  apply Array.ext'; simp
+  apply Array.ext'; simp [List.replicate]
 
 theorem Array.mkArray_succ' (n : Nat) (a : α) :
     Array.mkArray (n + 1) a = (Array.mkArray n a).push a := by
   apply Array.ext'
-  simp [mkArray_data, List.replicate]
+  simp only [mkArray_data, List.replicate, push_data]
   induction n with
   | zero => rfl
-  | succ n ih => simp; exact ih
+  | succ n ih => simp [List.replicate]; exact ih
 
 @[simp] theorem Array.foldl_empty (f : β → α → β) (init : β) (start stop : Nat) :
     Array.foldl f init #[] start stop = init := by
@@ -399,8 +382,10 @@ where
   suffices ∀ i (hi : i ≤ n) acc, length (fins.finsAux n i hi acc) = length acc + i
     by have := this n (Nat.le_refl _) []; simp at this; exact this
   intro i hi acc
-  induction i generalizing acc <;>
-    (unfold fins.finsAux; simp_all [Nat.succ_add, Nat.add_succ])
+  induction i generalizing acc
+  <;> simp [fins.finsAux]
+  · rename_i i ih
+    rw [ih (Nat.le_of_succ_le hi) (⟨i, hi⟩ :: acc), length, Nat.add_assoc, Nat.add_comm 1 i]
 
 @[simp] theorem List.fins_zero : List.fins 0 = [] := rfl
 
@@ -420,10 +405,11 @@ theorem List.fins_succ (n : Nat)
     replace ih := ih (Nat.le_of_lt hi) (⟨i,hi⟩ :: acc)
     simpa using ih
 
-@[simp] theorem List.get_fins (n : Nat) (i : Fin (List.fins n).length)
+@[simp] theorem List.get_fins {n : Nat} (i : Fin (List.fins n).length)
   : (List.fins n).get i = ⟨i, by cases i; simp; simp_all⟩ := by
   rcases i with ⟨j,hj⟩
-  revert hj; simp; intro hj
+  revert hj
+  intro hj
   apply Option.some_inj.mp
   rw [← get?_eq_get]
   induction n
@@ -431,21 +417,19 @@ theorem List.fins_succ (n : Nat)
   next n' ih =>
   conv => lhs; rw [fins_succ]
   by_cases h : j = n'
-  · rw [get?_append_right]
-    · simp [h, Fin.last]
-    · simp [h]
-  · have : j < n' := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hj) h
-    have := ih this
-    rw [get?_append, get?_map, this]
+  · simp [List.getElem?_append_right, h, Fin.last]
+  · simp [List.fins_succ, List.length_append] at hj
+    have : j < n' := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hj) h
+    simp only [length_fins, get?_eq_getElem?] at ih
+    rw [get?_eq_getElem?, getElem?_append, getElem?_map, ih this]
     · simp
     · simp; assumption
 
-@[simp] theorem List.mem_fins (n : Nat) (x : Fin n)
-  : x ∈ List.fins n := by
+@[simp] theorem List.mem_fins (n : Nat) (x : Fin n) : x ∈ List.fins n := by
   rw [mem_iff_get]
   refine ⟨⟨x,?_⟩,?_⟩
   · simp
-  · simp
+  · rw [List.get_fins]
 
 /- Better parallelism primitive, that is actually like Scala's Future -/
 def TaskIO (α) := IO (Task (Except IO.Error α))
@@ -551,7 +535,7 @@ theorem List.sizeOf_filter [SizeOf α] (f) (L : List α)
   . apply Nat.le_trans ?_ (Nat.le_add_left _ _)
     assumption
 
-theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
+theorem List.sizeOf_filter_lt_of_ne [SizeOf α] {f} {L : List α}
     (h : List.filter f L ≠ L)
   : sizeOf (List.filter f L) < sizeOf L
   := by
@@ -562,8 +546,8 @@ theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
     simp [hHd] at h
     simp [_sizeOf_1]
     apply Nat.add_lt_add_left
-    apply ih
-    assumption
+    have ⟨x, h_mem, hx⟩ := h
+    exact ih _ h_mem hx
   next hHd =>
     clear h hHd
     apply Nat.lt_of_le_of_lt (sizeOf_filter _ _)
@@ -594,21 +578,17 @@ unsafe def Array.subtypeSizeUnsafe [SizeOf α] (A : Array α) : Array {a : α //
 def Array.subtypeSize [SizeOf α] : (A : Array α) → Array {a : α // sizeOf a < sizeOf A}
 | ⟨L⟩ => ⟨L.subtypeSize.map (fun ⟨x,h⟩ => ⟨x, by simp; rw [Nat.add_comm]; apply Nat.lt_add_right; exact h⟩)⟩
 
-@[simp] theorem List.find?_map (p : β → Bool) (f : α → β) (L : List α)
-  : List.find? p (List.map f L) = Option.map f (List.find? (p ∘ f) L)
-  := by induction L <;> simp [find?]; split <;> simp [*]
-
 /-- Like `forDiagM`, but only runs `f e e'` (not `f e e`). -/
 @[simp] def List.forPairsM [Monad m] (f : α → α → m PUnit) : List α → m PUnit
   | [] => pure ⟨⟩
   | x :: xs => do xs.forM (f x); xs.forPairsM f
 
 @[simp]
-def Std.AssocList.ofList : List (α × β) → Std.AssocList α β
+def Batteries.AssocList.ofList : List (α × β) → Batteries.AssocList α β
 | [] => .nil
 | (a,b)::tail => .cons a b (ofList tail)
 
-@[simp] theorem Std.AssocList.toList_ofList (L : List (α × β))
+@[simp] theorem Batteries.AssocList.toList_ofList (L : List (α × β))
   : toList (ofList L) = L
   := by induction L <;> simp [*]
 
@@ -647,17 +627,3 @@ def IO.FS.withTempFile (f : System.FilePath → IO α) : IO α := do
         IO.FS.removeFile file
 
   return res
-
-@[simp] theorem Array.ofFn_data (f : Fin n → α)
-  : (Array.ofFn f).data = (List.fins n).map f := by
-  ext i x
-  simp [List.get?_eq_some]
-  simp only [← Array.getElem_eq_data_get, Array.getElem_ofFn]
-  refine ⟨?mp,?mpr⟩
-  case mp =>
-    rintro ⟨h,rfl⟩
-    refine ⟨_,?_,rfl⟩
-    simpa using h
-  case mpr =>
-    rintro ⟨_,⟨h,rfl⟩,rfl⟩
-    simpa using h

@@ -8,7 +8,7 @@ Authors: James Gallicchio
 import LeanSAT.Encode.EncCNF
 import LeanSAT.Solver.Basic
 
-open Std
+open Batteries
 
 namespace LeanSAT.Solver.Dimacs
 

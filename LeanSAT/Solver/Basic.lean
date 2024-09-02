@@ -5,12 +5,12 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Std.Data.HashMap
+import Batteries.Data.HashMap
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.HashAssn
 import LeanSAT.Data.ICnf
 
-open Std
+open Batteries
 
 namespace LeanSAT.Solver
 

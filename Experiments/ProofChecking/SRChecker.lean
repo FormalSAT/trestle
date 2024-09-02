@@ -77,6 +77,24 @@ theorem cnfListToPropFun_cons (C : Option (List ILit)) (Cs : List (Option (List 
     | some C => clauseListToPropFun C) ⊓ cnfListToPropFun Cs := by
   cases C <;> simp
 
+@[simp]
+theorem cnfListToPropFun_append (Cs₁ Cs₂ : List (Option (List ILit))) :
+  cnfListToPropFun (Cs₁ ++ Cs₂) = cnfListToPropFun Cs₁ ⊓ cnfListToPropFun Cs₂ := by
+  induction Cs₁ with
+  | nil => simp
+  | cons C Cs₁ ih =>
+    simp [List.append]
+    cases C <;> simp [ih, inf_assoc]
+
+@[simp]
+theorem cnfListToPropFun_replicate_none (n : Nat) :
+    cnfListToPropFun (List.replicate n none) = ⊤ := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    simp [List.replicate]
+    exact ih
+
 theorem clausePropFun_ge_of_mem {C : List ILit} {l : ILit} :
   l ∈ C → l.toPropFun ≤ clauseListToPropFun C := by
   intro h
@@ -123,7 +141,7 @@ theorem cnfPropFun_le_set_none {Cs : List (Option (List ILit))}
     | succ i =>
       simp [Seq.set, List.set]
       simp at hi
-      apply le_trans _ (ih (Nat.succ_lt_succ_iff.mp hi))
+      apply le_trans _ (ih hi)
       cases C <;> simp
 
 theorem list_satisfies_iff {τ : PropAssignment IVar} {Cs : List (Option (List ILit))} :
@@ -318,7 +336,7 @@ def applyUPHints (F : RangeArray ILit) (offset : Nat) (τ : PPA) (hints : Array 
       | (τ, .contra) => (τ, .contra)
       | (τ, .err) => (τ, .err)
     else (τ, .unit)
-  termination_by hints.size - i
+  termination_by Size.size hints - i
   loop 0 τ
 
 @[inline, always_inline]
@@ -330,7 +348,7 @@ def applyUPHintsDirect (F : RangeArray ILit) (offset : Nat) (τ : PPA) (hints : 
       | (τ, .contra) => (τ, .contra)
       | (τ, .err) => (τ, .err)
     else (τ, .unit)
-  termination_by hints.size - i
+  termination_by Size.size hints - i
   loop 0 τ
 
 def reduce (σ : PS) (F : RangeArray ILit) (index : Fin F.size) : ReductionResult :=
@@ -420,7 +438,7 @@ def scanRATHintIndexes (clauseId : Nat) (ratHintIndexes : Array Nat) : Option (F
       if Seq.get ratHintIndexes ⟨i, h⟩ = clauseId then some ⟨i, h⟩
       else loop (i + 1)
     else none
-  termination_by ratHintIndexes.size - i
+  termination_by Size.size ratHintIndexes - i
   loop 0
 
 -- Finds the index for the (RAT clause ID + RAT hints) that matches the clauseId
@@ -528,7 +546,6 @@ theorem uAssume.loop.aux {F : RangeArray ILit} {τ : PPA} {Ls : List (Option (Li
     unfold uAssumeNegatedForM.loop
     simp [not_lt.mpr h_le₂]
   | succ j ih =>
-    rw [Nat.succ_eq_add_one] at hj
     unfold assumeNegatedClauseFor.loop
     simp [LeanColls.size] at hj ⊢
     have hi : i < List.length L := by
@@ -595,7 +612,6 @@ theorem assumeRATClauseDirect.loop_eq {F : RangeArray ILit} (σ : PS)
       rw [Nat.add_comm j _] at h_le
       exact absurd h_le (not_le.mpr hj)
   | succ k ih =>
-    rw [Nat.succ_eq_add_one] at hk
     unfold assumeRATClauseDirect.loop assumeRATClauseM.loop
     have hj : j < F.rsizeFin ⟨i, hi⟩ := by
       apply Nat.lt_of_sub_pos
@@ -669,35 +685,34 @@ theorem assumeRATClauseM.loop_Lawful {F : RangeArray ILit}
       rintro rfl
       simp [List.drop_eq_nil_iff_le.mpr h_le₁]
   | succ k ih =>
-    rw [Nat.succ_eq_add_one] at hk
     unfold assumeRATClauseM.loop
     simp [LeanColls.size] at hk ⊢
     split <;> rename _ => h_rsize
     · rw [rsizeFin_eq_rsize, h_models.h_sizes hi hC] at h_rsize
       rw [ogetFin_eq_oget, h_models.h_agree hi hC h_rsize]
-      simp [← List.get_cons_drop C ⟨_, h_rsize⟩]
+      rw [← List.getElem_cons_drop C _ h_rsize]
       split <;> rename _ => h_litValue
       · simp [ogetFin_eq_oget, h_models.h_agree hi hC h_rsize, Seq.get] at h_litValue
-        simp [← satisfies_substL, ← PS.litValue_eq_substL', h_litValue]
+        simp [-List.getElem_cons_drop, ← satisfies_substL, ← PS.litValue_eq_substL', h_litValue]
         rintro rfl
         exact extended_refl _ _
       · rcases @ih τ (j + 1) (Nat.eq_sub_succ_of_succ_eq_sub hk) with ⟨ih₁, ih₂⟩
         constructor
         · intro h_loop
           rcases ih₁ h_loop with ⟨h₁, h₂⟩
-          simp [h₂]
+          simp [h₂, -List.getElem_cons_drop]
           apply le_trans h₁
           simp
         · intro h_loop
           rcases ih₂ h_loop with ⟨h₁, h₂⟩
-          simp [h₂]
+          simp [h₂, -List.getElem_cons_drop]
           simp [Seq.get] at h_litValue
           simp [← PS.litValue_eq_substL', h_litValue, h₁]
       · rename ILit => lit_mapped
         split <;> rename _ => h_litValue?
         · simp [ogetFin_eq_oget, h_models.h_agree hi hC h_rsize, Seq.get] at h_litValue
           rw [litValue?_true_iff] at h_litValue?
-          simp [← satisfies_substL, ← PS.litValue_eq_substL', h_litValue]
+          simp [-List.getElem_cons_drop, ← satisfies_substL, ← PS.litValue_eq_substL', h_litValue]
           rintro rfl
           simp
           apply le_trans h_litValue?
@@ -706,14 +721,13 @@ theorem assumeRATClauseM.loop_Lawful {F : RangeArray ILit}
           constructor
           · intro h_loop
             rcases ih₁ h_loop with ⟨h₁, h₂⟩
-            simp [h₂]
+            simp [h₂, -List.getElem_cons_drop]
             apply le_trans h₁
             simp
           · intro h_loop
             rcases ih₂ h_loop with ⟨h₁, h₂⟩
-            simp [h₂]
             simp [Seq.get] at h_litValue
-            simp [← PS.litValue_eq_substL', h_litValue, h₁]
+            simp [-List.getElem_cons_drop, ← PS.litValue_eq_substL', h_litValue, h₁, h₂]
             have := litValue?_false_iff.mp h_litValue?
             have : toPropFun τ ⊓ (LitVar.toPropFun lit_mapped)ᶜ = toPropFun τ := by
               apply le_antisymm
@@ -725,7 +739,7 @@ theorem assumeRATClauseM.loop_Lawful {F : RangeArray ILit}
             simp [← inf_assoc, this]
         · rcases @ih (τ.setLit (-lit_mapped)) _ (Nat.eq_sub_succ_of_succ_eq_sub hk) with ⟨ih₁, ih₂⟩
           simp [Seq.get] at h_litValue
-          simp [← satisfies_substL, ← PS.litValue_eq_substL', h_litValue]
+          simp [-List.getElem_cons_drop, ← satisfies_substL, ← PS.litValue_eq_substL', h_litValue]
           rw [← litValue?_negate_none_iff] at h_litValue?
           have := extended_setLitFor_of_none h_litValue? 0
           constructor
@@ -782,7 +796,6 @@ theorem unitProp_loop_eq_unitProp_go {F : RangeArray ILit}
   | succ j ih =>
     unfold unitProp.loop unitProp.go
     simp [LeanColls.size, rsizeFin_eq_rsize, h_models.h_sizes h_hint hC, ogetFin_eq_oget]
-    rw [Nat.succ_eq_add_one] at hj
     have : i < List.length C := by
       apply Nat.lt_of_sub_pos
       rw [← hj]
@@ -809,8 +822,8 @@ theorem unitProp_eq_unitProp {F : RangeArray ILit}
 theorem applyUPHint_unit {F : RangeArray ILit} {Ls : List (Option (List ILit))} {L : List ILit}
     (h_models : models F Ls L) {τ τ' : PPA} {bumps : Nat} {hint : Nat} :
     applyUPHint F bumps τ hint = (τ', .unit) →
-      (h_hint : hint < Size.size Ls) ×'
-      ∃ (C : List ILit), Seq.get Ls ⟨hint, h_hint⟩ = some C ∧
+      ∃ (h_hint : hint < Size.size Ls) (C : List ILit),
+        Seq.get Ls ⟨hint, h_hint⟩ = some C ∧
         ∃ (l : ILit),
           l ∈ C ∧
           τ.litValue? l = none ∧
@@ -849,8 +862,8 @@ theorem applyUPHint_unit {F : RangeArray ILit} {Ls : List (Option (List ILit))} 
 theorem applyUPHint_contra {F : RangeArray ILit} {Ls : List (Option (List ILit))} {L : List ILit}
     (h_models : models F Ls L) {τ τ' : PPA} {bumps : Nat} {hint : Nat} :
     (applyUPHint F bumps τ hint = (τ', .contra) →
-      (h_hint : hint < Size.size Ls) ×'
-      ∃ (C : List ILit), Seq.get Ls ⟨hint, h_hint⟩ = some C
+      ∃ (h_hint : hint < Size.size Ls) (C : List ILit),
+        Seq.get Ls ⟨hint, h_hint⟩ = some C
         ∧ τ = τ' ∧ (clauseListToPropFun C) ⊓ τ = ⊥) := by
   simp [applyUPHint]
   intro h
@@ -1007,7 +1020,6 @@ theorem unitPropDirect.loop_eq {F : RangeArray ILit} {τ : PPA}
     <;> rw [Nat.add_comm i] at h_le
     <;> simp [not_lt.mpr h_le]
   | succ j ih =>
-    rw [Nat.succ_eq_add_one] at hj
     unfold unitPropDirect.loop RangeArray.unitProp.loop
     dsimp
     have hi : i < F.rsizeFin hint := by
@@ -1423,7 +1435,7 @@ theorem eqsat_of_SR' {F C : PropFun ν} :
     rw [satisfies_conj] at hτ
     exact ⟨τ, hτ.1⟩
 
-theorem checkLine_correct {F : RangeArray ILit} {τ : PPA} {σ : PS} {line : SRAdditionLine}
+theorem checkLine_ok {F : RangeArray ILit} {τ : PPA} {σ : PS} {line : SRAdditionLine}
     {S : SRState} {Cs : List (Option (List ILit))} {C : List ILit} :
     models F Cs C →
     checkLine ⟨F, τ, σ⟩ line = .ok S →
@@ -1433,8 +1445,7 @@ theorem checkLine_correct {F : RangeArray ILit} {τ : PPA} {σ : PS} {line : SRA
   simp [checkLine] at h_checkLine
   split at h_checkLine
   · contradiction
-  · rename PPA => τ₁
-    rename _ = ok τ₁ => h_uAssume
+  · rename_i τ₁ h_uAssume
     rw [uAssumeNegatedForM_eq_assumeNegatedClauseFor h_models] at h_uAssume
     rcases PPA.assumeNegatedClauseFor_Lawful τ.reset τ₁ { data := C } (Array.size line.ratHints + 1) with ⟨_, h₂⟩
     rcases h₂ h_uAssume with ⟨h_toPropFun_τ₁, h_ext₁⟩
@@ -1495,6 +1506,36 @@ theorem checkLine_correct {F : RangeArray ILit} {τ : PPA} {σ : PS} {line : SRA
         · -- We drop σ back into the PS model
           -- We set the first literal to true in σ, so it satisfies C
           simp [← satisfies_substL, ← PS.litValue_eq_substL']
+
+theorem checkLine_error_true {F : RangeArray ILit} {τ : PPA} {σ : PS} {line : SRAdditionLine}
+      {Cs : List (Option (List ILit))} {C : List ILit} :
+    models F Cs C →
+    checkLine ⟨F, τ, σ⟩ line = .error true →
+      (cnfListToPropFun Cs) = ⊥ := by
+  intro h_models h_checkLine
+  simp [checkLine] at h_checkLine
+  split at h_checkLine
+  · simp at h_checkLine
+  · rename_i τ₁ h_uAssume
+    split at h_checkLine
+    · simp at h_checkLine
+    · split at h_checkLine
+      · rename_i τ₂ h_applyUPHints h_usize
+        have := eq_nil_of_models_of_usize_zero h_models h_usize
+        subst this
+        simp [uAssumeNegatedForM_eq_assumeNegatedClauseFor h_models, assumeNegatedClauseFor_eq_assumeNegatedClauseForM] at h_uAssume
+        subst h_uAssume
+        have := applyUPHints_contra h_models h_applyUPHints
+        simp at this
+        exact this.1
+      · contradiction
+      -- Split to show that all other paths do not give `error true`
+    · repeat' split at h_checkLine
+      <;> try contradiction
+      -- Annoyingly, <;> simp at h_checkLine does not close out the 3 goals here
+      · simp at h_checkLine
+      · simp at h_checkLine
+      · simp at h_checkLine
 
 /- Correctness of deletion -/
 

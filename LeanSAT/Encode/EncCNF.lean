@@ -5,7 +5,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Std
+import Batteries
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
 import LeanSAT.Data.Literal
@@ -14,7 +14,7 @@ import LeanSAT.Upstream.ToStd
 import LeanSAT.Model.Quantifiers
 import LeanColls
 
-open Std LeanColls
+open Batteries LeanColls
 
 namespace LeanSAT.Encode
 

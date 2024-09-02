@@ -260,7 +260,7 @@ theorem semVars_subst [DecidableEq ν₁] [DecidableEq ν₂]
   simp at hsat hunsat
   -- eliminate references to f'' by rewriting back to f
   have : ∀ x, ⟦f'' x⟧ = f x := by
-    simp [Quotient.choice, piSetoid, instHasEquiv, Setoid.r] at hf'
+    simp [Quotient.choice, piSetoid, Setoid.r] at hf'
     intro x; have := sound (hf' x); simp at this; simp [this]
   simp [this] at hsat hunsat; clear this hf' f''
   -- any two disagreeing assignments give you a semantic variable

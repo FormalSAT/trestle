@@ -11,8 +11,7 @@ Carnegie Mellon University
 import Experiments.ProofChecking.Array
 import Experiments.ProofChecking.ToLeanColls
 
-import Mathlib.Data.Nat.Basic
-import Mathlib.Data.Array.Basic
+import Mathlib.Data.Array.Lemmas
 import Mathlib.Data.List.Basic
 import Mathlib.Tactic
 
@@ -864,8 +863,8 @@ theorem get_clear_lt {A : RangeArray α} {i : Nat} (hi : i < A.dsize) :
     · simp [LeanColls.size] at hi'
       simp [getFin_eq_get, h_usize]
       simp [get, hi, LeanColls.size, hi', getFin]
-      have := List.get_take A.data.data (lt_trans hi h_dsize) hi'.1
-      simp [Seq.get, getElem_eq_data_get, this]
+      have := List.getElem_take A.data.data (lt_trans hi h_dsize) hi'.1
+      simp [Seq.get, getElem_eq_data_getElem, this]
     · simp [LeanColls.size, hi] at hi'
       have := lt_trans hi h_dsize
       exact absurd this (not_lt_of_ge hi')
@@ -1049,7 +1048,7 @@ structure models (R : RangeArray α) (Ls : List (Option (List α))) (L : List α
 variable {R : RangeArray α} {Ls : List (Option (List α))} {L : List α} (h_models : models R Ls L)
 
 theorem get_eq_some_of_models_of_not_deleted {i : Nat} :
-    R.isDeleted i = false → (hi : i < Size.size Ls) ×' ∃ sL, Seq.get Ls ⟨i, hi⟩ = some sL := by
+    R.isDeleted i = false → ∃ (hi : i < Size.size Ls) (sL : _), Seq.get Ls ⟨i, hi⟩ = some sL := by
   intro h_del
   by_cases hi : i < Size.size Ls
   · have := h_models.h_some hi
@@ -1168,6 +1167,15 @@ theorem models_delete : ∀ {i : Nat} (hi : i < Size.size Ls),
   · intro j hj
     simp [uget_delete]
     exact h_models.h_uncommitted hj
+
+theorem eq_nil_of_models_of_usize_zero : R.usize = 0 → L = [] := by
+  intro h_usize
+  rw [h_models.h_size₂] at h_usize
+  simp [LeanColls.size] at h_usize
+  -- There's probably a one-line proof here
+  cases L with
+  | nil => rfl
+  | cons _ _ => simp at h_usize
 
 /-! # drop and take -/
 

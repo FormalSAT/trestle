@@ -11,7 +11,7 @@ Carnegie Mellon University
 import LeanSAT.Solver.Dimacs
 import Experiments.ProofChecking.RangeArray
 
-open Std
+open Batteries
 open LeanSAT.Solver.Dimacs
 open LeanSAT LeanSAT.Model ILit Except
 
@@ -445,5 +445,23 @@ partial def parseLSRLineBinary (F : CNF) (A : ByteArray) (index : Nat)
 
   else
     error "No more string!"
+
+#check List.replicate
+/- Correctness -/
+-- parseLSRLine (F : CNF) (s : String) : Except String (Nat × CNF × (SRAdditionLine ⊕ SRDeletionLine))
+-- CC: We trust that parsing is successful, so we only prove that there
+--     exists a clause that `F` models on a successful parse
+open RangeArray in
+theorem parseLSRLine_ok_inl {F F' : RangeArray ILit} {s : String} {id : Nat} {addLine : SRAdditionLine} {Ls : List (Option (List ILit))} :
+  parseLSRLine F s = Except.ok (id, F', Sum.inl addLine) →
+    models F Ls [] →
+    ∃ C, models F' (Ls ++ (List.replicate (id - Ls.length) none)) C := by
+  sorry
+  done
+
+theorem parseLSRLine_ok_inr {F F' : RangeArray ILit} {s : String} {id : Nat} {delLine : SRDeletionLine} :
+    parseLSRLine F s = Except.ok (id, F', Sum.inr delLine) → F = F' := by
+  sorry
+  done
 
 end SRParser

@@ -52,8 +52,8 @@ theorem Nat.eq_sub_succ_of_succ_eq_sub {k n m : Nat} : k + 1 = n - m → k = n -
 theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 := by
   intro h
   by_cases hLt : 0 < i
-  . have := h.mpr hLt; linarith
-  . have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); linarith
+  · have := h.mpr hLt; linarith
+  · have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); linarith
 
 instance : HAdd PNat Nat PNat where
   hAdd | ⟨a,h⟩, b => ⟨a+b, Nat.add_pos_left h _⟩
@@ -210,7 +210,7 @@ def Multiset.find? (f : α → Bool) (xs : Multiset α)
   simp
   constructor
   · intro h
-    simp [List.find?_some h, List.find?_mem h]
+    simp [List.find?_some h, List.mem_of_find?_eq_some h]
   · rintro ⟨h1,h2⟩
     induction h1 <;> simp [List.find?, *]
     split
@@ -223,10 +223,12 @@ def Multiset.find? (f : α → Bool) (xs : Multiset α)
   simp only [find?, Quotient.lift_mk, List.find?_eq_none, Bool.not_eq_true]
   simp only [quot_mk_to_coe, mem_coe]
 
+instance [sa : Setoid α] [sb : Setoid β] : HasEquiv (α × β) where
+  Equiv := (@Setoid.prod _ _ sa sb).r
+
 @[simp] theorem Setoid.prod.pair {a1 a2 : α} {b1 b2 : β} [sa : Setoid α] [sb : Setoid β]
-  : @HasEquiv.Equiv _ (@instHasEquiv _ (Setoid.prod sa sb)) (a1,b1) (a2,b2)
-    ↔ a1 ≈ a2 ∧ b1 ≈ b2 := by
-  constructor <;> (intro h; cases h; constructor <;> assumption)
+  : (a1,b1) ≈ (a2,b2) ↔ a1 ≈ a2 ∧ b1 ≈ b2 := by
+  constructor <;> exact id
 
 def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) :=
   q1.lift

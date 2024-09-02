@@ -28,6 +28,7 @@ noncomputable abbrev atLeast (k : Nat) (lits : Multiset (Literal ν)) := cardPre
 theorem ofList_eq_map_get (L : List α)
   : Multiset.ofList L = (Finset.univ.val.map fun i => L.get i) := by
   conv => lhs; rw [← List.finRange_map_get (l := L)]
+  rfl
 
 @[inline]
 def amoPairwise (lits : Array (Literal ν)) :
@@ -44,7 +45,7 @@ def amoPairwise (lits : Array (Literal ν)) :
   ).mapProp (by
     rcases lits with ⟨list⟩
     ext τ
-    simp [Clause.toPropFun, any, Array.getElem_eq_data_get]
+    simp [Clause.toPropFun, any, Array.getElem_eq_data_getElem]
     simp [Array.mem_def, Array.size]
     simp_rw [← not_and_or, not_and]
     rw [ofList_eq_map_get, card, Multiset.countP_map]
@@ -69,7 +70,11 @@ def amoPairwise (lits : Array (Literal ν)) :
         · simp
           omega
     · rintro r ⟨x,hx⟩ ⟨y,hy⟩ hτx hτy
-      specialize r _ hτx _ hτy
+      have : x + y + 1 < list.length := by
+        have := Nat.add_lt_of_lt_sub hy
+        rw [← Nat.add_assoc, Nat.add_comm y _] at this
+        exact this
+      specialize r _ hτx ⟨_, this⟩ hτy
       simp at r
       omega
   )

@@ -57,7 +57,7 @@ theorem semVars_map [DecidableEq ν₁] [DecidableEq ν₂] [Fintype ν₁]
     use PropAssignment.map f τ
     simp
     rw [PropFun.satisfies_mk, PropFun.satisfies_mk]; simp [*]
-  . rintro ⟨v1,hv1,rfl⟩
+  · rintro ⟨v1,hv1,rfl⟩
     rw [PropFun.mem_semVars] at hv1 ⊢
     rcases hv1 with ⟨τ,hpos,hneg⟩
     rw [PropFun.satisfies_mk] at hpos hneg

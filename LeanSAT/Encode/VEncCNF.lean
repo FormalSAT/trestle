@@ -211,10 +211,10 @@ def withTemps (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
       · aesop
       · rintro ⟨h1,h2⟩
         rcases (inferInstance : Decidable (τ ⊨ ls_pre.assumeVars.toPropFun)) with h | h
-        . rcases h2 h with ⟨σ, rfl, _⟩
+        · rcases h2 h with ⟨σ, rfl, _⟩
           use σ; simp
           tauto
-        . let σ : PropAssignment (ν ⊕ Fin n) := fun | .inl x => τ x | _ => false
+        · let σ : PropAssignment (ν ⊕ Fin n) := fun | .inl x => τ x | _ => false
           use σ
           have : τ = PropAssignment.map Sum.inl σ := funext fun x => by simp only [PropAssignment.get_map]
           tauto

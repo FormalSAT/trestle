@@ -75,11 +75,51 @@ lemma mem_vars_of_flip {φ : PropForm ν} {τ : PropAssignment ν} (x : ν) : τ
     simp_all only [vars, satisfies_var, Finset.mem_singleton]
     by_contra h
     exact hτ' (hτ ▸ τ.set_get_of_ne (!τ x) h)
-  | _ =>
-    simp_all only
-      [satisfies_conj, satisfies_disj, satisfies_impl', satisfies_biImpl', vars, Finset.mem_union]
+  | neg φ ih =>
+    simp_all only [satisfies_neg, Decidable.not_not, vars]
+    apply ih hτ'
+    simp_all only [PropAssignment.set_get, Bool.not_not, PropAssignment.set_set,
+      PropAssignment.set_same, not_false_eq_true]
+  | conj φ₁ φ₂ ih₁ ih₂ =>
+    simp_all only [satisfies_conj, vars, Finset.mem_union]
+    have ⟨hτ₁, hτ₂⟩ := hτ
     push_neg at hτ'
-    aesop
+    rcases hτ' with (hτ' | hτ')
+    · exact Or.inl <| ih₁ hτ₁ hτ'
+    · exact Or.inr <| ih₂ hτ₂ hτ'
+  | disj φ₁ φ₂ ih₁ ih₂ =>
+    simp_all only [satisfies_disj, not_or, vars, Finset.mem_union]
+    have ⟨hτ₁', hτ₂'⟩ := hτ'
+    rcases hτ with (hτ | hτ)
+    · exact Or.inl <| ih₁ hτ hτ₁'
+    · exact Or.inr <| ih₂ hτ hτ₂'
+  | impl φ₁ φ₂ ih₁ ih₂ =>
+    simp_all only [satisfies_impl', vars]
+    push_neg at hτ'
+    have ⟨hτ₁', hτ₂'⟩ := hτ'
+    rcases hτ with (hτ | hτ)
+    · simp only [not_false_eq_true, and_self, Finset.mem_union]
+      have := ih₁ hτ₁'
+      simp [hτ] at this
+      exact Or.inl this
+    · simp only [not_false_eq_true, and_self, Finset.mem_union]
+      have := ih₂ hτ
+      simp [hτ₂'] at this
+      exact Or.inr this
+  | biImpl φ₁ φ₂ ih₁ ih₂ =>
+    simp_all only [satisfies_biImpl, vars, Finset.mem_union]
+    push_neg at hτ'
+    rcases hτ' with (⟨hτ₁', hτ₂'⟩ | ⟨hτ₁', hτ₂'⟩)
+    · have := ih₁ hτ₁'
+      simp at this
+      by_cases h : τ ⊨ φ₁
+      · exact Or.inr <| ih₂ (hτ.mp h) hτ₂'
+      · exact Or.inl <| this h
+    · have := ih₂ hτ₂'
+      simp at this
+      by_cases h : τ ⊨ φ₂
+      · exact Or.inl <| ih₁ (hτ.mpr h) hτ₁'
+      · exact Or.inr <| this h
 
 theorem exists_flip {φ : PropForm ν} {σ₁ σ₂ : PropAssignment ν} (h₁ : σ₁ ⊨ φ) (h₂ : σ₂ ⊭ φ) :
     ∃ (x : ν) (τ : PropAssignment ν), σ₁ x ≠ σ₂ x ∧ τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ :=
@@ -93,7 +133,7 @@ where
       (s : Finset ν) (hS : ∀ x ∈ s, σ₁ x ≠ σ₂ x) (hSC : ∀ x ∈ φ.vars \ s, σ₁ x = σ₂ x) :
       ∃ (x : ν) (τ : PropAssignment ν), x ∈ s ∧ τ ⊨ φ ∧ τ.set x (!τ x) ⊭ φ := by
     induction s using Finset.induction generalizing σ₁
-    . -- In the base case, σ₁ and σ₂ agree on all φ.vars, contradiction.
+    · -- In the base case, σ₁ and σ₂ agree on all φ.vars, contradiction.
       have : σ₁.agreeOn φ.vars σ₂ := by rw [Finset.sdiff_empty] at hSC; exact hSC
       have : σ₂ ⊨ φ := (agreeOn_vars this).mp h₁
       exact False.elim (h₂ this)
@@ -187,7 +227,7 @@ theorem exists_semVar {φ : PropFun ν} {σ₁ σ₂ : PropAssignment ν} : σ�
 
 theorem agreeOn_semVars {φ : PropFun ν} {σ₁ σ₂ : PropAssignment ν} :
     σ₁.agreeOn φ.semVars σ₂ → (σ₁ ⊨ φ ↔ σ₂ ⊨ φ) := by
-  suffices ∀ {σ₁ σ₂}, σ₁.agreeOn φ.semVars σ₂ → σ₁ ⊨ φ → σ₂ ⊨ φ from
+  suffices ∀ {σ₁ σ₂}, (PropAssignment.agreeOn φ.semVars σ₁ σ₂) → σ₁ ⊨ φ → σ₂ ⊨ φ from
     fun h => ⟨this h, this h.symm⟩
   intro σ₁ σ₂ h h₁
   by_contra h₂
@@ -283,8 +323,8 @@ theorem semVars_biImpl (φ₁ φ₂ : PropFun ν) :
   rw [biImpl_eq_impls]
   apply subset_trans (semVars_conj _ _)
   apply Finset.union_subset
-  . apply semVars_impl
-  . rw [Finset.union_comm]
+  · apply semVars_impl
+  · rw [Finset.union_comm]
     apply semVars_impl
 
 theorem setMany_satisfies_iff_inter_semVars [DecidableEq ν]

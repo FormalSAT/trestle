@@ -14,7 +14,8 @@ Carnegie Mellon University
 
 import LeanSAT.Data.Cnf
 import LeanSAT.Data.ICnf
-import Mathlib.Data.Nat.Basic
+--import Mathlib.Data.Nat.Cast.Basic
+--import Mathlib.Data.Int.Cast.Basic
 
 import LeanSAT.Model.Subst
 import LeanSAT.Model.PropFun
@@ -47,7 +48,7 @@ structure PS where
   sizes_eq : gens.size = mappings.size
   le_maxGen : ∀ i ∈ gens.data, i ≤ maxGen
 
-@[reducible] abbrev PSubst := (IVar → PropForm IVar)
+abbrev PSubst := (IVar → PropForm IVar)
 
 namespace PS
 
@@ -104,10 +105,6 @@ def fromMapped (n : Nat) : PSV :=
       Sum.inl <| mkPos ⟨n / 2 + 1, Nat.succ_pos _⟩
     else
       Sum.inl <| mkNeg ⟨n / 2 + 1, Nat.succ_pos _⟩
-
-#check Int.natAbs_ofNat
-#check Int.cast_div
-#check Int.cast_div_charZero
 
 private theorem exists_double {n : Nat} : n % 2 = 0 → ∃ m, n = 2 * m := by
   intro h
@@ -321,7 +318,7 @@ theorem lt_size_of_varValue_false : σ.varValue v = false → v.index < σ.size 
 
 theorem varValue_eq_of_ge : v.index ≥ σ.size → σ.varValue v = v := by
   intro hv
-  simp [size, varValue, getElem?, Nat.not_lt_of_ge hv]
+  simp [size, varValue, getElem?, Nat.not_lt_of_ge hv, decidableGetElem?]
 
 theorem lt_size_of_litValue_true : σ.litValue l = true → l.index < σ.size := by
   intro hσ
@@ -369,7 +366,6 @@ theorem varValue_eq_substL : σ.varValue v = PropFun.substL ⟦v⟧ σ.toSubst :
     simp [PropFun.ext_iff, satisfies_substL, PropAssignment.subst]
     intro τ
     simp [toSubst_eq_of_ge hv]
-    done
 
 theorem litValue_eq_substL : σ.litValue l = PropFun.substL ⟦l⟧ σ.toSubst := by
   by_cases hpol : polarity l
@@ -385,7 +381,6 @@ theorem setVar_le_maxGen (σ : PS) (i : Nat) (gen : Nat) :
     ∀ cell ∈ (σ.gens.setF i gen 0).data, cell ≤ max σ.maxGen p := by
   intro cell hcell
   sorry
-  done
 
 -- This is a more functional version
 /-- Set the given literal to `true` for the current generation in the PS. -/
@@ -803,7 +798,6 @@ theorem reduce.loop.cons_aux (σ : PS) (l : ILit) {ls : List ILit} {i j : Nat} :
     unfold loop
     simp [LeanColls.size, not_lt.mpr this, not_lt.mpr (succ_le_succ_iff.mpr this)]
   | succ j ih =>
-    rw [succ_eq_add_one] at hj
     unfold loop
     simp [LeanColls.size, succ_eq_add_one]
     have hi : i < List.length ls := by
@@ -836,7 +830,7 @@ theorem reduce_eq_reduceM_aux (σ : PS) (C : IClause) (reduced? : Bool) :
     split <;> rename _ => hi
     · have h_get_l : Seq.get ({ data := l :: ls } : IClause) ⟨0, hi⟩ = l := rfl
       simp only [reduce.loop.cons, h_get_l, seval]
-      match hl : σ.litValue l with
+      match σ.litValue l with
       | Sum.inr true => rfl
       | Sum.inr false => exact ih σ true
       | Sum.inl lit =>

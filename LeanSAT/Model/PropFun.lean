@@ -476,6 +476,20 @@ theorem eqsat_of_entails {F C : PropFun ν} : F ≤ C → eqsat F (F ⊓ C) := b
   simp only [eqsat, satisfiable, ge_iff_le, satisfies_conj]
   exact ⟨fun ⟨τ, hτ⟩ => ⟨τ, hτ, h_entails τ hτ⟩, fun ⟨τ, hτ, _⟩ => ⟨τ, hτ⟩⟩
 
+theorem eq_bot_iff_eq_bot_of_eqsat {F₁ F₂ : PropFun ν} : eqsat F₁ F₂ → (F₁ = ⊥ ↔ F₂ = ⊥) := by
+  intro h_eqsat
+  constructor
+  · intro hF₁
+    by_cases hF₂ : F₂.satisfiable
+    · have := h_eqsat.mpr hF₂
+      exact absurd this (not_satisfiable_iff_eq_bot.mpr hF₁)
+    · exact not_satisfiable_iff_eq_bot.mp hF₂
+  · intro hF₂
+    by_cases hF₁ : F₁.satisfiable
+    · have := h_eqsat.mp hF₁
+      exact absurd this (not_satisfiable_iff_eq_bot.mpr hF₂)
+    · exact not_satisfiable_iff_eq_bot.mp hF₁
+
 namespace Notation
 open PropForm.Notation
 

@@ -22,8 +22,6 @@ import LeanSAT.Upstream.ToStd
 import LeanSAT.Upstream.ToMathlib
 import Experiments.ProofChecking.Array
 
-import Mathlib.Data.Nat.Basic
-
 import LeanColls
 open LeanColls
 
@@ -65,10 +63,10 @@ lemma Fin.foldl_of_comm (n) (f : α → Fin n → α) (init : α) (i : Fin n)
     (by
       intro a j ih h
       cases' lt_or_eq_of_le (Nat.lt_succ.mp h) with h
-      . have ⟨acc, hAcc⟩ := ih h
+      · have ⟨acc, hAcc⟩ := ih h
         use (f acc j)
         rw [hAcc, H]
-      . have : i = j := by ext; assumption
+      · have : i = j := by ext; assumption
         use a
         rw [this])
 
@@ -195,11 +193,11 @@ instance : Coe PPA (PropFun IVar) := ⟨toPropFun⟩
 theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
     σ ⊨ ↑τ ↔ ∀ (i : Fin τ.size), σ ⊨ τ.idxToPropFun i := by
   constructor
-  . intro hσ i
+  · intro hσ i
     have ⟨ϕ, hϕ⟩ := Fin.foldl_of_comm τ.size (· ⊓ τ.idxToPropFun ·) ⊤ i (by intros; simp; ac_rfl)
     rw [toPropFun, hϕ] at hσ
     simp_all
-  . intro h
+  · intro h
     unfold toPropFun
     apply Fin.foldl_induction' (hInit := PropFun.satisfies_tr)
     intro ϕ i hϕ
@@ -208,30 +206,30 @@ theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
 theorem satisfies_iff_vars {τ : PPA} {σ : PropAssignment IVar} :
     σ ⊨ ↑τ ↔ ∀ ⦃v⦄ ⦃b⦄, τ.varValue? v = some b → σ v = b := by
   constructor
-  . rintro h v b h'
+  · rintro h v b h'
     have h := satisfies_iff.mp h ⟨IVar.index v, lt_size_of_varValue?_some h'⟩
     simp [idxToPropFun, varToPropFun] at h
     have : ⟨v.val, v.property⟩ = v := rfl
     rw [this, h'] at h
     simp only [this, Option.map_some', Option.getD_some] at h
     cases b <;> simp_all
-  . intro h
+  · intro h
     apply satisfies_iff.mpr
     intro i
     unfold idxToPropFun varToPropFun
     cases' h' : (varValue? τ _) with b
-    . simp
-    . have := h h'
+    · simp
+    · have := h h'
       cases b <;> simp_all
 
 theorem satisfies_iff_lits {τ : PPA} {σ : PropAssignment IVar} :
     σ ⊨ ↑τ ↔ ∀ ⦃l⦄, τ.litValue? l = some true → σ ⊨ ↑l := by
   simp_rw [LitVar.satisfies_iff, litValue?]
   constructor
-  . intro h l h'
+  · intro h l h'
     apply satisfies_iff_vars.mp h
     simp_all
-  . intro h
+  · intro h
     apply satisfies_iff_vars.mpr
     intro x b
     have := @h (mkPos x)
@@ -390,9 +388,9 @@ theorem setVar_le_maxGen (τ : PPA) (i : Nat) (b : Bool) (gen : Nat) :
   intro v g hg
   have := Array.mem_setF _ _ _ _ g hg
   rcases this with h | h | h
-  . exact le_max_of_le_left (τ.le_maxGen _ h)
-  . simp [h]
-  . cases b <;> simp [h, v]
+  · exact le_max_of_le_left (τ.le_maxGen _ h)
+  · simp [h]
+  · cases b <;> simp [h, v]
 
 /-- Set the given variable to `b` for the current generation. -/
 def setVar (τ : PPA) (v : IVar) (b : Bool) : PPA :=
@@ -470,19 +468,15 @@ theorem lt_reset_generation (τ : PPA) : ∀ i ∈ τ.reset.assignment.data, i.n
 theorem lt_new_generation (maxVar : Nat) : ∀ i ∈ (new maxVar).assignment.data, i.natAbs < (new maxVar).generation := by
   intro i h
   simp [new] at h ⊢
-  induction' maxVar with maxVar ih
-  <;> simp at h
-  rcases h with (rfl | h)
-  · rfl
-  · exact ih h
+  exact h.2
 
 @[simp]
 theorem varValue?_reset (τ : PPA) (v : IVar) : τ.reset.varValue? v = none := by
   unfold varValue?
   split
-  . rfl
-  . split
-    . next n hn h =>
+  · rfl
+  · split
+    · next n hn h =>
       have : n ∈ τ.reset.assignment.data := by
         simp_rw [Array.get?_eq_getElem?, Array.getElem?_eq_data_get?, List.get?_eq_some] at hn
         have ⟨_, hn⟩ := hn
@@ -490,7 +484,7 @@ theorem varValue?_reset (τ : PPA) (v : IVar) : τ.reset.varValue? v = none := b
         apply List.get_mem
       have := τ.lt_reset_generation n this
       linarith
-    . rfl
+    · rfl
 
 @[simp]
 theorem litValue?_reset (τ : PPA) (l : ILit) : (τ.reset).litValue? l = none := by
@@ -504,9 +498,9 @@ theorem toPropFun_reset (τ : PPA) : τ.reset.toPropFun = ⊤ := by
 theorem varValue?_new (maxVar : Nat) (v : IVar) : (new maxVar).varValue? v = none := by
   unfold varValue?
   split
-  . rfl
-  . split
-    . next n hn h =>
+  · rfl
+  · split
+    · next n hn h =>
       have : n ∈ (new maxVar).assignment.data := by
         simp_rw [Array.get?_eq_getElem?, Array.getElem?_eq_data_get?, List.get?_eq_some] at hn
         have ⟨_, hn⟩ := hn
@@ -514,7 +508,7 @@ theorem varValue?_new (maxVar : Nat) (v : IVar) : (new maxVar).varValue? v = non
         apply List.get_mem
       have := lt_new_generation maxVar n this
       linarith
-    . rfl
+    · rfl
 
 @[simp]
 theorem litValue?_new (maxVar : Nat) (l : ILit) : (new maxVar).litValue? l = none := by
@@ -1308,7 +1302,6 @@ theorem assumeNegatedClauseFor.loop.cons_aux (τ : PPA) (l : ILit) (bumps : Nat)
     unfold loop
     simp [LeanColls.size, not_lt.mpr this, not_lt.mpr (succ_le_succ_iff.mpr this)]
   | succ j ih =>
-    rw [succ_eq_add_one] at hj
     unfold loop
     simp [LeanColls.size, succ_eq_add_one]
     have hi : i < List.length ls := by
@@ -1708,7 +1701,6 @@ theorem unitProp.go.cons_aux (τ : PPA) (l : ILit) {ls : List ILit} {i j : Nat} 
     unfold go
     simp [LeanColls.size, not_lt.mpr this, not_lt.mpr (succ_le_succ_iff.mpr this)]
   | succ j ih =>
-    rw [succ_eq_add_one] at hj
     unfold go
     simp [LeanColls.size, succ_eq_add_one]
     have hi : i < List.length ls := by
@@ -1750,7 +1742,7 @@ theorem unitProp_eq_unitPropM_aux (τ : PPA) (C : IClause) (unit? : Option ILit)
     split <;> rename _ => hi
     · have h_get_l : Seq.get ({ data := l :: ls } : IClause) ⟨0, hi⟩ = l := rfl
       simp only [unitProp.go.cons]
-      match hl : τ.litValue? l with
+      match τ.litValue? l with
       | none =>
         match unit? with
         | none => exact ih τ (some l)
@@ -1761,7 +1753,6 @@ theorem unitProp_eq_unitPropM_aux (τ : PPA) (C : IClause) (unit? : Option ILit)
           · rfl
       | some true => rfl
       | some false => exact ih τ unit?
-      done
     · simp [LeanColls.size] at hi
 
 theorem unitProp_eq_unitPropM (τ : PPA) (C : IClause) :
