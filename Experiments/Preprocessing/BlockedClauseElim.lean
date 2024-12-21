@@ -1,5 +1,5 @@
 import LeanSAT.Data.Cnf
-import Std.Data.HashMap
+import Batteries.Data.HashMap
 import LeanSAT.Upstream.ToStd
 
 namespace LeanSAT.Preprocess.BlockedClauseElim
@@ -16,7 +16,7 @@ def resolvesTaut [LitVar L ν] [BEq L] [BEq ν] (x : L) (C1 C2 : Clause L) : Boo
 
 private structure State (L) [BEq L] [Hashable L] where
   clauses : List (Clause L)
-  litMap : Std.HashMap L (List (Clause L))
+  litMap : Batteries.HashMap L (List (Clause L))
   h_litMap_some : ∀ l, litMap.find? l = some CS →
                       CS = clauses.filter (·.contains l)
   h_litMap_none : ∀ l, litMap.find? l = none →
@@ -31,12 +31,12 @@ private def stateOfFormula (f : Cnf L) : State L :=
         | none => m.insert l [c]
         | some c' => m.insert l (c::c'))
       m)
-    Std.HashMap.empty
+    Batteries.HashMap.empty
   { clauses := f.toList, litMap
     h_litMap_some := sorry
     h_litMap_none := sorry }
 
-private def removeClause (c : Clause L) (m : Std.HashMap L (List (Clause L))) :=
+private def removeClause (c : Clause L) (m : Batteries.HashMap L (List (Clause L))) :=
   c.foldl (init := m) (fun m l =>
     match m.find? l with
     | none => panic! "invariant violated: 1249850198"
@@ -74,6 +74,6 @@ def blockedClauseElim (F : Cnf L) : Cnf L × List (L × Clause L) :=
       }
       -- Iterate on remaining clauses
       remBlocked s (blocked ++ acc)
+  termination_by s.clauses.length
   let (CS, removed) := remBlocked (stateOfFormula F) []
   (⟨CS⟩, removed)
-termination_by remBlocked A _ => A.clauses.length

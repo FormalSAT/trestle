@@ -10,15 +10,15 @@ Carnegie Mellon University
 import LeanSAT.Solver.Dimacs
 import Experiments.ProofChecking.RangeArray
 
-open Std
+open Batteries
 open LeanSAT.Solver.Dimacs
 open LeanSAT LeanSAT.Model ILit Except
 
 namespace SR
 
 structure SRAdditionLine where
-  witnessLits : Array ILit
-  witnessMaps : Array ILit     -- Maps literals to literals
+  witnessLits : Array ILit     -- Maps literals to true/false
+  witnessMaps : Array ILit     -- Maps variables to literals
   upHints : Array Nat          -- Already 0-indexed clause IDs into the accumulated formula
   ratHintIndexes : Array Nat   -- Already 0-indexed
   ratHints : Array (Array Nat) -- Already 0-indexed
@@ -60,7 +60,7 @@ protected class Formula (F : Type _) where
 
 instance : SRParser.Formula (RangeArray ILit) where
   empty := (RangeArray.empty : RangeArray ILit)
-  addLiteral := RangeArray.addElement
+  addLiteral := RangeArray.push
   commitClause := RangeArray.commit
   size := RangeArray.size
 
@@ -76,7 +76,7 @@ variable {CNF : Type _} [SRParser.Formula CNF]
 -- CC: The double Except monad is used to stop folding across a list/array of atom strings
 --     in case a 0 is encountered, since DIMACS doesn't require a clause to fit on a line.
 @[inline, specialize]
-def parseLit (maxVar : Nat) (F : CNF) (s : String) : Except (Except String CNF) CNF := do
+def parseLitM (maxVar : Nat) (F : CNF) (s : String) : Except (Except String CNF) CNF := do
   match s.toInt? with
   | none => throw (throw s!"Literal is not a number: {s}")
   | some n =>
@@ -88,121 +88,215 @@ def parseLit (maxVar : Nat) (F : CNF) (s : String) : Except (Except String CNF) 
       else
         return Formula.addLiteral F ⟨n, hn⟩
 
+inductive DimacsParsingResult
+  | ok         -- Parsing expects more input
+  | done       -- Parsing expects to be done
+  | err : String → DimacsParsingResult   -- Error encountered
+  deriving Inhabited, DecidableEq
+
+-- Parses a single literal from a string. Keeps track of whether a '0' has been found.
+@[inline, specialize]
+def parseLit (maxVar : Nat) (F : CNF) (s : String) : DimacsParsingResult × CNF :=
+  match s.toInt? with
+  | none => (.err s!"Literal '{s}' is not a number.", F)
+  | some n =>
+    if hn : n = 0 then
+      (.done, F)
+    else
+      if n.natAbs > maxVar then
+        (.err s!"Literal {n} is greater than the maximum variable {maxVar}.", F)
+      else
+        (.ok, Formula.addLiteral F ⟨n, hn⟩)
+
 @[specialize]
-def parseClause (maxVar : Nat) (F : CNF) (s : String) : Except String CNF :=
-  match s.splitOn " " |>.foldlM (parseLit maxVar) F with
+def parseClauseM (maxVar : Nat) (F : CNF) (s : String) : Except String CNF :=
+  match s.splitOn " " |>.foldlM (parseLitM maxVar) F with
   | ok _ => throw "Zero not encountered on this line"
   | error e => return Formula.commitClause (← e)
 
+@[specialize]
+def parseClause (maxVar : Nat) (F : CNF) (s : String) : DimacsParsingResult × CNF :=
+  let rec loop (F : CNF) : List String → DimacsParsingResult × CNF
+    | [] => (.err "0 not found before end of line", F)
+    | atom :: atoms =>
+      match parseLit maxVar F atom with
+      | (.err str, F) => (.err str, F)
+      | (.ok, F) => loop F atoms
+      | (.done, F) =>
+        if atoms.length = 0 then
+          (.done, F)
+        else
+          (.err "0 found before end of line", F)
+  loop F (s.splitOn " ")
+
 -- Parses the CNF given a string and an empty formula to read the clauses into
-def parseFormula (s : String) (F : CNF) : Except String CNF := do
+@[specialize]
+def parseFormulaM (s : String) (F : CNF) : Except String CNF := do
   match s.splitOn "\n" |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace)) with
   | [] => throw "All lines are empty or comments"
   | (pLine :: clauseLines) =>
     let (nvars, ncls) ← parseHeader pLine
-    let F ← clauseLines.foldlM (parseClause nvars) F
+    let F ← clauseLines.foldlM (parseClauseM nvars) F
     if SRParser.Formula.size F != ncls then
       throw s!"Expected {ncls} clauses, but found {Formula.size F}"
     else
       return F
 
+-- CC: Because `parseFormula` is only called at top level once, it is okay to
+--     have the return type be an `Except` monad. However, the functions called
+--     by this function are the non-monadic versions.
+@[specialize]
+def parseFormula (s : String) (F : CNF) : Except String (CNF × Nat) :=
+  match s.splitOn "\n" |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace)) with
+  | [] => throw "All lines are empty or comments"
+  | (pLine :: clauseLines) =>
+    match parseHeader pLine with
+    | .error str => throw str
+    | .ok (nvars, ncls) =>
+      let rec loop (F : CNF) : List String → Except String CNF
+        | [] =>
+          if SRParser.Formula.size F != ncls then
+            throw s!"Expected {ncls} clauses, but found {Formula.size F}"
+          else
+            ok F
+        | c :: cs =>
+          match parseClause nvars F c with
+          | (.err str, _) => throw str
+          | (_, F) => loop F cs    -- We should expect .done here, but .ok works too
+      match loop F clauseLines with
+      | .ok F => ok (F, nvars)
+      | .error str => throw str
+
 inductive SRParsingMode
-| clause
-| witnessLits
-| witnessMappedReady
-| witnessMappedHalfway : IVar → SRParsingMode
-| upHints
-| ratHints : Nat → Array Nat → SRParsingMode
-| lineDone
-| err : String → SRParsingMode
-deriving BEq, Inhabited
+  | clause
+  | witnessLits
+  | witnessMappedReady
+  | witnessMappedHalfway : IVar → SRParsingMode
+  | upHints
+  | ratHints : Nat → Array Nat → SRParsingMode
+  | lineDone
+  | err : String → SRParsingMode
+  deriving BEq, DecidableEq, Inhabited
 
 open SR SRParsingMode
 
+structure ParsingState (CNF : Type _) where
+  mode : SRParsingMode
+  pivot : Option ILit
+  F : CNF
+  line : SRAdditionLine
+
 @[inline]
-def processSRAtom (atom : Int) (pivot : Option ILit)
-    (line : SRAdditionLine) (F : CNF) (mode : SRParsingMode) : SRAdditionLine × CNF × SRParsingMode :=
+def processSRAtom (atom : Int) (st : ParsingState CNF) : ParsingState CNF :=
   if h_atom : atom = 0 then
-    match mode with
+    match st.mode with
     | .clause =>
       -- We don't have a witness, so we insert the pivot into the witness and continue, if the clause isn't empty
-      match pivot with
-      | none => ⟨line, F, .upHints⟩
-      | some pivot => ⟨{ line with witnessLits := line.witnessLits.push pivot }, F, .upHints⟩
-    | .witnessLits => ⟨line, F, .upHints⟩
-    | .witnessMappedReady => ⟨line, F, .upHints⟩
-    | .witnessMappedHalfway _ => ⟨line, F, .err "Only got half a substitution mapping when ending a witness"⟩
-    | .upHints => ⟨line, F, .lineDone⟩
-    | .ratHints index hints => ⟨{ line with
-        ratHintIndexes := line.ratHintIndexes.push index,
-        ratHints := line.ratHints.push hints,
-        ratSizesEq := by simp [line.ratSizesEq] }, F, .lineDone⟩
-    | .lineDone => ⟨line, F, .err "Addition line continued after last ending 0"⟩
-    | .err str => ⟨line, F, .err str⟩
+      match st.pivot with
+      | none => { st with mode := .upHints }
+      | some pivot => { st with
+        line := { st.line with witnessLits := st.line.witnessLits.push pivot },
+        mode := .upHints }
+    | .witnessLits => { st with mode := .upHints }
+    | .witnessMappedReady => { st with mode := .upHints }
+    | .witnessMappedHalfway _ => { st with mode := .err "Only got half a substitution mapping when ending a witness" }
+    | .upHints => { st with mode := .lineDone }
+    | .ratHints index hints => { st with
+        mode := .lineDone,
+        line := { st.line with
+          ratHintIndexes := st.line.ratHintIndexes.push index,
+          ratHints := st.line.ratHints.push hints,
+          ratSizesEq := by simp; exact st.line.ratSizesEq }
+        }
+    | .lineDone => { st with mode := .err "Addition line continued after last ending 0" }
+    | .err str => { st with mode := .err str }
   else
-    match mode with
+    match st.mode with
     | .clause =>
-      match pivot with
-      | none => ⟨line, F, .err "No pivot provided for the clause"⟩
+      match st.pivot with
+      | none => { st with mode := .err "No pivot provided for the clause" }
       | some pivot =>
         if atom = pivot.val then
           -- Seeing the pivot again means we're parsing a witness
-          ⟨{ line with witnessLits := line.witnessLits.push ⟨atom, h_atom⟩ }, F, .witnessLits⟩
+          { st with
+            mode := .witnessLits,
+            line := { st.line with witnessLits := st.line.witnessLits.push pivot }
+          }
         else
           -- It's not the pivot (and it's not 0), so add it to the clause
-          ⟨line, SRParser.Formula.addLiteral F ⟨atom, h_atom⟩, .clause⟩
+          { st with
+            line := { st.line with witnessLits := st.line.witnessLits.push ⟨atom, h_atom⟩ },
+            mode := .clause
+          }
     | .witnessLits =>
-      match pivot with
-      | none => ⟨line, F, .err "No pivot provided for the witness"⟩
+      match st.pivot with
+      | none => { st with mode := .err "No pivot provided for the witness" }
       | some pivot =>
         if atom = pivot.val then
           -- Seeing the pivot again means we're parsing the substitution mappings
-          ⟨line, F, .witnessMappedReady⟩
+          { st with mode := .witnessMappedReady }
         else
-          ⟨{ line with witnessLits := line.witnessLits.push ⟨atom, h_atom⟩ }, F, .witnessLits⟩
+          { st with
+            line := { st.line with witnessLits := st.line.witnessLits.push ⟨atom, h_atom⟩ },
+            mode := .witnessLits
+          }
     | .witnessMappedReady =>
-      match pivot with
-      | none => ⟨line, F, .err "No pivot provided for the witness"⟩
+      match st.pivot with
+      | none => { st with mode := .err "No pivot provided for the witness" }
       | some pivot =>
         if atom = pivot.val then
-          ⟨line, F, .err "Saw pivot again in substitution mapping"⟩
+          { st with mode := .err "Saw pivot again in substitution mapping" }
         else
           if atom < 0 then
-            ⟨line, F, .err "First of a substitution mapping must be positive"⟩
+            { st with mode := .err "First of a substitution mapping must be positive" }
           else
-            ⟨line, F, .witnessMappedHalfway ⟨atom.natAbs, Int.natAbs_pos.mpr h_atom⟩⟩
+            { st with mode := .witnessMappedHalfway ⟨atom.natAbs, Int.natAbs_pos.mpr h_atom⟩ }
     | .witnessMappedHalfway v =>
-      ⟨{line with
-        witnessMaps := line.witnessMaps.push v |>.push ⟨atom, h_atom⟩,
-        witnessMapsMod := by simp [add_assoc, Nat.add_mod_right, line.witnessMapsMod] }, F, .witnessMappedReady⟩
+      { st with
+        mode := .witnessMappedReady,
+        line := { st.line with
+          witnessMaps := st.line.witnessMaps.push v |>.push ⟨atom, h_atom⟩,
+          witnessMapsMod := by simp [add_assoc, Nat.add_mod_right]; exact st.line.witnessMapsMod }
+       }
     | .upHints =>
       if atom < 0 then
-        match pivot with
-        | none => ⟨line, F, .err "Can't have RAT hints for empty clauses"⟩
+        match st.pivot with
+        | none => { st with mode := .err "Can't have RAT hints for empty clauses" }
         | _ =>
           -- This is our first RAT hint - start building it
-          ⟨line, F, .ratHints (atom.natAbs - 1) #[]⟩
+          { st with mode := .ratHints (atom.natAbs - 1) #[] }
       else
-        ⟨{ line with upHints := line.upHints.push (atom.natAbs - 1) }, F, .upHints⟩
+        { st with
+          mode := .upHints
+          line := { st.line with upHints := st.line.upHints.push (atom.natAbs - 1) }
+        }
     | .ratHints index hints =>
       if atom < 0 then
         -- This is a new RAT hint - add the old one
-        ⟨{ line with
-          ratHintIndexes := line.ratHintIndexes.push index,
-          ratHints := line.ratHints.push hints,
-          ratSizesEq := by simp [line.ratSizesEq] }, F, .ratHints (atom.natAbs - 1) #[]⟩
+        { st with
+          mode := .ratHints (atom.natAbs - 1) #[],
+          line := { st.line with
+            ratHintIndexes := st.line.ratHintIndexes.push index,
+            ratHints := st.line.ratHints.push hints,
+            ratSizesEq := by simp; exact st.line.ratSizesEq }
+        }
       else
-        ⟨line, F, .ratHints index (hints.push (atom.natAbs - 1))⟩
-    | .lineDone => ⟨line, F, .err "Addition line continued after last ending 0"⟩
-    | .err str => ⟨line, F, .err str⟩
+        { st with mode := .ratHints index (hints.push (atom.natAbs - 1)) }
+    | .lineDone =>
+      { st with mode := .err "Addition line continued after last ending 0" }
+    | .err str =>
+      { st with mode := .err str }
 
-def parseSRAtom (pivot : Option ILit) (line : SRAdditionLine) (F : CNF) (mode : SRParsingMode) (s : String) : SRAdditionLine × CNF × SRParsingMode :=
+def parseSRAtom (st : ParsingState CNF) (s : String) : ParsingState CNF :=
   -- No matter what, the string should be a number, so parse it as an int
   match s.toInt? with
-  | none => ⟨line, F, .err s!"Atom {s} didn't parse to a number"⟩
-  | some n => processSRAtom n pivot line F mode
+  | none => { st with mode := .err s!"Atom {s} didn't parse to a number" }
+  | some n => processSRAtom n st
 
-def parseLSRLine (F : CNF) (maxId : Nat) (s : String) : Except String (Nat × CNF × (SRAdditionLine ⊕ SRDeletionLine)) :=
+-- CC: Because the parse line is called at top-level, it's okay for this to be Except.
+-- Returns the line id, the updated formula (with the candidate clause loaded), and the line
+def parseLSRLine (F : CNF) (maxId : Nat) (s : String)
+    : Except String (Nat × CNF × (SRAdditionLine ⊕ SRDeletionLine)) :=
   match s.splitOn " " with
   | [] => throw "Empty line"
   | [_] => throw s!"Single atom line: {s}, with id {maxId}"
@@ -210,107 +304,44 @@ def parseLSRLine (F : CNF) (maxId : Nat) (s : String) : Except String (Nat × CN
     match hd with
     | "d" =>
       -- Check to make sure the maxId is (non-strictly) monotonically increasing
-      match id.toNat? with
-      | none => throw "Line ID is not a number"
-      | some id =>
-        if id < maxId then
-          throw "Deletion line id is not increasing"
-        else
-          match tls.foldlM (fun arr str =>
-            match str.toNat? with
-            | none => throw (throw s!"{str} was not a number")
-            | some 0 => throw (return arr)
-            | some (n + 1) => return arr.push n) #[] with
-          | ok _ => throw "Zero not found on deletion line"
-          | error e => return ⟨max id maxId, F, .inr (SRDeletionLine.mk (← e))⟩
+      -- CC: We actually don't care about this, since we assume the proof is ordered.
+      match tls.foldlM (fun arr str =>
+        match str.toNat? with
+        | none => throw (throw s!"{str} was not a number")
+        | some 0 => throw (return arr)
+        | some (n + 1) => return arr.push n) #[] with
+      | ok _ => throw "Zero not found on deletion line"
+      | error e => return ⟨maxId, F, .inr (SRDeletionLine.mk (← e))⟩
     | _ =>
       -- We have an addition line, so the maxId should strictly increase
       match id.toNat? with
       | none => throw "Line ID is not a number"
       | some id =>
-        if id ≤ maxId then
-          throw s!"Addition line id is not increasing: parsed {id}, max {maxId}"
-        else
-          match hd.toInt? with
-          | none => throw "Pivot is not a number"
-          | some n =>
-            let line := SRAdditionLine.new
-            let res :=
-              if hn : n = 0 then
-                tls.foldlM (init := (⟨line, F, .upHints⟩ : SRAdditionLine × CNF × SRParsingMode))
-                  (fun ⟨line, F, mode⟩ s => match mode with
-                    | .err s => error s
-                    | m => ok <| parseSRAtom none line F m s)
-              else
-                tls.foldlM (init := ⟨line, SRParser.Formula.addLiteral F ⟨n, hn⟩, .clause⟩)
-                  (fun ⟨line, F, mode⟩ s => match mode with
-                    | .err s => error s
-                    | m => ok <| parseSRAtom (some ⟨n, hn⟩) line F m s)
-            match res with
-            | error str => throw str
-            | ok ⟨line, F, mode⟩ =>
-              if mode != .lineDone then
-                throw "Addition line didn't end with 0"
-              else
-                return ⟨id, F, .inl line⟩
+        -- CC: Similarly, we don't care that the ID line is strictly increasing,
+        --     only that the clause doesn't exist in the formula yet.
+        match hd.toInt? with
+        | none => throw "Pivot is not a number"
+        | some n =>
+          let line := SRAdditionLine.new
+          let st :=
+            if hn : n = 0 then
+              ParsingState.mk .upHints none F line
+            else
+              ParsingState.mk .clause (some ⟨n, hn⟩) (SRParser.Formula.addLiteral F ⟨n, hn⟩) line
 
--- CC: An attempt to get parsing faster, given that the Except monad can be expensive
-def parseLSRLine'_aux (pivot : Option ILit) (line : SRAdditionLine) (F : CNF) (mode : SRParsingMode) : List String → (SRAdditionLine × CNF × SRParsingMode)
-  | [] => (line, F, mode)
-  | atom :: atoms =>
-  -- No matter what, the string should be a number, so parse it as an int
-  match atom.toInt? with
-  | none => ⟨line, F, .err s!"Atom {atom} didn't parse to a number"⟩
-  | some n =>
-    match processSRAtom n pivot line F mode with
-    | ⟨line, F, .err str⟩ => ⟨line, F, .err str⟩
-    | ⟨line, F, mode⟩ => parseLSRLine'_aux pivot line F mode atoms
+          let rec loop (st : ParsingState CNF) : List String → ParsingState CNF
+            | [] => st
+            | atom :: atoms =>
+              let st := parseSRAtom st atom
+              match st.mode with
+              | .err _ => st
+              | _ => loop st atoms
 
-def parseLSRLine' (F : CNF) (maxId : Nat) (s : String) : Except String (Nat × CNF × (SRAdditionLine ⊕ SRDeletionLine)) :=
-  match s.splitOn " " with
-  | [] => throw "Empty line"
-  | [_] => throw s!"Single atom line: {s}, with id {maxId}"
-  | (id :: hd :: tls) =>
-    match hd with
-    | "d" =>
-      -- Check to make sure the maxId is (non-strictly) monotonically increasing
-      match id.toNat? with
-      | none => throw "Line ID is not a number"
-      | some id =>
-        if id < maxId then
-          throw "Deletion line id is not increasing"
-        else
-          match tls.foldlM (fun arr str =>
-            match str.toNat? with
-            | none => throw (throw s!"{str} was not a number")
-            | some 0 => throw (return arr)
-            | some (n + 1) => return arr.push n) #[] with
-          | ok _ => throw "Zero not found on deletion line"
-          | error e => return ⟨max id maxId, F, .inr (SRDeletionLine.mk (← e))⟩
-    | _ =>
-      -- We have an addition line, so the maxId should strictly increase
-      match id.toNat? with
-      | none => throw "Line ID is not a number"
-      | some id =>
-        if id ≤ maxId then
-          throw s!"Addition line id is not increasing: parsed {id}, max {maxId}"
-        else
-          match hd.toInt? with
-          | none => throw "Pivot is not a number"
-          | some n =>
-            let line := SRAdditionLine.new
-            let res :=
-              if hn : n = 0 then
-                parseLSRLine'_aux none line F .upHints tls
-              else
-                parseLSRLine'_aux (some ⟨n, hn⟩) line (SRParser.Formula.addLiteral F ⟨n, hn⟩) .clause tls
-            match res with
-            | ⟨_, _, .err str⟩ => throw str
-            | ⟨line, F, mode⟩ =>
-              if mode != .lineDone then
-                throw "Addition line didn't end with 0"
-              else
-                return ⟨id, F, .inl line⟩
+          let st := loop st tls
+          match st.mode with
+          | .err str => throw str
+          | .lineDone => return ⟨id, st.F, .inl st.line⟩
+          | _ => throw "Addition line didn't end with 0"
 
 --------------------------------------------------------------------------------
 
@@ -320,6 +351,7 @@ def undoBinaryMapping (x : UInt64) : Int :=
   else
     (((x >>> 1).toNat) : Int)
 
+-- CC: This version is an attempt to get totality
 /-
 def readBinaryToken (A : ByteArray) (index : Nat) : Int × { i : Nat // i > index } :=
   let rec go (i : Nat) (acc : UInt64) (shift : UInt64) : Int × { idx : Nat // idx > i } :=
@@ -367,31 +399,32 @@ partial def parseLSRDeletionLineBinary (A : ByteArray) (index : Nat) : Bool × N
       ⟨false, A.size, SRDeletionLine.mk acc⟩
   go index #[]
 
-instance [Inhabited CNF] : Inhabited (Nat × SRAdditionLine × CNF × SRParsingMode) := by infer_instance
+instance : Inhabited (Nat × ParsingState CNF) :=
+  ⟨⟨0, ParsingState.mk .clause none (SRParser.Formula.empty) (SRAdditionLine.new)⟩⟩
 
-/-
-partial def parseLSRAdditionLineBinary [Inhabited CNF] (F : CNF) (A : ByteArray)
-    (index : Nat) (pivot : Option ILit) : Nat × SRAdditionLine × CNF × SRParsingMode :=
-  let rec go (i : Nat) (line : SRAdditionLine) (F : CNF) (mode : SRParsingMode) : Nat × SRAdditionLine × CNF × SRParsingMode :=
+@[specialize]
+partial def parseLSRAdditionLineBinary (F : CNF) (A : ByteArray)
+    (index : Nat) (pivot : Option ILit) : Nat × ParsingState CNF :=
+  let rec go (i : Nat) (st : ParsingState CNF) : Nat × ParsingState CNF :=
+    have : Inhabited (Nat × ParsingState CNF) := by infer_instance
     if i < A.size then
       let (n, j) := readBinaryToken A i
-      match processSRAtom n pivot line F mode with
-      | ⟨line, F, .err str⟩ => ⟨j, line, F, .err str⟩
-      | ⟨line, F, .lineDone⟩ => ⟨j, line, F, .lineDone⟩
-      | ⟨line, F, mode⟩ => go j line F mode
+      let st := processSRAtom n st
+      match st.mode with
+      | .err _ => (j, st)
+      | .lineDone => (j, st)
+      | _ => go j st
     else
-      ⟨A.size, line, F, mode⟩
+      ⟨A.size, st⟩
 
   let newLine := SRAdditionLine.new
   match pivot with
-  | none => go index newLine F .upHints
-  | some p => go index newLine (SRParser.Formula.addLiteral F p) .clause -/
-
+  | none => go index (ParsingState.mk .upHints none F newLine)
+  | some p => go index (ParsingState.mk .clause (some p) (SRParser.Formula.addLiteral F p) newLine)
 
 -- First nat is cached index into arr, second is ID of new clause to add
-/-
-partial def parseLSRLineBinary (A : ByteArray)
-    (index : Nat) : Except String (Nat × Nat × (SRAdditionLine ⊕ SRDeletionLine)) :=
+partial def parseLSRLineBinary (F : CNF) (A : ByteArray) (index : Nat)
+    : Except String (Nat × Nat × (SRAdditionLine ⊕ SRDeletionLine)) :=
   if hi : index + 1 < A.size then
     -- Check if we have an addition line or a deletion line
     let lineStart : UInt8 := A.get ⟨index, Nat.lt_of_succ_lt hi⟩
@@ -403,18 +436,15 @@ partial def parseLSRLineBinary (A : ByteArray)
       -- Check if we have a pivot
       if index < A.size then
         let ⟨pivot, index⟩ := readBinaryToken A index
-        let res :=
+        let ⟨index, st⟩ :=
           if hp : pivot = 0 then
-            parseLSRAdditionLineBinary A index none
+            parseLSRAdditionLineBinary F A index none
           else
-            parseLSRAdditionLineBinary A index (some ⟨pivot, hp⟩)
-        match res with
-        | ⟨_, _, .err str⟩ => throw str
-        | ⟨index, line, mode⟩ =>
-          if mode != .lineDone then
-            error "Addition line didn't end with 0"
-          else
-            ok (index, lineId.natAbs, .inl line)
+            parseLSRAdditionLineBinary F A index (some ⟨pivot, hp⟩)
+        match st.mode with
+        | .err str => throw str
+        | .lineDone => ok (index, lineId.natAbs, .inl st.line)
+        | _ => error "Addition line didn't end with 0"
       else
         error "Line ended early"
     else if lineStart = 2 then
@@ -425,6 +455,6 @@ partial def parseLSRLineBinary (A : ByteArray)
       error "Start of line wasn't addition (1) or deletion (2)"
 
   else
-    error "No more string!" -/
+    error "No more string!"
 
 end SRParser

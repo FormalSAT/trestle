@@ -17,7 +17,7 @@ lean_lib Experiments {
 }
 
 lean_exe «SRParser» {
-  root := `Experiments.ProofChecking.SRParserExe
+  root := `Experiments.ProofChecking.Parsing.SRParserExe
 }
 
 lean_exe «SRChecker» {
@@ -38,6 +38,14 @@ lean_exe «StatefulChecker» {
 
 lean_exe «BasicChecker» {
   root := `Experiments.ProofChecking.SRCheckerBasic
+}
+
+lean_exe «BStreamParser» {
+  root := `Experiments.ProofChecking.Parsing.BStreamParserExe
+}
+
+lean_exe «BStreamChecker» {
+  root := `Experiments.ProofChecking.BStreamCheckerExe
 }
 
 

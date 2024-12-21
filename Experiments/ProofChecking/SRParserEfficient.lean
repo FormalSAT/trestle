@@ -11,9 +11,9 @@ import LeanSAT.Solver.Dimacs
 import Experiments.ProofChecking.RangeArray
 import Experiments.ProofChecking.SRCheckerEfficient
 
-import Std
+import Batteries
 
-open Std
+open Batteries
 open LeanSAT.Solver.Dimacs
 open LeanSAT LeanSAT.Model ILit
 

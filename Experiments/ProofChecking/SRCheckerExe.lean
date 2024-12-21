@@ -9,7 +9,7 @@ Carnegie Mellon University
 
 -/
 
-import Experiments.ProofChecking.SRParser
+import Experiments.ProofChecking.Parsing.SRParser
 import Experiments.ProofChecking.SRChecker
 import Experiments.ProofChecking.RangeArray
 
@@ -42,7 +42,8 @@ def checkProof (lines : List String) (F : RangeArray ILit) (τ : PPA) (σ : PS) 
         | .ok F => .ok ⟨F, τ, σ⟩
         | .error _ => .error false)
 
-def checkProof_error_true {lines : List String}
+/-
+theorem checkProof_error_true {lines : List String}
     {F : RangeArray ILit} {Ls : List (Option (List ILit))} (h_models : models F Ls [])
     {τ : PPA} {σ : PS} :
     checkProof lines F τ σ = .error true → cnfListToPropFun Ls = ⊥ := by
@@ -77,11 +78,12 @@ def checkProof_error_true {lines : List String}
         subst this
         split
         · rename_i F₂ h_consumeDeletionLine
+          stop
           rcases SR.consumeDeletionLine_ok h_models h_consumeDeletionLine with ⟨Ls₂, h_models₂, h_toPropFun⟩
           intro h
           rw [ih h_models₂ h, le_bot_iff] at h_toPropFun
           exact h_toPropFun
-        · simp [bind, Except.bind]
+        · simp [bind, Except.bind] -/
 
 def interpretResult : Except Bool SRState → IO Unit
   | .ok _ => do

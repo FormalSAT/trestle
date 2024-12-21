@@ -10,71 +10,17 @@ Carnegie Mellon University
 
 import LeanSAT.Solver.Dimacs
 import Experiments.ProofChecking.RangeArray
+import Experiments.ProofChecking.Parsing.Defs
 
 open Batteries
 open LeanSAT.Solver.Dimacs
 open LeanSAT LeanSAT.Model ILit Except
 
-namespace SR
-
-structure SRAdditionLine where
-  witnessLits : Array ILit     -- Maps literals to true/false
-  witnessMaps : Array ILit     -- Maps variables to literals
-  upHints : Array Nat          -- Already 0-indexed clause IDs into the accumulated formula
-  ratHintIndexes : Array Nat   -- Already 0-indexed
-  ratHints : Array (Array Nat) -- Already 0-indexed
-  ratSizesEq : ratHintIndexes.size = ratHints.size
-  witnessMapsMod : witnessMaps.size % 2 = 0
-  -- CC: Technically, ratHints can be a RangeArray. Try later
-
-def SRAdditionLine.new : SRAdditionLine := ⟨
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  by simp, by simp⟩
-
-instance : Inhabited SRAdditionLine := ⟨{
-  witnessLits := #[],
-  witnessMaps := #[],
-  upHints := #[],
-  ratHintIndexes := #[],
-  ratHints := #[],
-  ratSizesEq := by simp,
-  witnessMapsMod := by simp
-}⟩
-
-structure SRDeletionLine where
-  clauses : Array Nat
-deriving Inhabited
-
-end SR
-
 namespace SRParser
 
-protected class Formula (F : Type _) where
-  empty : F
-  addLiteral : F → ILit → F
-  commitClause : F → F
-  commitClauseUntil : F → Nat → F
-  size : F → Nat
+open Parsing
 
-instance : SRParser.Formula (RangeArray ILit) where
-  empty := (RangeArray.empty : RangeArray ILit)
-  addLiteral := RangeArray.push
-  commitClause := RangeArray.commit
-  commitClauseUntil := RangeArray.commitUntil
-  size := RangeArray.size
-
-instance : SRParser.Formula (ICnf × IClause) where
-  empty := (#[], #[])
-  addLiteral := (fun ⟨F, C⟩ l => ⟨F, C.push l⟩)
-  commitClause := (fun ⟨F, C⟩ => (F.push C, #[]))
-  commitClauseUntil := (fun ⟨F, C⟩ _ => (F, C)) -- CC: TODO
-  size := (fun ⟨F, _⟩ => F.size)
-
-variable {CNF : Type _} [SRParser.Formula CNF]
+variable {CNF : Type _} [Formula CNF]
 
 -- Parses a single literal from a string.
 -- CC: The double Except monad is used to stop folding across a list/array of atom strings
@@ -141,7 +87,7 @@ def parseFormulaM (s : String) (F : CNF) : Except String (CNF × Nat) := do
   | (pLine :: clauseLines) =>
     let (nvars, ncls) ← parseHeader pLine
     let F ← clauseLines.foldlM (parseClauseM nvars) F
-    if SRParser.Formula.size F != ncls then
+    if Formula.size F != ncls then
       throw s!"Expected {ncls} clauses, but found {Formula.size F}"
     else
       return (F, nvars)
@@ -149,7 +95,7 @@ def parseFormulaM (s : String) (F : CNF) : Except String (CNF × Nat) := do
 @[inline, always_inline, specialize]
 def parseClauses (nvars ncls : Nat) (F : CNF) : List String → Except String CNF
   | [] =>
-    if SRParser.Formula.size F != ncls then
+    if Formula.size F != ncls then
       throw s!"Expected {ncls} clauses, but found {Formula.size F}"
     else
       ok F
@@ -172,106 +118,6 @@ def parseFormula (s : String) (F : CNF) : Except String (CNF × Nat) :=
       match parseClauses nvars ncls F clauseLines with
       | .ok F => ok (F, nvars)
       | .error str => throw str
-
-inductive SRParsingMode
-  | clause
-  | witnessLits
-  | witnessMappedReady
-  | witnessMappedHalfway : IVar → SRParsingMode
-  | upHints
-  | ratHints : Nat → Array Nat → SRParsingMode
-  | lineDone
-  | err : String → SRParsingMode
-  deriving BEq, DecidableEq, Inhabited
-
-open SR SRParsingMode
-
-structure ParsingState (CNF : Type _) where
-  mode : SRParsingMode
-  pivot : Option ILit
-  F : CNF
-  line : SRAdditionLine
-
-@[inline, specialize]
-def processSRAtom (atom : Int) : ParsingState CNF → ParsingState CNF := fun ⟨mode, pivot, F, line⟩ =>
-  if h_atom : atom = 0 then
-    match mode with
-    | .clause =>
-      -- We don't have a witness, so we insert the pivot into the witness and continue, if the clause isn't empty
-      match pivot with
-      | none => ⟨.upHints, pivot, F, line⟩
-      | some pivot => ⟨.upHints, pivot, F, { line with witnessLits := line.witnessLits.push pivot }⟩
-    | .witnessLits => ⟨.upHints, pivot, F, line⟩
-    | .witnessMappedReady => ⟨.upHints, pivot, F, line⟩
-    | .witnessMappedHalfway _ => ⟨.err "Only got half a substitution mapping when ending a witness", pivot, F, line⟩
-    | .upHints => ⟨.lineDone, pivot, F, line⟩
-    | .ratHints index hints =>
-        ⟨.lineDone, pivot, F, { line with
-          ratHintIndexes := line.ratHintIndexes.push index,
-          ratHints := line.ratHints.push hints,
-          ratSizesEq := by simp; exact line.ratSizesEq }⟩
-    | .lineDone => ⟨.err "Addition line continued after last ending 0", pivot, F, line⟩
-    | .err str => ⟨.err str, pivot, F, line⟩
-  else
-    match mode with
-    | .clause =>
-      match pivot with
-      | none => ⟨.err "No pivot provided for the clause", pivot, F, line⟩
-      | some pivot =>
-        if atom = pivot.val then
-          -- Seeing the pivot again means we're parsing a witness
-          ⟨.witnessLits, pivot, F, { line with witnessLits := line.witnessLits.push pivot }⟩
-        else
-          -- It's not the pivot (and it's not 0), so add it to the clause
-          ⟨.clause, pivot, Formula.addLiteral F ⟨atom, h_atom⟩, line⟩
-    | .witnessLits =>
-      match pivot with
-      | none => ⟨.err "No pivot provided for the witness", pivot, F, line⟩
-      | some pivot =>
-        if atom = pivot.val then
-          -- Seeing the pivot again means we're parsing the substitution mappings
-          ⟨.witnessMappedReady, pivot, F, line⟩
-        else
-          ⟨.witnessLits, pivot, F, { line with witnessLits := line.witnessLits.push ⟨atom, h_atom⟩ }⟩
-    | .witnessMappedReady =>
-      match pivot with
-      | none => ⟨.err "No pivot provided for the witness", pivot, F, line⟩
-      | some pivot =>
-        if atom = pivot.val then
-          ⟨.err "Saw pivot again in substitution mapping", pivot, F, line⟩
-        else
-          if atom < 0 then
-            ⟨.err "First of a substitution mapping must be positive", pivot, F, line⟩
-          else
-            ⟨.witnessMappedHalfway ⟨atom.natAbs, Int.natAbs_pos.mpr h_atom⟩, pivot, F, line⟩
-    | .witnessMappedHalfway v =>
-      ⟨.witnessMappedReady, pivot, F,
-        { line with
-          witnessMaps := line.witnessMaps.push v |>.push ⟨atom, h_atom⟩,
-          witnessMapsMod := by simp [add_assoc, Nat.add_mod_right]; exact line.witnessMapsMod }⟩
-    | .upHints =>
-      if atom < 0 then
-        match pivot with
-        | none => ⟨.err "Can't have RAT hints for empty clauses", pivot, F, line⟩
-        | _ =>
-          -- This is our first RAT hint - start building it
-          ⟨.ratHints (atom.natAbs - 1) #[], pivot, F, line⟩
-      else
-        ⟨.upHints, pivot, F, { line with upHints := line.upHints.push (atom.natAbs - 1) }⟩
-    | .ratHints index hints =>
-      if atom < 0 then
-        -- This is a new RAT hint - add the old one
-        ⟨.ratHints (atom.natAbs - 1) #[], pivot, F,
-          { line with
-            ratHintIndexes := line.ratHintIndexes.push index,
-            ratHints := line.ratHints.push hints,
-            ratSizesEq := by simp; exact line.ratSizesEq }⟩
-      else
-        ⟨.ratHints index (hints.push (atom.natAbs - 1)), pivot, F, line⟩
-    | .lineDone =>
-      ⟨.err "Addition line continued after last ending 0", pivot, F, line⟩
-    | .err str =>
-      ⟨.err str, pivot, F, line⟩
 
 def parseSRAtom (st : ParsingState CNF) (s : String) : ParsingState CNF :=
   -- No matter what, the string should be a number, so parse it as an int
@@ -301,7 +147,7 @@ def parseLSRLine (F : CNF) (s : String) : Except String (Nat × CNF × (SRAdditi
         | ok _ => throw "Zero not found on deletion line"
         | error e => return ⟨id, F, .inr (SRDeletionLine.mk (← e))⟩
       | _ =>
-        let F := SRParser.Formula.commitClauseUntil F (id - 1)
+        let F := Formula.commitClauseUntil F (id - 1)
 
       -- We have an addition line, so the maxId should strictly increase
         -- CC: Similarly, we don't care that the ID line is strictly increasing,
@@ -314,7 +160,7 @@ def parseLSRLine (F : CNF) (s : String) : Except String (Nat × CNF × (SRAdditi
             if hn : n = 0 then
               ParsingState.mk .upHints none F line
             else
-              ParsingState.mk .clause (some ⟨n, hn⟩) (SRParser.Formula.addLiteral F ⟨n, hn⟩) line
+              ParsingState.mk .clause (some ⟨n, hn⟩) (Formula.addLiteral F ⟨n, hn⟩) line
 
           let rec loop (st : ParsingState CNF) : List String → ParsingState CNF
             | [] => st
@@ -387,7 +233,7 @@ partial def parseLSRDeletionLineBinary (A : ByteArray) (index : Nat) : Bool × N
   go index #[]
 
 instance : Inhabited (Nat × ParsingState CNF) :=
-  ⟨⟨0, ParsingState.mk .clause none (SRParser.Formula.empty) (SRAdditionLine.new)⟩⟩
+  ⟨⟨0, ParsingState.mk .clause none (Formula.empty) (SRAdditionLine.new)⟩⟩
 
 @[specialize]
 partial def parseLSRAdditionLineBinary (F : CNF) (A : ByteArray)
@@ -407,7 +253,7 @@ partial def parseLSRAdditionLineBinary (F : CNF) (A : ByteArray)
   let newLine := SRAdditionLine.new
   match pivot with
   | none => go index (ParsingState.mk .upHints none F newLine)
-  | some p => go index (ParsingState.mk .clause (some p) (SRParser.Formula.addLiteral F p) newLine)
+  | some p => go index (ParsingState.mk .clause (some p) (Formula.addLiteral F p) newLine)
 
 -- First nat is cached index into arr, second is ID of new clause to add
 partial def parseLSRLineBinary (F : CNF) (A : ByteArray) (index : Nat)
@@ -420,7 +266,7 @@ partial def parseLSRLineBinary (F : CNF) (A : ByteArray) (index : Nat)
 
     -- Addition line
     if lineStart = 1 then
-      let F := SRParser.Formula.commitClauseUntil F (lineId.natAbs - 1)
+      let F := Formula.commitClauseUntil F (lineId.natAbs - 1)
 
       -- Check if we have a pivot
       if index < A.size then
@@ -446,7 +292,8 @@ partial def parseLSRLineBinary (F : CNF) (A : ByteArray) (index : Nat)
   else
     error "No more string!"
 
-#check List.replicate
+#exit
+
 /- Correctness -/
 -- parseLSRLine (F : CNF) (s : String) : Except String (Nat × CNF × (SRAdditionLine ⊕ SRDeletionLine))
 -- CC: We trust that parsing is successful, so we only prove that there
