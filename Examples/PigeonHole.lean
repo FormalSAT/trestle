@@ -1,13 +1,13 @@
 /-
-Copyright (c) 2024 The LeanSAT Contributors.
+Copyright (c) 2024 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: James Gallicchio
 -/
 
-import LeanSAT
+import Trestle
 
-open LeanColls LeanSAT Encode VEncCNF
+open LeanColls Trestle Encode VEncCNF
 
 structure Var (n : Nat) where
   pigeon : Fin (n+1)

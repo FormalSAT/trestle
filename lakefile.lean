@@ -1,16 +1,15 @@
 import Lake
 open Lake DSL
 
-package «lean-sat»
+package «trestle»
 
 @[default_target]
-lean_lib LeanSAT {
-  globs := #[.andSubmodules `LeanSAT]
+lean_lib Trestle {
+  globs := #[.andSubmodules `Trestle]
 }
 
 lean_lib Examples {
   globs := #[.submodules `Examples]
 }
 
--- Note: `mathlib` and `std` are obtained transitively so that the versions all match up
-require leancolls from git "https://github.com/JamesGallicchio/LeanColls.git" @ "v4.7.0"
+require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "584f39cda63a699d6f7e417321885d5e452aa304"
