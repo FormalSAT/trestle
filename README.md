@@ -1,23 +1,23 @@
-# LeanSAT
+# Trestle
 
-LeanSAT is a collection of utilities for SAT work. This includes:
+Trestle is a collection of utilities for SAT work. This includes:
 - Encoding utilities
 - Solver APIs
 - Printers and parsers for common file formats
 
 This repository is an active research code base using the
 [Research Codebase Manifesto](https://www.moderndescartes.com/essays/research_code/),
-and the core library (in `LeanSAT/`) is not very stable yet.
+and the core library (in `Trestle/`) is not very stable yet.
 
-We would love to hear from any projects using LeanSAT!
+We would love to hear from any projects using Trestle!
 Contact @JamesGallicchio by email or mastodon.
 
 ## Getting it
 
 Add the following to your project's `lakefile`:
 ```
-require «lean-sat» from git
-  "https://github.com/JamesGallicchio/LeanSAT" @ "main"
+require «trestle» from git
+  "https://github.com/JamesGallicchio/Trestle" @ "main"
 ```
 The main branch is currently on Lean `v4.7.0`,
 and Lean still has breaking changes every minor revision,
@@ -29,10 +29,10 @@ This downloads a precompiled version of `mathlib`.
 
 ## Usage
 
-In your files, `import LeanSAT` will import everything in the library.
+In your files, `import Trestle` will import everything in the library.
 
-Everything in the library is under the `LeanSAT` namespace,
-so we generally assume you also have `open LeanSAT` at the top of your files.
+Everything in the library is under the `Trestle` namespace,
+so we generally assume you also have `open Trestle` at the top of your files.
 
 Important types:
 - `PropFun`: **The mathematical model of a propositional formula**.
@@ -59,7 +59,7 @@ TODO(JG): describe available notation for `PropFun`, `PropForm`
 - Add verified checkers for sat certificates
   - See e.g. [here](https://github.com/joehendrix/lean-sat-checker),
       [here](https://github.com/leanprover-community/mathlib4/blob/master/Mathlib/Tactic/Sat/FromLRAT.lean),
-      [here](https://github.com/leanprover/leansat)
+      [here](https://github.com/leanprover/Trestle)
 - Add verified model counting
   - See [Bryant et al 2023](https://github.com/rebryant/cpog)
 - Add verified pre-processing

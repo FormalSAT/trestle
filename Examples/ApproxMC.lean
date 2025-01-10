@@ -1,13 +1,13 @@
 /-
-Copyright (c) 2024 The LeanSAT Contributors.
+Copyright (c) 2024 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: James Gallicchio
 -/
 
-import LeanSAT
+import Trestle
 
-open LeanSAT
+open Trestle
 
 namespace Examples.ApproxMC
 

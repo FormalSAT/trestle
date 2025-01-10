@@ -1,10 +1,10 @@
-import LeanSAT.Model.PropFun
-import LeanSAT.Encode.EncCNF
-import LeanSAT.Encode.VEncCNF
-import LeanSAT.Solver.Basic
-import LeanSAT.Solver.Dimacs
-import LeanSAT.Data.ICnf
-import LeanSAT.Upstream.ToMathlib
+import Trestle.Model.PropFun
+import Trestle.Encode.EncCNF
+import Trestle.Encode.VEncCNF
+import Trestle.Solver.Basic
+import Trestle.Solver.Dimacs
+import Trestle.Data.ICnf
+import Trestle.Upstream.ToMathlib
 
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Prod.Lex
@@ -12,7 +12,7 @@ import Mathlib.Data.Sum.Order
 import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Tactic
 
-open LeanColls LeanSAT LeanSAT.Model PropFun
+open LeanColls Trestle Trestle.Model PropFun
 
 -- A graph is a symmetric function from two vertices to a boolean
 -- The number of vertices `n` is specified ahead of time
