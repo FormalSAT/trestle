@@ -23,8 +23,7 @@ def D4Command.ModelCount
     IO.ofExcept (.error "d4 does not support blocking variables (all must be blocking)")
 
   IO.FS.withTempFile (fun handle temp => do
-    IO.FS.withFile temp .write (fun handle =>
-      Dimacs.printFormula handle.putStr fml)
+    Dimacs.printFormula handle.putStr fml
 
     let child ← IO.Process.spawn {
       cmd := cmd

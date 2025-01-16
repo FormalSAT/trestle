@@ -54,11 +54,23 @@ def amoPairwise (lits : Array (Literal ν)) :
       simp only [lt_self_iff_false] at hi
   )
 
-def amoSeqCounter (k : Nat := 3) (hk : k ≥ 2) (lits : Array (Literal ν))
-    : VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) :=
 
+/--
+  The sequential counter at-most-one encoding.
+
+  An O(n) encoding constructed by repeatedly taking the first `k` literals
+  from the list `l` such that
+
+    l = a ++ b,  |a| = k
+
+  and replacing `a` with a temporary variable `t` that is true when any literal
+  in `a` is true. This forces the remaining literals in `b` to be false,
+  if the overall AMO constraint is to be satisfied.
+-/
+def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by decide)
+    : VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) :=
   (VEncCNF.ite (lits.size ≤ k)
-    (fun _ => amoPairwise lits) --(lits.map (LitVar.map Sum.inl)))
+    (fun _ => amoPairwise lits)
     (fun _ =>
       let first_k_lits := lits.take k |>.map <| LitVar.map Sum.inl
       let rest := lits.extract k lits.size |>.map <| LitVar.map Sum.inl
@@ -66,32 +78,49 @@ def amoSeqCounter (k : Nat := 3) (hk : k ≥ 2) (lits : Array (Literal ν))
       withTemps 1 (
         seq[
           amoPairwise <| first_k_lits.push <| LitVar.mkPos tmp
-        , amoSeqCounter k hk <| #[LitVar.mkNeg tmp] ++ rest
+        , amoSeqCounter (k := k) (hk := hk) <| #[LitVar.mkNeg tmp] ++ rest
         ]
       )
     )
   ).mapProp (by
     have ⟨list⟩ := lits
     ext τ
-    induction list using List.strong_induction_on
-    rename_i l₁ ih
     split
     · rfl
-    · simp
-      constructor
-      · rintro ⟨τ', rfl, h_take, h_drop⟩
-        by_cases h_tmp : τ' <| Sum.inr 0
-        · simp [h_tmp] at h_take h_drop
-          -- splice these together
-          sorry
-          done
-        · sorry
-          done
-        done
-      · sorry
-        done
-      done
+    · constructor
+      · intro hτ
+        simp at hτ
+        rcases hτ with ⟨σ,rfl, hσ₁, hσ₂⟩
+        by_cases h_tmp : σ (Sum.inr 0)
+        all_goals (
+          try simp only [Fin.isValue, Bool.not_eq_true] at h_tmp
+          simp [h_tmp, ← List.map_take, ← List.map_drop] at hσ₁ hσ₂
+          rw [List.take_of_length_le (by simp only [List.length_drop, le_refl])] at hσ₂
+          have := List.take_append_drop k list
+          simp [atMost]
+          rw [← this, card_append]
+          simp [hσ₁, hσ₂]
+        )
+      · intro h_amo
+        have := List.take_append_drop k list
+        simp [atMost] at h_amo
+        rw [← this, card_append] at h_amo
+        simp at h_amo
+        simp [← List.map_take, ← List.map_drop]
+        -- CC: TODO have a `set` or `pmap` on assignments for sums
+        let τ' : PropAssignment (ν ⊕ Fin 1) := (fun
+            | Sum.inl v => τ v
+            | Sum.inr v => card ↑(List.take k (list)) τ = 0)
+        have h_eq : τ' ∘ Sum.inl = τ := rfl
+        use τ'
+        simp [h_eq]
+        conv => rhs; rw [List.take_of_length_le (by simp only [List.length_drop, le_refl])]
+        constructor <;> (simp [τ']; split <;> omega)
   )
 termination_by lits.size
+
+-- CC: Run it if you want
+--#eval (amoSeqCounter #[LitVar.mkPos 0, LitVar.mkPos 1, LitVar.mkPos 2, LitVar.mkPos 3])
+--  |>.val.toICnf
 
 end Trestle.Encode.Cardinality
