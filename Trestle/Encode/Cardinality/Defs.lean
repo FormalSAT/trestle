@@ -31,17 +31,17 @@ theorem ofList_eq_map_get (L : List α)
     Fin.univ_val_map, List.ofFn_getElem]
 
 @[simp]
-theorem card_singleton (l : Literal ν)
-    : card {l} = (fun τ => if τ ⊨ LitVar.toPropFun l then 1 else 0) := by
-  ext τ
-  sorry
-
-@[simp]
 theorem card_singleton' (l : Literal ν)
     : card [l] = (fun τ => if τ ⊨ LitVar.toPropFun l then 1 else 0) := by
   ext τ
   rw [card, Multiset.coe_countP]
   simp [List.countP, List.countP.go]
+
+@[simp]
+theorem card_singleton (l : Literal ν)
+    : card {l} = (fun τ => if τ ⊨ LitVar.toPropFun l then 1 else 0) := by
+  ext τ
+  simp [← Multiset.coe_singleton]
 
 @[simp]
 theorem card_append (L₁ L₂ : List (Literal ν))
@@ -55,5 +55,15 @@ theorem card_cons (l : Literal ν) (L : List (Literal ν))
   have : l :: L = [l] ++ L := rfl
   rw [this]
   exact card_append _ _
+
+@[simp]
+theorem card_map
+    (L : List (Literal ν)) (f : ν → ν') (τ : PropAssignment ν')
+    : card ((L.map (LitVar.map f)) : List (Literal ν')) τ = card L (τ ∘ f) := by
+  simp only [card, Multiset.coe_countP, List.countP_map]
+  congr
+  ext l
+  simp only [Function.comp_apply, LitVar.toPropFun_map,
+    satisfies_map, decide_eq_decide]
 
 end Trestle.Encode.Cardinality

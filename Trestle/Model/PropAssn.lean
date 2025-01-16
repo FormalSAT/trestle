@@ -177,7 +177,7 @@ theorem agreeOn_setMany_compl [DecidableEq ν] (xs : Finset ν) (τ')
 
 end agreeOn /- section -/
 
-def map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
+abbrev map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
   τ ∘ f
 
 @[simp] theorem get_map : map f τ v = τ (f v) := rfl
