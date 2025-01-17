@@ -5,8 +5,8 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import LeanSAT.Data.Cnf
-import LeanSAT.Model.PropAssn
+import Trestle.Data.Cnf
+import Trestle.Model.PropAssn
 
 namespace Trestle
 
@@ -30,7 +30,7 @@ def set (l : L) : HashAssn L := Std.HashMap.insert self (LitVar.toVar l) (LitVar
 def toLitArray : Array L := Std.HashMap.toArray self |>.map (fun (a,b) => LitVar.mkLit L a b)
 
 def toPropAssn : Model.PropAssignment ν :=
-  fun v => self.find? v |>.getD false
+  fun v => self.get? v |>.getD false
 
 instance [ToString L] : ToString (HashAssn L) where
   toString a := a.toList.map (fun (v,b) => toString (LitVar.mkLit L v b)) |> String.intercalate " "

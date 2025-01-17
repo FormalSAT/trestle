@@ -62,7 +62,7 @@ instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
         b := b'
         let blocking_clause : List ILit :=
           vars.filterMap (fun v =>
-            assn.find? v |>.map (if · then LitVar.mkNeg v else LitVar.mkPos v))
+            assn.get? v |>.map (if · then LitVar.mkNeg v else LitVar.mkPos v))
         let f' := f.push blocking_clause.toArray
         state := some f'
     return b

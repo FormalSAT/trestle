@@ -1,18 +1,18 @@
 /-
-Copyright (c) 2024 The LeanSAT Contributors.
+Copyright (c) 2024 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: James Gallicchio
 -/
 
 import Std.Data.HashMap
-import LeanSAT.Data.Cnf
-import LeanSAT.Data.HashAssn
-import LeanSAT.Data.ICnf
+import Trestle.Data.Cnf
+import Trestle.Data.HashAssn
+import Trestle.Data.ICnf
 
 open Std
 
-namespace LeanSAT.VSolver
+namespace Trestle.VSolver
 
 open Model PropFun
 
