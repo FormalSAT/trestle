@@ -12,7 +12,7 @@ import Trestle.Data.Literal
 import Trestle.Data.HashAssn
 import Trestle.Upstream.ToStd
 import Trestle.Model.Quantifiers
-import Trestle.Encode.IndexType
+import Trestle.Upstream.IndexType
 
 open Std
 
