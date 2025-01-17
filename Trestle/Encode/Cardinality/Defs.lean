@@ -1,12 +1,23 @@
 /-
+Copyright (c) 2024 The Trestle Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
 
-Common definitions of cardinality constraints.
-
+Authors: Cayden Codel, James Gallicchio
 -/
+
 
 import Trestle.Encode.VEncCNF
 
 namespace Trestle.Encode.Cardinality
+
+/-!
+
+## Cardinality specification predicates
+
+This file defines useful predicates for specifying
+the behavior of cardinality encodings.
+
+-/
 
 open VEncCNF Model PropFun
 

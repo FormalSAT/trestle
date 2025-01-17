@@ -1,14 +1,21 @@
 /-
+Copyright (c) 2024 The Trestle Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
 
-At-most one encodings.
-
-TODO: When we accumulate more encodings, split into separate files.
-
+Authors: Cayden Codel
 -/
 
 import Trestle.Encode.Cardinality.Defs
 
 namespace Trestle.Encode.Cardinality
+
+/-
+
+# At-most one encodings
+
+TODO: When we accumulate more encodings, split into separate files.
+
+-/
 
 open VEncCNF Model PropFun
 

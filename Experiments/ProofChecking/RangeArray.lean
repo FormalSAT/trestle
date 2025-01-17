@@ -11,9 +11,9 @@ Carnegie Mellon University
 import Mathlib.Data.Nat.Basic
 import Mathlib.Data.Array.Basic
 import Mathlib.Tactic
-import LeanSAT.Data.CArray
-import LeanSAT.Upstream.ToStd
-import LeanSAT.Upstream.ToMathlib
+import Trestle.Data.CArray
+import Trestle.Upstream.ToStd
+import Trestle.Upstream.ToMathlib
 
 /-
   A structure with a single pool of data in an array, and a system for marking

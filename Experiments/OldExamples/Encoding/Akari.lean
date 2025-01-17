@@ -1,6 +1,6 @@
-import LeanSAT
+import Trestle
 
-open LeanSAT Encode
+open Trestle Encode
 
 namespace Examples.Akari
 

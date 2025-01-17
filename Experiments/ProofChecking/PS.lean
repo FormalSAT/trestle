@@ -12,17 +12,17 @@ Authors: Cayden Codel, Wojciech Nawrocki, James Gallicchio
 Carnegie Mellon University
 -/
 
-import LeanSAT.Data.Cnf
-import LeanSAT.Data.ICnf
---import LeanSAT.AuxDefs
-import LeanSAT.Upstream.ToStd
-import LeanSAT.Upstream.ToMathlib
+import Trestle.Data.Cnf
+import Trestle.Data.ICnf
+--import Trestle.AuxDefs
+import Trestle.Upstream.ToStd
+import Trestle.Upstream.ToMathlib
 import Mathlib.Data.Nat.Basic
-import LeanSAT.Model.Quantification
-import LeanSAT.Model.PropFun
-import LeanSAT.Data.PPA
+import Trestle.Model.Quantification
+import Trestle.Model.PropFun
+import Trestle.Data.PPA
 
-open LeanSAT LeanSAT.Model Nat
+open Trestle Trestle.Model Nat
 open LitVar ILit IVar LawfulLitVar
 open PropFun
 
