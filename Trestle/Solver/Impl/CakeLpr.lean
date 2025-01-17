@@ -1,29 +1,25 @@
 /-
-Copyright (c) 2024 The LeanSAT Contributors.
+Copyright (c) 2024 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: James Gallicchio
 -/
 
-import LeanSAT.Solver.Basic
-import LeanSAT.Solver.Dimacs
+import Trestle.Solver.Basic
+import Trestle.Solver.Dimacs
 
-import LeanSAT.Util.MkFIFO
-
-namespace LeanSAT.Solver.Impl
+namespace Trestle.Solver.Impl
 
 namespace CakeLpr
 
 def runCakeLpr (cake_lpr : String := "cake_lpr") (fml : ICnf) (proof : System.FilePath)
     : IO Bool :=
-  Util.withTempFIFO fun cnfPath => do
+  IO.FS.withTempFile fun cnfHandle cnfPath => do
   let cakeProc ← IO.Process.spawn {
     cmd := cake_lpr
     args := #[cnfPath.toString, proof.toString]
     stdout := .piped
   }
-  -- Note: opening a FIFO file to write blocks until someone opens the FIFO file to read
-  let cnfHandle ← IO.FS.Handle.mk cnfPath .write
   Dimacs.printFormula (cnfHandle.putStr) fml
   cnfHandle.flush
   let output ← IO.asTask cakeProc.stdout.readToEnd Task.Priority.dedicated
@@ -35,7 +31,7 @@ end CakeLpr
 
 def CakeLpr (solverCmd : String) (solverFlags : Array String := #[]) (cakelprCmd : String := "cake_lpr") : Solver IO where
   solve := fun fml =>
-    Util.withTempFIFO fun proofPath => do
+    IO.FS.withTempFile fun _proofHandle proofPath => do
     let solver ← IO.Process.spawn {
       cmd := solverCmd
       args := solverFlags ++ #["-", proofPath.toString]
@@ -85,10 +81,10 @@ Example:
 -/
 syntax "#cakelpr_check_unsat " ident : command
 
-@[inherit_doc LeanSAT.Solver.Impl.CakeLpr.«command#cakelpr_check_unsat_»]
+@[inherit_doc Trestle.Solver.Impl.CakeLpr.«command#cakelpr_check_unsat_»]
 syntax "#cakelpr_check_unsat " ident " withProofFile " term : command
 
-@[inherit_doc LeanSAT.Solver.Impl.CakeLpr.«command#cakelpr_check_unsat_»]
+@[inherit_doc Trestle.Solver.Impl.CakeLpr.«command#cakelpr_check_unsat_»]
 syntax "#cakelpr_check_unsat " ident " withCompFile " term " withHashFile " term : command
 
 macro_rules
