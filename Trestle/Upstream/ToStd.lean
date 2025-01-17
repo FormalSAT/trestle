@@ -6,28 +6,6 @@ Authors: James Gallicchio, Cayden Codel
 -/
 
 import Std
---import Std.DHashMap.Internal.AssocList
-
-protected theorem List.strong_induction_on
-    {motive : List α → Prop} (l : List α)
-    (h : ∀ l₁, (∀ l₂, length l₂ < length l₁ → motive l₂) → motive l₁) : motive l := by
-  cases l with
-  | nil => apply h; simp
-  | cons hd tl =>
-    suffices ∀ (l₁ l₂ : List α), l₂.length < l₁.length → motive l₂ by
-      exact this (hd :: (hd :: tl)) (hd :: tl) (Nat.lt_add_one (hd :: tl).length)
-    intro l₁
-    induction l₁ with
-    | nil => simp
-    | cons hd' tl' ih =>
-      intro l₂ hl₂
-      simp [Nat.lt_succ_iff] at hl₂
-      rcases Nat.eq_or_lt_of_le hl₂ with (hl₂ | hl₂)
-      · have := h l₂
-        rw [hl₂] at this
-        exact this ih
-        done
-      · exact ih _ hl₂
 
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
