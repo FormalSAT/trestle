@@ -1,8 +1,8 @@
-import LeanSAT.Encode.EncCNF
-import LeanSAT.Encode.Tseitin
-import LeanSAT.Preprocess.BlockedClauseElim
+import Trestle.Encode.EncCNF
+import Trestle.Encode.Tseitin
+import Trestle.Preprocess.BlockedClauseElim
 
-namespace LeanSAT.Encode
+namespace Trestle.Encode
 
 open Model EncCNF Tseitin
 

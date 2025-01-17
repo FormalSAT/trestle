@@ -1,8 +1,8 @@
-import LeanSAT.Encode.VEncCNF
-import LeanSAT.Encode.Tseitin
-import LeanSAT.Encode.Card
+import Trestle.Encode.VEncCNF
+import Trestle.Encode.Tseitin
+import Trestle.Encode.Cardinality
 
-namespace LeanSAT.Encode
+namespace Trestle.Encode
 
 open VEncCNF Model PropFun
 
@@ -10,7 +10,7 @@ variable [LitVar L ν] [LawfulLitVar L ν]
     [DecidableEq L] [DecidableEq ν]
 
 
-open EncCNF (WithTemps) in
+open Cardinality in
 /-- At-most-one cut4 encoding. The literals are divided into many small groups,
 like `lits = L₁ ++ L₂ ++ ... ++ Lₙ`.
 Then we add `n` auxiliary variables `tᵢ` representing whether a literal
@@ -18,7 +18,7 @@ to the left of `Lᵢ` is true.
 Then we can encode "at most one of `lits`" as a conjunction:
 - ∀ i, at most one of `[tᵢ] ++ Lᵢ ++ [¬tᵢ₊₁]`
 -/
-def amoCut4 (lits : Array L) (h : lits.size > 4) : VEncCNF L Unit (atMost 1 (Multiset.ofList lits.data)) :=
+def amoCut4 (lits : Array L) (h : lits.size > 4) : VEncCNF L Unit (atMost 1 (Multiset.ofList lits.toList)) :=
   let firstGrpSize := 3
   let middleGrps := (lits.size - 5) / 2
   let lastGrpSize := lits.size - firstGrpSize - 2 * middleGrps

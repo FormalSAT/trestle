@@ -1,8 +1,8 @@
-import LeanSAT.Data.Cnf
+import Trestle.Data.Cnf
 import Std.Data.HashMap
-import LeanSAT.Upstream.ToStd
+import Trestle.Upstream.ToStd
 
-namespace LeanSAT.Preprocess.BlockedClauseElim
+namespace Trestle.Preprocess.BlockedClauseElim
 
 open List
 

@@ -12,7 +12,7 @@ Carnegie Mellon University
 
 import Mathlib.Data.Array.Basic
 import Mathlib.Data.Nat.Basic
-import LeanSAT.Upstream.ToStd
+import Trestle.Upstream.ToStd
 
 structure CArray (α : Type _) where
   data : Array α

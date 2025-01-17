@@ -7,16 +7,16 @@ Carnegie Mellon University
 
 -/
 
-import LeanSAT.Data.Cnf
-import LeanSAT.Data.ICnf
-import LeanSAT.Data.PPA
-import LeanSAT.Data.PS
-import LeanSAT.Model.PropFun
-import LeanSAT.Model.Quantification
+import Trestle.Data.Cnf
+import Trestle.Data.ICnf
+import Trestle.Data.PPA
+import Trestle.Data.PS
+import Trestle.Model.PropFun
+import Trestle.Model.Quantification
 
 namespace SR
 
-open LeanSAT LeanSAT.Model Nat
+open Trestle Trestle.Model Nat
 open PPA PS LitVar ILit IVar LawfulLitVar PropFun
 open ResultT
 

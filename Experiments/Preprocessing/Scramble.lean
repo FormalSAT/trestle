@@ -1,6 +1,6 @@
-import LeanSAT.Encode.EncCNF
+import Trestle.Encode.EncCNF
 
-namespace LeanSAT.Encode.EncCNF
+namespace Trestle.Encode.EncCNF
 
 def LawfulState.scramble (s : LawfulState L ν) : IO (LawfulState L ν) := do
   let clauseScrambled ← s.cnf.mapM fun clause => do

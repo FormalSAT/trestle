@@ -2,7 +2,7 @@ import Examples.Encoding.Akari
 import Examples.Encoding.NumberLink
 import Examples.Encoding.Yajilin
 
-open LeanSAT Examples
+open Trestle Examples
 
 /-
 The encoding examples require at least one solver present,

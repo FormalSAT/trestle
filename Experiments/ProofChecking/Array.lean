@@ -1,6 +1,6 @@
 import Std
 import Init.Data.Nat.Basic
-import LeanSAT.Upstream.ToStd
+import Trestle.Upstream.ToStd
 
 namespace Array
 
