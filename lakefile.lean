@@ -12,4 +12,4 @@ lean_lib Examples {
   globs := #[.submodules `Examples]
 }
 
-require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "584f39cda63a699d6f7e417321885d5e452aa304"
+require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.15.0"
