@@ -22,37 +22,100 @@ open Model
 
 namespace EncCNF
 
+structure VarAlloc (ν : Type u) [BEq ν] [Hashable ν] where
+  nextVar : PNat
+  vMap : HashMap ν IVar
+  -- vMap is injective on its domain
+  vMap_inj : ∀ (v₁ v₂ : ν) (x : IVar),
+    vMap[v₁]? = some x →
+    vMap[v₂]? = some x → v₁ == v₂
+  -- vMap is all less than nextVar
+  vMap_lt : ∀ (v : ν) (x : IVar),
+    vMap[v]? = some x → x < nextVar
+
+namespace VarAlloc
+
+variable [BEq ν] [EquivBEq ν] [Hashable ν] [LawfulHashable ν]
+
+def init : VarAlloc ν where
+  nextVar := 1
+  vMap := .empty
+  vMap_inj := by simp
+  vMap_lt := by simp
+
+def get (v : ν) : StateM (VarAlloc ν) IVar :=
+  fun alloc =>
+    match h : alloc.vMap[v]? with
+    | some i => (i, alloc)
+    | none =>
+      let i := alloc.nextVar
+      (i, {
+        nextVar := i + 1
+        vMap := alloc.vMap.insert v i
+        vMap_lt := by
+          intro v' x h
+          rw [HashMap.getElem?_insert] at h
+          split_ifs at h with h'
+          · simp at h; rw [h]; exact PNat.lt_add_right x 1
+          · have := alloc.vMap_lt v' x h
+            apply Nat.lt_add_right _ this
+        vMap_inj := by
+          intro v1 v2 x h1 h2
+          rw [HashMap.getElem?_insert] at h1 h2
+          split_ifs at h1 h2 with hl hr
+          · apply EquivBEq.toPartialEquivBEq.trans
+            · apply EquivBEq.toPartialEquivBEq.symm hl
+            · apply hr
+          · have := alloc.vMap_lt _ _ (h1 ▸ h2)
+            simp [i] at this
+          · have := alloc.vMap_lt _ _ (h2 ▸ h1)
+            simp [i] at this
+          · apply alloc.vMap_inj _ _ _ h1 h2
+      })
+
+theorem get_idempotent {a a' : VarAlloc ν} {v : ν} {x} :
+    (get v) a = (x,a') → (get v) a' = (x,a') := by
+  intro h
+  unfold get at h
+  split at h
+  · cases h; simp [get]; split <;> simp_all
+  · simp at h; cases h; simp [get]; split <;> simp_all
+
+theorem get_trans {a a' a'' : VarAlloc ν} {v₁ v₂ : ν} {x₁ x₂} :
+    (get v₁) a = (x₁, a') → (get v₂) a' = (x₂, a'') → 
+end VarAlloc
+
+
 /-- State for an encoding.
 
-We need to parameterize by literal type `L` (and variable `ν`),
-because otherwise we need to prove everywhere that clauses are "within range"
+
 -/
 @[ext]
-structure State (ν : Type u) where
-  nextVar : PNat
+structure State (ν : Type u) [BEq ν] [Hashable ν] where
+  vars : VarAlloc ν
   cnf : ICnf
-  vMap : ν → IVar
   /-- assume `¬assumeVars` in each new clause -/
   assumeVars : Clause (Literal ν)
 
 namespace State
 
-variable [LitVar L ν]
+variable [LitVar L ν] [BEq ν] [EquivBEq ν] [Hashable ν] [LawfulHashable ν]
 
-def new (vars : PNat) (f : ν → IVar) : State ν := {
-  nextVar := vars
+def new (varAlloc : VarAlloc ν := VarAlloc.init) : State ν := {
+  vars := varAlloc
   cnf := #[]
-  vMap := f
   assumeVars := #[]
 }
 
 def addClause (C : Clause (Literal ν)) : State ν → State ν
-| {nextVar, cnf, vMap, assumeVars} => {
-  nextVar := nextVar
-  vMap := vMap
-  assumeVars := assumeVars
-  cnf := cnf.addClause ((Clause.or assumeVars C).map _ vMap)
-}
+| {vars, cnf, assumeVars} =>
+  let (mappedClause, vars) :=
+    (Clause.or assumeVars C).map vars.get
+  {
+    vars := vars
+    assumeVars := assumeVars
+    cnf := cnf.addClause (vMap)
+  }
 
 @[simp] theorem toPropFun_addClause (C : Clause (Literal ν)) (s)
   : (addClause C s).cnf.toPropFun = s.cnf.toPropFun ⊓ PropFun.map s.vMap (s.assumeVarsᶜ ⇨ C)
