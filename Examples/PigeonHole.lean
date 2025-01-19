@@ -7,7 +7,7 @@ Authors: James Gallicchio
 
 import Trestle
 
-open LeanColls Trestle Encode VEncCNF
+open Trestle Encode VEncCNF
 
 structure Var (n : Nat) where
   pigeon : Fin (n+1)
@@ -23,13 +23,13 @@ def holesWithPigeon (p : Fin (n+1)) : List (Literal (Var n)) :=
 
 def encoding (n) : VEncCNF (Var n) Unit (fun τ =>
     (∀ p, ∃ h, τ (Var.mk p h)) ∧
-    (∀ h, atMost 1 (Multiset.ofList <| pigeonsInHole h) τ)
+    (∀ h, Cardinality.atMost 1 (Multiset.ofList <| pigeonsInHole h) τ)
   ) :=
   seq[
     for_all (List.toArray <| List.finRange (n+1)) fun p =>
       addClause (List.toArray (holesWithPigeon p))
   , for_all (List.toArray (List.finRange n)) fun h =>
-      amoPairwise (List.toArray (pigeonsInHole h))
+      Cardinality.amoSeqCounter (List.toArray (pigeonsInHole h))
   ]
   |>.mapProp (by
     ext τ

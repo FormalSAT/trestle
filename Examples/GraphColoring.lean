@@ -5,6 +5,7 @@ import Trestle.Solver.Basic
 import Trestle.Solver.Dimacs
 import Trestle.Data.ICnf
 import Trestle.Upstream.ToMathlib
+import Trestle.Upstream.IndexTypeInstances
 
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Prod.Lex
@@ -12,7 +13,7 @@ import Mathlib.Data.Sum.Order
 import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Tactic
 
-open LeanColls Trestle Trestle.Model PropFun
+open Trestle Trestle.Model PropFun
 
 -- A graph is a symmetric function from two vertices to a boolean
 -- The number of vertices `n` is specified ahead of time
@@ -92,7 +93,7 @@ def vertexColorClauses (n : Nat) : VCnf n (vertexColorConstraints n) :=
   ( let U := (Array.finRange n)
     for_all U fun v =>
       vertexColorClause v)
-  |> mapProp (by ext τ; apply forall_congr'; simp)
+  |> mapProp (by ext τ; apply forall_congr'; simp [Array.mem_def])
 
 def adjacentVertexesClauses (G : Graph n) [DecidableRel G.Adj] : VCnf n (edgeConstraints G) :=
   ( let U := (Array.finRange n)
@@ -108,7 +109,7 @@ def adjacentVertexesClauses (G : Graph n) [DecidableRel G.Adj] : VCnf n (edgeCon
       ])
   |> mapProp (by
     ext τ
-    simp [edgeConstraints, adjacentVertexesGetDifferentColors, Clause.toPropFun]
+    simp [edgeConstraints, adjacentVertexesGetDifferentColors, Clause.toPropFun, Array.mem_def]
     apply forall_congr'; intro u
     apply forall_congr'; intro v
     aesop)

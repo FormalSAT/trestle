@@ -202,7 +202,7 @@ instance : LawfulMonad (EncCNF ν) where
   bind_assoc := by
     intros; simp [bind]; rfl
 
-def run [IndexType.{_,0} ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
+def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
   e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
 
 def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf := (run e).2.cnf
