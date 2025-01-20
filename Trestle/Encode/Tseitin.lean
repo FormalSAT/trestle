@@ -140,7 +140,7 @@ def encodeNNF_mkDefs (t : ν) (emb : ν' ↪ ν) (f : NegNormForm ν')
       biImpl (LitVar.mkPos t) (LitVar.map emb l)
       |>.mapProp (by simp)
   | .and a b =>
-      withTemps 2 (
+      withTemps (Fin 2) (
         seq[
           encodeNNF_mkDefs
             (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
@@ -162,7 +162,7 @@ def encodeNNF_mkDefs (t : ν) (emb : ν' ↪ ν) (f : NegNormForm ν')
             | .inr 1 => τ.map emb ⊨ b.toPropFun
           aesop)
   | .or a b =>
-      withTemps 2 (
+      withTemps (Fin 2) (
         seq[
           encodeNNF_mkDefs
             (.inr 0) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) a
@@ -193,7 +193,7 @@ def encodeNNF (f : NegNormForm ν) : VEncCNF ν Unit (· ⊨ f.toPropFun) :=
   | .and a b =>
     seq[ encodeNNF a, encodeNNF b].mapProp (by simp)
   | .or a b =>
-    withTemps 2 (
+    withTemps (Fin 2) (
       seq[ encodeNNF_mkDefs (.inr 0) ⟨Sum.inl,Sum.inl_injective⟩ a
         ,  encodeNNF_mkDefs (.inr 1) ⟨Sum.inl,Sum.inl_injective⟩ b
         ,  addClause #[LitVar.mkPos (.inr 0), LitVar.mkPos (.inr 1)]

@@ -13,6 +13,7 @@ import Trestle.Data.HashAssn
 import Trestle.Upstream.ToStd
 import Trestle.Model.Quantifiers
 import Trestle.Upstream.IndexType
+import Trestle.Upstream.IndexTypeInstances
 
 open Std
 
@@ -242,22 +243,22 @@ def addAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit 
 
 /-! ### Temporaries -/
 
-def State.withTemps (s : State ν) : State (ν ⊕ Fin n) where
-  nextVar := ⟨s.nextVar + n, by simp⟩
+def State.withTemps [IndexType ι] (s : State ν) : State (ν ⊕ ι) where
+  nextVar := ⟨s.nextVar + IndexType.card ι, by simp⟩
   cnf := s.cnf
   vMap := vMap
   assumeVars := s.assumeVars.map _ (Sum.inl ·)
 where vMap (x) :=
   match x with
   | Sum.inl v => s.vMap v
-  | Sum.inr i => ⟨s.nextVar + i, by simp⟩
+  | Sum.inr i => ⟨s.nextVar + IndexType.toFin i, by simp⟩
 
-@[simp] theorem State.cnf_withTemps (s : State ν) :
-    (State.withTemps s (n := n)).cnf = s.cnf
+@[simp] theorem State.cnf_withTemps [IndexType ι] (s : State ν) :
+    (State.withTemps s (ι := ι)).cnf = s.cnf
   := by simp [State.withTemps]
 
-def LawfulState.withTemps (s : LawfulState ν)
-  : LawfulState (ν ⊕ Fin n) where
+def LawfulState.withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν)
+  : LawfulState (ν ⊕ ι) where
   toState := s.toState.withTemps
   cnfVarsLt := by
     simp [State.withTemps]
@@ -281,19 +282,22 @@ def LawfulState.withTemps (s : LawfulState ν)
     · intro h; simp [State.withTemps.vMap] at h; have := h.symm ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
     · simp [State.withTemps.vMap]; rw [Subtype.mk_eq_mk]
       intro h
-      apply Fin.eq_of_val_eq; apply Nat.add_left_cancel h
+      replace h := Nat.add_left_cancel h
+      replace h := Fin.eq_of_val_eq h
+      rw [IndexType.toFin_eq_iff] at h
+      exact h
 
-@[simp] theorem LawfulState.vMap_withTemps (s : LawfulState ν) :
-    (s.withTemps (n := n)).vMap = State.withTemps.vMap s.toState
+@[simp] theorem LawfulState.vMap_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν) :
+    (s.withTemps (ι := ι)).vMap = State.withTemps.vMap s.toState
   := by simp [LawfulState.withTemps, State.withTemps]
 
-@[simp] theorem LawfulState.assumeVars_withTemps (s : LawfulState ν) :
-    (s.withTemps (n := n)).assumeVars = s.assumeVars.map _ Sum.inl
+@[simp] theorem LawfulState.assumeVars_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν) :
+    (s.withTemps (ι := ι)).assumeVars = s.assumeVars.map _ Sum.inl
   := by simp [LawfulState.withTemps, State.withTemps]
 
 @[simp]
-theorem LawfulState.interp_withTemps (s : LawfulState ν) (n)
-    : (s.withTemps (n := n)).interp = fun τ => s.interp (τ.map Sum.inl) := by
+theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν)
+    : (s.withTemps (ι := ι)).interp = fun τ => s.interp (τ.map Sum.inl) := by
   ext τ
   simp [interp, withTemps, State.withTemps]
   constructor
@@ -305,7 +309,7 @@ theorem LawfulState.interp_withTemps (s : LawfulState ν) (n)
     cases hσ'
     simp [PropAssignment.map] at h2 ⊢
     use σ.setMany
-      (Finset.univ.image (State.withTemps.vMap (n := n) s.toState <| Sum.inr ·))
+      (Finset.univ.image (State.withTemps.vMap (ι := ι) s.toState <| Sum.inr ·))
       σ'
     constructor
     · ext vot
@@ -332,21 +336,21 @@ theorem LawfulState.interp_withTemps (s : LawfulState ν) (n)
       exact Nat.lt_add_right _ this
 
 
-def State.withoutTemps (vMap : ν → IVar) (assumeVars : Array (Literal ν)) (s : State (ν ⊕ Fin n)) : State ν where
+def State.withoutTemps (vMap : ν → IVar) (assumeVars : Array (Literal ν)) (s : State (ν ⊕ ι)) : State ν where
   nextVar := s.nextVar
   cnf := s.cnf
   vMap := vMap
   assumeVars := assumeVars
 
 @[simp] theorem State.vMap_withoutTemps (s : State _) :
-    (State.withoutTemps (ν := ν) (n := n) vm av s).vMap = vm
+    (State.withoutTemps (ν := ν) (ι := ι) vm av s).vMap = vm
   := by simp [State.withoutTemps]
 
 @[simp] theorem State.assumeVars_withoutTemps (s : State _) :
-    (State.withoutTemps (ν := ν) (n := n) vm av s).assumeVars = av
+    (State.withoutTemps (ν := ν) (ι := ι) vm av s).assumeVars = av
   := by simp [State.withoutTemps]
 
-def LawfulState.withoutTemps (s : LawfulState (ν ⊕ Fin n))
+def LawfulState.withoutTemps (s : LawfulState (ν ⊕ ι))
     (vMap : ν → IVar) (vMapLt : ∀ v, vMap v < s.nextVar) (vMapInj : vMap.Injective)
     (assumeVars : Array (Literal ν))
     : LawfulState ν where
@@ -365,18 +369,18 @@ def LawfulState.withoutTemps (s : LawfulState (ν ⊕ Fin n))
     simp [State.withoutTemps]
     apply vMapInj
 
-@[simp] theorem LawfulState.vMap_withoutTemps (s : LawfulState (ν ⊕ Fin n))
+@[simp] theorem LawfulState.vMap_withoutTemps (s : LawfulState (ν ⊕ ι))
     {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).vMap = vMap
   := by simp [LawfulState.withoutTemps]
 
-@[simp] theorem LawfulState.assumeVars_withoutTemps (s : LawfulState (ν ⊕ Fin n))
+@[simp] theorem LawfulState.assumeVars_withoutTemps (s : LawfulState (ν ⊕ ι))
     {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
     : (LawfulState.withoutTemps s vMap vMapLt vMapInj av).assumeVars = av
   := by simp [LawfulState.withoutTemps]
 
 theorem LawfulState.interp_withoutTemps
-    (s : LawfulState (ν ⊕ Fin n))
+    (s : LawfulState (ν ⊕ ι))
     {vMap : ν → IVar} {vMapLt : ∀ v, vMap v < s.nextVar} {vMapInj : vMap.Injective}
     (h : vMap = s.vMap ∘ Sum.inl)
     : LawfulState.interp (LawfulState.withoutTemps s vMap vMapLt vMapInj av) =
@@ -392,7 +396,7 @@ def nextVar_mono_of_eq {e : EncCNF ν α} (h : e.1 s = (a, s')) :
   have := h ▸ e.2 s
   exact this
 
-def withTemps (n) (e : EncCNF (ν ⊕ Fin n) α) : EncCNF ν α :=
+def withTemps (ι) [IndexType ι] [LawfulIndexType ι] (e : EncCNF (ν ⊕ ι) α) : EncCNF ν α :=
   ⟨ fun s =>
     let vMap := s.vMap
     let vMapInj := s.vMapInj
@@ -403,13 +407,13 @@ def withTemps (n) (e : EncCNF (ν ⊕ Fin n) α) : EncCNF ν α :=
         intro v; apply Nat.lt_of_lt_of_le (m := s.nextVar)
         · apply s.vMapLt
         · have := e.nextVar_mono_of_eq h
-          apply Nat.le_trans (m := s.nextVar + n)
+          apply Nat.le_trans (m := s.nextVar + IndexType.card ι)
           · simp
           · exact (PNat.coe_le_coe ..).mp this
       ) vMapInj assumeVars)
   , by simp [LawfulState.withoutTemps, State.withoutTemps]
        intro s; split; simp; have := e.nextVar_mono_of_eq ‹_›
        simp [LawfulState.withTemps, State.withTemps] at this
-       apply Nat.le_trans (m := s.nextVar + n)
+       apply Nat.le_trans (m := s.nextVar + IndexType.card ι)
        · apply Nat.le_add_right
        · exact (PNat.coe_le_coe ..).mp this⟩

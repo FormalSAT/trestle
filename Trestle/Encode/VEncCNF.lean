@@ -169,15 +169,15 @@ def assuming (ls : Array (Literal ν)) (e : VEncCNF ν α P)
 open PropFun in
 set_option pp.proofs.withType false in
 @[inline]
-def withTemps (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
-    (ve : VEncCNF (ν ⊕ Fin n) α P) :
+def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν ⊕ ι) → Prop}
+    (ve : VEncCNF (ν ⊕ ι) α P) :
     VEncCNF ν α (fun τ => ∃ σ, τ = σ.map Sum.inl ∧ P σ) :=
   ⟨EncCNF.withTemps _ ve.1, by
     intro ls_pre ls_post'
     -- give various expressions names and specialize hypotheses
     have def_ls_post : ls_post' = Prod.snd _ := rfl
     generalize ls_post' = ls_post at *; clear ls_post'
-    generalize def_ls_post_pair : (EncCNF.withTemps n ve.1).1 ls_pre = ls_post_pair
+    generalize def_ls_post_pair : (EncCNF.withTemps ι ve.1).1 ls_pre = ls_post_pair
       at def_ls_post
     unfold EncCNF.withTemps at def_ls_post_pair
     simp (config := {zeta := false}) at def_ls_post_pair
@@ -188,7 +188,7 @@ def withTemps (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
     generalize_proofs h
     subst def_ls_post_pair
     simp [vMap, assumeVars] at def_ls_post; clear vMap assumeVars
-    generalize def_ls_pre_temps : LawfulState.withTemps ls_pre = ls_pre_temps
+    generalize def_ls_pre_temps : LawfulState.withTemps (ι := ι) ls_pre = ls_pre_temps
     rw [def_ls_pre_temps] at def_pair
     -- extract relationship between ls_pre_temps and ls_post_temps
     have ls_temps_nextVar := ve.1.2 ls_pre_temps
@@ -213,7 +213,7 @@ def withTemps (n) {P : PropAssignment (ν ⊕ Fin n) → Prop}
         . rcases h2 h with ⟨σ, rfl, _⟩
           use σ; simp
           tauto
-        . let σ : PropAssignment (ν ⊕ Fin n) := fun | .inl x => τ x | _ => false
+        . let σ : PropAssignment (ν ⊕ ι) := fun | .inl x => τ x | _ => false
           use σ
           have : τ = PropAssignment.map Sum.inl σ := funext fun x => by simp only [PropAssignment.get_map]
           tauto

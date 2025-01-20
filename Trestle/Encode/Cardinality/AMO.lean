@@ -81,8 +81,8 @@ def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by
     (fun _ =>
       let first_k_lits := lits.take k |>.map <| LitVar.map Sum.inl
       let rest := lits.extract k lits.size |>.map <| LitVar.map Sum.inl
-      let tmp := Sum.inr 0
-      withTemps 1 (
+      let tmp := Sum.inr ()
+      withTemps Unit (
         seq[
           amoPairwise <| first_k_lits.push <| LitVar.mkPos tmp
         , amoSeqCounter (k := k) (hk := hk) <| #[LitVar.mkNeg tmp] ++ rest
@@ -98,7 +98,7 @@ def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by
       · intro hτ
         simp at hτ
         rcases hτ with ⟨σ,rfl, hσ₁, hσ₂⟩
-        by_cases h_tmp : σ (Sum.inr 0)
+        by_cases h_tmp : σ (Sum.inr ())
         all_goals (
           try simp only [Fin.isValue, Bool.not_eq_true] at h_tmp
           simp [h_tmp, ← List.map_take, ← List.map_drop] at hσ₁ hσ₂
@@ -115,7 +115,7 @@ def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by
         simp at h_amo
         simp [← List.map_take, ← List.map_drop]
         -- CC: TODO have a `set` or `pmap` on assignments for sums
-        let τ' : PropAssignment (ν ⊕ Fin 1) := (fun
+        let τ' : PropAssignment (ν ⊕ Unit) := (fun
             | Sum.inl v => τ v
             | Sum.inr v => card ↑(List.take k (list)) τ = 0)
         have h_eq : τ' ∘ Sum.inl = τ := rfl
