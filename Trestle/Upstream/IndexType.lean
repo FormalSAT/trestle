@@ -173,6 +173,10 @@ theorem mem_toList_univ [IndexType α] [LawfulIndexType α] (x) : x ∈ (toList 
 instance (priority := default) : DecidableEq ι := by
   intro x y; rw [← toFin_eq_iff]; infer_instance
 
+instance : Fintype ι where
+  elems := (toList ι).toFinset
+  complete := by simp
+
 
 /-! #### Transport over equivalence -/
 
