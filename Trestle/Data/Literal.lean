@@ -31,5 +31,5 @@ instance : LawfulLitVar (Literal ν) ν where
   polarity_mkNeg := by aesop
   ext := by intro l1 l2; cases l1; cases l2; aesop
 
-abbrev pos : ν → Literal ν := LitVar.mkPos
-abbrev neg : ν → Literal ν := LitVar.mkNeg
+@[simp] abbrev pos : ν → Literal ν := LitVar.mkPos
+@[simp] abbrev neg : ν → Literal ν := LitVar.mkNeg
