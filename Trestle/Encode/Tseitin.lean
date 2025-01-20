@@ -180,16 +180,16 @@ open PropFun in
 /-- Tseitin encoding in the general case creates temporaries for each clause -/
 def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [DecidableEq ν]
         (t : ν) (emb : ν' ↪ ν) (f : NegNormForm L')
-  : VEncCNF ν Unit (fun τ => τ t ↔ τ ⊨ f.toPropFun.map emb) :=
+  : VEncCNF ν Unit (fun τ => τ t → τ ⊨ f.toPropFun.map emb) :=
   match f with
   | .tr =>
-      addClause #[LitVar.mkPos t]
-      |>.mapProp (by simp [Clause.toPropFun, PropFun.any])
+      VEncCNF.pure ()
+      |>.mapProp (by simp; rfl)
   | .fls =>
       addClause #[LitVar.mkNeg t]
       |>.mapProp (by simp [Clause.toPropFun, PropFun.any])
   | .lit l =>
-      biImpl (LitVar.mkPos t) (LitVar.map emb l)
+      imply (LitVar.mkPos t) (LitVar.map emb l)
       |>.mapProp (by simp)
   | .all as =>
       withTemps as.size (
@@ -198,7 +198,7 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
             encodeNNF_mkDefs (L := Literal _)
               (.inr i) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) (as[i.val]'i.isLt)
           )
-        , defConj (Literal.pos <| Sum.inl t) (Array.ofFn (Literal.pos <| Sum.inr ·))
+        , implyAnd (Literal.pos <| Sum.inl t) (Array.ofFn (Literal.pos <| Sum.inr ·))
         ]
       ) |>.mapProp (by
         ext τ
@@ -223,7 +223,7 @@ def encodeNNF_mkDefs [LitVar L ν] [LitVar L' ν'] [LawfulLitVar L ν] [Decidabl
             encodeNNF_mkDefs (L := Literal _)
               (.inr i) (emb.trans ⟨Sum.inl,Sum.inl_injective⟩) (as[i.val]'i.isLt)
           )
-        , defDisj (Literal.pos <| Sum.inl t) (Array.ofFn (Literal.pos <| Sum.inr ·))
+        , implyOr (Literal.pos <| Sum.inl t) (Array.ofFn (Literal.pos <| Sum.inr ·))
         ]
       ) |>.mapProp (by
         ext τ
