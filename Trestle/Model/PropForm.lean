@@ -51,7 +51,7 @@ instance [ToString ν] : ToString (PropForm ν) :=
 
 instance : Coe L (PropForm L) := ⟨.var⟩
 
-def conj' (fs : List (PropForm L)) : PropForm L :=
+def all (fs : List (PropForm L)) : PropForm L :=
   match fs.foldr (init := none) (fun f =>
     fun
     | none => some f
@@ -60,7 +60,10 @@ def conj' (fs : List (PropForm L)) : PropForm L :=
   | none => .tr
   | some f => f
 
-def disj' (fs : List (PropForm L)) : PropForm L :=
+@[deprecated all (since := "20 Jan 2025")]
+abbrev conj' (fs : List (PropForm L)) : PropForm L := all fs
+
+def any (fs : List (PropForm L)) : PropForm L :=
   match fs.foldr (init := none) (fun f =>
     fun
     | none => some f
@@ -68,6 +71,9 @@ def disj' (fs : List (PropForm L)) : PropForm L :=
   ) with
   | none => .fls
   | some f => f
+
+@[deprecated any (since := "20 Jan 2025")]
+abbrev disj' (fs : List (PropForm L)) : PropForm L := any fs
 
 /-- The unique extension of `τ` from variables to formulas. -/
 @[simp]
