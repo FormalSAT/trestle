@@ -32,6 +32,18 @@ namespace NegNormForm
 
 variable [LitVar L ν]
 
+def toPropForm (r : NegNormForm L) : PropForm ν :=
+  match r with
+  | .all as => PropForm.conj' (
+      as.attach.map (fun ⟨x,_h⟩ => toPropForm x)
+    ).toList
+  | .any as => PropForm.disj' (
+      as.attach.map (fun ⟨x,_h⟩ => toPropForm x)
+    ).toList
+  | .lit l => LitVar.toPropForm l
+  | .tr => .tr
+  | .fls => .fls
+
 def toPropFun (r : NegNormForm L) : PropFun ν :=
   match r with
   | .all as => PropFun.all (as.attach.map (fun ⟨x,_h⟩ =>
