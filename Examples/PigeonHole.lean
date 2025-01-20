@@ -33,8 +33,7 @@ def encoding (n) : VEncCNF (Var n) Unit (fun τ =>
   ]
   |>.mapProp (by
     ext τ
-    simp [holesWithPigeon, Clause.satisfies_iff, LitVar.satisfies_iff
-        , LitVar.toVar, LitVar.polarity]
+    simp [holesWithPigeon, Clause.satisfies_iff, LitVar.satisfies_iff]
   )
 
 def main (args : List String) : IO Unit := do
