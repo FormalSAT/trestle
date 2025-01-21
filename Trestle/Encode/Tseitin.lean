@@ -186,19 +186,66 @@ attribute [local simp] NegNormForm.toPropFun
 
 section encodeNNF
 
+def separateLits (A : Array (NegNormForm ν)) : Array (Literal ν) × Array (NegNormForm ν) :=
+  ( A.filterMap (fun | .lit l => some l | _ => none)
+  , A.filter (fun | .lit _ => false | _ => true)
+  )
+
+theorem separateLits_append_perm (A : Array (NegNormForm ν))
+  : List.Perm ((separateLits A).1.map (NegNormForm.lit ·) ++ (separateLits A).2).toList A.toList
+  := by
+  rcases A with ⟨A⟩
+  simp [separateLits, List.map_filterMap]
+  convert List.filter_append_perm (fun | .lit _ => true | _ => false) A
+  · convert List.filterMap_eq_filter ?_
+    rename_i f
+    cases f <;> simp [Option.guard]
+  · split <;> rfl
+
+theorem separateLits_notLits_sublist (A : Array (NegNormForm ν))
+  : List.Sublist (separateLits A).2.toList A.toList := by
+  unfold separateLits; simp
+
+open List in
+theorem List.Sublist.sizeOf_le [SizeOf α] {L₁ L₂ : List α} :
+        L₁ <+ L₂ → sizeOf L₁ ≤ sizeOf L₂ := by
+  intro h
+  induction h
+  · simp
+  · simp; omega
+  · simp; assumption
+
+open List in
+theorem List.Subperm.sizeOf_le {L₁ L₂ : List α} :
+        List.Subperm L₁ L₂ → sizeOf L₁ ≤ sizeOf L₂ := by
+  rintro ⟨L,h1,h2⟩
+  have := List.Perm.sizeOf_eq_sizeOf h1
+  have := List.Sublist.sizeOf_le h2
+  omega
+
+theorem separateLits_sizeOf_le (A : Array (NegNormForm ν))
+  : sizeOf (separateLits A).2.toList < 1 + sizeOf A := by
+  have := List.Sublist.sizeOf_le (separateLits_notLits_sublist A)
+  simp [sizeOf, Array._sizeOf_1] at this ⊢
+  omega
+
 open PropFun
 
 mutual
 def encodeNNF_mkDefs
       (fs : Array (NegNormForm ν')) (emb : ν' ↪ ν)
   : VEncCNF (ν ⊕ Fin fs.size) Unit (fun τ => ∀ i,
-      τ (Sum.inr i) → τ ⊨ (fs[i]).toPropFun.map (emb.trans ⟨Sum.inl,Sum.inl_injective⟩)) :=
+      τ (Sum.inr i) → τ.map (Sum.inl ∘ emb) ⊨ (fs[i]).toPropFun) :=
   VEncCNF.for_all (Array.ofFn id) (fun i =>
+    have : sizeOf (fs[i]) < sizeOf fs.toList := by
+      apply List.sizeOf_lt_of_mem
+      simp
     encodeNNF (ν := ν ⊕ Fin fs.size) (Sum.inr i) (emb.trans ⟨Sum.inl, Sum.inl_injective⟩) fs[i]
   ) |>.mapProp (by
     ext τ
-    simp [Array.mem_def]
+    simp [Array.mem_def, PropAssignment.map, Function.Embedding.trans]
   )
+termination_by sizeOf fs.toList
 
 /-- Tseitin encoding in the general case creates temporaries for each clause -/
 def encodeNNF
@@ -209,21 +256,31 @@ def encodeNNF
       imply (LitVar.mkPos t) (LitVar.map emb l)
       |>.mapProp (by simp)
   | .all as =>
-      withTemps as.size (
+      let separated := separateLits as
+      let lits := separated.1
+      let subfs := separated.2
+      withTemps subfs.size (
         seq[
-          encodeNNF_mkDefs as emb
-        , implyAnd (Literal.pos <| Sum.inl t) (Array.ofFn (Literal.pos <| Sum.inr ·))
+          have : sizeOf subfs.toList < 1 + sizeOf as :=
+            separateLits_sizeOf_le as
+          encodeNNF_mkDefs subfs emb
+        , implyAnd (Literal.pos <| Sum.inl t)
+            (lits.map (LitVar.map <| Sum.inl ∘ emb) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
         ]
       ) |>.mapProp (by
         ext τ
         rcases as with ⟨as⟩
-        simp [PropAssignment.map, Array.mem_def, List.mem_iff_get,
-          Function.Embedding.trans, LitVar.satisfies_iff]
+        simp [Array.mem_def, List.mem_iff_get, LitVar.satisfies_iff]
         simp (config := {contextual := true}) [Fin.forall_iff]
         constructor
         case mp =>
-          aesop
+          rintro ⟨σ,rfl,h1,h2⟩ h
+          replace h2 := h2 h; clear h t
+          intro i hi
+          
+          sorry
         case mpr =>
+          stop
           intro h
           open PropFun in
           use fun
@@ -231,16 +288,22 @@ def encodeNNF
             | .inr i => τ.map emb ⊨ (as[i]).toPropFun
           aesop)
   | .any as =>
-      withTemps as.size (
+      let separated := separateLits as
+      let lits := separated.1
+      let subfs := separated.2
+      withTemps subfs.size (
         seq[
-          encodeNNF_mkDefs as emb
-        , implyOr (Literal.pos <| Sum.inl t) (Array.ofFn (Literal.pos <| Sum.inr ·))
+          have : sizeOf subfs.toList < 1 + sizeOf as :=
+            separateLits_sizeOf_le as
+          encodeNNF_mkDefs subfs emb
+        , implyOr (Literal.pos <| Sum.inl t)
+            (lits.map (LitVar.map <| Sum.inl ∘ emb) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
         ]
       ) |>.mapProp (by
+        stop
         ext τ
         rcases as with ⟨as⟩
-        simp [PropAssignment.map, Array.mem_def, List.mem_iff_get,
-          Function.Embedding.trans, LitVar.satisfies_iff]
+        simp [Array.mem_def, List.mem_iff_get, LitVar.satisfies_iff]
         simp (config := {contextual := true}) [Fin.forall_iff, Fin.exists_iff]
         constructor
         case mp =>
@@ -252,6 +315,8 @@ def encodeNNF
             | .inl v => τ v
             | .inr i => τ.map emb ⊨ (as[i]).toPropFun
           aesop)
+termination_by sizeOf f
+
 end
 
 def encodeNNF_top_clause (f : NegNormForm ν)
