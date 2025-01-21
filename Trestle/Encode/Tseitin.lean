@@ -202,6 +202,15 @@ theorem separateLits_append_perm (A : Array (NegNormForm ν))
     cases f <;> simp [Option.guard]
   · split <;> rfl
 
+theorem separateLits_mem_lits_iff {A : Array (NegNormForm ν)} {l : Literal ν}
+  : l ∈ (separateLits A).1 ↔ (.lit l) ∈ A := by
+  unfold separateLits; simp
+  aesop
+
+theorem separateLits_mem_notLits_iff {A : Array (NegNormForm ν)} {a}
+  : a ∈ (separateLits A).2 ↔ a ∈ A ∧ (∀ {l}, a ≠ .lit l) := by
+  unfold separateLits; aesop
+
 theorem separateLits_notLits_sublist (A : Array (NegNormForm ν))
   : List.Sublist (separateLits A).2.toList A.toList := by
   unfold separateLits; simp
@@ -256,70 +265,111 @@ def encodeNNF
       imply (LitVar.mkPos t) (LitVar.map emb l)
       |>.mapProp (by simp)
   | .all as =>
-      -- TODO(JG): this can be further optimized!!!
-      -- we do not need new temps here, because PG only requires `t -> f`
-      -- so for temps I can directly require `t -> all lits`,
+      -- in the `all` case we do not need new temps here!
+      -- Plaisted-Greenbaum only requires `t -> f`,
+      -- so for lits I can directly require `t -> all lits`,
       -- and for each subformula I can just call `encodeNNF` with `t` again!
       let separated := separateLits as
       let lits := separated.1
       let subfs := separated.2
-      withTemps subfs.size (
-        seq[
-          have : sizeOf subfs.toList < 1 + sizeOf as :=
-            separateLits_sizeOf_le as
-          encodeNNF_mkDefs subfs emb
-        , implyAnd (Literal.pos <| Sum.inl t)
-            (lits.map (LitVar.map <| Sum.inl ∘ emb) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
-        ]
-      ) |>.mapProp (by
+      seq[
+        implyAnd (Literal.pos t) (lits.map (LitVar.map emb))
+      , for_all (Array.ofFn (n := subfs.size) id) (fun i =>
+          encodeNNF t emb (subfs[i])
+        )
+      ] |>.mapProp (by
         ext τ
-        rcases as with ⟨as⟩
-        simp [Array.mem_def, List.mem_iff_get, LitVar.satisfies_iff]
-        simp (config := {contextual := true}) [Fin.forall_iff]
+        simp [forall_swap (β := τ t = true), ← imp_and]; apply imp_congr_right
+        rintro -
         constructor
-        case mp =>
-          rintro ⟨σ,rfl,h1,h2⟩ h
-          replace h2 := h2 h; clear h t
-          intro i hi
-
-          sorry
-        case mpr =>
-          stop
-          intro h
-          open PropFun in
-          use fun
-            | .inl v => τ v
-            | .inr i => τ.map emb ⊨ (as[i]).toPropFun
-          aesop)
+        · rintro ⟨h1,h2⟩ a ha
+          by_cases h : ∃ l, a = .lit l
+          · rcases h with ⟨l,rfl⟩
+            rw [← separateLits_mem_lits_iff] at ha
+            specialize h1 _ ha
+            simpa using h1
+          · simp at h
+            replace ha := separateLits_mem_notLits_iff.mpr ⟨ha, @h⟩
+            rw [Array.mem_iff_getElem] at ha
+            rcases ha with ⟨idx,hidx,ha⟩
+            simp [Array.mem_def] at h2
+            specialize h2 ⟨idx,hidx⟩
+            rw [ha] at h2
+            exact h2
+        · intro h
+          constructor
+          · intro l hl
+            rw [separateLits_mem_lits_iff] at hl
+            specialize h _ hl
+            simpa using h
+          · rintro idx -
+            apply h
+            refine (separateLits_mem_notLits_iff.mp ?_).1
+            simp
+      )
   | .any as =>
       let separated := separateLits as
       let lits := separated.1
       let subfs := separated.2
       withTemps subfs.size (
         seq[
-          have : sizeOf subfs.toList < 1 + sizeOf as :=
-            separateLits_sizeOf_le as
           encodeNNF_mkDefs subfs emb
         , implyOr (Literal.pos <| Sum.inl t)
             (lits.map (LitVar.map <| Sum.inl ∘ emb) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
         ]
       ) |>.mapProp (by
-        stop
         ext τ
-        rcases as with ⟨as⟩
-        simp [Array.mem_def, List.mem_iff_get, LitVar.satisfies_iff]
-        simp (config := {contextual := true}) [Fin.forall_iff, Fin.exists_iff]
         constructor
-        case mp =>
-          aesop
-        case mpr =>
-          intro h
-          open PropFun in
+        · rintro ⟨σ,rfl,h1,h2⟩ ht
+          simp at ht h2 ⊢
+          specialize h2 ht
+          rcases h2 with ⟨l,⟨l',hl',rfl⟩|h2,hl⟩
+          · rw [separateLits_mem_lits_iff] at hl'
+            use (.lit l'), hl'
+            simpa using hl
+          · simp [Array.mem_def, List.mem_ofFn] at h2
+            rcases h2 with ⟨i,rfl⟩
+            simp at hl
+            specialize h1 i hl
+            have : subfs[i] ∈ subfs := by simp
+            rw [separateLits_mem_notLits_iff] at this
+            use subfs[i], this.1
+            simpa using h1
+        · intro has
           use fun
             | .inl v => τ v
-            | .inr i => τ.map emb ⊨ (as[i]).toPropFun
-          aesop)
+            | .inr t => τ.map emb ⊨ subfs[t].toPropFun
+          simp
+          refine ⟨by funext; simp, fun _ => id,?_⟩
+          intro ht; specialize has ht
+          simp at has; rcases has with ⟨a,ha,h⟩
+          by_cases hl : ∃ l, a = .lit l
+          · rcases hl with ⟨l,rfl⟩
+            rw [← separateLits_mem_lits_iff] at ha
+            use LitVar.map (Sum.inl ∘ emb) l
+            constructor
+            · left; use l, ha
+            · simpa using h
+          · simp at hl
+            have := separateLits_mem_notLits_iff.mpr ⟨ha,@hl⟩
+            clear ha hl
+            rw [Array.mem_iff_getElem] at this
+            rcases this with ⟨i,hi,this⟩
+            use Literal.pos (Sum.inr ⟨i,hi⟩)
+            constructor
+            · right; simp [Array.mem_def, List.mem_ofFn]
+            · simp [this, h]
+      )
 termination_by sizeOf f
+decreasing_by
+  · simp_wf
+    have := separateLits_sizeOf_le as
+    apply Nat.lt_of_lt_of_le ?_ this
+    apply Nat.lt_succ_of_lt
+    apply List.sizeOf_lt_of_mem
+    simp
+  · simp_wf
+    exact separateLits_sizeOf_le as
 
 end
 
@@ -341,30 +391,42 @@ def encodeNNF_top_clause (f : NegNormForm ν)
     , addClause (lits.map (LitVar.map Sum.inl) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
     ]
   ) |>.mapProp (by
+    rw [h]; clear! f
     ext τ
-    stop
-    rw [h]; clear h
-    rcases disjs with ⟨disjs⟩
-    simp [List.mem_iff_get]
+    simp [Clause.toPropFun, List.mem_ofFn]
     constructor
-    case mp =>
-      rintro ⟨σ,rfl,h1,h2⟩
-      simp [Clause.toPropFun, List.mem_ofFn] at h2
-      rcases h2 with ⟨t,ht⟩
-      use t.cast (by simp)
-      simp
-      apply h1
-      apply ht
-    case mpr =>
-      rintro ⟨t,h⟩
-      open PropFun in
+    · rintro ⟨σ,rfl,h1,⟨f,⟨l,hl,rfl⟩|⟨t,rfl⟩,h⟩⟩
+      · rw [separateLits_mem_lits_iff] at hl
+        refine ⟨_, hl, ?_⟩
+        simpa using h
+      · specialize h1 t h
+        use subfs[t]
+        have : subfs[t] ∈ subfs := by simp
+        rw [separateLits_mem_notLits_iff] at this
+        refine ⟨this.1,?_⟩
+        simpa using h1
+    · rintro ⟨f,hf,h⟩
       use fun
         | .inl v => τ v
-        | .inr i => τ ⊨ (disjs[i]).toPropFun
+        | .inr i => τ ⊨ subfs[i].toPropFun
       refine ⟨rfl,?_,?_⟩
-      · aesop
-      · simp [Clause.toPropFun, List.mem_ofFn]
-        use t.cast (by simp), h
+      · simp; intro i hi; exact hi
+      · by_cases hl : ∃ l, f = .lit l
+        · rcases hl with ⟨l,rfl⟩
+          rw [← separateLits_mem_lits_iff] at hf
+          use PropFun.map Sum.inl l
+          constructor
+          · left; use l
+          · simpa using h
+        · simp at hl
+          have := separateLits_mem_notLits_iff (a := f) (A := disjs)
+          simp [hf,hl] at this; clear hf hl
+          rw [Array.mem_iff_getElem] at this
+          rcases this with ⟨i,hi,rfl⟩
+          use (Literal.pos (Sum.inr ⟨i,hi⟩) : Literal (ν ⊕ Fin subfs.size))
+          constructor
+          · right; simp
+          · simpa using h
   )
 
 def encodeNNF_top (f : NegNormForm ν)
@@ -429,18 +491,17 @@ example : (Tseitin.encode ex).val.toICnf =
     #[-6, 1],
     #[-6, 2],
     #[-6, -3],
-    -- d2 → ¬p ∨ ¬q
-    #[-8, -1, -2],
-    -- d3 → r ∧ d2
+    -- d3 → r
     #[-7, 3],
-    #[-7, 8],
+    -- d3 → ¬p ∨ ¬q
+    #[-7, -1, -2],
     -- d0 ∨ d3
     #[6, 7],
     -- d4 → p ∧ t
-    #[-9, 1],
-    #[-9, 5],
+    #[-8, 1],
+    #[-8, 5],
     -- ¬s ∨ d4
-    #[-4, 9]
+    #[-4, 8]
   ] := by native_decide
 
 end Example
