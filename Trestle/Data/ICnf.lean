@@ -49,12 +49,17 @@ end IVar
 def ILit := { i : Int // i ≠ 0 }
   deriving DecidableEq, Repr
 
+instance : OfNat ILit (n+1) := ⟨n+1, by omega⟩
+
 instance : LitVar ILit IVar where
   negate l := ⟨-l.val, Int.neg_ne_zero.mpr l.property⟩
   mkPos x := ⟨Int.ofNat x.val, by simp⟩
   mkNeg x := ⟨-Int.ofNat x.val, by simp⟩
   toVar l := ⟨Int.natAbs l.val, Int.natAbs_pos.mpr l.property⟩
   polarity l := (0 : Int) < l.val
+
+instance : Neg ILit where
+  neg := LitVar.negate
 
 open LitVar in
 theorem polarity_eq {l₁ l₂ : ILit} :

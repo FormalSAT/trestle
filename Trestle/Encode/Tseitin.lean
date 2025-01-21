@@ -277,7 +277,7 @@ def encodeNNF
           rintro ⟨σ,rfl,h1,h2⟩ h
           replace h2 := h2 h; clear h t
           intro i hi
-          
+
           sorry
         case mpr =>
           stop
@@ -328,13 +328,17 @@ def encodeNNF_top_clause (f : NegNormForm ν)
   have ⟨disjs,h⟩ : (A : Array _) ×'
                     (f.toPropFun = (NegNormForm.any A).toPropFun) :=
     ⟨disjs, by ext τ; unfold disjs; split <;> simp [NegNormForm.toPropFun]⟩
-  withTemps disjs.size (
+  let separated := separateLits disjs
+  let lits := separated.1
+  let subfs := separated.2
+  withTemps subfs.size (
     seq[
-      encodeNNF_mkDefs (ν := ν) disjs ⟨id, fun _ _ h => h⟩
-    , addClause (Array.ofFn (Literal.pos <| Sum.inr ·))
+      encodeNNF_mkDefs (ν := ν) subfs ⟨id, fun _ _ h => h⟩
+    , addClause (lits.map (LitVar.map Sum.inl) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
     ]
   ) |>.mapProp (by
     ext τ
+    stop
     rw [h]; clear h
     rcases disjs with ⟨disjs⟩
     simp [List.mem_iff_get]
@@ -398,3 +402,41 @@ example [DecidableEq ν] [LitVar L ν] [LawfulLitVar L ν] (a b : ν)
     : VEncCNF ν Unit (fun τ => τ a ∧ τ b) :=
   tseitin[ {a} ∧ {b} ]
   |>.mapProp (by simp)
+
+namespace Example
+
+-- This is an example from Marijn's slides on optimizations for Tseitin
+
+inductive V
+| p | q | r | s | t
+deriving Repr, IndexType
+
+open V
+
+def ex : Model.PropForm V :=
+  [propform|
+      (¬ (({p} ∧ {q}) ↔ {r}))
+    ∧ ({s} → ({p} ∧ {t}))
+  ]
+
+example : (Tseitin.encode ex).val.toICnf =
+  #[
+    -- d0 → p ∧ q ∧ ¬r
+    #[-6, 1],
+    #[-6, 2],
+    #[-6, -3],
+    -- d2 → ¬p ∨ ¬q
+    #[-8, -1, -2],
+    -- d3 → r ∧ d2
+    #[-7, 3],
+    #[-7, 8],
+    -- d0 ∨ d3
+    #[6, 7],
+    -- d4 → p ∧ t
+    #[-9, 1],
+    #[-9, 5],
+    -- ¬s ∨ d4
+    #[-4, 9]
+  ] := by native_decide
+
+end Example
