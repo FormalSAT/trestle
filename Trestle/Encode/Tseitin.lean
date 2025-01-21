@@ -311,7 +311,7 @@ def encodeNNF
       let separated := separateLits as
       let lits := separated.1
       let subfs := separated.2
-      withTemps subfs.size (
+      withTemps (Fin subfs.size) (
         seq[
           encodeNNF_mkDefs subfs emb
         , implyOr (Literal.pos <| Sum.inl t)
@@ -385,7 +385,7 @@ def encodeNNF_top_clause (f : NegNormForm ν)
   let separated := separateLits disjs
   let lits := separated.1
   let subfs := separated.2
-  withTemps subfs.size (
+  withTemps (Fin subfs.size) (
     seq[
       encodeNNF_mkDefs (ν := ν) subfs ⟨id, fun _ _ h => h⟩
     , addClause (lits.map (LitVar.map Sum.inl) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
