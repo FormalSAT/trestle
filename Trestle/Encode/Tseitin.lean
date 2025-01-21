@@ -256,6 +256,10 @@ def encodeNNF
       imply (LitVar.mkPos t) (LitVar.map emb l)
       |>.mapProp (by simp)
   | .all as =>
+      -- TODO(JG): this can be further optimized!!!
+      -- we do not need new temps here, because PG only requires `t -> f`
+      -- so for temps I can directly require `t -> all lits`,
+      -- and for each subformula I can just call `encodeNNF` with `t` again!
       let separated := separateLits as
       let lits := separated.1
       let subfs := separated.2
