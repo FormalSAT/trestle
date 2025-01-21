@@ -16,28 +16,29 @@ inductive Vars (n s : Nat)
 | x (i : BitVec n) (j : Fin n) (k : Fin s)
 deriving IndexType
 
-open EncCNF in
-section
+def allBitVecs (n) : Array (BitVec n) := Array.ofFn (BitVec.ofFin)
+
+section encoding
+open EncCNF Model PropForm
 
 -- ensure that each vertex has a defined coordinate on each dimension
 def coordinates : EncCNF (Vars n s) Unit := do
-  for h : i in [0:2^n] do
-    let i : BitVec n := ⟨i,h.2⟩
-    for h : j in [0:n] do
-      let j : Fin n := ⟨j,h.2⟩
+  for i in allBitVecs n do
+    for j in Array.finRange n do
       let vars := Array.ofFn (fun k => Literal.pos <| Vars.x i j k)
       -- at least one of the `c_ij-` variables is true
       addClause vars
       -- at most one of the `c_ij-` variables is true
       Cardinality.amoPairwise vars
 
-open Model.PropForm in
+-- ensure for all pairs where only one coordinate *must* be different,
+-- that there is a second coordinate which is also different
 def twoDiffs : EncCNF (Vars n s) Unit := do
-  for h : i in [0:2^n] do
-    let i : BitVec n := ⟨i,h.2⟩
-    for h : j in [0:n] do
-      let j : Fin n := ⟨j,h.2⟩
-      let i' : BitVec n := i + BitVec.shiftLeft 1 j
+  for i in allBitVecs n do
+    for j in Array.finRange n do
+      -- the bitvector which must be different only at coord `j`
+      let i' : BitVec n := i ||| BitVec.shiftLeft 1 j
+      -- when `j` bit is already high, `i = i'`, so filter that out
       if i < i' then
         Subtype.val <| Tseitin.encode (any (do
           let j' ← List.finRange n
@@ -46,30 +47,29 @@ def twoDiffs : EncCNF (Vars n s) Unit := do
           return [propform| {Vars.x i j' k} ↔ ¬{Vars.x i' j' k} ]
         ))
 
-open Model PropForm in
+-- true if `i` and `i'` on coord `j` are equal `mod s`
 def hasSGapAt (i i' : BitVec n) (j : Fin n) : PropForm (Vars n s) :=
-  all (
-    List.finRange s |>.map fun k =>
-      [propform| {Vars.x i j k} ↔ {Vars.x i' j k}]
+  all (do
+    let k ← List.finRange s
+    return [propform| {Vars.x i j k} ↔ {Vars.x i' j k}]
   )
 
+-- ensures `i` and `i'` have a coord `j` on which they are equal `mod s`
 def hasSGap (i i' : BitVec n) : EncCNF (Vars n s) Unit :=
+  -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
+  let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
   withTemps n (do
-    for h : j in [0:n] do
-      let j : Fin n := ⟨j,h.2⟩
-      Subtype.val <| Tseitin.encode (
-        .impl
-          (Sum.inr j : Vars n s ⊕ _)
-          (hasSGapAt i i' j |>.map Sum.inl)
-      )
-    addClause (Array.finRange n |>.map (Literal.pos <| Sum.inr ·))
+    let temp : Fin n → Vars n s ⊕ Fin n := Sum.inr
+    for j in potentialJs do
+      Subtype.val <| Tseitin.encode [propform|
+        {temp j} → {hasSGapAt i i' j |>.map Sum.inl}
+      ]
+    addClause (potentialJs |>.map (Literal.pos <| Sum.inr ·))
   )
 
 def allSGap : EncCNF (Vars n s) Unit := do
-  for h : i in [0:2^n] do
-    let i : BitVec n := ⟨i,h.2⟩
-    for h : i' in [0:2^n] do
-      let i' : BitVec n := ⟨i',h.2⟩
+  for i in allBitVecs n do
+    for i' in allBitVecs n do
       if i < i' then
         hasSGap i i'
 
@@ -78,11 +78,10 @@ def fullEncoding (n s) : EncCNF (Vars n s) Unit := do
   twoDiffs
   allSGap
 
-#eval show IO _ from do
-  let enc := fullEncoding 3 7 |>.toICnf
+end encoding
+
+#eval! show IO _ from do
+  let enc := fullEncoding 3 4 |>.toICnf
   let () ← IO.FS.withFile "hi.icnf" .write <| fun handle => do
     Solver.Dimacs.printFormula (handle.putStr) enc
     handle.flush
-  (Solver.Impl.DimacsCommand "cadical").solve enc
-
-end
