@@ -1,6 +1,6 @@
 # Trestle
 
-Trestle is a collection of utilities for SAT work. This includes:
+Trestle is a collection of utilities for SAT work. It includes:
 - Encoding utilities
 - Solver APIs
 - Printers and parsers for common file formats
@@ -17,13 +17,13 @@ Contact @JamesGallicchio by email or mastodon.
 Add the following to your project's `lakefile`:
 ```
 require «trestle» from git
-  "https://github.com/JamesGallicchio/Trestle" @ "main"
+  "https://github.com/FormalSAT/Trestle" @ "main"
 ```
-The main branch is currently on Lean `v4.7.0`,
-and Lean still has breaking changes every minor revision,
-so expect it to not compile on any other version of Lean.
+The main branch currently uses Lean `v4.15.0`,
+but Lean still has breaking changes every minor revision,
+so don't expect it to compile on other versions of Lean.
 
-As this project relies on `mathlib`,
+Since this project relies on `mathlib`,
 we recommend running `lake exe cache get` after modifying your lakefile.
 This downloads a precompiled version of `mathlib`.
 
@@ -57,9 +57,8 @@ TODO(JG): describe available notation for `PropFun`, `PropForm`
 
 - Support (verified?) encoding to non-CNF formulas (KNF, d-DNNF, XOR-CNF, ...)
 - Add verified checkers for sat certificates
-  - See e.g. [here](https://github.com/joehendrix/lean-sat-checker),
-      [here](https://github.com/leanprover-community/mathlib4/blob/master/Mathlib/Tactic/Sat/FromLRAT.lean),
-      [here](https://github.com/leanprover/Trestle)
+  - See e.g. [here](https://github.com/joehendrix/lean-sat-checker) and
+      [here](https://github.com/leanprover-community/mathlib4/blob/master/Mathlib/Tactic/Sat/FromLRAT.lean)
 - Add verified model counting
   - See [Bryant et al 2023](https://github.com/rebryant/cpog)
 - Add verified pre-processing
