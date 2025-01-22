@@ -178,6 +178,28 @@ def toPropFun_any_disjuncts : (f : NegNormForm ν) → toPropFun (.any (disjunct
   · simp [toPropFun]
 end
 
+/-! Take a formula `f` into  -/
+def normalize (f : NegNormForm ν) : Array (Array (NegNormForm ν)) :=
+  let conjs := f.conjuncts
+  conjs.map (fun
+    | .lit l => #[NegNormForm.lit l]
+    | .any fs => fs
+    | .all fs =>
+      -- this should never happen
+      #[NegNormForm.all fs]
+  )
+
+open PropFun in
+theorem satisfies_normalize (τ : PropAssignment ν) (f : NegNormForm ν) :
+  τ ⊨ f.toPropFun ↔ ∀ c ∈ f.normalize, ∃ d ∈ c, τ ⊨ d.toPropFun := by
+  rw [← toPropFun_all_conjuncts f]
+  simp only [normalize]
+  generalize f.conjuncts = conjs; clear f
+  rcases conjs with ⟨conjs⟩
+  simp [toPropFun]
+  apply forall_congr'; intro a; apply imp_congr_right; intro ha
+  split <;> simp [toPropFun]
+
 end NegNormForm
 
 open VEncCNF
@@ -186,55 +208,25 @@ attribute [local simp] NegNormForm.toPropFun
 
 section encodeNNF
 
-def separateLits (A : Array (NegNormForm ν)) : Array (Literal ν) × Array (NegNormForm ν) :=
+private def separateLits (A : Array (NegNormForm ν)) : Array (Literal ν) × Array (NegNormForm ν) :=
   ( A.filterMap (fun | .lit l => some l | _ => none)
   , A.filter (fun | .lit _ => false | _ => true)
   )
 
-theorem separateLits_append_perm (A : Array (NegNormForm ν))
-  : List.Perm ((separateLits A).1.map (NegNormForm.lit ·) ++ (separateLits A).2).toList A.toList
-  := by
-  rcases A with ⟨A⟩
-  simp [separateLits, List.map_filterMap]
-  convert List.filter_append_perm (fun | .lit _ => true | _ => false) A
-  · convert List.filterMap_eq_filter ?_
-    rename_i f
-    cases f <;> simp [Option.guard]
-  · split <;> rfl
-
-theorem separateLits_mem_lits_iff {A : Array (NegNormForm ν)} {l : Literal ν}
+private theorem separateLits_mem_lits_iff {A : Array (NegNormForm ν)} {l : Literal ν}
   : l ∈ (separateLits A).1 ↔ (.lit l) ∈ A := by
   unfold separateLits; simp
   aesop
 
-theorem separateLits_mem_notLits_iff {A : Array (NegNormForm ν)} {a}
+private theorem separateLits_mem_notLits_iff {A : Array (NegNormForm ν)} {a}
   : a ∈ (separateLits A).2 ↔ a ∈ A ∧ (∀ {l}, a ≠ .lit l) := by
   unfold separateLits; aesop
 
-theorem separateLits_notLits_sublist (A : Array (NegNormForm ν))
-  : List.Sublist (separateLits A).2.toList A.toList := by
-  unfold separateLits; simp
-
-open List in
-theorem List.Sublist.sizeOf_le [SizeOf α] {L₁ L₂ : List α} :
-        L₁ <+ L₂ → sizeOf L₁ ≤ sizeOf L₂ := by
-  intro h
-  induction h
-  · simp
-  · simp; omega
-  · simp; assumption
-
-open List in
-theorem List.Subperm.sizeOf_le {L₁ L₂ : List α} :
-        List.Subperm L₁ L₂ → sizeOf L₁ ≤ sizeOf L₂ := by
-  rintro ⟨L,h1,h2⟩
-  have := List.Perm.sizeOf_eq_sizeOf h1
-  have := List.Sublist.sizeOf_le h2
-  omega
-
-theorem separateLits_sizeOf_le (A : Array (NegNormForm ν))
+private theorem separateLits_sizeOf_le (A : Array (NegNormForm ν))
   : sizeOf (separateLits A).2.toList < 1 + sizeOf A := by
-  have := List.Sublist.sizeOf_le (separateLits_notLits_sublist A)
+  have : List.Sublist (separateLits A).2.toList A.toList := by
+    unfold separateLits; simp
+  replace this := this.sizeOf_le
   simp [sizeOf, Array._sizeOf_1] at this ⊢
   omega
 
@@ -292,7 +284,6 @@ def encodeNNF
             replace ha := separateLits_mem_notLits_iff.mpr ⟨ha, @h⟩
             rw [Array.mem_iff_getElem] at ha
             rcases ha with ⟨idx,hidx,ha⟩
-            simp [Array.mem_def] at h2
             specialize h2 ⟨idx,hidx⟩
             rw [ha] at h2
             exact h2
@@ -302,7 +293,7 @@ def encodeNNF
             rw [separateLits_mem_lits_iff] at hl
             specialize h _ hl
             simpa using h
-          · rintro idx -
+          · rintro idx
             apply h
             refine (separateLits_mem_notLits_iff.mp ?_).1
             simp
@@ -327,8 +318,7 @@ def encodeNNF
           · rw [separateLits_mem_lits_iff] at hl'
             use (.lit l'), hl'
             simpa using hl
-          · simp [Array.mem_def, List.mem_ofFn] at h2
-            rcases h2 with ⟨i,rfl⟩
+          · rcases h2 with ⟨i,rfl⟩
             simp at hl
             specialize h1 i hl
             have : subfs[i] ∈ subfs := by simp
@@ -373,16 +363,9 @@ decreasing_by
 
 end
 
-def encodeNNF_top_clause (f : NegNormForm ν)
-  : VEncCNF ν Unit (· ⊨ f.toPropFun) :=
-  let disjs := match f with
-      | .any fs => fs
-      | .all fs => #[.all fs]
-      | .lit l => #[.lit l]
-  have ⟨disjs,h⟩ : (A : Array _) ×'
-                    (f.toPropFun = (NegNormForm.any A).toPropFun) :=
-    ⟨disjs, by ext τ; unfold disjs; split <;> simp [NegNormForm.toPropFun]⟩
-  let separated := separateLits disjs
+def encodeNNF_top_clause (clause : Array (NegNormForm ν))
+  : VEncCNF ν Unit (fun τ => ∃ f ∈ clause, τ ⊨ f.toPropFun) :=
+  let separated := separateLits clause
   let lits := separated.1
   let subfs := separated.2
   withTemps (Fin subfs.size) (
@@ -391,7 +374,6 @@ def encodeNNF_top_clause (f : NegNormForm ν)
     , addClause (lits.map (LitVar.map Sum.inl) ++ Array.ofFn (Literal.pos <| Sum.inr ·))
     ]
   ) |>.mapProp (by
-    rw [h]; clear! f
     ext τ
     simp [Clause.toPropFun, List.mem_ofFn]
     constructor
@@ -419,7 +401,7 @@ def encodeNNF_top_clause (f : NegNormForm ν)
           · left; use l
           · simpa using h
         · simp at hl
-          have := separateLits_mem_notLits_iff (a := f) (A := disjs)
+          have := separateLits_mem_notLits_iff (a := f) (A := clause)
           simp [hf,hl] at this; clear hf hl
           rw [Array.mem_iff_getElem] at this
           rcases this with ⟨i,hi,rfl⟩
@@ -431,17 +413,14 @@ def encodeNNF_top_clause (f : NegNormForm ν)
 
 def encodeNNF_top (f : NegNormForm ν)
   : VEncCNF ν Unit (· ⊨ f.toPropFun) :=
-  let conjs := f.conjuncts
+  let conjs := f.normalize
   for_all (Array.ofFn id) (fun i =>
     encodeNNF_top_clause (conjs[i])
   ) |>.mapProp (by
     funext τ
-    unfold conjs
-    rw [f.toPropFun_all_conjuncts.symm]
-    simp [NegNormForm.toPropFun]
-    simp [Array.mem_def, List.mem_iff_get]
-    rw [Fin.forall_iff, Fin.forall_iff]
-    simp
+    rw [NegNormForm.satisfies_normalize]
+    simp [conjs, Array.mem_iff_getElem, Fin.forall_iff]
+    aesop
   )
 
 end encodeNNF

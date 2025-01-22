@@ -199,7 +199,21 @@ theorem Array.foldl_append (f : β → α → β) (init : β) (A B : Array α) :
 @[simp] theorem Array.size_set! (A : Array α) (i : Nat) (v : α) : (A.set! i v).size = A.size := by
   rw [set!, Array.size_setIfInBounds]
 
+@[simp]
+theorem Array.mem_ofFn {a : α} {f : Fin n → α}
+  : a ∈ Array.ofFn f ↔ ∃ i, f i = a := by
+  simp [Array.mem_iff_getElem, Fin.exists_iff]
+
 /-! List -/
+
+open List in
+theorem List.Sublist.sizeOf_le [SizeOf α] {L₁ L₂ : List α} :
+        L₁ <+ L₂ → sizeOf L₁ ≤ sizeOf L₂ := by
+  intro h
+  induction h
+  · simp
+  · simp; omega
+  · simp; assumption
 
 def List.distinct [DecidableEq α] (L : List α) : List α :=
   L.foldl (·.insert ·) []
