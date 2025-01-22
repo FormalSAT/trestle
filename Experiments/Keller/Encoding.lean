@@ -58,7 +58,7 @@ def hasSGapAt (i i' : BitVec n) (j : Fin n) : PropForm (Vars n s) :=
 def hasSGap (i i' : BitVec n) : EncCNF (Vars n s) Unit :=
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
   let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
-  withTemps n (do
+  withTemps (Fin n) (do
     let temp : Fin n → Vars n s ⊕ Fin n := Sum.inr
     for j in potentialJs do
       Subtype.val <| Tseitin.encode [propform|
@@ -73,15 +73,53 @@ def allSGap : EncCNF (Vars n s) Unit := do
       if i < i' then
         hasSGap i i'
 
-def fullEncoding (n s) : EncCNF (Vars n s) Unit := do
+def baseEncoding (n s) : EncCNF (Vars n s) Unit := do
   coordinates
   twoDiffs
   allSGap
 
+open Vars in
+def initialSymm (s) : EncCNF (Vars 7 (s+1)) Unit := do
+  -- c0 = (0,0,0,0,0,0,0)
+  unit (x 0 0 0)
+  unit (x 0 1 0)
+  unit (x 0 2 0)
+  unit (x 0 3 0)
+  unit (x 0 4 0)
+  unit (x 0 5 0)
+  unit (x 0 6 0)
+  -- c1 = (s,1,0,0,0,0,0)
+  unit (x 1 0 0)
+  unit (x 1 1 1)
+  unit (x 1 2 0)
+  unit (x 1 3 0)
+  unit (x 1 4 0)
+  unit (x 1 5 0)
+  unit (x 1 6 0)
+  -- c2 = (s,s+1,*,*,1,1,1)
+  unit (x 3 0 0)
+  unit (x 3 1 1)
+  unit (x 3 4 1)
+  unit (x 3 5 1)
+  unit (x 3 6 1)
+where unit v := addClause #[Literal.pos v]
+
+def fullEncoding (s) : EncCNF (Vars 7 s) Unit := do
+  baseEncoding 7 s
+  match s with
+  | s+1 => initialSymm s
+  | _ => pure ()
+
+section symmbreaking
+
+
+end symmbreaking
+
+
 end encoding
 
-#eval! show IO _ from do
-  let enc := fullEncoding 3 4 |>.toICnf
+def main := show IO _ from do
+  let enc := baseEncoding 8 2 |>.toICnf
   let () ← IO.FS.withFile "hi.icnf" .write <| fun handle => do
     Solver.Dimacs.printFormula (handle.putStr) enc
     handle.flush
