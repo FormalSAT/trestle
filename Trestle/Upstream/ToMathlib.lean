@@ -386,3 +386,6 @@ theorem le_iff_inf_compl_eq_bot : a ≤ b ↔ a ⊓ bᶜ = ⊥ := by
   rw [← le_bot_iff]; exact le_iff_inf_compl_le_bot
 
 end BooleanAlgebra
+
+@[simp]
+theorem Function.Embedding.coe_refl {α} : ⇑(Function.Embedding.refl α) = id := rfl
