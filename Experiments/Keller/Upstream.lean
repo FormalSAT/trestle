@@ -33,3 +33,19 @@ instance {P : Fin n → Prop} [DecidablePred P] : Decidable (∃ i : Fin n, P i)
   have : Decidable (Fin.any n (decide <| P ·)) := inferInstance
   rw [Fin.any_iff_exists] at this
   simpa using this
+
+@[simp] theorem Vector.getElem_mk (A : Array α) (h : A.size = n) (i : Nat) (h2) :
+    (Vector.mk A h)[i]'h2 = A[i] := rfl
+
+@[ext]
+def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
+    (h : ∀ (i : Nat) (h : i < n), v₁[i] = v₂[i]) : v₁ = v₂ := by
+  rcases v₁ with ⟨v₁⟩; rcases v₂ with ⟨v₂⟩
+  simp [Vector.cast] at h ⊢
+  ext i
+  · omega
+  apply h i <;> omega
+
+@[simp] theorem Vector.getElem_ofFn (f : Fin n → α) (i : Nat) (h)
+  : (Vector.ofFn f)[i]'h = f ⟨i,h⟩ := by
+  simp [ofFn]
