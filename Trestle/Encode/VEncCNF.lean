@@ -30,8 +30,9 @@ where aux (e' : StateM _ α) :=
   ∀ s,
     let s' := (e' s).2
     s'.vMap = s.vMap ∧
+    s'.assumeVars = s.assumeVars ∧
     -- TODO(JG): should we weaken this to equisatisfiability?
-    ∀ (τ : PropAssignment ν), s'.interp τ ↔ s.interp τ ∧ (open PropPred in τ ⊨ P)
+    ∀ (τ : PropAssignment ν), s'.interp τ ↔ s.interp τ ∧ (open PropPred in τ ⊨ (↑s.assumeVars)ᶜ ⇨ P)
 
 /-- If `e` encodes `P`, then `P` is satisfiable iff `e.toICnf` is satisfiable -/
 theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
@@ -44,7 +45,7 @@ theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
   generalize hls' : e.1 ls = ls' at this
   rcases ls' with ⟨a,ls'⟩
   simp only at this ⊢
-  rcases this with ⟨-,h3⟩
+  rcases this with ⟨-,-,h3⟩
   rw [←hls] at h3
   simp [LawfulState.new', State.new, Clause.toPropFun] at h3
   clear hls' hls
@@ -123,6 +124,48 @@ def addClause (C : Clause (Literal ν)) : VEncCNF ν Unit C :=
     simp; simp [SemanticEntails.entails, himp, compl, LawfulState.addClause, State.addClause]
     ⟩
 
+open PropPred in
+/-- runs `e`, adding `ls` to each generated clause -/
+def unlessOneOf (ls : Array (Literal ν)) (ve : VEncCNF ν α P)
+    : VEncCNF ν α (fun τ => (∀ l ∈ ls, τ ⊭ ↑l) → τ ⊨ P) :=
+  ⟨EncCNF.unlessOneOf ls ve, by
+    -- TODO: terrible, slow proof
+    intro s
+    rcases ve with ⟨ve,hve⟩
+    simp only [StateT.run] at hve ⊢
+    generalize he : (EncCNF.unlessOneOf ls ve).1 s = e
+    rcases e with ⟨a,s'⟩; dsimp
+    simp only [EncCNF.unlessOneOf] at he
+    generalize hsprev : EncCNF.LawfulState.mk .. = sprev at he
+    generalize he' : ve.1 sprev = e
+    rcases e with ⟨a',s''⟩
+    have := hve sprev
+    clear hve
+    simp only [he'] at he this
+    clear he'
+    cases he; cases hsprev
+    simp at this ⊢
+    rcases s'' with ⟨⟨s''a,s''b,s''c⟩,s''d,s''e,s''f⟩
+    rcases s with ⟨⟨sa,sb,sc⟩,sd,se,sf⟩
+    simp
+    cases this
+    subst_vars
+    simp only [EncCNF.LawfulState.interp] at *
+    simp_all
+    clear! s''f s''e s''d se sd
+    rintro _ _ rfl
+    simp [Clause.satisfies_iff, not_or, PropPred.satisfies_def]
+  ⟩
+
+open PropPred in
+def assuming (ls : Array (Literal ν)) (e : VEncCNF ν α P)
+    : VEncCNF ν α (fun τ => (∀ l ∈ ls, τ ⊨ ↑l) → P τ) :=
+  unlessOneOf (ls.map (- ·)) e |>.mapProp (by
+    have ⟨ls⟩ := ls
+    funext τ
+    simp [Clause.satisfies_iff]
+  )
+
 open PropFun in
 set_option pp.proofs.withType false in
 @[inline]
@@ -139,12 +182,12 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     unfold EncCNF.withTemps at def_ls_post_pair
     simp (config := {zeta := false}) at def_ls_post_pair
     lift_lets at def_ls_post_pair
-    extract_lets vMap vMapInj at def_ls_post_pair
+    extract_lets vMap vMapInj assumeVars at def_ls_post_pair
     split at def_ls_post_pair
     next a ls_post_temps def_pair =>
     generalize_proofs h
     subst def_ls_post_pair
-    simp [vMap] at def_ls_post; clear vMap
+    simp [vMap, assumeVars] at def_ls_post; clear vMap assumeVars
     generalize def_ls_pre_temps : LawfulState.withTemps (ι := ι) ls_pre = ls_pre_temps
     rw [def_ls_pre_temps] at def_pair
     -- extract relationship between ls_pre_temps and ls_post_temps
@@ -153,7 +196,7 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     have ls_temps_satisfies := ve.2 ls_pre_temps
     simp [def_pair] at ls_temps_satisfies
     clear def_pair
-    rcases ls_temps_satisfies with ⟨hvmap, h⟩
+    rcases ls_temps_satisfies with ⟨hvmap, hassume, h⟩
     -- now we prove the goals
     subst ls_post
     simp
@@ -161,13 +204,19 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     · simp_rw [h]
       subst ls_pre_temps
       simp
-      clear h hvmap ls_temps_nextVar def_pair ls_post_temps vMapInj
+      clear h hassume hvmap ls_temps_nextVar def_pair ls_post_temps vMapInj
       intro τ
       constructor
       · aesop
-      · rintro ⟨x,σ,h1,h2⟩
-        use σ
-        simp_all
+      · rintro ⟨h1,h2⟩
+        rcases (inferInstance : Decidable (τ ⊨ ls_pre.assumeVars.toPropFun)) with h | h
+        . rcases h2 h with ⟨σ, rfl, _⟩
+          use σ; simp
+          tauto
+        . let σ : PropAssignment (ν ⊕ ι) := fun | .inl x => τ x | _ => false
+          use σ
+          have : τ = PropAssignment.map Sum.inl σ := funext fun x => by simp only [PropAssignment.get_map]
+          tauto
     · aesop
   ⟩
 
