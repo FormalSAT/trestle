@@ -12,8 +12,13 @@ lean_lib Examples {
   globs := #[.submodules `Examples]
 }
 
+lean_lib Experiments {
+  globs := #[.submodules `Experiments]
+}
+
 lean_exe keller {
   root := `Experiments.Keller.Encoding
+  --moreLeancArgs := #["-UNDEBUG", "-Og", "-ggdb", "-g3", "-fno-omit-frame-pointer"]
 }
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.15.0"
