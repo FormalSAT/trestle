@@ -133,7 +133,6 @@ def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State IVar) := do
     nextVar := vars.succPNat
     cnf := clauses.toArray
     vMap := id
-    assumeVars := #[]
   }
 
 def parseAssnLine (maxVar : Nat) (s : String) : Except String (HashAssn ILit) := do
