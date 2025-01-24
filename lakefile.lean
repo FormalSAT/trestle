@@ -8,6 +8,10 @@ lean_lib Trestle {
   globs := #[.andSubmodules `Trestle]
 }
 
+lean_lib Examples {
+  globs := #[.submodules `Examples]
+}
+
 /- In the command line you can run the examples with
 `lake exe Examples.<whatever>`
 -/

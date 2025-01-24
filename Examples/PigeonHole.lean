@@ -38,19 +38,6 @@ def encoding (n) : VEncCNF (Var n) Unit (fun τ =>
 
 def main (args : List String) : IO Unit := do
   let n := args[0]!.toNat!
-  let cnfFile   := args[1]!
-  let cubesFile := args[2]!
-  let compFile  := args[3]!
   let enc := encoding n
-  let ((),{cnf, vMap ..}) := enc.val.run
-  IO.FS.withFile cnfFile .write fun handle =>
-    Solver.Dimacs.printFormula handle.putStr cnf
-  IO.FS.withFile cubesFile .write fun handle => do
-    for i in IndexType.univ (Fin n) do
-      let var := vMap {pigeon := i.succ, hole := i}
-      handle.putStrLn s!"a -{var} 0"
-  IO.FS.withFile compFile .write fun handle => do
-    for i in IndexType.univ (Fin n) do
-      let var := vMap {pigeon := i.succ, hole := i}
-      handle.putStrLn s!"{var} 0"
-    handle.putStrLn "0"
+  let cnf := enc.val.toICnf
+  Solver.Dimacs.printFormula IO.print cnf
