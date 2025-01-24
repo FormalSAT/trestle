@@ -12,6 +12,7 @@ open Trestle
 instance : Solver IO := Solver.Impl.CakeLpr
   (solverCmd := "cadical")
   (solverFlags := #["--lrat=true", "--no-binary"])
+  (cakelprCmd := "cake_lpr")
 
 def main : IO Unit := do
   let x : IVar := 1

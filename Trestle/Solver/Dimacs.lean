@@ -44,13 +44,13 @@ def formatAssn (a : HashAssn ILit) : String :=
       str.append s!" -{v}")
     "v"
 
-def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m Unit) : Solver.Res → m Unit
+def printRes [Monad m] [MonadExcept ε m] [Coe String ε] (print : String → m Unit) : Solver.Res → m Unit
 | .sat assn => do
   print "s SATISFIABLE"
   print (formatAssn assn)
 | .unsat => do
   print "s UNSATISFIABLE"
-| .error => throw default
+| .error e => throw (↑e)
 
 
 structure DimacsParseRes where

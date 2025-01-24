@@ -13,19 +13,25 @@ namespace Trestle.Solver.Impl
 namespace CakeLpr
 
 def runCakeLpr (cake_lpr : String := "cake_lpr") (fml : ICnf) (proof : System.FilePath)
-    : IO Bool :=
+    : IO (Except String Bool) :=
   IO.FS.withTempFile fun cnfHandle cnfPath => do
   let cakeProc ← IO.Process.spawn {
     cmd := cake_lpr
     args := #[cnfPath.toString, proof.toString]
     stdout := .piped
+    stderr := .piped
   }
   Dimacs.printFormula (cnfHandle.putStr) fml
   cnfHandle.flush
   let output ← IO.asTask cakeProc.stdout.readToEnd Task.Priority.dedicated
-  let _ ← cakeProc.wait
+  let error ← IO.asTask cakeProc.stderr.readToEnd Task.Priority.dedicated
+  let retval ← cakeProc.wait
   let outputStr ← IO.ofExcept output.get
-  return outputStr.trim = "s VERIFIED UNSAT"
+  let errorStr ← IO.ofExcept error.get
+  if outputStr.trim = "s VERIFIED UNSAT" then
+    return .ok true
+  else
+    return .error s!"unexpected output from cake_lpr: retval {retval}\nSTDOUT:{outputStr}\nSTDERR:{errorStr}"
 
 end CakeLpr
 
@@ -48,10 +54,12 @@ def CakeLpr (solverCmd : String) (solverFlags : Array String := #[]) (cakelprCmd
     let _ ← solver.wait
     let outputStr ← IO.ofExcept output.get
     let res ← IO.ofExcept <| Dimacs.parseResult fml.maxVar outputStr
-    if succeeded then
-      return res
-    else
-      return .error
+    match succeeded with
+    | .ok true => return res
+    | .ok false =>
+      return .error "cakeLPR disagreed"
+    | .error x =>
+      return .error x
 
 namespace CakeLpr
 
