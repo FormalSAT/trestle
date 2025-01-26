@@ -53,6 +53,14 @@ def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
   : (Vector.ofFn f)[i]'h = f ⟨i,h⟩ := by
   simp [ofFn]
 
+@[simp] theorem Vector.getElem_cast (h : n = n') (v : Vector α n) (i : Nat) (hi)
+  : (Vector.cast h v)[i]'hi = v[i] := by
+  cases v; simp [Vector.cast]
+
+@[simp] theorem Vector.getElem_take (v : Vector α n) (n') (i : Nat) (hi)
+  : (v.take n')[i]'hi = v[i] := by
+  cases v; simp [Vector.take]
+
 def BitVec.equiv_fin (n) : BitVec n ≃ Fin (2^n) := {
     toFun := BitVec.toFin
     invFun := BitVec.ofFin
@@ -66,3 +74,31 @@ instance : Fintype (BitVec n) :=
 @[simp] theorem BitVec.card (n) : Fintype.card (BitVec n) = 2^n := by
   rw [← Fintype.card_fin (n := 2^n)]
   apply Fintype.card_congr; apply BitVec.equiv_fin
+
+@[simp] theorem BitVec.cast_inj (v₁ v₂ : BitVec n) (h₁ h₂ : n = n')
+  : v₁.cast h₁ = v₂.cast h₂ ↔ v₁ = v₂ := by
+  simp [BitVec.cast, BitVec.ofNatLt, BitVec.toNat_eq]
+
+@[ext]
+theorem BitVec.ext {v₁ v₂ : BitVec n}
+    : (∀ i (hi : i < n), v₁[i] = v₂[i]) → v₁ = v₂ := by
+  intro h
+  apply BitVec.eq_of_getLsbD_eq_iff.mpr fun i => h (↑i) i.isLt
+
+
+theorem BitVec.cons_inj (v₁ v₂ : BitVec n) (b₁ b₂) :
+  v₁.cons b₁ = v₂.cons b₂ → v₁ = v₂ ∧ b₁ = b₂ := by
+  intro h
+  rw [BitVec.ext_iff] at h
+  simp [BitVec.getElem_cons] at h
+  constructor
+  · ext i hi; specialize h i (by omega)
+    simp [Nat.ne_of_lt hi] at h
+    exact h
+  · specialize h n (by omega); simpa using h
+
+@[simp] theorem BitVec.cons_inj_iff (v₁ v₂ : BitVec n) (b₁ b₂) :
+  v₁.cons b₁ = v₂.cons b₂ ↔ v₁ = v₂ ∧ b₁ = b₂ := by
+  constructor
+  · apply cons_inj
+  · rintro ⟨rfl,rfl⟩; rfl
