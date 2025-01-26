@@ -258,10 +258,92 @@ def KAuto.permute (j : Fin (n+1)) (f : Fin s ≃ Fin s) : KAuto (n+1) s :=
       by_cases hj2 : j = j₂ <;> (simp [hj2]; exact h2)
   )
 
+structure SB0 (n s) where
+  vs : Finset (KVertex n s)
+  kclique : KClique vs
 
+structure SB1 (n s) extends SB0 (n+2) (s+1) where
+  c0 : kclique.get 0 = ⟨#[0,0] ++ Array.mkArray n 0, by simp; omega⟩
+  c1 : kclique.get 1 = ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩
 
+theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
+  : ∃ i₁ i₂ j₁ j₂, j₁ ≠ j₂ ∧ ∀ j (h : j < n+2),
+      (j ≠ j₁ → i₁[j] = i₂[j]) ∧
+      (j ≠ j₂ → (x.kclique.get i₁)[j] = (x.kclique.get i₂)[j])
+  := by
+  let K_0 : Finset (KVertex (n+1) (s+1)) := (Finset.univ (α := BitVec (n+1)))
+    |>.map ⟨fun i =>
+        let i' := i.cons false
+        let v := x.kclique.get i'
+        ⟨i, v.take (n+1) |>.cast (by omega)⟩
+      , by
+        intro x1 x2 heq
+        simp at heq; exact heq.1⟩
+  have K_0_card : K_0.card = (2^(n+1)) := by simp [K_0]
+  have K_0_not_clique := not_exists.mp (h (s+1)) K_0
+  -- find the vertices in K_0 which are the not adjacent
+  simp [KClique, SimpleGraph.isNClique_iff, K_0_card,
+      SimpleGraph.isClique_iff, Set.Pairwise] at K_0_not_clique
+  clear K_0_card h
+  rcases K_0_not_clique with ⟨⟨i₁,c₁⟩, hv₁, ⟨i₂,c₂⟩, hv₂, hne, hnotadj⟩
+  simp [K_0] at hv₁ hv₂; clear K_0
+  -- the indices in smaller graph must be diff
+  have i_diff : i₁ ≠ i₂ := by
+    intro contra; subst hv₁ hv₂; simp [contra] at hne
+  clear hne
+  -- name the corresponding colors in bigger graph
+  generalize hk₁ : KClique.get _ _ = k₁ at hv₁
+  generalize hk₂ : KClique.get _ _ = k₂ at hv₂
+  subst hv₁ hv₂
+  -- the corresponding vertices are adjacent in big graph
+  have : KAdj ⟨i₁.cons false, k₁⟩ ⟨i₂.cons false,k₂⟩ := by
+    subst hk₁ hk₂
+    apply x.kclique.isClique
+    iterate 2 (apply KClique.get_mem)
+    simp [i_diff]
+  simp [KAdj] at this hnotadj
+  rcases this with ⟨⟨j₁,hj₁⟩,is_have_diff,ks_same,⟨j₂,hj₂⟩,js_diff,h⟩
+  simp_all
+  -- the i's are different at index j₁
+  have : j₁ ≠ n+1 := by intro contra; simp [BitVec.getElem_cons, contra] at is_have_diff
+  simp [BitVec.getElem_cons, this] at is_have_diff
+  replace hj₁ : j₁ < n+1 := by omega
+  clear this
+  specialize hnotadj ⟨j₁, hj₁⟩ is_have_diff ks_same
+  -- j₂ must be n+1
+  by_cases this : j₂ = n+1
+  case neg =>
+    exfalso
+    replace hj₂ : j₂ < n+1 := by omega
+    specialize hnotadj ⟨j₂,hj₂⟩
+    simp [js_diff] at hnotadj
+    simp [BitVec.getElem_cons, Nat.ne_of_lt hj₂, hnotadj.2] at h
+    apply h hnotadj.1
+  subst this
+  simp [BitVec.getElem_cons] at h
+  use (i₁.cons false), (i₂.cons false), j₁, (n+1)
+  simp [hk₁, hk₂, js_diff]
+  intro j hj
+  constructor
+  · intro hne
+    simp [BitVec.getElem_cons]
+    by_cases not_last : j = n+1
+    case pos => simp [not_last]
+    case neg =>
+      specialize hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm hne)
+      simpa [not_last] using hnotadj.1
+  · rintro not_last
+    if hne: j = j₁ then
+      subst_vars; exact ks_same
+    else
+      exact (hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm hne)).2
 
-
+theorem SB0.to_SB1 {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
+  : Nonempty (SB1 n s) := by
+  have ⟨i₁, i₂, j₁, j₂, hne, same_on⟩ := SB0.pick_pair x h
+  clear h
+  refine ⟨{vs:=?vs,kclique:=?kclique,c0:=?c0,c1:=?c1}⟩
+  stop _
 
 
 structure KellerCliqueData (n s : Nat) where
