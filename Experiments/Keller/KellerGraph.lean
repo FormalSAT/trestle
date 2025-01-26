@@ -19,6 +19,141 @@ nonrec def toString (v : KVertex n s) : String :=
 instance : ToString (KVertex n s) where
   toString := KVertex.toString
 
+end KVertex
+
+def KAdj (v₁ v₂ : KVertex n s) : Prop :=
+  ∃ (j₁ : Fin n),
+      v₁.bv[j₁] ≠ v₂.bv[j₁] ∧ v₁.colors[j₁] = v₂.colors[j₁] ∧
+    ∃ j₂, j₁ ≠ j₂ ∧
+      (v₁.bv[j₂] ≠ v₂.bv[j₂] ∨ v₁.colors[j₂] ≠ v₂.colors[j₂])
+
+instance : DecidableRel (KAdj (n := n) (s := s)) :=
+  fun v₁ v₂ => by unfold KAdj; infer_instance
+
+theorem KAdj.symm : Symmetric (KAdj (n := n) (s := s)) := by
+  intro x y h
+  unfold KAdj at h ⊢
+  rcases h with ⟨j₁,hb1,hc1,j₂,hj,h2⟩
+  refine ⟨j₁,hb1.symm,hc1.symm,j₂,hj,?_⟩
+  aesop
+
+theorem KAdj.irrefl : Irreflexive (KAdj (n := n) (s := s)) := by
+  intro x; unfold KAdj; simp
+
+def KGraph (n s) : SimpleGraph (KVertex n s) where
+  Adj := KAdj
+  symm := KAdj.symm
+  loopless := KAdj.irrefl
+
+@[simp] theorem KGraph.Adj : (KGraph n s).Adj = KAdj := rfl
+
+def KClique (vs : Finset (KVertex n s)) :=
+  (KGraph n s).IsNClique (2^n) vs
+
+def conjectureIn (n : Nat) : Prop :=
+  ∀ s, ¬∃ vs : Finset (KVertex n s), KClique vs
+
+
+
+
+
+theorem sameBV_not_adj (v₁ v₂ : KVertex n s)
+  : v₁.bv = v₂.bv → ¬ KAdj v₁ v₂ := by
+  intro h
+  unfold KAdj; simp [h]
+
+theorem KVertex.bv_injOn_clique (isClique : (KGraph n s).IsClique vs) :
+    vs.InjOn KVertex.bv := by
+  intro v₁ hv₁ v₂ hv₂ h
+  by_contra hne
+  have := sameBV_not_adj v₁ v₂ h
+  have := isClique hv₁ hv₂ hne
+  contradiction
+
+theorem nclique_card_le (isNClique : (KGraph n s).IsNClique size vs) :
+    vs.card ≤ 2^n := by
+  rw [← BitVec.card (n := n)]
+  apply Finset.card_le_card_of_injOn
+  · simp
+  · apply KVertex.bv_injOn_clique isNClique.isClique
+
+theorem maxClique_le : (KGraph n s).cliqueNum ≤ 2^n := by
+  unfold SimpleGraph.cliqueNum
+  generalize hsizes : setOf _ = sizes
+  by_contra h
+  simp at h
+  have : ∃ size ∈ sizes, size > 2^n := by
+    clear hsizes
+    exact exists_lt_of_lt_csSup' h
+  clear h
+  simp [← hsizes] at this; clear hsizes
+  rcases this with ⟨size,⟨clique,isNclique⟩,h⟩
+  have := nclique_card_le isNclique
+  have := isNclique.card_eq
+  omega
+
+
+theorem KClique.exists_unique (i : BitVec n) (h : KClique (n := n) (s := s) vs)
+    : ∃! a, a ∈ vs ∧ (fun v => v.bv = i) a := by
+  apply existsUnique_of_exists_of_unique
+  · have := Finset.surj_on_of_inj_on_of_card_le
+      (s := vs) (t := Finset.univ) (f := fun a _ => a.bv)
+      (hf := by simp)
+      (hinj := fun _ _ c d => KVertex.bv_injOn_clique h.isClique c d)
+      (hst := by simp [h.card_eq])
+      i (by simp)
+    rcases this with ⟨v,hv,rfl⟩
+    use v, hv
+  · rintro x1 x2 ⟨h1,rfl⟩ ⟨h2,hbv⟩
+    apply KVertex.bv_injOn_clique h.isClique h1 h2 hbv.symm
+
+def KClique.get (i : BitVec n) (h : KClique (n := n) (s := s) vs)
+    : Vector (Fin s) n :=
+  vs.choose _ (h.exists_unique i) |>.2
+
+theorem KClique.get_mem (i : BitVec n) (h : KClique (n := n) (s := s) vs)
+    : ⟨i, h.get i⟩ ∈ vs := by
+  unfold get
+  generalize hv : Finset.choose (fun v => v.bv = i) vs _ = v
+  have ⟨mem,prop⟩ : v ∈ vs ∧ v.bv = i := by
+    rw [← hv]; apply Finset.choose_spec
+  convert mem
+  exact prop.symm
+
+theorem KClique.get_eq_iff_mem (i : BitVec n) (h : KClique (n := n) (s := s) vs)
+    : h.get i = k ↔ ⟨i,k⟩ ∈ vs := by
+  unfold get
+  generalize hv : Finset.choose (·.bv = i) vs _ = v
+  have ⟨mem,rfl⟩ : v ∈ vs ∧ v.bv = i := by
+    rw [hv.symm]; apply Finset.choose_spec
+  clear hv
+  constructor
+  · rintro rfl; exact mem
+  · intro mem2
+    have := h.exists_unique v.bv |>.unique ⟨mem,rfl⟩ ⟨mem2,rfl⟩
+    rw [this]
+
+def KAuto (n s) := SimpleGraph.Iso (KGraph n s) (KGraph n s)
+
+def KClique.map (a : KAuto n s) (k : KClique vs) :
+      KClique (vs.map a.toEmbedding.toEmbedding) := by
+  have {card_eq, isClique} := k
+  simp only [KClique, SimpleGraph.isNClique_iff,
+    Finset.card_map, card_eq, and_true]
+  clear card_eq
+  generalize hvs' : vs.map _ = vs'
+  simp [Finset.ext_iff] at hvs'
+  intro v₁ hv₁ v₂ hv₂ hne
+  simp [← hvs'] at hv₁ hv₂; clear hvs'
+  rcases hv₁ with ⟨v₁,hv₁,rfl⟩; rcases hv₂ with ⟨v₂,hv₂,rfl⟩
+  apply a.map_adj_iff.mpr
+  simp [SimpleGraph.isClique_iff]
+  replace hne : v₁ ≠ v₂ := fun h => hne (congrArg a.toFun h)
+  apply isClique ?_ ?_ hne <;> simp [hv₁, hv₂]
+
+
+namespace KVertex
+
 def flip (j : Fin n) (v : KVertex n s) : KVertex n s :=
   { bv := v.bv ^^^ BitVec.shiftLeft 1 j, colors := v.colors }
 
@@ -71,130 +206,25 @@ theorem permute_commute (j₁ j₂ : Fin n) (f₁ f₂ : Fin s → Fin s) {v} :
   ext i hi; simp
   split <;> split <;> simp_all
 
+def reorder (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
+  ⟨ BitVec.ofFn (v.bv[f ·])
+  , Vector.ofFn (v.colors[f ·])⟩
+
+theorem reorder_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
+    : reorder f₁ (reorder f₂ v) = reorder (f₂ ∘ f₁) v := by
+  simp [reorder]
+
+@[simp] theorem reorder_id (v : KVertex n s) : reorder id v = v := by
+  ext <;> simp [reorder]
+
 end KVertex
 
-def KAdj (v₁ v₂ : KVertex n s) : Prop :=
-  ∃ (j₁ : Fin n),
-      v₁.bv[j₁] ≠ v₂.bv[j₁] ∧ v₁.colors[j₁] = v₂.colors[j₁] ∧
-    ∃ j₂, j₁ ≠ j₂ ∧
-      (v₁.bv[j₂] ≠ v₂.bv[j₂] ∨ v₁.colors[j₂] ≠ v₂.colors[j₂])
 
-instance : DecidableRel (KAdj (n := n) (s := s)) :=
-  fun v₁ v₂ => by unfold KAdj; infer_instance
+namespace KAuto
 
-theorem KAdj.symm : Symmetric (KAdj (n := n) (s := s)) := by
-  intro x y h
-  unfold KAdj at h ⊢
-  rcases h with ⟨j₁,hb1,hc1,j₂,hj,h2⟩
-  refine ⟨j₁,hb1.symm,hc1.symm,j₂,hj,?_⟩
-  aesop
+def id : KAuto n s := RelIso.refl _
 
-theorem KAdj.irrefl : Irreflexive (KAdj (n := n) (s := s)) := by
-  intro x; unfold KAdj; simp
-
-def KGraph (n s) : SimpleGraph (KVertex n s) where
-  Adj := KAdj
-  symm := KAdj.symm
-  loopless := KAdj.irrefl
-
-@[simp] theorem KGraph.Adj : (KGraph n s).Adj = KAdj := rfl
-
-theorem sameBV_not_adj (v₁ v₂ : KVertex n s)
-  : v₁.bv = v₂.bv → ¬ KAdj v₁ v₂ := by
-  intro h
-  unfold KAdj; simp [h]
-
-theorem KVertex.bv_injOn_clique (isClique : (KGraph n s).IsClique vs) :
-    vs.InjOn KVertex.bv := by
-  intro v₁ hv₁ v₂ hv₂ h
-  by_contra hne
-  have := sameBV_not_adj v₁ v₂ h
-  have := isClique hv₁ hv₂ hne
-  contradiction
-
-theorem clique_finite (isClique : (KGraph n s).IsClique vs) :
-    vs.Finite := by
-  apply Set.Finite.of_finite_image (f := KVertex.bv)
-  · exact Set.toFinite (KVertex.bv '' vs)
-  · apply KVertex.bv_injOn_clique
-    exact isClique
-
-theorem clique_to_nclique (isClique : (KGraph n s).IsClique vs) :
-  ∃ (size : Nat) (vs' : Finset _) (_eq : vs ≃ vs'),
-      (KGraph n s).IsNClique size vs' := by
-  have := clique_finite isClique
-  use this.toFinset.card, this.toFinset, this.subtypeEquivToFinset
-  rw [SimpleGraph.isNClique_iff]; simp [isClique]
-
-theorem nclique_card_le (isNClique : (KGraph n s).IsNClique size vs) :
-    vs.card ≤ 2^n := by
-  rw [← BitVec.card (n := n)]
-  apply Finset.card_le_card_of_injOn
-  · simp
-  · apply KVertex.bv_injOn_clique isNClique.isClique
-
-theorem sameBV_ind_set (i : BitVec n) :
-  (KGraph n s)ᶜ.IsClique (fun v => v.bv = i) := by
-  rw [SimpleGraph.isClique_iff]
-  intro v1 h1 v2 h2 hne
-  rw [SimpleGraph.compl_adj]
-  refine ⟨hne,?_⟩
-  apply sameBV_not_adj
-  rw [h1,h2]
-
-theorem maxClique_le : (KGraph n s).cliqueNum ≤ 2^n := by
-  unfold SimpleGraph.cliqueNum
-  generalize hsizes : setOf _ = sizes
-  by_contra h
-  simp at h
-  have : ∃ size ∈ sizes, size > 2^n := by
-    clear hsizes
-    exact exists_lt_of_lt_csSup' h
-  clear h
-  simp [← hsizes] at this; clear hsizes
-  rcases this with ⟨size,⟨clique,isNclique⟩,h⟩
-  have := nclique_card_le isNclique
-  have := isNclique.card_eq
-  omega
-
-
-def KClique (vs : Finset (KVertex n s)) :=
-  (KGraph n s).IsNClique (2^n) vs
-
-def KClique.get (i : BitVec n) (h : KClique (n := n) (s := s) vs)
-    : Vector (Fin s) n :=
-  vs.choose (fun v => v.bv = i) (by
-    apply existsUnique_of_exists_of_unique
-    · have := Finset.surj_on_of_inj_on_of_card_le
-        (s := vs) (t := Finset.univ) (f := fun a _ => a.bv)
-        (hf := by simp)
-        (hinj := fun _ _ c d => KVertex.bv_injOn_clique h.isClique c d)
-        (hst := by simp [h.card_eq])
-        i (by simp)
-      rcases this with ⟨v,hv,rfl⟩
-      use v, hv
-    · rintro x1 x2 ⟨h1,rfl⟩ ⟨h2,hbv⟩
-      apply KVertex.bv_injOn_clique h.isClique h1 h2 hbv.symm
-  ) |>.2
-
-theorem KClique.get_mem (i : BitVec n) (h : KClique (n := n) (s := s) vs)
-    : ⟨i, h.get i⟩ ∈ vs := by
-  unfold get
-  generalize hv : Finset.choose (fun v => v.bv = i) vs _ = v
-  have ⟨mem,prop⟩ : v ∈ vs ∧ v.bv = i := by
-    rw [← hv]; apply Finset.choose_spec
-  convert mem
-  exact prop.symm
-
-
-def conjectureIn (n : Nat) : Prop :=
-  ∀ s, ¬∃ vs : Finset (KVertex n s), KClique vs
-
-
-
-def KAuto (n s) := SimpleGraph.Iso (KGraph n s) (KGraph n s)
-
-def KAuto.flip (j : Fin (n+1)) : KAuto (n+1) s :=
+def flip (j : Fin (n+1)) : KAuto (n+1) s :=
   RelIso.mk ({
     toFun := KVertex.flip j
     invFun := KVertex.flip j
@@ -225,7 +255,7 @@ def KAuto.flip (j : Fin (n+1)) : KAuto (n+1) s :=
       by_cases hj2 : j = j₂ <;> (simp [hj2]; exact h2)
     )
 
-def KAuto.permute (j : Fin (n+1)) (f : Fin s ≃ Fin s) : KAuto (n+1) s :=
+def permute (j : Fin (n+1)) (f : Fin s ≃ Fin s) : KAuto (n+1) s :=
   RelIso.mk ({
     toFun := KVertex.permute j f
     invFun := KVertex.permute j f.symm
@@ -257,6 +287,30 @@ def KAuto.permute (j : Fin (n+1)) (f : Fin s ≃ Fin s) : KAuto (n+1) s :=
       right
       by_cases hj2 : j = j₂ <;> (simp [hj2]; exact h2)
   )
+
+def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
+  RelIso.mk {
+    toFun := KVertex.reorder f
+    invFun := KVertex.reorder f.invFun
+    left_inv := by intro; simp [KVertex.reorder_comp]
+    right_inv := by intro; simp [KVertex.reorder_comp]
+  } (by
+    intro a b
+    simp [KAdj, KVertex.reorder]
+    constructor
+    · rintro ⟨j₁,hbv₁,hc1,j₂,hne,h⟩
+      use f j₁, hbv₁, hc1, f j₂
+      rw [EmbeddingLike.apply_eq_iff_eq]
+      simp [hne, h]
+    · rintro ⟨j₁,hbv₁,hc1,j₂,hne,h⟩
+      use f.symm j₁; simp
+      use hbv₁, hc1, f.symm j₂
+      rw [EmbeddingLike.apply_eq_iff_eq]
+      simp [hne, h]
+  )
+
+end KAuto
+
 
 structure SB0 (n s) where
   vs : Finset (KVertex n s)
@@ -321,6 +375,7 @@ theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
     apply h hnotadj.1
   subst this
   simp [BitVec.getElem_cons] at h
+  -- now we fill the goal
   use (i₁.cons false), (i₂.cons false), j₁, (n+1)
   simp [hk₁, hk₂, js_diff]
   intro j hj
@@ -338,12 +393,27 @@ theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
     else
       exact (hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm hne)).2
 
+def SB0.auto {n s} (x : SB0 (n+2) (s+1)) (h :
+    ∃ i₁ i₂ j₁ j₂, j₁ ≠ j₂ ∧ ∀ j (h : j < n+2),
+      (j ≠ j₁ → i₁[j] = i₂[j]) ∧
+      (j ≠ j₂ → (x.kclique.get i₁)[j] = (x.kclique.get i₂)[j]))
+  : KAuto (n+2) (s+1) :=
+  sorry
+
 theorem SB0.to_SB1 {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   : Nonempty (SB1 n s) := by
-  have ⟨i₁, i₂, j₁, j₂, hne, same_on⟩ := SB0.pick_pair x h
+  have ⟨i₁, i₂, j₁, j₂, hne, same_on⟩ := x.pick_pair h
   clear h
-  refine ⟨{vs:=?vs,kclique:=?kclique,c0:=?c0,c1:=?c1}⟩
-  stop _
+  let f := KAuto.id (n := n+2) (s := s+1)
+  refine ⟨{vs:=_, kclique := x.kclique.map f, c0:=?c0, c1:=?c1}⟩
+  case c0 =>
+    simp [KClique.get_eq_iff_mem]
+    use ⟨i₁, x.kclique.get i₁⟩, x.kclique.get_mem _
+    _
+  case c1 =>
+    simp [KClique.get_eq_iff_mem]
+    use ⟨i₂, x.kclique.get i₂⟩, x.kclique.get_mem _
+    _
 
 
 structure KellerCliqueData (n s : Nat) where

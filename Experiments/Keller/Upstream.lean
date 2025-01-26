@@ -102,3 +102,12 @@ theorem BitVec.cons_inj (v₁ v₂ : BitVec n) (b₁ b₂) :
   constructor
   · apply cons_inj
   · rintro ⟨rfl,rfl⟩; rfl
+
+def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
+  .cast (by simp) <| .ofBoolListLE (List.ofFn f)
+
+@[simp] theorem BitVec.getElem_ofFn (f : Fin n → Bool) (i : Nat) (h)
+  : (BitVec.ofFn f)[i]'h = f ⟨i,h⟩ := by
+  unfold ofFn
+  rw [getElem_cast, ← getLsbD_eq_getElem, getLsb_ofBoolListLE]
+  simp [h]
