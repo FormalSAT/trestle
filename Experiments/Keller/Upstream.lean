@@ -1,3 +1,6 @@
+import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Fintype.Card
+
 def Fin.any (n : Nat) (P : Fin n → Bool) : Bool :=
   aux 0
 where aux (i) :=
@@ -44,8 +47,22 @@ def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
   simp [Vector.cast] at h ⊢
   ext i
   · omega
-  apply h i <;> omega
+  apply h i; omega
 
 @[simp] theorem Vector.getElem_ofFn (f : Fin n → α) (i : Nat) (h)
   : (Vector.ofFn f)[i]'h = f ⟨i,h⟩ := by
   simp [ofFn]
+
+def BitVec.equiv_fin (n) : BitVec n ≃ Fin (2^n) := {
+    toFun := BitVec.toFin
+    invFun := BitVec.ofFin
+    left_inv := by intro; simp
+    right_inv := by intro; simp
+  }
+
+instance : Fintype (BitVec n) :=
+  Fintype.ofEquiv (Fin (2^n)) (BitVec.equiv_fin n).symm
+
+@[simp] theorem BitVec.card (n) : Fintype.card (BitVec n) = 2^n := by
+  rw [← Fintype.card_fin (n := 2^n)]
+  apply Fintype.card_congr; apply BitVec.equiv_fin
