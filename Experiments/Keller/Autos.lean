@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The Trestle Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import Experiments.Keller.KellerGraph
 
 namespace Keller
@@ -173,4 +180,3 @@ theorem swap_eq_of_mem [DecidableEq α] (L : List (α × α))
     rcases hd with ⟨x,y⟩; dsimp at is_distinct os_distinct ⊢
     simp [swap]; rw [← ih] at os_distinct ⊢
     apply Equiv.insert_unchanged <;> assumption
-
