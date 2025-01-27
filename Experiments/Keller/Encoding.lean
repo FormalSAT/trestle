@@ -6,10 +6,11 @@ Authors: James Gallicchio
 -/
 
 import Trestle.Encode
-import Trestle.Solver.Impl.DimacsCommand
+import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
 import Experiments.Keller.KellerGraph
-import Experiments.Keller.G8_Clique
+
+namespace Keller.Encoding
 
 open Trestle Encode
 
@@ -110,7 +111,7 @@ def initialSymm (s) : EncCNF (Vars 7 (s+1)) Unit := do
   unit (x 1 4 0)
   unit (x 1 5 0)
   unit (x 1 6 0)
-  -- c2 = (s,s+1,*,*,1,1,1)
+  -- c3 = (s,s+1,*,*,1,1,1)
   unit (x 3 0 0)
   unit (x 3 1 1)
   unit (x 3 4 1)
@@ -120,30 +121,9 @@ where unit v := addClause #[Literal.pos v]
 
 end SymmBreaking
 
-def cliqueToAssn (kc : KellerCliqueData n s) : HashAssn (Literal (Vars n s)) := Id.run do
-  let mut res := HashAssn.empty
-  for i in allBitVecs n do
-    let x := kc.vertices[i.toFin]
-    for j in Array.finRange n do
-      let k := x[j]
-      res := res.insert (.x i j k) true
-  return res
-
 def fullEncoding (s) : EncCNF (Vars 7 s) Unit := do
   baseEncoding 7 s
   match s with
   | s+1 => initialSymm s
   | _ => pure ()
 
-def main (args : List String) := show IO _ from do
-  if args.length < 3 then
-    IO.println "command arguments: <n> <s> <cnf file>"
-    return
-  let n := args[0]!.toNat!
-  let s := args[1]!.toNat!
-  let file := args[2]!
-  IO.println s!"encoding G_{n}_{s}"
-  let enc := baseEncoding n s |>.toICnf
-  let () ← IO.FS.withFile file .write <| fun handle => do
-    Solver.Dimacs.printFormula (handle.putStr) enc
-    handle.flush

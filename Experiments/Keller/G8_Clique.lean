@@ -113,7 +113,3 @@ def G8_clique: KCliqueData 8 2 :=
 ] (by simp)
 where v (a b c d e f g h) : Vector (Fin 2) 8 :=
   Vector.mk #[a,b,c,d,e,f,g,h] (by simp)
-
-theorem not_conjectureIn_8 : ¬ conjectureIn 8 := by
-  apply G8_clique.checkAll_implies_not_conjecture
-  native_decide
