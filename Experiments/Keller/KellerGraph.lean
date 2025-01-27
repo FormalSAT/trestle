@@ -154,61 +154,48 @@ def KClique.map (a : KAuto n s) (k : KClique vs) :
 
 namespace KVertex
 
-def flip (j : Fin n) (v : KVertex n s) : KVertex n s :=
-  { bv := v.bv ^^^ BitVec.shiftLeft 1 j, colors := v.colors }
+def flip (mask : BitVec n) (v : KVertex n s) : KVertex n s :=
+  { bv := v.bv ^^^ mask, colors := v.colors }
 
-@[simp] theorem colors_flip {j} {v : KVertex n s} : (flip j v).colors = v.colors := rfl
-@[simp] theorem bv_flip_eq {j} {v : KVertex (n+1) s} : (flip j v).bv[(↑j : Nat)] = !v.bv[j] := by
-  simp [flip]
-@[simp] theorem bv_flip_ne {j j'} {v : KVertex (n+1) s} (h : j ≠ j') :
-    (flip j v).bv[↑(j' : Nat)] = v.bv[j'] := by
-  simp [flip]
-  by_cases j' < j <;> simp [*]
-  by_cases (↑j' : Nat) - ↑j = 0
-  · omega
-  · simp [*]
+theorem bv_flip (mask) {v : KVertex n s} : (flip mask v).bv = v.bv ^^^ mask := rfl
+@[simp] theorem bv_colors (mask) {v : KVertex n s} : (flip mask v).colors = v.colors := rfl
 
-@[simp] theorem flip_flip (j : Fin n) {v : KVertex n s} : (v.flip j).flip j = v := by
+@[simp] theorem flip_flip (mask : BitVec n) {v : KVertex n s} : (v.flip mask).flip mask = v := by
   simp [flip, BitVec.xor_assoc]
 
-theorem flip_comm (j₁ j₂ : Fin n) {v : KVertex n s} : (v.flip j₂).flip j₁ = (v.flip j₁).flip j₂ := by
-  simp [flip]; rw [BitVec.xor_assoc]
-  conv => enter [1,2]; rw [BitVec.xor_comm]
-  rw [BitVec.xor_assoc]
 
-def permute (j : Fin n) (f : Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
-  { bv := v.bv, colors := Vector.ofFn (fun j' => if j = j' then f v.colors[j'] else v.colors[j']) }
+def permute (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
+  { bv := v.bv, colors := Vector.ofFn (fun j => (f j) v.colors[j]) }
 
-@[simp] theorem bv_permute {j f} {v : KVertex n s} : bv (permute j f v) = v.bv := rfl
-@[simp] theorem colors_permute_eq {j f} {v : KVertex n s} {hj} :
-    (permute j f v).colors[(j : Nat)]'hj = f v.colors[j] := by
-  simp [permute, Vector.ofFn, getElem]; simp [Vector.get]
-@[simp] theorem colors_permute_ne {j j' f} {v : KVertex n s} {hj'} (h : j ≠ j') :
-    (permute j f v).colors[(j' : Nat)]'hj' = v.colors[j'] := by
-  simp [permute, Vector.ofFn, getElem]; simp [Vector.get, h]
+@[simp] theorem bv_permute (f) {v : KVertex n s} : (permute f v).bv = v.bv := rfl
 
-@[simp] theorem permute_id (j : Fin n) {v : KVertex n s} : permute j id v = v := by
+theorem colors_permute (f) (v : KVertex n s) {j h} :
+    (permute f v).colors[j]'h = (f ⟨j,h⟩) v.colors[j] := by
+  simp [permute]
+
+
+theorem permute_permute (f₁ f₂ : Fin n → Fin s → Fin s) {v} :
+    permute f₁ (permute f₂ v) = permute (fun j => f₁ j ∘ f₂ j) v := by
+  simp [permute]
+
+@[simp] theorem permute_id {v : KVertex n s} : permute (fun _ => id) v = v := by
   simp [permute]
   congr
   ext i hi
   simp
 
-@[simp] theorem permute_comp (j : Fin n) (f₁ f₂ : Fin s → Fin s) {v} :
-    (permute j f₁ v).permute j f₂ = permute j (f₂ ∘ f₁) v := by
-  simp [permute]
-  ext i hi; simp
-  split <;> simp
-
-theorem permute_commute (j₁ j₂ : Fin n) (f₁ f₂ : Fin s → Fin s) {v} :
-    j₁ ≠ j₂ → (permute j₁ f₁ (permute j₂ f₂ v)) = permute j₂ f₂ (permute j₁ f₁ v) := by
-  intro hne
-  simp [permute]
-  ext i hi; simp
-  split <;> split <;> simp_all
 
 def reorder (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
   ⟨ BitVec.ofFn (v.bv[f ·])
   , Vector.ofFn (v.colors[f ·])⟩
+
+theorem bv_reorder (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
+    (v.reorder f).bv[j]'hj = v.bv[f ⟨j,hj⟩] := by
+  simp [reorder]
+
+theorem colors_reorder (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
+    (v.reorder f).colors[j]'hj = v.colors[f ⟨j,hj⟩] := by
+  simp [reorder]
 
 theorem reorder_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
     : reorder f₁ (reorder f₂ v) = reorder (f₂ ∘ f₁) v := by
@@ -224,69 +211,33 @@ namespace KAuto
 
 def id : KAuto n s := RelIso.refl _
 
-def flip (j : Fin (n+1)) : KAuto (n+1) s :=
+def flip (mask : BitVec n) : KAuto n s :=
   RelIso.mk ({
-    toFun := KVertex.flip j
-    invFun := KVertex.flip j
-    left_inv := by apply KVertex.flip_flip
-    right_inv := by apply KVertex.flip_flip
+    toFun := KVertex.flip mask
+    invFun := KVertex.flip mask
+    left_inv  := by intro; simp
+    right_inv := by intro; simp
+  }) (by
+    simp [KAdj, KVertex.bv_flip]
+  )
+
+@[simp] theorem toFun_flip {x : KVertex _ _ } :
+  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
+    (flip (n := n) (s := s) mask) x = KVertex.flip mask x := rfl
+
+def permute (f : Fin n → Fin s ≃ Fin s) : KAuto n s :=
+  RelIso.mk ({
+    toFun := KVertex.permute (fun j => f j)
+    invFun := KVertex.permute (fun j => (f j).symm)
+    left_inv  := by intro; simp [KVertex.permute_permute]
+    right_inv := by intro; simp [KVertex.permute_permute]
   }) (by
     intro v₁ v₂
-    simp [KAdj]
-    constructor
-    · rintro ⟨j₁,hb1,hc1,j₂,hne,h2⟩
-      replace hb1 : v₁.bv[j₁] ≠ v₂.bv[j₁] := by
-        by_cases hj1 : j = j₁ <;> (simp [hj1] at hb1; exact hb1)
-      use j₁, hb1, hc1, j₂, hne
-      cases h2
-      case inr => simp [*]
-      case inl h2 =>
-      left
-      by_cases hj2 : j = j₂ <;> (simp [hj2] at h2; exact h2)
-    · rintro ⟨j₁,hb1,hc1,j₂,hne,h2⟩
-      use j₁
-      constructor
-      · by_cases hj1 : j = j₁ <;> (simp [hj1, hb1])
-      use hc1, j₂, hne
-      cases h2
-      case inr => simp [*]
-      case inl h2 =>
-      left
-      by_cases hj2 : j = j₂ <;> (simp [hj2]; exact h2)
-    )
+    simp [KAdj, KVertex.colors_permute])
 
-def permute (j : Fin (n+1)) (f : Fin s ≃ Fin s) : KAuto (n+1) s :=
-  RelIso.mk ({
-    toFun := KVertex.permute j f
-    invFun := KVertex.permute j f.symm
-    left_inv := by intro; simp
-    right_inv := by intro; simp
-  }
-  ) (by
-    intro v₁ v₂
-    simp [KAdj]
-    constructor
-    · rintro ⟨j₁,hb1,hc1,j₂,hne,h2⟩
-      replace hc1 : v₁.colors[j₁] = v₂.colors[j₁] := by
-        by_cases hj1 : j = j₁ <;> simpa [hj1] using hc1
-      use j₁, hb1, hc1, j₂, hne
-      cases h2
-      case inl => simp [*]
-      case inr h2 =>
-      right
-      by_cases hj2 : j = j₂ <;> (simp [hj2] at h2; exact h2)
-    · rintro ⟨j₁,hb1,hc1,j₂,hne,h2⟩
-      use j₁
-      refine ⟨?_,?_,?_⟩
-      · assumption
-      · by_cases hj1 : j = j₁ <;> (simp [hj1, hc1])
-      use j₂, hne
-      cases h2
-      case inl => simp [*]
-      case inr h2 =>
-      right
-      by_cases hj2 : j = j₂ <;> (simp [hj2]; exact h2)
-  )
+@[simp] theorem toFun_permute {x : KVertex _ _ } :
+  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
+    (permute (n := n) (s := s) f) x = KVertex.permute (fun j => f j) x := rfl
 
 def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
   RelIso.mk {
@@ -309,6 +260,25 @@ def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
       simp [hne, h]
   )
 
+@[simp] theorem toFun_reorder {x : KVertex _ _ } :
+  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
+    (reorder (n := n) (s := s) f) x = KVertex.reorder (fun j => f j) x := rfl
+
+def swap (j₁ j₂ : Fin n) : Fin n ≃ Fin n := {
+  toFun := fun j => if j = j₁ then j₂ else if j = j₂ then j₁ else j
+  invFun := fun j => if j = j₁ then j₂ else if j = j₂ then j₁ else j
+  left_inv := by intro; simp; split <;> split <;> simp_all
+  right_inv := by intro; simp; split <;> split <;> simp_all
+}
+
+theorem swap_comm_equiv : (swap j₁ j₂) = (swap j₂ j₁) := by
+  ext; simp [swap]; split <;> simp_all
+
+@[simp] theorem swap_left : (swap j₁ j₂) j₁ = j₂ := by simp [swap]
+@[simp] theorem swap_right : (swap j₁ j₂) j₂ = j₁ := by simp [swap]
+@[simp] theorem swap_swap : (swap j₁ j₂).trans (swap j₁ j₂) = Equiv.refl _ := by
+  ext; simp [swap]; split <;> split <;> simp_all
+
 end KAuto
 
 
@@ -317,7 +287,7 @@ structure SB0 (n s) where
   kclique : KClique vs
 
 structure SB1 (n s) extends SB0 (n+2) (s+1) where
-  c0 : kclique.get 0 = ⟨#[0,0] ++ Array.mkArray n 0, by simp; omega⟩
+  c0 : kclique.get 0 = ⟨Array.mkArray (n+2) 0, by simp⟩
   c1 : kclique.get 1 = ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩
 
 theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
@@ -393,27 +363,69 @@ theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
     else
       exact (hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm hne)).2
 
-def SB0.auto {n s} (x : SB0 (n+2) (s+1)) (h :
-    ∃ i₁ i₂ j₁ j₂, j₁ ≠ j₂ ∧ ∀ j (h : j < n+2),
-      (j ≠ j₁ → i₁[j] = i₂[j]) ∧
-      (j ≠ j₂ → (x.kclique.get i₁)[j] = (x.kclique.get i₂)[j]))
-  : KAuto (n+2) (s+1) :=
-  sorry
+def SB0.auto {n s} (v₁ v₂ : KVertex (n+2) (s+2)) : KAuto (n+2) (s+2) :=
+  (KAuto.flip v₁.bv)
+  |>.trans (KAuto.permute fun j =>
+    let fst := KAuto.swap 0 v₁.colors[j]
+    if j = 1 then
+      fst.trans (KAuto.swap 1 (fst v₂.colors[j]))
+    else
+      fst)
 
-theorem SB0.to_SB1 {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
+theorem SB0.auto_v₁ {v₁ v₂ : KVertex (n+2) (s+2)} (h : v₁.colors[1] ≠ v₂.colors[1]) :
+      (SB0.auto v₁ v₂).toFun v₁ = ⟨0, Vector.mkVector _ 0⟩ := by
+  ext j hj
+  · unfold auto; simp [KVertex.bv_flip]
+  · unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
+    if hj : j = 1 then
+      simp [hj]; simp [KAuto.swap]
+      generalize v₁.colors[1] = a at h ⊢; generalize v₂.colors[1] = b at h ⊢
+      aesop
+    else
+      simp [← Fin.val_eq_val, hj]
+
+theorem SB0.auto_v₂ {v₁ v₂ : KVertex (n+2) (s+2)}
+      (h : ∀ j (h : j < n+2),
+          (j ≠ 0 ↔ v₁.bv[j] = v₂.bv[j]) ∧
+          (j ≠ 1 ↔ v₁.colors[j] = v₂.colors[j])) :
+      (SB0.auto v₁ v₂).toFun v₂ = ⟨1, ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩⟩ := by
+  ext j hj <;> specialize h j hj
+  · replace h := h.1
+    unfold auto; simp [KVertex.bv_flip]
+    by_cases j = 0 <;> aesop
+  · replace h := h.2
+    unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
+    if hj : j = 1 then
+      simp [hj, Array.getElem_append]
+    else
+      simp [hj] at h
+      simp [← Fin.val_eq_val, hj, h, Array.getElem_append]
+      split
+      · have : j = 0 := by omega
+        simp [this]
+      · rfl
+
+theorem SB0.to_SB1 {n s} (k : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   : Nonempty (SB1 n s) := by
-  have ⟨i₁, i₂, j₁, j₂, hne, same_on⟩ := x.pick_pair h
+  have ⟨ai, bi, j₁, j₂, hne, same_on⟩ := k.pick_pair h
   clear h
-  let f := KAuto.id (n := n+2) (s := s+1)
-  refine ⟨{vs:=_, kclique := x.kclique.map f, c0:=?c0, c1:=?c1}⟩
-  case c0 =>
-    simp [KClique.get_eq_iff_mem]
-    use ⟨i₁, x.kclique.get i₁⟩, x.kclique.get_mem _
-    _
-  case c1 =>
-    simp [KClique.get_eq_iff_mem]
-    use ⟨i₂, x.kclique.get i₂⟩, x.kclique.get_mem _
-    _
+  generalize ha : k.kclique.get ai = a_cs at same_on
+  generalize hb : k.kclique.get bi = b_cs at same_on
+  rw [KClique.get_eq_iff_mem] at ha hb
+  let f_reorder : KAuto (n+2) (s+1) :=
+    KAuto.reorder (KAuto.swap j₁ 0 |>.trans (KAuto.swap j₂ 1))
+  replace k2 := k.kclique.map f_reorder
+  generalize hvs_reordered : k.vs.map _ = vs_reordered at k2
+
+  replace same_on : ∀ (j : ℕ) (h : j < n + 2),
+      (j ≠ 0 → i₁[j] = i₂[j]) ∧
+      (j ≠ 1 → (k.get i₁)[j] = (k.get i₂)[j]) := by
+    intro j hj
+    specialize same_on j hj
+    use same_on.1; replace same_on := same_on.2
+    intro hne; specialize same_on hne
+    stop
+  _
 
 
 structure KellerCliqueData (n s : Nat) where
