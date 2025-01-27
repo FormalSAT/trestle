@@ -111,3 +111,65 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
   unfold ofFn
   rw [getElem_cast, ← getLsbD_eq_getElem, getLsb_ofBoolListLE]
   simp [h]
+
+section insert_mapping
+variable [DecidableEq α] [DecidableEq β] (a : α) (b : β)
+/-- Assuming `a ↦ f a` and `f⁻¹ b ↦ b` in `f`, this function maps
+`a ↦ b` and `f⁻¹ b ↦ f a`. All other mappings are untouched.
+This preserves bijectivity of `f`, if it had it. -/
+def Function.insert_mapping (f : α → β) : α → β :=
+  let old_ret := f a
+  fun x => if x = a then b else
+    let fx := f x
+    if fx = b then old_ret else fx
+
+@[simp] theorem Function.insert_mapping_left (f : α → β) : (insert_mapping a b f) a = b
+  := by simp [insert_mapping]
+
+theorem Function.insert_mapping_right (f : α → β) (h : f x = b):
+    (Function.insert_mapping a b f) x = f a
+  := by simp [insert_mapping, h]; rintro rfl; exact h.symm
+
+theorem Function.insert_mapping_unchanged (f : α → β) (h₁ : x ≠ a) (h₂ : f x ≠ b):
+    (Function.insert_mapping a b f) x = f x
+  := by simp [insert_mapping]; aesop
+
+/-- Assuming `a ↦ f a` and `f⁻¹ b ↦ b` in `f`, this function maps
+`a ↦ b` and `f⁻¹ b ↦ f a`. All other mappings are untouched. -/
+def Equiv.insert [DecidableEq α] [DecidableEq β] (a : α) (b : β) (f : α ≃ β) : α ≃ β := {
+  toFun := Function.insert_mapping a b f.toFun
+  invFun := Function.insert_mapping b a f.invFun
+  left_inv := by
+    intro x; simp [Function.insert_mapping]
+    if ha : x = a then
+      simp [ha]
+    else
+      simp [ha]
+      if hb : f x = b then
+        simp [← hb]
+      else
+        simp [hb, ha]
+  right_inv := by
+    intro x; simp [Function.insert_mapping]
+    if ha : x = b then
+      simp [ha]
+    else
+      simp [ha]
+      if hb : f.symm x = a then
+        simp [← hb]
+      else
+        simp [hb, ha]
+}
+
+@[simp] theorem Equiv.insert_left (f : α ≃ β) : (insert a b f) a = b
+  := by simp [insert]
+
+theorem Equiv.insert_right (f : α ≃ β) : (f x = b) → (insert a b f) x = f a
+  := by intro; simp [insert]; rw [Function.insert_mapping_right a b f]; assumption
+
+theorem Equiv.insert_unchanged (f : α ≃ β) : x ≠ a → (f x ≠ b) → (insert a b f) x = f x
+  := by
+    intros; simp [insert]
+    rw [Function.insert_mapping_unchanged a b f] <;> assumption
+
+end insert_mapping

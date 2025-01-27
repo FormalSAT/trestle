@@ -264,20 +264,46 @@ def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
   DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
     (reorder (n := n) (s := s) f) x = KVertex.reorder (fun j => f j) x := rfl
 
-def swap (j₁ j₂ : Fin n) : Fin n ≃ Fin n := {
-  toFun := fun j => if j = j₁ then j₂ else if j = j₂ then j₁ else j
-  invFun := fun j => if j = j₁ then j₂ else if j = j₂ then j₁ else j
-  left_inv := by intro; simp; split <;> split <;> simp_all
-  right_inv := by intro; simp; split <;> split <;> simp_all
-}
+def swap [DecidableEq α] (L : List (α × α)) : α ≃ α :=
+  match L with
+  | [] => Equiv.refl _
+  | (a,b) :: tail => (swap tail).insert a b
 
-theorem swap_comm_equiv : (swap j₁ j₂) = (swap j₂ j₁) := by
-  ext; simp [swap]; split <;> simp_all
+@[simp] theorem swap_nil [DecidableEq α] : swap (α := α) [] i = i := rfl
 
-@[simp] theorem swap_left : (swap j₁ j₂) j₁ = j₂ := by simp [swap]
-@[simp] theorem swap_right : (swap j₁ j₂) j₂ = j₁ := by simp [swap]
-@[simp] theorem swap_swap : (swap j₁ j₂).trans (swap j₁ j₂) = Equiv.refl _ := by
-  ext; simp [swap]; split <;> split <;> simp_all
+@[simp] theorem swap_cons_of_eq_left [DecidableEq α] :
+    swap (α := α) ((i,o) :: tail) i = o := by
+  simp [swap]
+
+@[simp] theorem swap_cons_of_eq_right [DecidableEq α]
+      (htail : swap tail i' = o) :
+    swap (α := α) ((i,o) :: tail) i' = swap tail i := by
+  simp [swap, htail]; rw [Equiv.insert_right]; exact htail
+
+@[simp] theorem swap_cons_of_ne [DecidableEq α]
+      (hhead : i' ≠ i) (htail : swap tail i' ≠ o) :
+    swap (α := α) ((i,o) :: tail) i' = swap tail i' := by
+  simp [swap, htail]; rw [Equiv.insert_unchanged] <;> assumption
+
+theorem swap_eq_of_mem [DecidableEq α] (L : List (α × α))
+    (is_distinct : L.Pairwise (·.1 ≠ ·.1)) (os_distinct : L.Pairwise (·.2 ≠ ·.2))
+    (pair_mem : (i,o) ∈ L) :
+    swap L i = o := by
+  induction L generalizing i o with
+  | nil => simp at pair_mem
+  | cons hd tl ih =>
+    simp at pair_mem
+    rcases pair_mem with (rfl|pair_mem)
+    case inl => simp
+    case inr =>
+    specialize ih is_distinct.tail os_distinct.tail pair_mem
+    replace is_distinct := Ne.symm <| List.rel_of_pairwise_cons is_distinct pair_mem
+    replace os_distinct := Ne.symm <| List.rel_of_pairwise_cons os_distinct pair_mem
+    clear pair_mem
+    rcases hd with ⟨x,y⟩; dsimp at is_distinct os_distinct ⊢
+    simp [swap]; rw [← ih] at os_distinct ⊢
+    apply Equiv.insert_unchanged <;> assumption
+
 
 end KAuto
 
@@ -291,9 +317,9 @@ structure SB1 (n s) extends SB0 (n+2) (s+1) where
   c1 : kclique.get 1 = ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩
 
 theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
-  : ∃ i₁ i₂ j₁ j₂, j₁ ≠ j₂ ∧ ∀ j (h : j < n+2),
-      (j ≠ j₁ → i₁[j] = i₂[j]) ∧
-      (j ≠ j₂ → (x.kclique.get i₁)[j] = (x.kclique.get i₂)[j])
+  : ∃ (i₁ i₂ : BitVec (n+2)) (j₁ j₂ : Fin (n+2)), j₁ ≠ j₂ ∧ ∀ j (h : j < n+2),
+      (j ≠ j₁ ↔ i₁[j] = i₂[j]) ∧
+      (j ≠ j₂ ↔ (x.kclique.get i₁)[j] = (x.kclique.get i₂)[j])
   := by
   let K_0 : Finset (KVertex (n+1) (s+1)) := (Finset.univ (α := BitVec (n+1)))
     |>.map ⟨fun i =>
@@ -346,41 +372,46 @@ theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   subst this
   simp [BitVec.getElem_cons] at h
   -- now we fill the goal
-  use (i₁.cons false), (i₂.cons false), j₁, (n+1)
+  use (i₁.cons false), (i₂.cons false), ⟨j₁,‹_›⟩, ⟨n+1, by omega⟩
   simp [hk₁, hk₂, js_diff]
-  intro j hj
-  constructor
-  · intro hne
-    simp [BitVec.getElem_cons]
-    by_cases not_last : j = n+1
-    case pos => simp [not_last]
-    case neg =>
-      specialize hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm hne)
-      simpa [not_last] using hnotadj.1
-  · rintro not_last
-    if hne: j = j₁ then
-      subst_vars; exact ks_same
-    else
-      exact (hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm hne)).2
+  rintro j -
+  by_cases eq_j1 : j = j₁
+  · simp_all [BitVec.getElem_cons]
+  · by_cases eq_last : j = n+1
+    · simp_all [BitVec.getElem_cons]
+    · specialize hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm eq_j1)
+      simp_all [BitVec.getElem_cons]; exact hnotadj.1
 
+def SB0.reorder (j₁ j₂ : Fin (n+2)) := KAuto.swap [(0,j₁), (1,j₂)]
+
+@[simp] theorem SB0.reorder_0 (j1 j2 : Fin (n+2)) : reorder j1 j2 0 = j1 := by
+  simp [reorder]
+@[simp] theorem SB0.reorder_eq_j1 (j1 j2 : Fin (n+2)) : reorder j1 j2 j = j1 ↔ j = 0 := by
+  conv => lhs; rhs; rw [← SB0.reorder_0 j1 j2]
+  rw [Equiv.apply_eq_iff_eq]
+@[simp] theorem SB0.reorder_1 (j1 j2 : Fin (n+2)) (h : j1 ≠ j2) : reorder j1 j2 1 = j2 := by
+  simp [reorder]; rw [KAuto.swap_eq_of_mem] <;> simp [h]
+@[simp] theorem SB0.reorder_eq_j2 (j1 j2 : Fin (n+2)) (h : j1 ≠ j2) : reorder j1 j2 j = j2 ↔ j = 1 := by
+  conv => lhs; rhs; rw [← SB0.reorder_1 j1 j2 h]
+  rw [Equiv.apply_eq_iff_eq]
+
+/-- The automorphism which moves v₁ to ⟨0,[0*]⟩ and v₂ to ⟨1,[0,1,0*]⟩ -/
 def SB0.auto {n s} (v₁ v₂ : KVertex (n+2) (s+2)) : KAuto (n+2) (s+2) :=
   (KAuto.flip v₁.bv)
   |>.trans (KAuto.permute fun j =>
-    let fst := KAuto.swap 0 v₁.colors[j]
     if j = 1 then
-      fst.trans (KAuto.swap 1 (fst v₂.colors[j]))
+      KAuto.swap [(v₁.colors[j], 0), (v₂.colors[j], 1)]
     else
-      fst)
+      KAuto.swap [(v₁.colors[j], 0)]
+  )
 
-theorem SB0.auto_v₁ {v₁ v₂ : KVertex (n+2) (s+2)} (h : v₁.colors[1] ≠ v₂.colors[1]) :
+theorem SB0.auto_v₁ {v₁ v₂ : KVertex (n+2) (s+2)} :
       (SB0.auto v₁ v₂).toFun v₁ = ⟨0, Vector.mkVector _ 0⟩ := by
   ext j hj
   · unfold auto; simp [KVertex.bv_flip]
   · unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
     if hj : j = 1 then
-      simp [hj]; simp [KAuto.swap]
-      generalize v₁.colors[1] = a at h ⊢; generalize v₂.colors[1] = b at h ⊢
-      aesop
+      simp [hj]
     else
       simp [← Fin.val_eq_val, hj]
 
@@ -397,6 +428,12 @@ theorem SB0.auto_v₂ {v₁ v₂ : KVertex (n+2) (s+2)}
     unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
     if hj : j = 1 then
       simp [hj, Array.getElem_append]
+      simp [hj] at h
+      rw [KAuto.swap_eq_of_mem]
+      case is_distinct => simp [h]
+      case os_distinct => simp
+      case pair_mem => simp; right; rfl
+      rfl
     else
       simp [hj] at h
       simp [← Fin.val_eq_val, hj, h, Array.getElem_append]
@@ -405,27 +442,53 @@ theorem SB0.auto_v₂ {v₁ v₂ : KVertex (n+2) (s+2)}
         simp [this]
       · rfl
 
-theorem SB0.to_SB1 {n s} (k : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
-  : Nonempty (SB1 n s) := by
+theorem SB0.to_SB1 {n s} (k : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
+  : Nonempty (SB1 n (s+1)) := by
   have ⟨ai, bi, j₁, j₂, hne, same_on⟩ := k.pick_pair h
-  clear h
-  generalize ha : k.kclique.get ai = a_cs at same_on
-  generalize hb : k.kclique.get bi = b_cs at same_on
-  rw [KClique.get_eq_iff_mem] at ha hb
-  let f_reorder : KAuto (n+2) (s+1) :=
-    KAuto.reorder (KAuto.swap j₁ 0 |>.trans (KAuto.swap j₂ 1))
-  replace k2 := k.kclique.map f_reorder
-  generalize hvs_reordered : k.vs.map _ = vs_reordered at k2
+  -- clean up the context a *bunch*
+  -- TODO(JG): just change pick_pair to be in the form I actually want it in
+  clear h; rcases k with ⟨vs,k⟩
+  generalize a_mem_vs : k.get ai = a_cs at same_on
+  generalize b_mem_vs : k.get bi = b_cs at same_on
+  rw [KClique.get_eq_iff_mem] at a_mem_vs b_mem_vs
+  generalize ha : KVertex.mk ai a_cs = a at a_mem_vs
+  generalize hb : KVertex.mk bi b_cs = b at b_mem_vs
+  simp [KVertex.ext_iff] at ha hb
+  rcases ha with ⟨rfl,rfl⟩; rcases hb with ⟨rfl,rfl⟩
+  -- okay, context is now pretty reasonable
+  -- apply the reordering automorphism to get vs2, k2, a2, b2
+  have k2 := k.map (KAuto.reorder <| SB0.reorder j₁ j₂)
+  generalize hvs2 : vs.map _ = vs2 at k2
+  let a2 := (KAuto.reorder (reorder j₁ j₂)).toFun a
+  let b2 := (KAuto.reorder (reorder j₁ j₂)).toFun b
+  -- apply the "move to all 0s" automorphism to get vs3, k3
+  have k3 := k2.map (SB0.auto a2 b2)
+  generalize hvs3 : vs2.map _ = vs3 at k3
 
-  replace same_on : ∀ (j : ℕ) (h : j < n + 2),
-      (j ≠ 0 → i₁[j] = i₂[j]) ∧
-      (j ≠ 1 → (k.get i₁)[j] = (k.get i₂)[j]) := by
-    intro j hj
-    specialize same_on j hj
-    use same_on.1; replace same_on := same_on.2
-    intro hne; specialize same_on hne
-    stop
-  _
+  -- k3 is the clique we want! just have to prove 0 ↦ 0*, 1 ↦ 0,1,0*
+  refine ⟨{vs := vs3, kclique := k3, c0 := ?c0, c1 := ?c1}⟩
+  case c0 =>
+    rw [KClique.get_eq_iff_mem]; simp [← hvs3]
+    use a2
+    constructor
+    · rw [← hvs2]; apply Finset.mem_map_of_mem; exact a_mem_vs
+    · apply SB0.auto_v₁
+  case c1 =>
+    rw [KClique.get_eq_iff_mem]; simp [← hvs3]
+    use b2
+    constructor
+    · rw [← hvs2]; apply Finset.mem_map_of_mem; exact b_mem_vs
+    · apply SB0.auto_v₂
+      intro j hj
+      simp [a2, b2, KVertex.bv_reorder, KVertex.colors_reorder]
+      constructor
+      · rw [← (same_on _ _).1, not_iff_not, Fin.val_eq_val,
+          SB0.reorder_eq_j1, ← Fin.val_eq_val]
+        rfl
+      · rw [← (same_on _ _).2, not_iff_not, Fin.val_eq_val,
+          SB0.reorder_eq_j2 _ _ hne, ← Fin.val_eq_val]
+        rfl
+
 
 
 structure KellerCliqueData (n s : Nat) where
