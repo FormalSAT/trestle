@@ -77,14 +77,14 @@ theorem KVertex.bv_injOn_clique (isClique : (KGraph n s).IsClique vs) :
   have := isClique hv₁ hv₂ hne
   contradiction
 
-theorem nclique_card_le (isNClique : (KGraph n s).IsNClique size vs) :
+theorem KGraph.nclique_card_le (isNClique : (KGraph n s).IsNClique size vs) :
     vs.card ≤ 2^n := by
   rw [← BitVec.card (n := n)]
   apply Finset.card_le_card_of_injOn
   · simp
   · apply KVertex.bv_injOn_clique isNClique.isClique
 
-theorem maxClique_le : (KGraph n s).cliqueNum ≤ 2^n := by
+theorem KGraph.cliqueNum_le : (KGraph n s).cliqueNum ≤ 2^n := by
   unfold SimpleGraph.cliqueNum
   generalize hsizes : setOf _ = sizes
   by_contra h
