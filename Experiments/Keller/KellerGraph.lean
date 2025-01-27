@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The Trestle Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import Experiments.Keller.Upstream
 
 import Mathlib.Combinatorics.SimpleGraph.Basic

@@ -1,3 +1,10 @@
+/-
+Copyright (c) 2024 The Trestle Contributors.
+Released under the Apache License v2.0; see LICENSE for full text.
+
+Authors: James Gallicchio
+-/
+
 import Experiments.Keller.KellerGraph
 
 namespace Keller
@@ -110,4 +117,3 @@ where v (a b c d e f g h) : Vector (Fin 2) 8 :=
 theorem not_conjectureIn_8 : ¬ conjectureIn 8 := by
   apply G8_clique.checkAll_implies_not_conjecture
   native_decide
-
