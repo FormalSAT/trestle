@@ -9,6 +9,8 @@ import Experiments.Keller.Autos
 
 namespace Keller
 
+/-! ## Manual-Proof Symmetry Breaking -/
+
 structure SB0 (n s) where
   kclique : KClique n s
 
