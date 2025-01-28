@@ -7,6 +7,7 @@ Authors: James Gallicchio
 
 import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Fintype.Card
+import Mathlib.Data.Finset.Pi
 
 def Fin.any (n : Nat) (P : Fin n → Bool) : Bool :=
   aux 0
@@ -67,6 +68,19 @@ def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
 @[simp] theorem Vector.getElem_take (v : Vector α n) (n') (i : Nat) (hi)
   : (v.take n')[i]'hi = v[i] := by
   cases v; simp [Vector.take]
+
+instance [Fintype α] : Fintype (Vector α n) where
+  elems :=
+    (Finset.univ : Finset (Fin n)).pi (fun _ => (Finset.univ : Finset α))
+    |>.map ⟨fun f => Vector.ofFn (f · <| Finset.mem_univ _), by
+      intro f₁ f₂ h
+      simp [Vector.ext_iff] at h
+      ext; apply h⟩
+  complete := by
+    intro x
+    simp; use (fun i hi => x[i])
+    ext; simp
+
 
 def BitVec.equiv_fin (n) : BitVec n ≃ Fin (2^n) := {
     toFun := BitVec.toFin

@@ -18,24 +18,11 @@ structure KVertex (n s : Nat) where
   colors : Vector (Fin s) n
 deriving Repr, DecidableEq
 
-namespace KVertex
-
-nonrec def toString (v : KVertex n s) : String :=
-  s!"{v.bv};{v.colors.toList}"
-
-instance : ToString (KVertex n s) where
-  toString := KVertex.toString
-
-end KVertex
-
 def KAdj (v₁ v₂ : KVertex n s) : Prop :=
   ∃ (j₁ : Fin n),
       v₁.bv[j₁] ≠ v₂.bv[j₁] ∧ v₁.colors[j₁] = v₂.colors[j₁] ∧
     ∃ j₂, j₁ ≠ j₂ ∧
       (v₁.bv[j₂] ≠ v₂.bv[j₂] ∨ v₁.colors[j₂] ≠ v₂.colors[j₂])
-
-instance : DecidableRel (KAdj (n := n) (s := s)) :=
-  fun v₁ v₂ => by unfold KAdj; infer_instance
 
 theorem KAdj.symm : Symmetric (KAdj (n := n) (s := s)) := by
   intro x y h
@@ -144,3 +131,23 @@ theorem get_eq_iff_mem (i : BitVec n) : k.get i = cs ↔ ⟨i,cs⟩ ∈ k.val :=
     rw [this]
 
 end KClique
+
+/-! ##### Computational Utilities -/
+
+instance : DecidableRel (KAdj (n := n) (s := s)) :=
+  fun v₁ v₂ => by unfold KAdj; infer_instance
+
+namespace KVertex
+
+nonrec def toString (v : KVertex n s) : String :=
+  s!"{v.bv};{v.colors.toList}"
+
+instance : ToString (KVertex n s) where
+  toString := KVertex.toString
+
+instance : Fintype (KVertex n s) where
+  elems := Finset.univ ×ˢ Finset.univ
+            |>.map ⟨fun (a,b) => ⟨a,b⟩, by rintro ⟨_,_⟩ ⟨_,_⟩; simp⟩
+  complete := by simp
+
+end KVertex
