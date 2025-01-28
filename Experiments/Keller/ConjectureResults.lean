@@ -28,7 +28,7 @@ theorem conjectureIn_6 : conjectureIn 6 := sorry
 theorem conjectureIn_7 : conjectureIn 6 := sorry
 
 theorem not_conjectureIn_8 : ¬ conjectureIn 8 := by
-  apply G8_clique.checkAll_implies_not_conjecture
+  apply G8_clique.check_implies_not_conjecture
   native_decide
 
 -- TODO(JG): finish this proof
