@@ -130,6 +130,12 @@ theorem get_eq_iff_mem (i : BitVec n) : k.get i = cs ↔ ⟨i,cs⟩ ∈ k.val :=
     have := k.exists_unique v.bv |>.unique ⟨mem,rfl⟩ ⟨mem2,rfl⟩
     rw [this]
 
+instance : GetElem (KClique n s) (BitVec n) (Vector (Fin s) n) ⊤ where
+  getElem k i _ := k.get i
+
+instance : GetElem (KClique n s) Nat (Vector (Fin s) n) (fun _ i => i < 2^n) where
+  getElem k i h := k.get ⟨i, h⟩
+
 end KClique
 
 /-! ##### Computational Utilities -/
