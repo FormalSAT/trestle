@@ -24,7 +24,9 @@ structure SB1 (n s) extends SB0 (n+2) (s+1) where
   c0 : kclique.get 0 = SB1.c0_colors
   c1 : kclique.get 1 = SB1.c1_colors
 
-theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
+namespace SB0
+
+theorem pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   : ∃ a ∈ x.kclique.val, ∃ b ∈ x.kclique.val,
     ∃ (j₁ j₂ : Fin (n+2)), j₁ ≠ j₂ ∧
       ∀ (j : ℕ) (h : j < n + 2),
@@ -100,44 +102,50 @@ theorem SB0.pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
 
 /-- The automorphism that reorders any columns `j₁`, `j₂`
 to the first and second column, respectively. -/
-def SB0.reorder (j₁ j₂ : Fin (n+2)) := KAuto.swap [(0,j₁), (1,j₂)]
+def reorder (j₁ j₂ : Fin (n+2)) := Equiv.Perm.setAll [(0,j₁), (1,j₂)]
 
-@[simp] theorem SB0.reorder_0 (j1 j2 : Fin (n+2)) : reorder j1 j2 0 = j1 := by
-  simp [reorder]
-@[simp] theorem SB0.reorder_eq_j1 (j1 j2 : Fin (n+2)) : reorder j1 j2 j = j1 ↔ j = 0 := by
-  conv => lhs; rhs; rw [← SB0.reorder_0 j1 j2]
-  rw [Equiv.apply_eq_iff_eq]
-@[simp] theorem SB0.reorder_1 (j1 j2 : Fin (n+2)) (h : j1 ≠ j2) : reorder j1 j2 1 = j2 := by
-  simp [reorder]; rw [KAuto.swap_eq_of_mem] <;> simp [h]
-@[simp] theorem SB0.reorder_eq_j2 (j1 j2 : Fin (n+2)) (h : j1 ≠ j2) : reorder j1 j2 j = j2 ↔ j = 1 := by
-  conv => lhs; rhs; rw [← SB0.reorder_1 j1 j2 h]
-  rw [Equiv.apply_eq_iff_eq]
+section reorder
+variable {j1 j2 : Fin (n+2)} (h : j1 ≠ j2)
+include h
+
+@[simp] theorem reorder_0 : reorder j1 j2 0 = j1 := by
+  unfold reorder; apply Equiv.setAll_eq_of_mem <;> simp [h]
+@[simp] theorem reorder_eq_j1 : reorder j1 j2 j = j1 ↔ j = 0 := by
+  rw [← (reorder j1 j2).apply_eq_iff_eq (x := j), reorder_0 h]
+
+@[simp] theorem reorder_1  : reorder j1 j2 1 = j2 := by
+  unfold reorder; apply Equiv.setAll_eq_of_mem <;> simp [h]
+@[simp] theorem reorder_eq_j2 : reorder j1 j2 j = j2 ↔ j = 1 := by
+  rw [← (reorder j1 j2).apply_eq_iff_eq (x := j), reorder_1 h]
+
+end reorder
 
 /-- The automorphism which moves v₁ to ⟨0,[0*]⟩ and v₂ to ⟨1,[0,1,0*]⟩ -/
-def SB0.auto {n s} (v₁ v₂ : KVertex (n+2) (s+2)) : KAuto (n+2) (s+2) :=
+def auto {n s} (v₁ v₂ : KVertex (n+2) (s+2)) : KAuto (n+2) (s+2) :=
   (KAuto.flip v₁.bv)
   |>.trans (KAuto.permute fun j =>
     if j = 1 then
-      KAuto.swap [(v₁.colors[j], 0), (v₂.colors[j], 1)]
+      Equiv.Perm.setAll [(v₁.colors[j], 0), (v₂.colors[j], 1)]
     else
-      KAuto.swap [(v₁.colors[j], 0)]
+      Equiv.Perm.setAll [(v₁.colors[j], 0)]
   )
 
-theorem SB0.auto_v₁ {v₁ v₂ : KVertex (n+2) (s+2)} :
-      (SB0.auto v₁ v₂).toFun v₁ = ⟨0, SB1.c0_colors⟩ := by
-  ext j hj
-  · unfold auto; simp [KVertex.bv_flip]
-  · unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
-    if hj : j = 1 then
-      simp [hj]
-    else
-      simp [← Fin.val_eq_val, hj]
-
-theorem SB0.auto_v₂ {v₁ v₂ : KVertex (n+2) (s+2)}
+section auto
+variable {v₁ v₂ : KVertex (n+2) (s+2)}
       (h : ∀ j (h : j < n+2),
           (j ≠ 0 ↔ v₁.bv[j] = v₂.bv[j]) ∧
-          (j ≠ 1 ↔ v₁.colors[j] = v₂.colors[j])) :
-      (SB0.auto v₁ v₂).toFun v₂ = ⟨1, SB1.c1_colors⟩ := by
+          (j ≠ 1 ↔ v₁.colors[j] = v₂.colors[j]))
+include h
+
+theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, SB1.c0_colors⟩ := by
+  ext1
+  · unfold auto; simp [KVertex.bv_flip]
+  · ext1 j hj
+    specialize h j hj
+    unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
+    split <;> (apply Equiv.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
+
+theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, SB1.c1_colors⟩ := by
   ext j hj <;> specialize h j hj
   · replace h := h.1
     unfold auto; simp [KVertex.bv_flip]
@@ -160,7 +168,9 @@ theorem SB0.auto_v₂ {v₁ v₂ : KVertex (n+2) (s+2)}
         simp [this]
       · rfl
 
-theorem SB0.to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
+end auto
+
+theorem to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
   : Nonempty (SB1 n (s+1)) := by
   have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := sb0.pick_pair h
   rcases sb0 with ⟨k⟩
@@ -197,3 +207,5 @@ theorem SB0.to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
     use b2, b2_mem
     apply SB0.auto_v₂
     exact same_on
+
+end SB0
