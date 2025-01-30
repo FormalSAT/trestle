@@ -146,7 +146,7 @@ theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, SB1.c0_colors⟩ := by
     split <;> (apply Equiv.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
 
 theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, SB1.c1_colors⟩ := by
-  ext j hj <;> specialize h j hj
+  ext1 <;> ext1 j hj <;> specialize h j hj
   · replace h := h.1
     unfold auto; simp [KVertex.bv_flip]
     by_cases j = 0 <;> aesop
@@ -154,19 +154,19 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, SB1.c1_colors⟩ := by
     unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
     if hj : j = 1 then
       simp [hj, Array.getElem_append]
-      simp [hj] at h
-      rw [KAuto.swap_eq_of_mem]
-      case is_distinct => simp [h]
+      apply Equiv.setAll_eq_of_mem
+      case is_distinct => simpa [hj] using h
       case os_distinct => simp
-      case pair_mem => simp; right; rfl
-      rfl
+      simp
     else
       simp [hj] at h
-      simp [← Fin.val_eq_val, hj, h, Array.getElem_append]
-      split
-      · have : j = 0 := by omega
-        simp [this]
-      · rfl
+      simp [← Fin.val_eq_val ⟨j,_⟩, hj, h, Array.getElem_append]
+      trans 0
+      · apply Equiv.setAll_eq_of_mem <;> simp
+      · split
+        · have : j = 0 := by omega
+          simp [this]
+        · rfl
 
 end auto
 
@@ -187,10 +187,10 @@ theorem to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
     simp [a2, b2, KVertex.bv_reorder, KVertex.colors_reorder]
     constructor
     · rw [← (same_on _ _).1, not_iff_not, Fin.val_eq_val,
-        SB0.reorder_eq_j1, ← Fin.val_eq_val]
+        SB0.reorder_eq_j1 hne, ← Fin.val_eq_val]
       rfl
     · rw [← (same_on _ _).2, not_iff_not, Fin.val_eq_val,
-        SB0.reorder_eq_j2 _ _ hne, ← Fin.val_eq_val]
+        SB0.reorder_eq_j2 hne, ← Fin.val_eq_val]
       rfl
 
   -- apply the "move to all 0s" automorphism to get vs3, k3
@@ -201,11 +201,10 @@ theorem to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
   case c0 =>
     rw [KClique.get_eq_iff_mem]; simp [k3, KClique.map]
     use a2, a2_mem
-    apply SB0.auto_v₁
+    apply SB0.auto_v₁; exact same_on
   case c1 =>
     rw [KClique.get_eq_iff_mem]; simp [k3, KClique.map]
     use b2, b2_mem
-    apply SB0.auto_v₂
-    exact same_on
+    apply SB0.auto_v₂; exact same_on
 
 end SB0
