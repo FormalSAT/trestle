@@ -7,6 +7,8 @@ Authors: James Gallicchio
 
 import Experiments.Keller.Autos
 
+import Mathlib.Data.Finset.Sort
+
 namespace Keller
 
 /-! ## Symmetry Breaking verified by SR -/
@@ -79,18 +81,16 @@ theorem Matrix.get_ofFn (r c) {f} {h1 h2 h3} : r ≠ c → Matrix.get r c h (Mat
 
 
 def Matrix.lt (x y : Matrix s) : Bool :=
-  match compare x.data[0] y.data[0] with
-  | .lt => true | .gt => false | .eq =>
-  match compare x.data[1] y.data[1] with
-  | .lt => true | .gt => false | .eq =>
-  match compare x.data[2] y.data[2] with
-  | .lt => true | .gt => false | .eq =>
-  match compare x.data[3] y.data[3] with
-  | .lt => true | .gt => false | .eq =>
-  match compare x.data[4] y.data[4] with
-  | .lt => true | .gt => false | .eq =>
-  match compare x.data[5] y.data[5] with
-  | .lt => true | .gt | .eq => false
+  x.data.toList < y.data.toList
+
+instance : LT (Matrix s) where
+  lt := (Matrix.lt · · = true)
+
+instance {x y : Matrix s} : Decidable (x < y) := Bool.decEq ..
+instance : IsTrans (Matrix s) (· < ·) where
+  trans := by
+    intro a b c; simp [instLTMatrix, Matrix.lt]
+    intro h1 h2; trans; exact h1; exact h2
 
 instance : Fintype (Matrix s) where
   elems :=
@@ -114,11 +114,26 @@ instance : Fintype (Matrix s) where
 
 def Matrix.Perm := Equiv.Perm (Fin 3)
 
+def Matrix.Perm.all : List Matrix.Perm := [
+  Equiv.refl _,
+  Equiv.Perm.setAll [(0,0),(1,2),(2,1)],
+  Equiv.Perm.setAll [(0,1),(1,0),(2,2)],
+  Equiv.Perm.setAll [(0,1),(1,2),(2,0)],
+  Equiv.Perm.setAll [(0,2),(1,0),(2,1)],
+  Equiv.Perm.setAll [(0,2),(1,1),(2,0)],
+]
+
 def Matrix.Perm.apply (m : Matrix s) (h : s > 1 := by trivial) (a: Matrix.Perm) : Matrix s := by
   have := m.get_or_transpose_eq_one
   simp [Fin.ext_iff] at this
   apply Matrix.ofFn (fun r c => m.get (a.toFun r) (a.toFun c))
   all_goals (apply this)
+
+def Matrix.findSmallerPerm? (m : Matrix s) (h : s > 1 := by trivial) : Option (Matrix s) :=
+  Matrix.Perm.all.map (fun p => p.apply m)
+  |>.find? (· < m)
+
+
 
 structure Matrix.Renumber (s) (h : s > 1 := by trivial) where
   renumber : Fin 3 → (Fin s ≃ Fin s)
@@ -134,16 +149,46 @@ def Matrix.Renumber.apply (m : Matrix s) (a: Matrix.Renumber s h) : Matrix s := 
     cases this <;> simp_all [a.renumber_1]
   )
 
-def Matrix.findRenumber (m : Matrix s) : 
+def renumber_fins (m : List (Fin s)) : Equiv.Perm (Fin s) :=
+  match m.head? with
+  | none => Equiv.refl _
+  | some ⟨_,h⟩ =>
+    Equiv.Perm.setAll (
+      aux ⟨0,by omega⟩ m []
+    )
+where
+  aux (nextSpot : Fin s) (L : List (Fin s))
+      (acc : List (Fin s × Fin s)) : List (Fin s × Fin s) :=
+  match L with
+  | []    => acc
+  | x::xs =>
+    if acc.any (·.1 = x) then
+      aux nextSpot xs acc
+    else
+      let acc := (x,nextSpot) :: acc
+      if _ : nextSpot = s-1 then acc
+      else aux ⟨nextSpot+1, by omega⟩ xs acc
+
+def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 3 := by trivial) : Option (Matrix s) := do
+  let p : Matrix.Renumber s (by omega) ← (do
+    let x := renumber_fins [⟨0,by omega⟩,⟨1,by omega⟩, m.get 1 0 (by omega), m.get 2 0 (by omega)]
+    let y := renumber_fins [⟨0,by omega⟩,⟨1,by omega⟩, m.get 0 1 (by omega), m.get 2 1 (by omega)]
+    let z := renumber_fins [⟨0,by omega⟩,⟨1,by omega⟩, m.get 0 2 (by omega), m.get 1 2 (by omega)]
+    if h : _ then some {
+      renumber := fun | 0 => x | 1 => y | 2 => z
+      renumber_0 := And.left h
+      renumber_1 := And.right h
+    } else none)
+  let m' := p.apply m
+  guard (m' < m)
+  return m'
 
 
-
-
-def canonicalCases := #[
+def oldCanonicalCases := #[
   #[0, 1, 1, 0, 0, 1] ,
   #[0, 1, 1, 0, 1, 1] ,
   #[0, 1, 1, 0, 2, 1] ,
-  #[0, 1, 1, 1, 0, 0] ,
+  #[0, 0, 1, 0, 1, 1] ,
   #[0, 1, 1, 1, 0, 2] ,
   #[0, 1, 1, 1, 1, 0] ,
   #[0, 1, 1, 1, 1, 1] ,
@@ -169,6 +214,37 @@ def canonicalCases := #[
   #[1, 1, 2, 1, 3, 1] ,
   #[1, 1, 2, 1, 3, 2] ]
 
+def canonicalCases := #[
+  #[0, 0, 1, 0, 1, 1] ,
+  #[0, 0, 1, 1, 1, 1] ,
+  #[0, 0, 1, 1, 1, 2] ,
+  #[0, 1, 1, 0, 0, 1] ,
+  #[0, 1, 1, 0, 1, 1] ,
+  #[0, 1, 1, 0, 2, 1] ,
+  #[0, 1, 1, 1, 0, 2] ,
+  #[0, 1, 1, 1, 1, 0] ,
+  #[0, 1, 1, 1, 1, 1] ,
+  #[0, 1, 1, 1, 1, 2] ,
+  #[0, 1, 1, 1, 2, 0] ,
+  #[0, 1, 1, 1, 2, 1] ,
+  #[0, 1, 1, 1, 2, 2] ,
+  #[0, 1, 1, 2, 1, 1] ,
+  #[0, 1, 1, 2, 2, 1] ,
+  #[0, 2, 1, 1, 1, 1] ,
+  #[0, 2, 1, 1, 1, 2] ,
+  #[0, 2, 1, 2, 1, 1] ,
+  #[0, 2, 1, 3, 1, 1] ,
+  #[1, 1, 1, 1, 1, 1] ,
+  #[1, 1, 1, 1, 1, 2] ,
+  #[1, 1, 1, 1, 2, 2] ,
+  #[1, 1, 1, 2, 2, 1] ,
+  #[1, 1, 2, 1, 2, 1] ,
+  #[1, 1, 2, 1, 2, 2] ,
+  #[1, 1, 2, 1, 3, 1] ,
+  #[1, 1, 2, 1, 3, 2] ,
+  #[1, 1, 2, 2, 3, 1] ,
+  #[1, 2, 2, 1, 1, 2] ]
+
 def asMatrices : Array (Matrix 4) :=
   canonicalCases.filterMap (fun data =>
     let data := data.filterMap (fun n => if h : _ then some ⟨n,h⟩ else none)
@@ -182,3 +258,12 @@ def asMatrices : Array (Matrix 4) :=
   )
 
 def sorted := asMatrices.insertionSort (·.lt ·)
+
+def findSmaller (m : Matrix 4) : Option (Matrix 4) :=
+  m.findSmallerPerm?.orElse (fun () => m.findSmallerRenumber?)
+
+#eval! Finset.univ (α := Matrix 4)
+  |>.filter (findSmaller · |>.isNone)
+  --|>.card
+  |>.map ⟨(·.data.toList), sorry⟩
+  |>.sort (· ≤ ·)
