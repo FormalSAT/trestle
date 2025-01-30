@@ -133,64 +133,35 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
   rw [getElem_cast, ← getLsbD_eq_getElem, getLsb_ofBoolListLE]
   simp [h]
 
-section insert_mapping
-variable [DecidableEq α] [DecidableEq β] (a : α) (b : β)
-/-- Assuming `a ↦ f a` and `f⁻¹ b ↦ b` in `f`, this function maps
-`a ↦ b` and `f⁻¹ b ↦ f a`. All other mappings are untouched.
-This preserves bijectivity of `f`, if it had it. -/
-def Function.insert_mapping (f : α → β) : α → β :=
-  let old_ret := f a
-  fun x => if x = a then b else
-    let fx := f x
-    if fx = b then old_ret else fx
 
-@[simp] theorem Function.insert_mapping_left (f : α → β) : (insert_mapping a b f) a = b
-  := by simp [insert_mapping]
+namespace Equiv
 
-theorem Function.insert_mapping_right (f : α → β) (h : f x = b):
-    (Function.insert_mapping a b f) x = f a
-  := by simp [insert_mapping, h]; rintro rfl; exact h.symm
+def setAll [DecidableEq α] (L : List (α × β)) (f: α ≃ β) : α ≃ β :=
+  match L with
+  | [] => f
+  | (a,b) :: tail => (setAll tail f).setValue a b
 
-theorem Function.insert_mapping_unchanged (f : α → β) (h₁ : x ≠ a) (h₂ : f x ≠ b):
-    (Function.insert_mapping a b f) x = f x
-  := by simp [insert_mapping]; aesop
+theorem setAll_eq_of_mem [DecidableEq α] {L : List (α × β)} {f}
+    (is_distinct : L.Pairwise (·.1 ≠ ·.1)) (os_distinct : L.Pairwise (·.2 ≠ ·.2))
+    (pair_mem : (i,o) ∈ L) :
+    setAll L f i = o := by
+  induction L generalizing i o with
+  | nil => simp at pair_mem
+  | cons hd tl ih =>
+    simp at pair_mem
+    rcases pair_mem with (rfl|pair_mem)
+    case inl => simp [setAll]
+    case inr =>
+    specialize ih is_distinct.tail os_distinct.tail pair_mem
+    replace is_distinct := Ne.symm <| List.rel_of_pairwise_cons is_distinct pair_mem
+    replace os_distinct := Ne.symm <| List.rel_of_pairwise_cons os_distinct pair_mem
+    clear pair_mem
+    rcases hd with ⟨x,y⟩; dsimp at is_distinct os_distinct ⊢
+    simp [setAll]; rw [← ih] at os_distinct ⊢
+    simp [setValue, swap, swapCore, is_distinct]
+    rintro rfl; simp at os_distinct
 
-/-- Assuming `a ↦ f a` and `f⁻¹ b ↦ b` in `f`, this function maps
-`a ↦ b` and `f⁻¹ b ↦ f a`. All other mappings are untouched. -/
-def Equiv.insert [DecidableEq α] [DecidableEq β] (a : α) (b : β) (f : α ≃ β) : α ≃ β := {
-  toFun := Function.insert_mapping a b f.toFun
-  invFun := Function.insert_mapping b a f.invFun
-  left_inv := by
-    intro x; simp [Function.insert_mapping]
-    if ha : x = a then
-      simp [ha]
-    else
-      simp [ha]
-      if hb : f x = b then
-        simp [← hb]
-      else
-        simp [hb, ha]
-  right_inv := by
-    intro x; simp [Function.insert_mapping]
-    if ha : x = b then
-      simp [ha]
-    else
-      simp [ha]
-      if hb : f.symm x = a then
-        simp [← hb]
-      else
-        simp [hb, ha]
-}
+nonrec def Perm.setAll [DecidableEq α] (L : List (α × α)) : α ≃ α :=
+  setAll L (Equiv.refl _)
 
-@[simp] theorem Equiv.insert_left (f : α ≃ β) : (insert a b f) a = b
-  := by simp [insert]
-
-theorem Equiv.insert_right (f : α ≃ β) : (f x = b) → (insert a b f) x = f a
-  := by intro; simp [insert]; rw [Function.insert_mapping_right a b f]; assumption
-
-theorem Equiv.insert_unchanged (f : α ≃ β) : x ≠ a → (f x ≠ b) → (insert a b f) x = f x
-  := by
-    intros; simp [insert]
-    rw [Function.insert_mapping_unchanged a b f] <;> assumption
-
-end insert_mapping
+end Equiv
