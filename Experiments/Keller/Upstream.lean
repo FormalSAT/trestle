@@ -57,6 +57,9 @@ def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
   · omega
   apply h i; omega
 
+def Vector.ext' {v₁ : Vector α n} {v₂ : Vector α n} (h : v₁.toArray = v₂.toArray) : v₁ = v₂ := by
+  cases v₁; cases v₂; simp_all
+
 @[simp] theorem Vector.getElem_ofFn (f : Fin n → α) (i : Nat) (h)
   : (Vector.ofFn f)[i]'h = f ⟨i,h⟩ := by
   simp [ofFn]
