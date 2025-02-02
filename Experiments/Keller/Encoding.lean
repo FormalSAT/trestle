@@ -9,6 +9,7 @@ import Trestle.Encode
 import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
 import Experiments.Keller.KellerGraph
+import Experiments.Keller.SymmBreakSR
 
 namespace Keller.Encoding
 
@@ -91,39 +92,77 @@ def baseEncoding (n s) : EncCNF (Vars n s) Unit := do
 end Base
 
 section SymmBreaking
-open EncCNF
+open EncCNF Vars
 
-open Vars in
-def initialSymm (s) : EncCNF (Vars 7 (s+1)) Unit := do
+def triangle (L : List α) (n : Nat) : List (Vector α n) :=
+  aux L n |>.map (·.reverse)
+where aux (L : List α) (n : Nat) : List (Vector α n) :=
+  match n with
+  | 0 => [⟨#[], by simp⟩]
+  | n+1 =>
+    L.tails.flatMap (fun
+      | []     => []
+      | hd::tl =>
+        aux (hd::tl) n |>.map (·.push hd)
+    )
+
+def canonicalColumn (start : Fin s) (len : Nat) : List (Vector (Fin s) len) :=
+  aux start len |>.map (Vector.reverse)
+where aux (start : Fin s) (len) : List (Vector (Fin s) len) :=
+  have : NeZero s := ⟨fun h => (h ▸ start).elim0⟩
+  match len with
+  | 0 => [⟨#[],by simp⟩]
+  | len+1 => do
+    let tail := aux start len
+    (List.range (start+1)).flatMap (fun hd =>
+      let hd : Fin s := hd
+      tail.map (·.push hd)) ++
+    (aux (start+1) len).map (fun tl =>
+      tl.push (Fin.ofNat' s (start+1)))
+
+def canonicalColumns (n : Nat) (len : Nat) (hs : s > 0) : List (Vector (Vector (Fin s) len) n) :=
+  let cols := canonicalColumn (s := s) ⟨0,hs⟩ len
+  triangle cols n
+
+
+def symmBreak (n s) : EncCNF (Vars n s) Unit := do
+  if hs : s ≥ 2 then do
+  if hn : n ≥ 2 then do
   -- c0 = (0,0,0,0,0,0,0)
-  unit (x 0 0 0)
-  unit (x 0 1 0)
-  unit (x 0 2 0)
-  unit (x 0 3 0)
-  unit (x 0 4 0)
-  unit (x 0 5 0)
-  unit (x 0 6 0)
+  for hi : i in [0:n] do
+    have : i < n := hi.2
+    set 0 i 0
   -- c1 = (s,1,0,0,0,0,0)
-  unit (x 1 0 0)
-  unit (x 1 1 1)
-  unit (x 1 2 0)
-  unit (x 1 3 0)
-  unit (x 1 4 0)
-  unit (x 1 5 0)
-  unit (x 1 6 0)
-  -- c3 = (s,s+1,*,*,1,1,1)
-  unit (x 3 0 0)
-  unit (x 3 1 1)
-  unit (x 3 4 1)
-  unit (x 3 5 1)
-  unit (x 3 6 1)
-where unit v := addClause #[Literal.pos v]
+  set 1 0 0
+  set 1 1 1
+  for hi : i in [2:n] do
+    have : i < n := hi.2
+    set 1 i 0
+  if hn' : n ≥ 5 then do
+    -- c3 = (s,s+1,1,1,1,*,*)
+    set 3 0 0
+    for hi : i in [1:5] do
+      have : i < 5 := hi.2
+      set 3 i 1
+where set (a b c) (hb : b < n := by omega) (hc : c < s := by omega) :=
+  unit <| .pos <| x a ⟨b,hb⟩ ⟨c,hc⟩
+
+def symmBreakCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
+  let matrixList := canonicalCases.toList
+  let colsList := canonicalColumns (n-5) 4 (by omega)
+  let idxs := #[3, 7, 11, 19]
+  matrixList.flatMap fun m =>
+    let matAssn := Array.mk <| List.flatten <|
+      List.ofFn fun r => List.ofFn fun c =>
+        let mval : Fin s := m.data[r][c].castLE (by omega)
+        .pos (x idxs[r.succ] ⟨2+c, by omega⟩ mval)
+    colsList.map fun cols =>
+      matAssn ++ Array.flatten (
+        Array.ofFn (n := 4) fun r => Array.ofFn (n := n-5) fun c =>
+          .pos <| x idxs[r] ⟨c+5, by omega⟩ cols[c][r])
 
 end SymmBreaking
 
-def fullEncoding (s) : EncCNF (Vars 7 s) Unit := do
-  baseEncoding 7 s
-  match s with
-  | s+1 => initialSymm s
-  | _ => pure ()
-
+def fullEncoding (n s) : EncCNF (Vars n s) Unit := do
+  baseEncoding n s
+  symmBreak n s

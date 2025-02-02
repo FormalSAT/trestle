@@ -211,12 +211,14 @@ def addClause (C : Clause (Literal ν)) : EncCNF ν Unit :=
   ⟨ fun s =>
     ((), s.addClause C), by simp [LawfulState.addClause, State.addClause]⟩
 
+def unit (l : Literal ν) : EncCNF ν Unit := addClause #[l]
+
 def blockAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit :=
   addClause (a.toLitArray.map (- ·))
 
 def addAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit := do
   for l in a.toLitArray do
-    addClause #[l]
+    unit l
 
 
 /-! ### Temporaries -/
