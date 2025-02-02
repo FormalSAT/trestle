@@ -19,7 +19,7 @@ def main (args : List String) := show IO _ from do
   let s := args[1]!.toNat!
   let file := args[2]!
   IO.println s!"encoding G_{n}_{s}"
-  let enc := Encoding.baseEncoding n s |>.toICnf
+  let enc := Encoding.fullEncoding n s |>.toICnf
   let () ← IO.FS.withFile file .write <| fun handle => do
     Solver.Dimacs.printFormula (handle.putStr) enc
     handle.flush
