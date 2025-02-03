@@ -9,6 +9,7 @@ import Trestle.Data
 import Trestle.Encode
 import Trestle.Model
 import Trestle.Solver.Impl.ApproxMCCommand
+import Trestle.Solver.Impl.CakeLpr
 import Trestle.Solver.Impl.CMSGenCommand
 import Trestle.Solver.Impl.D4Command
 import Trestle.Solver.Impl.DimacsCommand

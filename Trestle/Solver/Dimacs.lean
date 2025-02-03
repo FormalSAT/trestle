@@ -44,12 +44,13 @@ def formatAssn (a : HashAssn ILit) : String :=
       str.append s!" -{v}")
     "v"
 
-def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m Unit) : Solver.Res → m Unit
+def printRes [Monad m] [MonadExcept ε m] [Coe String ε] (print : String → m Unit) : Solver.Res → m Unit
 | .sat assn => do
   print "s SATISFIABLE"
   print (formatAssn assn)
-| .unsat => print "s UNSATISFIABLE"
-| .error => throw default
+| .unsat => do
+  print "s UNSATISFIABLE"
+| .error e => throw (↑e)
 
 
 structure DimacsParseRes where
@@ -123,7 +124,7 @@ def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
     let assn ←
       rest.foldlM (fun assn line => parseVLines maxVar assn line) (HashMap.empty)
     return .sat assn
-  | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
+  | _ => .error  s!"Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
 
 def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State IVar) := do

@@ -250,8 +250,8 @@ declare_syntax_cat propform
 
 syntax "[propform| " propform " ]" : term
 
-syntax:max "{ " term:45 " }" : propform
-syntax:max "(" propform ")" : propform
+syntax:max "{ " term:min " }" : propform
+syntax:max "(" propform:min ")" : propform
 
 syntax:40 " ¬" propform:41 : propform
 syntax:35 propform:36 " ∧ " propform:35 : propform
@@ -260,7 +260,7 @@ syntax:25 propform:26 " → " propform:25 : propform
 syntax:20 propform:21 " ↔ " propform:20 : propform
 
 macro_rules
-| `([propform| {$t:term} ]) => `(show PropForm _ from $t)
+| `([propform| {$t:term} ]) => `(($t : PropForm _))
 | `([propform| ($f:propform) ]) => `([propform| $f ])
 | `([propform| ¬ $f:propform ]) => `(PropForm.neg [propform| $f ])
 | `([propform| $f1 ∧ $f2 ]) => `(PropForm.conj [propform| $f1 ] [propform| $f2 ])

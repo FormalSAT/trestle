@@ -201,7 +201,8 @@ instance : LawfulMonad (EncCNF ν) where
 def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
   e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
 
-def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf := (run e).2.cnf
+def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf :=
+  (run e).2.cnf
 
 def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
   let res ← inner
@@ -211,12 +212,14 @@ def addClause (C : Clause (Literal ν)) : EncCNF ν Unit :=
   ⟨ fun s =>
     ((), s.addClause C), by simp [LawfulState.addClause, State.addClause]⟩
 
+def unit (l : Literal ν) : EncCNF ν Unit := addClause #[l]
+
 def blockAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit :=
   addClause (a.toLitArray.map (- ·))
 
 def addAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit := do
   for l in a.toLitArray do
-    addClause #[l]
+    unit l
 
 
 /-! ### Temporaries -/

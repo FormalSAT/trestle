@@ -17,10 +17,10 @@ namespace Trestle.Solver
 inductive Res
 | sat (assn : HashAssn ILit)
 | unsat
-| error
+| error (e : String)
 
 instance : ToString Res where
-  toString  | .error => "error"
+  toString  | .error e => s!"error: {e}"
             | .unsat => "unsat"
             | .sat assn => "sat: " ++ toString assn
 
@@ -51,7 +51,7 @@ instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
       | none => panic! "woo"
       | some f =>
       match ← solve f with
-      | .error
+      | .error _
       | .unsat =>
         state := none
       | .sat assn =>
@@ -62,7 +62,7 @@ instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
         b := b'
         let blocking_clause : List ILit :=
           vars.filterMap (fun v =>
-            assn.find? v |>.map (if · then LitVar.mkNeg v else LitVar.mkPos v))
+            assn.get? v |>.map (if · then LitVar.mkNeg v else LitVar.mkPos v))
         let f' := f.push blocking_clause.toArray
         state := some f'
     return b

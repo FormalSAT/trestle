@@ -6,6 +6,7 @@ Authors: James Gallicchio
 -/
 
 import Trestle.Data.Cnf
+import Trestle.Model.PropAssn
 
 namespace Trestle
 
@@ -28,5 +29,8 @@ def set (l : L) : HashAssn L := Std.HashMap.insert self (LitVar.toVar l) (LitVar
 
 def toLitArray : Array L := Std.HashMap.toArray self |>.map (fun (a,b) => LitVar.mkLit L a b)
 
+def toPropAssn : Model.PropAssignment ν :=
+  fun v => self.get? v |>.getD false
+
 instance [ToString L] : ToString (HashAssn L) where
-  toString a := a.fold (fun s v b => s ++ toString (LitVar.mkLit L v b)) ""
+  toString a := a.toList.map (fun (v,b) => toString (LitVar.mkLit L v b)) |> String.intercalate " "
