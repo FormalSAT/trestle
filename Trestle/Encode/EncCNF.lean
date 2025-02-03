@@ -201,7 +201,8 @@ instance : LawfulMonad (EncCNF ν) where
 def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
   e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
 
-def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf := (run e).2.cnf
+def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf :=
+  (run e).2.cnf
 
 def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
   let res ← inner
