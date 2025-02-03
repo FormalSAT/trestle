@@ -10,9 +10,7 @@ import Trestle.Solver.Dimacs
 namespace Trestle.Solver.Dimacs
 
 def printIncCNF [Monad m] (print : String → m Unit) (fml : ICnf) (cubes : List IClause) : m Unit := do
-  let vars := fml.maxVar
-  let clauses := fml.size
-  print <| s!"p inccnf {vars} {clauses}\n"
+  print <| s!"p inccnf\n"
   for c in fml do
     print <| formatClause c ++ "\n"
   for cube in cubes do
