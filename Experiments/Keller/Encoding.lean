@@ -9,7 +9,7 @@ import Trestle.Encode
 import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
 import Experiments.Keller.KellerGraph
-import Experiments.Keller.SymmBreakSR
+import Experiments.Keller.SymmBreak.Matrix
 
 namespace Keller.Encoding
 
@@ -148,7 +148,7 @@ where set (a b c) (hb : b < n := by omega) (hc : c < s := by omega) :=
   unit <| .pos <| x a ⟨b,hb⟩ ⟨c,hc⟩
 
 def symmBreakCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
-  let matrixList := canonicalCases.toList
+  let matrixList := SymmBreak.Matrix.canonicalCases.toList
   let colsList := canonicalColumns (n-5) 4 (by omega)
   let idxs := #[3, 7, 11, 19]
   matrixList.flatMap fun m =>
