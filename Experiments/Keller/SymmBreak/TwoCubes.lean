@@ -7,9 +7,14 @@ Authors: James Gallicchio
 
 import Experiments.Keller.Autos
 
-namespace Keller
+namespace Keller.SymmBreak
 
-/-! ## Manual-Proof Symmetry Breaking -/
+/-! ## First Two Cubes
+
+We can fix `c_0` and `c_1` without loss of generality,
+using an argument which relies on the veracity
+of the Keller conjecture for the previous dimension.
+-/
 
 structure SB0 (n s) where
   kclique : KClique n s

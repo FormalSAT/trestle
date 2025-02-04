@@ -9,9 +9,14 @@ import Experiments.Keller.Autos
 
 import Mathlib.Data.Finset.Sort
 
-namespace Keller
+namespace Keller.SymmBreak
 
-/-! ## Symmetry Breaking verified by SR -/
+/-! ## 3x3 Matrix Symmetries
+
+For Keller graph with `n≥5`, we can do symmetry breaking
+on dimension indices 2,3,4 from `c_7`, `c_11`, `c_19`
+by permuting those indices and renumbering the colors at each index.
+-/
 
 @[ext]
 structure Matrix (s) where
@@ -162,7 +167,7 @@ def Matrix.Renumber.apply (m : Matrix s) (a : Matrix.Renumber s h) : Matrix s :=
       simp [h1, a.renumber_1])
 }
 
-def renumber_fins (m : List (Fin s)) : Equiv.Perm (Fin s) :=
+private def renumber_fins (m : List (Fin s)) : Equiv.Perm (Fin s) :=
   match m.head? with
   | none => Equiv.refl _
   | some ⟨_,h⟩ =>
@@ -195,7 +200,7 @@ def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 3 := by trivial) : Optio
   guard (m' < m)
   return m'
 
-def findSmaller (m : Matrix 4) : Option (Matrix 4) :=
+def Matrix.findSmaller? (m : Matrix 4) : Option (Matrix 4) :=
   let perms := Matrix.Perm.all.map (fun p => p.apply m)
   match perms.find? (· < m) with
   | some p => some p
@@ -207,8 +212,12 @@ def findSmaller (m : Matrix 4) : Option (Matrix 4) :=
         if m' < m then return some m'
     return none
 
+theorem Matrix.findSmaller?_eq_some (m m' : Matrix 4) :
+    m.findSmaller? = some m' →
+      ∃ (p : Perm) (r : Renumber _), r.apply (p.apply m) = m' := by
+  sorry
 
-def canonicalCases :=
+def Matrix.canonicalCases :=
   Array.filterMap aux #[
   #[0, 1, 1, 0, 0, 1] ,
   #[0, 1, 1, 0, 1, 1] ,
@@ -244,6 +253,5 @@ where aux (a : Array Nat) : Option (Matrix 4) :=
     Matrix.ofVec? ⟨a.map (Fin.ofNat' 4),h⟩
   else none
 
-theorem allMatrices_mem_or_bigger : ∀ m : Matrix 4, m ∈ canonicalCases ∨ (findSmaller m).isSome := by
+theorem Matrix.canonicalCases_are_canonical : ∀ m : Matrix 4, m ∈ canonicalCases ∨ (findSmaller? m).isSome := by
   native_decide
-
