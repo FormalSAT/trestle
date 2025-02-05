@@ -9,30 +9,30 @@ import Experiments.Keller.Autos
 
 namespace Keller.SymmBreak
 
-/-! ## First Two Cubes
+/-! ## First Three Cubes
 
-We can fix `c_0` and `c_1` without loss of generality,
-using an argument which relies on the veracity
+Any Keller clique can be mapped to a Keller clique where
+`c_0`, `c_1`, and the first five coordinates of `c_3` are fixed.
+This argument relies on the veracity
 of the Keller conjecture for the previous dimension.
 -/
 
-structure SB0 (n s) where
-  kclique : KClique n s
 
-abbrev SB1.c0_colors : Vector (Fin (s+1)) (n+2) :=
+abbrev TwoCubes.c0_colors : Vector (Fin (s+2)) (n+2) :=
   ⟨Array.mkArray (n+2) 0, by simp⟩
 
-abbrev SB1.c1_colors : Vector (Fin (s+1)) (n+2) :=
+abbrev TwoCubes.c1_colors : Vector (Fin (s+2)) (n+2) :=
   ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩
 
-structure SB1 (n s) extends SB0 (n+2) (s+1) where
-  c0 : kclique.get 0 = SB1.c0_colors
-  c1 : kclique.get 1 = SB1.c1_colors
+structure TwoCubes (n s) where
+  kclique : KClique (n+2) (s+2)
+  c0 : kclique.get 0 = TwoCubes.c0_colors
+  c1 : kclique.get 1 = TwoCubes.c1_colors
 
-namespace SB0
+namespace TwoCubes
 
-theorem pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
-  : ∃ a ∈ x.kclique.val, ∃ b ∈ x.kclique.val,
+theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
+  : ∃ a ∈ kclique.val, ∃ b ∈ kclique.val,
     ∃ (j₁ j₂ : Fin (n+2)), j₁ ≠ j₂ ∧
       ∀ (j : ℕ) (h : j < n + 2),
         (j ≠ ↑j₁ ↔ a.bv[j] = b.bv[j]) ∧
@@ -42,7 +42,7 @@ theorem pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   let K_0 : Finset (KVertex (n+1) (s+1)) := (Finset.univ (α := BitVec (n+1)))
     |>.map ⟨fun i =>
         let i' := i.cons false
-        let v := x.kclique.get i'
+        let v := kclique.get i'
         ⟨i, v.take (n+1) |>.cast (by omega)⟩
       , by
         intro x1 x2 heq
@@ -67,7 +67,7 @@ theorem pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   -- the corresponding vertices are adjacent in big graph
   have : KAdj ⟨i₁.cons false, k₁⟩ ⟨i₂.cons false,k₂⟩ := by
     subst hk₁ hk₂
-    apply x.kclique.isClique
+    apply kclique.isClique
     iterate 2 (apply KClique.get_mem)
     simp [i_diff]
   simp [KAdj] at this hnotadj
@@ -93,8 +93,8 @@ theorem pick_pair {n s} (x : SB0 (n+2) (s+1)) (h : conjectureIn (n+1))
   simp [BitVec.getElem_cons] at h
 
   -- Ok! We have all the info we need to fill the goal!
-  use ⟨i₁.cons false, k₁⟩, (hk₁ ▸ x.kclique.get_mem ..),
-      ⟨i₂.cons false, k₂⟩, (hk₂ ▸ x.kclique.get_mem ..),
+  use ⟨i₁.cons false, k₁⟩, (hk₁ ▸ kclique.get_mem ..),
+      ⟨i₂.cons false, k₂⟩, (hk₂ ▸ kclique.get_mem ..),
       ⟨j₁,‹_›⟩, ⟨n+1, by omega⟩
   simp [js_diff]
   rintro j -
@@ -142,7 +142,7 @@ variable {v₁ v₂ : KVertex (n+2) (s+2)}
           (j ≠ 1 ↔ v₁.colors[j] = v₂.colors[j]))
 include h
 
-theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, SB1.c0_colors⟩ := by
+theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, c0_colors⟩ := by
   ext1
   · unfold auto; simp [KVertex.bv_flip]
   · ext1 j hj
@@ -150,7 +150,7 @@ theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, SB1.c0_colors⟩ := by
     unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
     split <;> (apply Equiv.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
 
-theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, SB1.c1_colors⟩ := by
+theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
   ext1 <;> ext1 j hj <;> specialize h j hj
   · replace h := h.1
     unfold auto; simp [KVertex.bv_flip]
@@ -175,12 +175,11 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, SB1.c1_colors⟩ := by
 
 end auto
 
-theorem to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
-  : Nonempty (SB1 n (s+1)) := by
-  have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := sb0.pick_pair h
-  rcases sb0 with ⟨k⟩
+theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
+  : Nonempty (TwoCubes n s) := by
+  have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k h
   -- apply the reordering automorphism to get vs2, k2, a2, b2
-  let k2 := k.map (KAuto.reorder <| SB0.reorder j₁ j₂)
+  let k2 := k.map (KAuto.reorder <| reorder j₁ j₂)
   let a2 := (KAuto.reorder (reorder j₁ j₂)).toFun a
   let b2 := (KAuto.reorder (reorder j₁ j₂)).toFun b
   have a2_mem : a2 ∈ k2.val := by apply Finset.mem_map_of_mem; exact a_mem
@@ -192,24 +191,54 @@ theorem to_SB1 {n s} (sb0 : SB0 (n+2) (s+2)) (h : conjectureIn (n+1))
     simp [a2, b2, KVertex.bv_reorder, KVertex.colors_reorder]
     constructor
     · rw [← (same_on _ _).1, not_iff_not, Fin.val_eq_val,
-        SB0.reorder_eq_j1 hne, ← Fin.val_eq_val]
+        reorder_eq_j1 hne, ← Fin.val_eq_val]
       rfl
     · rw [← (same_on _ _).2, not_iff_not, Fin.val_eq_val,
-        SB0.reorder_eq_j2 hne, ← Fin.val_eq_val]
+        reorder_eq_j2 hne, ← Fin.val_eq_val]
       rfl
 
   -- apply the "move to all 0s" automorphism to get vs3, k3
-  let k3 := k2.map (SB0.auto a2 b2)
+  let k3 := k2.map (auto a2 b2)
 
   -- k3 is the clique we want! just have to prove 0 ↦ 0*, 1 ↦ 0,1,0*
   refine ⟨{kclique := k3, c0 := ?c0, c1 := ?c1}⟩
   case c0 =>
     rw [KClique.get_eq_iff_mem]; simp [k3, KClique.map]
     use a2, a2_mem
-    apply SB0.auto_v₁; exact same_on
+    apply auto_v₁; exact same_on
   case c1 =>
     rw [KClique.get_eq_iff_mem]; simp [k3, KClique.map]
     use b2, b2_mem
-    apply SB0.auto_v₂; exact same_on
+    apply auto_v₂; exact same_on
 
-end SB0
+end TwoCubes
+
+structure ThreeCubes (n s) extends TwoCubes (n+3) s where
+  c3 : ∀ i : Fin (n+5), i ∈ [2,3,4] → (kclique.get 3)[i] = 1
+
+namespace ThreeCubes
+
+/-- Count how many dimensions the `c3` color is 0 at. -/
+def countC3Zeros (tc : TwoCubes n s) : Nat :=
+  Finset.univ.filter (fun j : Fin (n+2) => (tc.kclique.get 3)[j] = 0)
+  |>.card
+
+open Classical in
+theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
+  -- Pick the TwoCubes instance with the smallest `countC3Zeros`
+  let p := fun zs => ∃ tc : TwoCubes (n+3) s, countC3Zeros tc = zs
+  have ⟨tc', tc'_count_eq_lam⟩ := Nat.find_spec (p := p) ⟨_, tc, rfl⟩
+  have tc'_min := fun m => Nat.find_min (p := p) ⟨_, tc, rfl⟩ (m := m)
+  -- lam is the number of zeros (smallest possible)
+  generalize Nat.find (p := p) _ = lam at tc'_count_eq_lam tc'_min
+  clear tc; simp [p] at *; clear p
+
+  -- call the set of zero indices `zeroDims`
+  unfold countC3Zeros at tc'_count_eq_lam
+  generalize htemp : @Finset.filter _ _ = temp at tc'_count_eq_lam
+  generalize h : temp _ = zeroDims at tc'_count_eq_lam htemp
+  subst htemp
+  --
+  sorry
+
+end ThreeCubes
