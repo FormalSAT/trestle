@@ -136,6 +136,22 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
   rw [getElem_cast, ← getLsbD_eq_getElem, getLsb_ofBoolListLE]
   simp [h]
 
+@[simp] theorem BitVec.getElem_ofBoolListLE (L : List Bool) (i : Nat) (h : i < L.length)
+    : (BitVec.ofBoolListLE L)[i] = L[i] := by
+  rw [← getLsbD_eq_getElem, getLsb_ofBoolListLE]
+  rw [List.getD_eq_getElem?_getD, List.getElem_eq_getElem?_get]
+  rw [Option.get_eq_getD]
+
+theorem BitVec.getElem_ofNat (n i : Nat) (hj : j < n)
+    : (BitVec.ofNat n i)[j] = i.testBit j := by
+  rw [BitVec.getElem_eq_testBit_toNat, toNat_ofNat, Nat.testBit_mod_two_pow]
+  simp only [hj, decide_true, Bool.true_and]
+
+theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (hi : i < 2^minWidth)
+  : BitVec.ofNat n i = ⟨i, Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)⟩ := by
+  simp only [bv_toNat]
+  rw [Nat.mod_eq_of_lt]
+  exact Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)
 
 namespace Equiv
 

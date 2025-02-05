@@ -218,6 +218,57 @@ structure ThreeCubes (n s) extends TwoCubes (n+3) s where
 
 namespace ThreeCubes
 
+theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3)[1] = 1 := by
+  have := tc.kclique.isClique (tc.kclique.get_mem 1) (tc.kclique.get_mem 3)
+    (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
+  rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,-⟩
+  simp at *
+  have : j1 = 1 := by
+    clear cs_eq_at_j1
+    if j1 = 1 then trivial else
+    if j1 = 0 then
+      simp [*, BitVec.getElem_ofNat] at bs_ne_at_j1
+    else
+    simp_all [Fin.ext_iff, BitVec.getElem_ofNat]
+    suffices Nat.testBit 3 j1 = false by simp_all
+    have : j1.val ≥ 2 := by omega
+    apply Nat.testBit_lt_two_pow
+    exact Nat.lt_of_lt_of_le (by decide) (Nat.pow_le_pow_right (by decide) this)
+  clear bs_ne_at_j1
+  subst this; simp at cs_eq_at_j1
+  rw [← cs_eq_at_j1]
+  clear cs_eq_at_j1
+  have := congrArg (·[1]) tc.c1
+  simp [Array.getElem_append_left] at this
+  exact this
+
+theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3)[0] = 0 := by
+  have := tc.kclique.isClique (tc.kclique.get_mem 0) (tc.kclique.get_mem 3)
+    (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
+  rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,-⟩
+  simp at *
+  have : j1 ≠ 1 := by
+    rintro rfl
+    have := congrArg (·[1]) tc.c0
+    have := c3_1 tc
+    simp_all
+  have : j1 = 0 := by
+    clear cs_eq_at_j1
+    if j1 = 0 then trivial else
+    if j1 = 1 then contradiction else
+    simp_all [Fin.ext_iff, BitVec.getElem_ofNat]
+    suffices Nat.testBit 3 j1 = false by simp_all
+    have : j1.val ≥ 2 := by omega
+    apply Nat.testBit_lt_two_pow
+    exact Nat.lt_of_lt_of_le (by decide) (Nat.pow_le_pow_right (by decide) this)
+  clear bs_ne_at_j1
+  subst this; simp at cs_eq_at_j1
+  rw [← cs_eq_at_j1]
+  clear cs_eq_at_j1
+  have := congrArg (·[0]) tc.c0
+  simp [Array.getElem_append_left] at this
+  exact this
+
 /-- Count how many dimensions the `c3` color is 0 at. -/
 def countC3Zeros (tc : TwoCubes n s) : Nat :=
   Finset.univ.filter (fun j : Fin (n+2) => (tc.kclique.get 3)[j] = 0)
@@ -238,7 +289,11 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   generalize htemp : @Finset.filter _ _ = temp at tc'_count_eq_lam
   generalize h : temp _ = zeroDims at tc'_count_eq_lam htemp
   subst htemp
-  --
+  -- lam ≤ n+5
+  have : lam ≤ n+5 := by
+    subst lam zeroDims
+    trans; apply Finset.card_filter_le; simp
+  -- lam ≠ n+5 because
   sorry
 
 end ThreeCubes
