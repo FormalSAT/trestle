@@ -142,16 +142,44 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
   rw [List.getD_eq_getElem?_getD, List.getElem_eq_getElem?_get]
   rw [Option.get_eq_getD]
 
+attribute [bv_toNat] BitVec.getElem_eq_testBit_toNat
+
 theorem BitVec.getElem_ofNat (n i : Nat) (hj : j < n)
     : (BitVec.ofNat n i)[j] = i.testBit j := by
-  rw [BitVec.getElem_eq_testBit_toNat, toNat_ofNat, Nat.testBit_mod_two_pow]
-  simp only [hj, decide_true, Bool.true_and]
+  simp [bv_toNat, hj]
 
 theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (hi : i < 2^minWidth)
   : BitVec.ofNat n i = ⟨i, Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)⟩ := by
   simp only [bv_toNat]
   rw [Nat.mod_eq_of_lt]
   exact Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)
+
+theorem Nat.xor_mod_pow_2 (x y n : Nat) : x % 2^n ^^^ y % 2^n = (x ^^^ y) % 2^n := by
+  apply Nat.eq_of_testBit_eq
+  intro i
+  by_cases i < n <;> simp [*]
+
+theorem Nat.shiftLeft_mod_pow_2 (x y n : Nat) : x <<< y % 2^n = ((x % 2^(n-y)) <<< y) := by
+  apply Nat.eq_of_testBit_eq
+  intro i
+  rw [Bool.eq_iff_iff]; simp
+  rw [← and_assoc, ← and_assoc]
+  apply and_congr_left'
+  rw [and_comm, and_congr_right_iff]
+  simp (config := {contextual := true}) [Nat.sub_lt_sub_iff_right]
+
+@[simp] theorem BitVec.xor_right_inj (x y z : BitVec n) : x ^^^ y = x ^^^ z ↔ y = z := by
+  refine ⟨fun h => ?_, by rintro rfl; rfl⟩
+  simp [bv_toNat] at h ⊢
+  apply Nat.eq_of_testBit_eq; intro i
+  replace h := congrArg (·.testBit i) h
+  simpa using h
+
+@[simp] theorem BitVec.xor_eq_self_left (x y : BitVec n) : x ^^^ y = x ↔ y = 0#n := by
+  rw (occs := .pos [2]) [← BitVec.xor_zero (x := x)]; simp only [BitVec.xor_right_inj]
+
+@[simp] theorem Bool.xor_eq_self_left (x y : Bool) : ((x ^^ y) = x) ↔ (y = false) := by
+  rw (occs := .pos [2]) [← Bool.xor_false (x := x)]; simp only [Bool.xor_right_inj]
 
 namespace Equiv
 
