@@ -218,22 +218,24 @@ structure ThreeCubes (n s) extends TwoCubes (n+3) s where
 
 namespace ThreeCubes
 
+private theorem bv_3_getElem (n j : Nat) (hn : n ≥ 2) (h : j < n)
+    : (BitVec.ofNat n 3)[j] = decide (j = 0 ∨ j = 1) := by
+  simp [BitVec.getElem_eq_testBit_toNat, h, Nat.testBit]
+  match n, hn, h with
+  | n+2, hn, h =>
+  match j with
+  | 0 => simp [h]
+  | 1 => simp [Nat.shiftRight_one, Nat.pow_succ, Nat.mod_mul_left_div_self]
+  | j+2 => simp [Nat.shiftRight_succ_inside, Nat.pow_succ, Nat.mod_mul_left_div_self]
+
 theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3)[1] = 1 := by
   have := tc.kclique.isClique (tc.kclique.get_mem 1) (tc.kclique.get_mem 3)
     (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
   rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,-⟩
-  simp at *
+  dsimp at *
   have : j1 = 1 := by
-    clear cs_eq_at_j1
-    if j1 = 1 then trivial else
-    if j1 = 0 then
-      simp [*, BitVec.getElem_ofNat] at bs_ne_at_j1
-    else
-    simp_all [Fin.ext_iff, BitVec.getElem_ofNat]
-    suffices Nat.testBit 3 j1 = false by simp_all
-    have : j1.val ≥ 2 := by omega
-    apply Nat.testBit_lt_two_pow
-    exact Nat.lt_of_lt_of_le (by decide) (Nat.pow_le_pow_right (by decide) this)
+    simp [bv_3_getElem] at bs_ne_at_j1
+    simp [Fin.ext_iff, bs_ne_at_j1]
   clear bs_ne_at_j1
   subst this; simp at cs_eq_at_j1
   rw [← cs_eq_at_j1]
@@ -246,21 +248,15 @@ theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3)[0] = 0 := by
   have := tc.kclique.isClique (tc.kclique.get_mem 0) (tc.kclique.get_mem 3)
     (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
   rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,-⟩
-  simp at *
+  dsimp at *
   have : j1 ≠ 1 := by
     rintro rfl
     have := congrArg (·[1]) tc.c0
     have := c3_1 tc
     simp_all
   have : j1 = 0 := by
-    clear cs_eq_at_j1
-    if j1 = 0 then trivial else
-    if j1 = 1 then contradiction else
-    simp_all [Fin.ext_iff, BitVec.getElem_ofNat]
-    suffices Nat.testBit 3 j1 = false by simp_all
-    have : j1.val ≥ 2 := by omega
-    apply Nat.testBit_lt_two_pow
-    exact Nat.lt_of_lt_of_le (by decide) (Nat.pow_le_pow_right (by decide) this)
+    simp [Fin.ext_iff] at this ⊢; simp [bv_3_getElem, this] at bs_ne_at_j1
+    exact bs_ne_at_j1
   clear bs_ne_at_j1
   subst this; simp at cs_eq_at_j1
   rw [← cs_eq_at_j1]
@@ -268,6 +264,21 @@ theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3)[0] = 0 := by
   have := congrArg (·[0]) tc.c0
   simp [Array.getElem_append_left] at this
   exact this
+
+theorem c3_j2 (tc : TwoCubes n s) : ∃ j2 : Fin _, (tc.kclique.get 3)[j2] ≠ 0 := by
+  have := tc.kclique.isClique (tc.kclique.get_mem 1) (tc.kclique.get_mem 3)
+    (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
+  rcases this with ⟨j1,bv_eq_at_j1,-,j2,js_ne,h2⟩
+  dsimp at *
+  have j1_eq_1 : j1 = 1 := by
+    simp [bv_3_getElem] at bv_eq_at_j1; rw [Fin.ext_iff]; exact bv_eq_at_j1.1
+  clear bv_eq_at_j1
+  subst j1_eq_1
+  rw [eq_comm, Fin.ext_iff] at js_ne; dsimp at js_ne
+  simp [bv_3_getElem, js_ne] at h2
+  have := tc.c1; simp at this; rw [this] at h2; clear this
+  simp [] at h2
+  sorry
 
 /-- Count how many dimensions the `c3` color is 0 at. -/
 def countC3Zeros (tc : TwoCubes n s) : Nat :=
@@ -289,11 +300,27 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   generalize htemp : @Finset.filter _ _ = temp at tc'_count_eq_lam
   generalize h : temp _ = zeroDims at tc'_count_eq_lam htemp
   subst htemp
+
+  -- 0 ∈ zeroDims, 1 ∉ zeroDims
+  have zero_mem : 0 ∈ zeroDims := sorry
+  have one_mem  : 1 ∉ zeroDims := sorry
+
+  have ⟨j,this⟩ := c3_j2 tc'
+  have j_mem    : j ∉ zeroDims := sorry
+  /-
+      0   1   j
+c0  | 0 | 0 | 0 | 0 | 0 |
+c1  |_0_| 1 | 0 | 0 | 0 |
+c3  |_0_|_1_|   |   |   |
+c7  |_ _|_ _|_ _|   |   |
+c11 |_ _|_ _|   |_ _|   |
+c19 |_ _|_ _|   |   |_ _|
+  -/
   -- lam ≤ n+5
   have : lam ≤ n+5 := by
     subst lam zeroDims
     trans; apply Finset.card_filter_le; simp
-  -- lam ≠ n+5 because
+  -- lam ≠ n+5
   sorry
 
 end ThreeCubes

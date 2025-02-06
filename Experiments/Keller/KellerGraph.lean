@@ -136,6 +136,29 @@ instance : GetElem (KClique n s) (BitVec n) (Vector (Fin s) n) ⊤ where
 instance : GetElem (KClique n s) Nat (Vector (Fin s) n) (fun _ i => i < 2^n) where
   getElem k i h := k.get ⟨i, h⟩
 
+theorem indices_connected {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n) (n_pos : n > 1)
+    : i₁ = i₂ ^^^ (1 <<< j₁.val) → ∃ j₂ : Fin n, j₂ ≠ j₁ ∧ k.get i₁ ≠ k.get i₂ := by
+  intro h
+  have : i₁ ≠ i₂ := by
+    rintro rfl
+    replace h := congrArg (i₁ ^^^ ·) h.symm
+    simp [← BitVec.xor_assoc, bv_toNat] at h
+    suffices 1 <<< j₁.val < 2^n by
+      rw [Nat.mod_eq_of_lt this, Nat.shiftLeft_eq, Nat.one_mul] at h
+      have : 0 < 2^j₁.val := Nat.pow_pos (by decide)
+      rw [← Nat.ne_zero_iff_zero_lt] at this; contradiction
+    simp [Nat.shiftLeft_eq]; apply Nat.pow_lt_pow_right (by decide) j₁.isLt
+  replace this := k.isClique (k.get_mem i₁) (k.get_mem i₂) (by simp [this])
+  rcases this with ⟨j1,bs_ne_at_j1,-,j2,js_ne,h2⟩
+  dsimp at *
+  have : j1 = j₁ := by
+    sorry
+  subst j1
+  simp [Vector.ext_iff]
+  use ⟨j2, Ne.symm js_ne⟩, j2, j2.isLt
+  rw [← imp_iff_not_or] at h2; apply h2; clear h2
+  sorry
+
 end KClique
 
 /-! ##### Computational Utilities -/
