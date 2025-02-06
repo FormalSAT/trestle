@@ -181,6 +181,12 @@ theorem Nat.shiftLeft_mod_pow_2 (x y n : Nat) : x <<< y % 2^n = ((x % 2^(n-y)) <
 @[simp] theorem Bool.xor_eq_self_left (x y : Bool) : ((x ^^ y) = x) ↔ (y = false) := by
   rw (occs := .pos [2]) [← Bool.xor_false (x := x)]; simp only [Bool.xor_right_inj]
 
+@[simp] theorem Nat.shiftLeft_pos (x y : Nat) : 0 < x <<< y ↔ 0 < x := by
+  simp [Nat.shiftLeft_eq, Nat.mul_pos_iff_of_pos_right, Nat.pow_pos]
+
+@[simp] theorem Nat.shiftLeft_eq_zero (x y : Nat) : x <<< y = 0 ↔ x = 0 := by
+  simp [Nat.shiftLeft_eq, Nat.mul_eq_zero, Nat.pow_pos]
+
 namespace Equiv
 
 def setAll [DecidableEq α] (L : List (α × β)) (f: α ≃ β) : α ≃ β :=

@@ -136,39 +136,43 @@ instance : GetElem (KClique n s) (BitVec n) (Vector (Fin s) n) ⊤ where
 instance : GetElem (KClique n s) Nat (Vector (Fin s) n) (fun _ i => i < 2^n) where
   getElem k i h := k.get ⟨i, h⟩
 
-theorem indices_connected {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
-    : i₁ = i₂ ^^^ (1 <<< j₁.val) → ∃ j₂ : Fin n, j₂ ≠ j₁ ∧ k.get i₁ ≠ k.get i₂ := by
-  intro h
-  -- we know i₁ and i₂ are adjacent because they are not equal
-  have := k.isClique (k.get_mem i₁) (k.get_mem i₂)
-  subst h
-  specialize this (by
-    -- proof that i₁ ≠ i₂ basically
-    simp [bv_toNat]
-    suffices 1 <<< ↑j₁ % 2 ^ n > 0 by simp_all [← Nat.ne_zero_iff_zero_lt]
-    rw [Nat.one_shiftLeft, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) j₁.isLt)]
-    exact Nat.pow_pos (by decide)
-  )
+theorem get_adj {i₁ i₂ : BitVec n} (k : KClique n s) (h : i₁ ≠ i₂)
+    : ∃ j₁ : Fin n, i₁[j₁] ≠ i₂[j₁] ∧ (k.get i₁)[j₁] = (k.get i₂)[j₁]
+      ∧ ∃ j₂ ≠ j₁, i₁[j₂] ≠ i₂[j₂] ∨ (k.get i₁)[j₂] ≠ (k.get i₂)[j₂] := by
+  -- i₁ and i₂ are adjacent because they are not equal
+  have := k.isClique (k.get_mem i₁) (k.get_mem i₂) (by simp [h])
 
-  rcases this with ⟨j1,bs_ne_at_j1,-,j2,js_ne,h2⟩
+  rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,j2,js_ne,h2⟩
   dsimp at *
 
-  -- we know this because i₁ and i₂ only differ at j₁
+  refine ⟨j1, ?in_xor, cs_eq_at_j1, j2, Ne.symm js_ne, ?colors_diff⟩
+  case in_xor       => simpa [bv_toNat] using bs_ne_at_j1
+  case colors_diff  => simpa [bv_toNat] using h2
+
+--theorem get_adj_j₁ {i₁ i₂ : BitVec n} (k : KClique n s) (h : i₁ ≠ i₂)
+--    : ∃ j₁ : Fin n, i₁[j₁] ≠ i₂[j₁] ∧ (k.get i₁)[j₁] = (k.get i₂)[j₁] :=
+--  have ⟨j₁, h1, h2, _⟩ := get_adj k h
+--  ⟨j₁, h1, h2⟩
+
+theorem get_adj_one_diff {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
+    : i₁[j₁] ≠ i₂[j₁] → (∀ j, i₁[j] ≠ i₂[j] → j = j₁) →
+      (k.get i₁)[j₁] = (k.get i₂)[j₁] ∧ ∃ j₂ ≠ j₁, (k.get i₁)[j₂] ≠ (k.get i₂)[j₂] := by
+  intro i1_i2_ne_at_j1 i1_i2
+
+  have := get_adj (i₁ := i₁) (i₂ := i₂) k (by rintro rfl; contradiction)
+  rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,j2,js_ne,h2⟩
+
+  -- there's only one coord where i₁ and i₂ are diff
   have : j1 = j₁ := by
-    clear! j2
-    simp [bv_toNat, Nat.testBit_one_eq_true_iff_self_eq_zero] at bs_ne_at_j1
-    omega
-  clear bs_ne_at_j1; subst j₁
-  -- we know the bitvecs aren't different at j2...
+    apply i1_i2
+    simpa [bv_toNat] using bs_ne_at_j1
+  subst j₁
+
   cases h2
   case inl h =>
-    exfalso; apply h; clear h
-    simp [bv_toNat]
-    rw [Bool.eq_false_iff, ne_eq, Nat.testBit_one_eq_true_iff_self_eq_zero]
-    omega
-  case inr h =>
-  -- therefore the colors must be different!
-  use j2, Ne.symm js_ne; intro contra; rw [contra] at h; contradiction
+    -- there's still only one coord where i₁ and i₂ differ
+    exfalso; specialize i1_i2 j2 h; contradiction
+  case inr h => use cs_eq_at_j1, j2, js_ne, h
 
 end KClique
 
