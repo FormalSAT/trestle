@@ -214,7 +214,36 @@ theorem setAll_eq_of_mem [DecidableEq α] {L : List (α × β)} {f}
     simp [setValue, swap, swapCore, is_distinct]
     rintro rfl; simp at os_distinct
 
+theorem setValue_neq [DecidableEq α] (f : α ≃ β) (a : α) (b : β) (x : α) :
+    x ≠ a → f x ≠ b → setValue f a b x = f x := by
+  intros; simp [setValue, swap_apply_def, eq_symm_apply, *]
+
+theorem setAll_eq_of_not_mem [DecidableEq α] {L : List (α × β)} {f}
+    (not_mem_is : i ∉ L.map (·.1)) (not_mem_os : f i ∉ L.map (·.2)) :
+    setAll L f i = f i := by
+  induction L with
+  | nil => simp [setAll]
+  | cons hd tl ih =>
+    simp at not_mem_is not_mem_os
+    simp only [setAll]
+    specialize ih (by simp [*]) (by simp [*])
+    rw [← ih]
+    apply setValue_neq
+    · exact not_mem_is.1
+    · rw [ih]; exact not_mem_os.1
+
 nonrec def Perm.setAll [DecidableEq α] (L : List (α × α)) : α ≃ α :=
   setAll L (Equiv.refl _)
+
+theorem Perm.setAll_eq_of_mem [DecidableEq α] {L : List (α × α)}
+    (is_distinct : L.Pairwise (·.1 ≠ ·.1)) (os_distinct : L.Pairwise (·.2 ≠ ·.2))
+    (pair_mem : (i,o) ∈ L) :
+    setAll L i = o :=
+  Equiv.setAll_eq_of_mem is_distinct os_distinct pair_mem
+
+theorem Perm.setAll_eq_of_not_mem [DecidableEq α] {L : List (α × α)}
+    (not_mem_is : i ∉ L.map (·.1)) (not_mem_os : i ∉ L.map (·.2)) :
+    setAll L i = i :=
+  Equiv.setAll_eq_of_not_mem not_mem_is not_mem_os
 
 end Equiv
