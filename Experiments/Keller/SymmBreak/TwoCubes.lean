@@ -218,109 +218,119 @@ structure ThreeCubes (n s) extends TwoCubes (n+3) s where
 
 namespace ThreeCubes
 
-private theorem bv_3_getElem (n j : Nat) (hn : n ≥ 2) (h : j < n)
+private theorem bv_3_getElem (n j : Nat) (h : j < n)
     : (BitVec.ofNat n 3)[j] = decide (j = 0 ∨ j = 1) := by
-  simp [BitVec.getElem_eq_testBit_toNat, h, Nat.testBit]
-  match n, hn, h with
-  | n+2, hn, h =>
+  simp [BitVec.getElem_ofNat]
   match j with
-  | 0 => simp [h]
-  | 1 => simp [Nat.shiftRight_one, Nat.pow_succ, Nat.mod_mul_left_div_self]
-  | j+2 => simp [Nat.shiftRight_succ_inside, Nat.pow_succ, Nat.mod_mul_left_div_self]
+  | 0 => simp
+  | 1 => simp [Nat.testBit_succ]
+  | j+2 => simp [Nat.testBit_succ]
 
 theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3)[1] = 1 := by
-  have := tc.kclique.isClique (tc.kclique.get_mem 1) (tc.kclique.get_mem 3)
-    (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
-  rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,-⟩
-  dsimp at *
-  have : j1 = 1 := by
-    simp [bv_3_getElem] at bs_ne_at_j1
-    simp [Fin.ext_iff, bs_ne_at_j1]
-  clear bs_ne_at_j1
-  subst this; simp at cs_eq_at_j1
-  rw [← cs_eq_at_j1]
-  clear cs_eq_at_j1
-  have := congrArg (·[1]) tc.c1
-  simp [Array.getElem_append_left] at this
-  exact this
+  have := tc.kclique.get_adj_one_diff (i₁ := 1) (i₂ := 3) (j₁ := 1)
+      (by simp [bv_toNat]; decide)
+      (by simp [bv_toNat]; rintro ⟨(_|_|_),_⟩ <;> simp [Nat.testBit_succ])
+  replace this := this.1
+  rw [tc.c1, eq_comm] at this
+  simpa [Array.getElem_append] using this
 
-theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3)[0] = 0 := by
-  have := tc.kclique.isClique (tc.kclique.get_mem 0) (tc.kclique.get_mem 3)
-    (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
-  rcases this with ⟨j1,bs_ne_at_j1,cs_eq_at_j1,-⟩
+theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[0] = 0 := by
+  have := tc.kclique.get_adj (i₁ := 0) (i₂ := 3)
+      (by simp [bv_toNat, Nat.pow_add, Nat.mul_comm _ 4, Nat.mod_mul])
+  rcases this with ⟨⟨j1,w1⟩,bs_ne_at_j1,cs_eq_at_j1,-⟩
   dsimp at *
+
+  -- s-gap is < 2 because 0 and 3 are the same above that
+  have : j1 < 2 := by
+    rcases j1 with (_|_|_) <;> try decide
+    revert bs_ne_at_j1
+    simp [bv_toNat]
+    simp +contextual [Nat.testBit_succ, Nat.testBit_one_eq_true_iff_self_eq_zero]
+
+  -- s-gap cannot be at 1 because we already assigned c3[1] to 1
   have : j1 ≠ 1 := by
-    rintro rfl
     have := congrArg (·[1]) tc.c0
     have := c3_1 tc
-    simp_all
-  have : j1 = 0 := by
-    simp [Fin.ext_iff] at this ⊢; simp [bv_3_getElem, this] at bs_ne_at_j1
-    exact bs_ne_at_j1
-  clear bs_ne_at_j1
-  subst this; simp at cs_eq_at_j1
+    rintro rfl; simp_all
+
+  -- only option left for s-gap is 0
+  have : j1 = 0 := by omega
+
+  subst this
   rw [← cs_eq_at_j1]
   clear cs_eq_at_j1
   have := congrArg (·[0]) tc.c0
   simp [Array.getElem_append_left] at this
   exact this
 
-theorem c3_j2 (tc : TwoCubes n s) : ∃ j2 : Fin _, (tc.kclique.get 3)[j2] ≠ 0 := by
-  have := tc.kclique.isClique (tc.kclique.get_mem 1) (tc.kclique.get_mem 3)
-    (by simp [BitVec.ofNat_eq_of_width_ge (minWidth := 2)])
-  rcases this with ⟨j1,bv_eq_at_j1,-,j2,js_ne,h2⟩
-  dsimp at *
-  have j1_eq_1 : j1 = 1 := by
-    simp [bv_3_getElem] at bv_eq_at_j1; rw [Fin.ext_iff]; exact bv_eq_at_j1.1
-  clear bv_eq_at_j1
-  subst j1_eq_1
-  rw [eq_comm, Fin.ext_iff] at js_ne; dsimp at js_ne
-  simp [bv_3_getElem, js_ne] at h2
-  have := tc.c1; simp at this; rw [this] at h2; clear this
-  simp [] at h2
-  sorry
+theorem c3_j₂ (tc : TwoCubes n s) : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.kclique.get 3)[j₂] ≠ 0 := by
+  -- since c1 and c3 are only diff at `j₁ = 1`, the colors must differ at another place
+  have := tc.kclique.get_adj_one_diff (i₁ := 1) (i₂ := 3) (j₁ := 1)
+      (by simp [bv_toNat]; decide)
+      (by simp [bv_toNat]; rintro ⟨(_|_|_),_⟩ <;> simp [Nat.testBit_succ])
+  rcases this with ⟨-,j2,js_ne,h2⟩
+  -- the diff can't be 0 because we already know c1[0] = c3[0]
+  have j2_ne_0 : j2 ≠ 0 := by rintro rfl; revert h2; rw [tc.c1]; simp [c3_0, Array.getElem_append]
+  have j2_ge_2 : ¬ j2.val < 2 := (by simp_all [Fin.ext_iff]; omega)
+  use j2, (by omega)
+  contrapose! h2
+  rw [tc.c1]
+  simp [Array.getElem_append, j2_ge_2]
+  exact h2.symm
 
-/-- Count how many dimensions the `c3` color is 0 at. -/
-def countC3Zeros (tc : TwoCubes n s) : Nat :=
-  Finset.univ.filter (fun j : Fin (n+2) => (tc.kclique.get 3)[j] = 0)
-  |>.card
+
+/-- This is just an arbitrary number that decreases
+as we get more ones into the `{2,3,4}` coordinates of `c3`. -/
+def countSymmOnes (tc : TwoCubes (n+3) s) : Nat :=
+  if (tc.kclique.get 3)[2] ≠ 1 then 3
+  else if (tc.kclique.get 3)[3] ≠ 1 then 2
+  else if (tc.kclique.get 3)[4] ≠ 1 then 1
+  else 0
+
+theorem countSymmOnes_eq_3 (tc : TwoCubes (n+3) s)
+    : countSymmOnes tc = 3 → (tc.kclique.get 3)[2] ≠ 1 := by
+  unfold countSymmOnes
+  aesop
+
+theorem countSymmOnes_lt_3 (tc : TwoCubes (n+3) s)
+    : (tc.kclique.get 3)[2] = 1 → countSymmOnes tc < 3 := by
+  unfold countSymmOnes
+  aesop
+
+
+theorem countSymmOnes_eq_2 (tc : TwoCubes (n+3) s)
+    : countSymmOnes tc = 2 → (tc.kclique.get 3)[3] ≠ 1 := by
+  unfold countSymmOnes
+  aesop
+
+theorem countSymmOnes_eq_0 (tc : TwoCubes (n+3) s) : countSymmOnes tc = 0 →
+    (tc.kclique.get 3)[2] = 1 ∧ (tc.kclique.get 3)[3] = 1 ∧ (tc.kclique.get 3)[4] = 1 := by
+  unfold countSymmOnes
+  aesop
+
 
 open Classical in
 theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
-  -- Pick the TwoCubes instance with the smallest `countC3Zeros`
-  let p := fun zs => ∃ tc : TwoCubes (n+3) s, countC3Zeros tc = zs
+  -- Pick a TwoCubes instance with the smallest `countSymmOnes`
+  let p := fun zs => ∃ tc : TwoCubes (n+3) s, countSymmOnes tc = zs
   have ⟨tc', tc'_count_eq_lam⟩ := Nat.find_spec (p := p) ⟨_, tc, rfl⟩
   have tc'_min := fun m => Nat.find_min (p := p) ⟨_, tc, rfl⟩ (m := m)
-  -- lam is the number of zeros (smallest possible)
+  -- lam is the number of non-ones
   generalize Nat.find (p := p) _ = lam at tc'_count_eq_lam tc'_min
   clear tc; simp [p] at *; clear p
 
-  -- call the set of zero indices `zeroDims`
-  unfold countC3Zeros at tc'_count_eq_lam
-  generalize htemp : @Finset.filter _ _ = temp at tc'_count_eq_lam
-  generalize h : temp _ = zeroDims at tc'_count_eq_lam htemp
-  subst htemp
-
-  -- 0 ∈ zeroDims, 1 ∉ zeroDims
-  have zero_mem : 0 ∈ zeroDims := sorry
-  have one_mem  : 1 ∉ zeroDims := sorry
-
-  have ⟨j,this⟩ := c3_j2 tc'
-  have j_mem    : j ∉ zeroDims := sorry
   /-
-      0   1   j
-c0  | 0 | 0 | 0 | 0 | 0 |
-c1  |_0_| 1 | 0 | 0 | 0 |
-c3  |_0_|_1_|   |   |   |
-c7  |_ _|_ _|_ _|   |   |
-c11 |_ _|_ _|   |_ _|   |
-c19 |_ _|_ _|   |   |_ _|
+  The # indicates true bits in each bitvector
+        0   1   2   3   4
+  c0  | 0 | 0 | 0 | 0 | 0 |
+  c1  |#0 | 1 | 0 | 0 | 0 |
+  c3  |#0 |#1 | ? | ? | ? |
+  c7  |#  |#  |#  |   |   |
+  c11 |#  |#  |   |#  |   |
+  c19 |#  |#  |   |   |#  |
   -/
-  -- lam ≤ n+5
-  have : lam ≤ n+5 := by
-    subst lam zeroDims
-    trans; apply Finset.card_filter_le; simp
-  -- lam ≠ n+5
+
+  -- if lam = 3, I can build a TwoCubes with lam < 3
   sorry
 
 end ThreeCubes
