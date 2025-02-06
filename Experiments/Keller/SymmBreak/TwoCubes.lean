@@ -279,6 +279,61 @@ theorem c3_j₂ (tc : TwoCubes n s) : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.k
   exact h2.symm
 
 
+theorem c3_2 (tc : TwoCubes (n+3) s) :
+    ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] = 1 := by
+  have ⟨j₂, j₂_ge, spec⟩ := c3_j₂ tc
+  refine ⟨{
+    kclique := tc.kclique
+      |>.map (KAuto.reorder (Equiv.Perm.setAll [(2, j₂)]))
+      |>.map (KAuto.permute fun
+        | 2 => Equiv.Perm.setAll [(1, (tc.kclique.get 3)[j₂])]
+        | _ => Equiv.refl _
+      )
+    c0 := ?c0
+    c1 := ?c1
+  }, ?point⟩
+  case c0 =>
+    rw [KClique.get_eq_iff_mem]
+    simp [KClique.map]
+    use ⟨0, tc.kclique.get 0⟩, tc.kclique.get_mem 0
+    ext j hj
+    · simp [KVertex.reorder]
+    · have : ∀ j : Fin _, (tc.kclique.get 0#(n + 3 + 2))[↑j] = 0 := by
+        intro j; convert congrArg (·[j]) tc.c0; simp
+      simp [KVertex.colors_permute, KVertex.colors_reorder, this]
+      by_cases j = 2
+      case pos h =>
+        simp [h]
+        rw [Equiv.Perm.setAll_eq_of_not_mem]
+          <;> simp_all [eq_comm]
+      case neg h =>
+        simp [h]
+  case c1 =>
+    rw [KClique.get_eq_iff_mem]
+    simp [KClique.map]
+    use ⟨1, tc.kclique.get 1⟩, tc.kclique.get_mem 1
+    ext j hj
+    · simp [KVertex.reorder]
+      suffices (Equiv.Perm.setAll [(2,j₂)] 0).val = 0 by
+        conv => lhs; rhs; rw [← this]
+        rw [← Fin.ext_iff, Equiv.apply_eq_iff_eq, Fin.ext_iff]; simp
+      rw [Equiv.Perm.setAll_eq_of_not_mem]
+        <;> simp [Fin.ext_iff]
+      omega
+    · sorry
+  case point =>
+    generalize hcs : KClique.get _ _ = cs
+    rw [KClique.get_eq_iff_mem] at hcs
+    simp [KClique.map] at hcs
+    rcases hcs with ⟨⟨pre_i,pre_cs⟩,v_mem,h⟩
+    have : pre_i = 3#(n+3+2) := by
+      ext j hj
+      have := congrArg (·.bv[j]) h
+      simp [KVertex.bv_reorder] at this
+      sorry
+    replace h := congrArg (·.colors) h
+    sorry
+
 /-- This is just an arbitrary number that decreases
 as we get more ones into the `{2,3,4}` coordinates of `c3`. -/
 def countSymmOnes (tc : TwoCubes (n+3) s) : Nat :=

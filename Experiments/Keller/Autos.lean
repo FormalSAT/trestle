@@ -141,3 +141,4 @@ def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
   DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
     (reorder (n := n) (s := s) f) x = KVertex.reorder (fun j => f j) x := rfl
 
+end KAuto
