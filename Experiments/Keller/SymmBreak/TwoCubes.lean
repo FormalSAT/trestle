@@ -224,8 +224,6 @@ theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
 
 end TwoCubes
 
-structure ThreeCubes (n s) extends TwoCubes (n+3) s where
-  c3 : ∀ i : Fin (n+5), i ∈ [2,3,4] → (kclique.get 3)[i] = 1
 
 namespace ThreeCubes
 
@@ -306,6 +304,32 @@ theorem c3_2.auto.app_eq_1 {j₂ : Fin (n+5)} (j₂_ge : j₂ ≥ 2) {x} :
   have := c3_2.auto.app_1 j₂_ge; simp [Fin.ext_iff] at this
   rw [← this, ← Fin.ext_iff, Equiv.apply_eq_iff_eq]
 
+theorem c3_2.auto.maps_c3_2 (k : KClique (n+5) (s+2)) (j₂_ge : j₂.val ≥ 2)
+  : (KClique.map (c3_2.auto j₂) k |>.get 3)[2] = (k.get 3)[j₂] := by
+  -- give name to the new colors
+  generalize hcs : KClique.get _ _ = cs
+  rw [KClique.get_eq_iff_mem] at hcs
+  simp [KClique.map, c3_2.auto, KVertex.reorder] at hcs
+  rcases hcs with ⟨⟨pre_i,pre_cs⟩,v_mem,h,rfl⟩
+  simp
+
+  -- in h we've uncovered a relationship between pre_i and 3
+  replace h : pre_i = 3#(n+3+2) := by
+    ext j hj
+    replace h := congrArg (·[(Equiv.Perm.setAll [(2, j₂)]).symm ⟨j,hj⟩]) h
+    simp at h; rw [h]; clear h
+    simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq,
+      c3_2.auto.app_0 j₂_ge, c3_2.auto.app_1 j₂_ge]
+    simp [Fin.ext_iff]
+
+  -- but now we know what pre_cs is too!
+  subst pre_i
+  rw [← KClique.get_eq_iff_mem] at v_mem
+  subst pre_cs
+
+  -- close the goal woohoo
+  congr
+
 /-- We can always apply an automorphism to get a clique with c3[2] ≠ 0 -/
 theorem c3_2 (tc : TwoCubes (n+3) s) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 := by
@@ -335,30 +359,22 @@ theorem c3_2 (tc : TwoCubes (n+3) s) :
   case point =>
     -- the new c3[2] should be the old c3[j₂]
     convert spec; clear spec
+    simp; apply c3_2.auto.maps_c3_2 _ j₂_ge
 
-    -- give name to the new colors
-    generalize hcs : KClique.get _ _ = cs
-    rw [KClique.get_eq_iff_mem] at hcs
-    simp [KClique.map, c3_2.auto, KVertex.reorder] at hcs
-    rcases hcs with ⟨⟨pre_i,pre_cs⟩,v_mem,h,rfl⟩
-    simp
+theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
+    ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 := by
+  sorry
 
-    -- in h we've uncovered a relationship between pre_i and 3
-    replace h : pre_i = 3#(n+3+2) := by
-      ext j hj
-      replace h := congrArg (·[(Equiv.Perm.setAll [(2, j₂)]).symm ⟨j,hj⟩]) h
-      simp at h; rw [h]; clear h
-      simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq,
-        c3_2.auto.app_0 j₂_ge, c3_2.auto.app_1 j₂_ge]
-      simp [Fin.ext_iff]
+theorem c3_4 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) (h3 : (tc.kclique.get 3)[3] ≠ 0) :
+    ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
+  sorry
 
-    -- but now we know what pre_cs is too!
-    subst pre_i
-    rw [← KClique.get_eq_iff_mem] at v_mem
-    subst pre_cs
+end ThreeCubes
 
-    -- close the goal woohoo
-    congr
+structure ThreeCubes (n s) extends TwoCubes (n+3) s where
+  c3 : ∀ i : Fin (n+5), i ∈ [2,3,4] → (kclique.get 3)[i] = 1
+
+namespace ThreeCubes
 
 /-- This is just an arbitrary number that decreases
 as we get more ones into the `{2,3,4}` coordinates of `c3`. -/
@@ -391,27 +407,17 @@ theorem countSymmOnes_eq_0 (tc : TwoCubes (n+3) s) : countSymmOnes tc = 0 →
 
 
 open Classical in
-theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
-  -- Pick a TwoCubes instance with the smallest `countSymmOnes`
-  let p := fun zs => ∃ tc : TwoCubes (n+3) s, countSymmOnes tc = zs
-  have ⟨tc', tc'_count_eq_lam⟩ := Nat.find_spec (p := p) ⟨_, tc, rfl⟩
-  have tc'_min := fun m => Nat.find_min (p := p) ⟨_, tc, rfl⟩ (m := m)
-  -- lam is the number of non-ones
-  generalize Nat.find (p := p) _ = lam at tc'_count_eq_lam tc'_min
-  clear tc; simp [p] at *; clear p
-
-  /-
-  The # indicates true bits in each bitvector
-        0   1   2   3   4
-  c0  | 0 | 0 | 0 | 0 | 0 |
-  c1  |#0 | 1 | 0 | 0 | 0 |
-  c3  |#0 |#1 | ? | ? | ? |
-  c7  |#  |#  |#  |   |   |
-  c11 |#  |#  |   |#  |   |
-  c19 |#  |#  |   |   |#  |
-  -/
-
-  -- if lam = 3, I can build a TwoCubes with lam < 3
-  sorry
+theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) :=
+  have ⟨tc2,h2⟩ := c3_2 tc
+  have ⟨tc3,h3⟩ := c3_3 tc2 h2
+  have ⟨tc4,h4⟩ := c3_4 tc3 h3.1 h3.2
+  ⟨{
+    kclique := tc4.kclique.map (KAuto.permute fun i =>
+        if i ∈ [2,3,4] then
+          Equiv.Perm.setAll [(1, (tc4.kclique.get 3)[2])]
+        else Equiv.refl _
+      )
+    c3 := by intro i h; simp; sorry
+  }⟩
 
 end ThreeCubes
