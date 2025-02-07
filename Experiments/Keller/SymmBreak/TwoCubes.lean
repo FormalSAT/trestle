@@ -18,11 +18,19 @@ of the Keller conjecture for the previous dimension.
 -/
 
 
-abbrev TwoCubes.c0_colors : Vector (Fin (s+2)) (n+2) :=
+def TwoCubes.c0_colors : Vector (Fin (s+2)) (n+2) :=
   ⟨Array.mkArray (n+2) 0, by simp⟩
 
-abbrev TwoCubes.c1_colors : Vector (Fin (s+2)) (n+2) :=
+@[simp] theorem TwoCubes.c0_colors_j (j : Nat) (hj : j < (n+2)) : (c0_colors (s := s))[j] = 0 := by
+  simp [c0_colors]
+
+def TwoCubes.c1_colors : Vector (Fin (s+2)) (n+2) :=
   ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩
+
+@[simp] theorem TwoCubes.c1_colors_j (j : Nat) (hj : j < (n+2)) :
+    (c1_colors (s := s))[j] = if j = 1 then 1 else 0 := by
+  simp [c1_colors, Array.getElem_append]
+  rcases j with ⟨(_|_|_),h⟩ <;> simp [Nat.succ_lt_succ_iff, Fin.ext_iff]
 
 structure TwoCubes (n s) where
   kclique : KClique (n+2) (s+2)
@@ -147,8 +155,8 @@ theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, c0_colors⟩ := by
   · unfold auto; simp [KVertex.bv_flip]
   · ext1 j hj
     specialize h j hj
-    unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
-    split <;> (apply Equiv.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
+    simp [auto, KVertex.colors_permute]
+    split <;> (apply Equiv.Perm.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
 
 theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
   ext1 <;> ext1 j hj <;> specialize h j hj
@@ -166,12 +174,7 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
     else
       simp [hj] at h
       simp [← Fin.val_eq_val ⟨j,_⟩, hj, h, Array.getElem_append]
-      trans 0
-      · apply Equiv.setAll_eq_of_mem <;> simp
-      · split
-        · have : j = 0 := by omega
-          simp [this]
-        · rfl
+      apply Equiv.setAll_eq_of_mem <;> simp
 
 end auto
 
@@ -211,6 +214,14 @@ theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
     use b2, b2_mem
     apply auto_v₂; exact same_on
 
+@[simp] theorem c0_j (tc : TwoCubes n s) {j : Nat} {hj : j < (n+2)}
+    : (tc.kclique.get 0#(n+2))[j] = 0 := by
+  simpa using congrArg (·[j]) tc.c0
+
+@[simp] theorem c1_j (tc : TwoCubes n s) {j} {hj : j < (n+2)}
+    : (tc.kclique.get 1#(n+2))[j] = if j = 1 then 1 else 0 := by
+  simpa using congrArg (·[j]) tc.c1
+
 end TwoCubes
 
 structure ThreeCubes (n s) extends TwoCubes (n+3) s where
@@ -226,7 +237,7 @@ private theorem bv_3_getElem (n j : Nat) (h : j < n)
   | 1 => simp [Nat.testBit_succ]
   | j+2 => simp [Nat.testBit_succ]
 
-theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3)[1] = 1 := by
+theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[1] = 1 := by
   have := tc.kclique.get_adj_one_diff (i₁ := 1) (i₂ := 3) (j₁ := 1)
       (by simp [bv_toNat]; decide)
       (by simp [bv_toNat]; rintro ⟨(_|_|_),_⟩ <;> simp [Nat.testBit_succ])
@@ -258,10 +269,7 @@ theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[0] = 0 := by
 
   subst this
   rw [← cs_eq_at_j1]
-  clear cs_eq_at_j1
-  have := congrArg (·[0]) tc.c0
-  simp [Array.getElem_append_left] at this
-  exact this
+  simp only [TwoCubes.c0_j]
 
 theorem c3_j₂ (tc : TwoCubes n s) : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.kclique.get 3)[j₂] ≠ 0 := by
   -- since c1 and c3 are only diff at `j₁ = 1`, the colors must differ at another place
@@ -275,20 +283,35 @@ theorem c3_j₂ (tc : TwoCubes n s) : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.k
   use j2, (by omega)
   contrapose! h2
   rw [tc.c1]
-  simp [Array.getElem_append, j2_ge_2]
-  exact h2.symm
+  simp_all [Fin.ext_iff]
 
+def c3_2.auto (j₂ : Fin (n+5)) : KAuto (n+5) (s+2) :=
+  (KAuto.reorder (Equiv.Perm.setAll [(2, j₂)]))
 
+theorem c3_2.auto.app_0 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
+      (Equiv.Perm.setAll [(2, j₂)]) 0 = 0 := by
+  cases j₂; apply Equiv.Perm.setAll_eq_of_not_mem <;> simp_all [Fin.ext_iff]; omega
+
+theorem c3_2.auto.app_eq_0 {j₂ : Fin (n+5)} (j₂_ge : j₂ ≥ 2) {x} :
+      ((Equiv.Perm.setAll [(2, j₂)]) x : Nat) = 0 ↔ x = 0 := by
+  have := c3_2.auto.app_0 j₂_ge; simp [Fin.ext_iff] at this
+  rw [← this, ← Fin.ext_iff, Equiv.apply_eq_iff_eq]
+
+theorem c3_2.auto.app_1 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
+      (Equiv.Perm.setAll [(2, j₂)]) 1 = 1 := by
+  cases j₂; apply Equiv.Perm.setAll_eq_of_not_mem <;> simp_all [Fin.ext_iff]; omega
+
+theorem c3_2.auto.app_eq_1 {j₂ : Fin (n+5)} (j₂_ge : j₂ ≥ 2) {x} :
+      ((Equiv.Perm.setAll [(2, j₂)]) x : Nat) = 1 ↔ x = 1 := by
+  have := c3_2.auto.app_1 j₂_ge; simp [Fin.ext_iff] at this
+  rw [← this, ← Fin.ext_iff, Equiv.apply_eq_iff_eq]
+
+/-- We can always apply an automorphism to get a clique with c3[2] ≠ 0 -/
 theorem c3_2 (tc : TwoCubes (n+3) s) :
-    ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] = 1 := by
+    ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 := by
   have ⟨j₂, j₂_ge, spec⟩ := c3_j₂ tc
   refine ⟨{
-    kclique := tc.kclique
-      |>.map (KAuto.reorder (Equiv.Perm.setAll [(2, j₂)]))
-      |>.map (KAuto.permute fun
-        | 2 => Equiv.Perm.setAll [(1, (tc.kclique.get 3)[j₂])]
-        | _ => Equiv.refl _
-      )
+    kclique := tc.kclique.map (c3_2.auto j₂)
     c0 := ?c0
     c1 := ?c1
   }, ?point⟩
@@ -297,42 +320,45 @@ theorem c3_2 (tc : TwoCubes (n+3) s) :
     simp [KClique.map]
     use ⟨0, tc.kclique.get 0⟩, tc.kclique.get_mem 0
     ext j hj
-    · simp [KVertex.reorder]
-    · have : ∀ j : Fin _, (tc.kclique.get 0#(n + 3 + 2))[↑j] = 0 := by
-        intro j; convert congrArg (·[j]) tc.c0; simp
-      simp [KVertex.colors_permute, KVertex.colors_reorder, this]
-      by_cases j = 2
-      case pos h =>
-        simp [h]
-        rw [Equiv.Perm.setAll_eq_of_not_mem]
-          <;> simp_all [eq_comm]
-      case neg h =>
-        simp [h]
+    · simp [c3_2.auto, KVertex.bv_reorder]
+    · simp [c3_2.auto, KVertex.colors_reorder, tc.c0_j]
   case c1 =>
     rw [KClique.get_eq_iff_mem]
     simp [KClique.map]
     use ⟨1, tc.kclique.get 1⟩, tc.kclique.get_mem 1
     ext j hj
-    · simp [KVertex.reorder]
-      suffices (Equiv.Perm.setAll [(2,j₂)] 0).val = 0 by
-        conv => lhs; rhs; rw [← this]
-        rw [← Fin.ext_iff, Equiv.apply_eq_iff_eq, Fin.ext_iff]; simp
-      rw [Equiv.Perm.setAll_eq_of_not_mem]
-        <;> simp [Fin.ext_iff]
-      omega
-    · sorry
+    · have := c3_2.auto.app_eq_0 j₂_ge (x := ⟨j,hj⟩)
+      simp [Fin.ext_iff] at this
+      simp [c3_2.auto, KVertex.bv_reorder, this]
+    · have := c3_2.auto.app_eq_1 j₂_ge (x := ⟨j,hj⟩)
+      simp [c3_2.auto, KVertex.colors_reorder, tc.c1_j, this, Fin.ext_iff]
   case point =>
+    -- the new c3[2] should be the old c3[j₂]
+    convert spec; clear spec
+
+    -- give name to the new colors
     generalize hcs : KClique.get _ _ = cs
     rw [KClique.get_eq_iff_mem] at hcs
-    simp [KClique.map] at hcs
-    rcases hcs with ⟨⟨pre_i,pre_cs⟩,v_mem,h⟩
-    have : pre_i = 3#(n+3+2) := by
+    simp [KClique.map, c3_2.auto, KVertex.reorder] at hcs
+    rcases hcs with ⟨⟨pre_i,pre_cs⟩,v_mem,h,rfl⟩
+    simp
+
+    -- in h we've uncovered a relationship between pre_i and 3
+    replace h : pre_i = 3#(n+3+2) := by
       ext j hj
-      have := congrArg (·.bv[j]) h
-      simp [KVertex.bv_reorder] at this
-      sorry
-    replace h := congrArg (·.colors) h
-    sorry
+      replace h := congrArg (·[(Equiv.Perm.setAll [(2, j₂)]).symm ⟨j,hj⟩]) h
+      simp at h; rw [h]; clear h
+      simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq,
+        c3_2.auto.app_0 j₂_ge, c3_2.auto.app_1 j₂_ge]
+      simp [Fin.ext_iff]
+
+    -- but now we know what pre_cs is too!
+    subst pre_i
+    rw [← KClique.get_eq_iff_mem] at v_mem
+    subst pre_cs
+
+    -- close the goal woohoo
+    congr
 
 /-- This is just an arbitrary number that decreases
 as we get more ones into the `{2,3,4}` coordinates of `c3`. -/
