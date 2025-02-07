@@ -142,3 +142,20 @@ def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
     (reorder (n := n) (s := s) f) x = KVertex.reorder (fun j => f j) x := rfl
 
 end KAuto
+
+namespace KClique
+
+theorem get_map_reorder {k : KClique n s} {f} {i}
+  : (k.map (KAuto.reorder f)).get i = Vector.ofFn fun j => (k.get (BitVec.ofFn fun j => i[f.symm j]))[f j] := by
+  simp [KClique.get_eq_iff_mem, map]
+  refine ⟨_, k.get_mem (BitVec.ofFn fun j => i[f.symm j]), ?_⟩
+  simp [KVertex.reorder]
+  ext; simp
+
+theorem get_map_permute {k : KClique n s} {f} {i}
+  : (k.map (KAuto.permute f)).get i = Vector.ofFn fun j => (f j) (k.get i)[j] := by
+  simp [KClique.get_eq_iff_mem, map]
+  refine ⟨_, k.get_mem i, ?_⟩
+  simp [KVertex.permute]
+
+end KClique
