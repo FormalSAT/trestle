@@ -368,7 +368,7 @@ theorem c3_4 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) (h3 : (t
 end ThreeCubes
 
 structure ThreeCubes (n s) extends TwoCubes (n+3) s where
-  c3 : ∀ i : Fin (n+5), i ∈ [2,3,4] → (kclique.get 3)[i] = 1
+  c3 : ∀ i : Fin (n+5), i.val ∈ [2,3,4] → (kclique.get 3)[i] = 1
 
 namespace ThreeCubes
 
@@ -402,20 +402,57 @@ theorem countSymmOnes_eq_0 (tc : TwoCubes (n+3) s) : countSymmOnes tc = 0 →
   aesop
 
 
-open Classical in
-theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) :=
+theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   have ⟨tc2,h2⟩ := c3_2 tc
   have ⟨tc3,h3⟩ := c3_3 tc2 h2
   have ⟨tc4,h4⟩ := c3_4 tc3 h3.1 h3.2
-  ⟨{
+  clear! tc tc2 tc3
+  replace h4 : ∀ i : Fin (n+5), i.val ∈ [2,3,4] → (tc4.kclique.get 3)[i] ≠ 0 := by
+    rintro ⟨i,hi⟩ h; simp at h
+    rcases h with (_|_|_) <;>
+      (subst i; first | exact h4.1 | exact h4.2.1 | exact h4.2.2 )
+  exact ⟨{
     kclique := tc4.kclique.map (KAuto.permute fun i =>
-        if i ∈ [2,3,4] then
-          Equiv.Perm.setAll [(1, (tc4.kclique.get 3)[2])]
+        if i.val ∈ [2,3,4] then
+          Equiv.Perm.setAll [(1, (tc4.kclique.get 3)[i])]
         else Equiv.refl _
       )
-    c0 := by sorry
-    c1 := by sorry
-    c3 := by intro i h; simp; sorry
+    c0 := by
+      rw [KClique.get_map_permute, tc4.c0]
+      ext j hj
+      rw [Vector.getElem_ofFn]
+      split
+      next h =>
+        rw [← Fin.ext_iff]; apply Equiv.Perm.setAll_eq_of_not_mem
+        · simp only [ List.map_cons, List.map_nil, Fin.getElem_fin,
+          TwoCubes.c0_colors_j, List.mem_singleton, Fin.zero_eq_one_iff, Nat.reduceEqDiff,
+          not_false_eq_true]
+        · specialize h4 ⟨j,hj⟩ h
+          simpa only [BitVec.ofNat_eq_ofNat, List.map_cons, List.map_nil, Fin.getElem_fin,
+          TwoCubes.c0_colors_j, List.mem_singleton, ne_eq] using h4.symm
+      · rfl
+    c1 := by
+      rw [KClique.get_map_permute, tc4.c1]
+      ext j hj
+      rw [Vector.getElem_ofFn]
+      split
+      next h =>
+        have : (TwoCubes.c1_colors (s := s))[j] = 0 := by
+          simp [Fin.ext_iff] at h; rcases h with (_|_|_) <;> simp [*]
+        rw [← Fin.ext_iff]
+        simp [this]; apply Equiv.Perm.setAll_eq_of_not_mem
+        · simp only [List.map_cons, List.map_nil, List.mem_singleton, Fin.zero_eq_one_iff,
+          Nat.reduceEqDiff, not_false_eq_true]
+        · specialize h4 ⟨j,hj⟩ h
+          simpa only [List.map_cons, List.map_nil, List.mem_singleton, BitVec.ofNat_eq_ofNat,
+          ne_eq] using h4.symm
+      · rfl
+    c3 := by
+      rintro ⟨i, hi⟩ i_mem_234
+      rw [KClique.get_map_permute]
+      simp only [Fin.getElem_fin, Vector.getElem_ofFn, i_mem_234, if_true]
+      specialize h4 _ i_mem_234
+      sorry
   }⟩
 
 end ThreeCubes
