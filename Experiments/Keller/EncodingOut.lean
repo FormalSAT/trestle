@@ -15,10 +15,12 @@ open Keller Trestle Cli
 
 def cnfCmd := `[Cli|
   "cnf" VIA runCnfCmd;
-  "testCmd provides another example for a subcommand without flags or arguments that does nothing."
+  "Generates a CNF whose unsatisfiability is equivalent to
+  the Keller conjecture on Keller graph G_n,s."
 
   FLAGS:
-    inc;    "Output an incremental CNF (inccnf) with good cube split."
+    inc;        "Output an incremental CNF (inccnf) with good cube split."
+    cube : Nat; "Output a CNF with the i'th cube from --inc."
 
   ARGS:
     n : Nat;         "# dimensions of the Keller graph."
@@ -30,10 +32,18 @@ where runCnfCmd (p : Parsed) := do
   let s := p.positionalArg! "s" |>.as! Nat
   let file := p.positionalArg! "file" |>.as! String
   let inc := p.hasFlag "inc"
+  let cube := p.flag? "cube" |>.map (·.as! Nat)
+
+  let inccnf ← do
+    if inc && cube.isSome then
+      IO.println "--inc flag ignored because --cube is set"
+      pure false
+    else
+      pure inc
 
   IO.println s!"encoding G_{n}_{s}"
   let ((), {cnf, vMap, ..}) := Encoding.fullEncoding n s |>.run
-  if inc then
+  if inccnf then
     let cubes ← (do
       IO.println s!"calculating cubes..."
       if h : n ≥ 5 ∧ s ≥ 4 then
@@ -46,7 +56,24 @@ where runCnfCmd (p : Parsed) := do
       Solver.Dimacs.printIncCNF (handle.putStr) cnf cubes
       handle.flush
   else
+    let cube ← cube.bindM (fun idx => do
+      let cubes ← (do
+        IO.println s!"calculating cubes..."
+        if h : n ≥ 5 ∧ s ≥ 4 then
+          pure <| Encoding.symmBreakCubes (n := n) (s := s) h.1 h.2
+        else pure []
+      )
+      if h : idx < cubes.length then
+        return some <| cubes[idx].map ILit vMap
+      else
+        IO.println s!"Cube index {idx} out of bounds! ({cubes.length} cubes)"
+        return none
+    )
     IO.println s!"writing CNF to {file}"
+    let cnf :=
+      match cube with
+      | none => cnf
+      | some cube => cnf ++ Array.map (#[·]) cube
     IO.FS.withFile file .write <| fun handle => do
       Solver.Dimacs.printFormula (handle.putStr) cnf
       handle.flush

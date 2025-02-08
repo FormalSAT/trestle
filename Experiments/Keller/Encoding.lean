@@ -67,7 +67,7 @@ def hasSGapAt (i i' : BitVec n) (j : Fin n) : PropForm (Vars n s) :=
   )
 
 -- ensures `i` and `i'` have a coord `j` on which they are equal `mod s`
-def hasSGap (i i' : BitVec n) : EncCNF (Vars n s) Unit :=
+def hasSGap (i i' : BitVec n) : EncCNF (Vars n s) Unit := do
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
   let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
   withTemps (Fin n) (do
