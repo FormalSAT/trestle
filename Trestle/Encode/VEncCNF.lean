@@ -119,8 +119,8 @@ def addClause (C : Clause (Literal ν)) : VEncCNF ν Unit C :=
     intro s
     generalize he : (EncCNF.addClause C).1 s = e
     rcases e with ⟨_,s'⟩
-    simp [EncCNF.addClause] at he; cases he
-    simp; simp [SemanticEntails.entails, himp, compl, LawfulState.addClause, State.addClause]
+    simp [EncCNF.addClause, dbgTraceIfShared] at he; cases he
+    simp; simp [SemanticEntails.entails, himp, compl, LawfulState.addClause, dbgTraceIfShared, State.addClause]
     ⟩
 
 open PropFun in
@@ -139,27 +139,27 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     unfold EncCNF.withTemps at def_ls_post_pair
     simp (config := {zeta := false}) at def_ls_post_pair
     lift_lets at def_ls_post_pair
-    extract_lets vMap vMapInj at def_ls_post_pair
+    extract_lets vMap vMapInj ls_pre_temps at def_ls_post_pair
     split at def_ls_post_pair
     next a ls_post_temps def_pair =>
     generalize_proofs h
     subst def_ls_post_pair
     simp [vMap] at def_ls_post; clear vMap
-    generalize def_ls_pre_temps : LawfulState.withTemps (ι := ι) ls_pre = ls_pre_temps
-    rw [def_ls_pre_temps] at def_pair
+    --generalize def_ls_pre_temps : LawfulState.withTemps (ι := ι) ls_pre = ls_pre_temps
+    unfold ls_pre_temps at def_pair
     -- extract relationship between ls_pre_temps and ls_post_temps
     have ls_temps_nextVar := ve.1.2 ls_pre_temps
     simp [def_pair] at ls_temps_nextVar
     have ls_temps_satisfies := ve.2 ls_pre_temps
     simp [def_pair] at ls_temps_satisfies
-    clear def_pair
+    --clear def_pair
     rcases ls_temps_satisfies with ⟨hvmap, h⟩
     -- now we prove the goals
     subst ls_post
     simp
     rw [LawfulState.interp_withoutTemps]
     · simp_rw [h]
-      subst ls_pre_temps
+      unfold ls_pre_temps
       simp
       clear h hvmap ls_temps_nextVar def_pair ls_post_temps vMapInj
       intro τ
