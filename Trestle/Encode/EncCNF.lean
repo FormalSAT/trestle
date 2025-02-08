@@ -44,17 +44,20 @@ def new (vars : PNat) (f : ν → IVar) : State ν := {
   vMap := f
 }
 
-def addClause (C : Clause (Literal ν)) : State ν → State ν
-| {nextVar, cnf, vMap} => {
-  nextVar := nextVar
-  vMap := vMap
-  cnf := cnf.addClause (C.map _ vMap)
-}
+def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
+  match s with
+  | {nextVar, cnf, vMap} => {
+    nextVar := nextVar
+    vMap := vMap
+    cnf :=
+      let cnf := dbgTraceIfShared "State.addClause: cnf is shared (performance bug!)" cnf
+      cnf.addClause (C.map _ vMap)
+  }
 
 @[simp] theorem toPropFun_addClause (C : Clause (Literal ν)) (s)
   : (addClause C s).cnf.toPropFun = s.cnf.toPropFun ⊓ (PropFun.map s.vMap C)
   := by
-  simp [addClause, himp_eq, sup_comm]
+  simp [dbgTraceIfShared, addClause, himp_eq, sup_comm]
 
 instance : ToString (State ν) := ⟨toString ∘ State.cnf⟩
 
@@ -123,18 +126,20 @@ def new' (vars : Nat) (f : ν ↪ Fin vars) : LawfulState ν :=
 theorem interp_new' (vars) (f : ν ↪ Fin vars)
   : interp (new' vars f) = fun _ => True := by simp [new']
 
-def addClause (C : Clause (Literal ν)) (s : LawfulState ν) : LawfulState ν where
-  toState := s.toState.addClause C
-  vMapLt := s.vMapLt
-  vMapInj := s.vMapInj
+def addClause (C : Clause (Literal ν)) : LawfulState ν → LawfulState ν
+| {toState, vMapLt, vMapInj, cnfVarsLt} => {
+  toState := toState.addClause C
+  vMapLt := vMapLt
+  vMapInj := vMapInj
   cnfVarsLt := by
     intro c hc v hv
     simp [State.addClause, Cnf.addClause, Clause.or, LitVar.map] at hc
     rcases hc with hc|hc
-    · exact cnfVarsLt _ _ hc _ hv
+    · exact cnfVarsLt _ hc _ hv
     · subst_vars; simp [Clause.map] at hv
       rcases hv with ⟨l,hv,rfl⟩
       simp [LitVar.map]; apply vMapLt
+}
 
 set_option pp.proofs.withType false in
 open PropFun in
@@ -209,8 +214,8 @@ def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
   return res
 
 def addClause (C : Clause (Literal ν)) : EncCNF ν Unit :=
-  ⟨ fun s =>
-    ((), s.addClause C), by simp [LawfulState.addClause, State.addClause]⟩
+  ⟨ fun s => ((), s.addClause C)
+  , by simp [LawfulState.addClause, State.addClause]⟩
 
 def unit (l : Literal ν) : EncCNF ν Unit := addClause #[l]
 
@@ -226,12 +231,15 @@ def addAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit 
 
 def State.withTemps [IndexType ι] (s : State ν) : State (ν ⊕ ι) where
   nextVar := ⟨s.nextVar + IndexType.card ι, by simp⟩
+  vMap := vMap s.vMap s.nextVar
   cnf := s.cnf
-  vMap := vMap
-where vMap (x) :=
+-- !!!!! an old version of this code passed the entire state `s` to
+-- this `vMap` helper, which would cause the state to become shared
+-- every time `State.withTemps` was called! yikes!!!
+where vMap (vMap nextVar x):=
   match x with
-  | Sum.inl v => s.vMap v
-  | Sum.inr i => ⟨s.nextVar + IndexType.toFin i, by simp⟩
+  | Sum.inl v => vMap v
+  | Sum.inr i => ⟨nextVar + IndexType.toFin i, by simp⟩
 
 @[simp] theorem State.cnf_withTemps [IndexType ι] (s : State ν) :
     (State.withTemps s (ι := ι)).cnf = s.cnf
@@ -268,7 +276,7 @@ def LawfulState.withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState �
       exact h
 
 @[simp] theorem LawfulState.vMap_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν) :
-    (s.withTemps (ι := ι)).vMap = State.withTemps.vMap s.toState
+    (s.withTemps (ι := ι)).vMap = State.withTemps.vMap s.vMap s.nextVar
   := by simp [LawfulState.withTemps, State.withTemps]
 
 @[simp]
@@ -281,11 +289,11 @@ theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : La
     use σ; simp [h]
     ext v; simp [State.withTemps.vMap]
   · rintro ⟨σ,h1,h2⟩
-    have ⟨σ',hσ'⟩ := τ.exists_preimage ⟨State.withTemps.vMap s.toState, (LawfulState.withTemps s).vMapInj⟩
+    have ⟨σ',hσ'⟩ := τ.exists_preimage ⟨State.withTemps.vMap s.vMap s.nextVar, (LawfulState.withTemps s).vMapInj⟩
     cases hσ'
     simp [PropAssignment.map] at h2 ⊢
     use σ.setMany
-      (Finset.univ.image (State.withTemps.vMap (ι := ι) s.toState <| Sum.inr ·))
+      (Finset.univ.image (State.withTemps.vMap (ι := ι) s.vMap s.nextVar <| Sum.inr ·))
       σ'
     constructor
     · ext vot
@@ -365,7 +373,8 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] (e : EncCNF (ν ⊕ ι) �
   ⟨ fun s =>
     let vMap := s.vMap
     let vMapInj := s.vMapInj
-    match h : e.1 s.withTemps with
+    let tempify := s.withTemps
+    match h : e.1 tempify with
     | (a,s') =>
     (a, s'.withoutTemps vMap (by
         intro v; apply Nat.lt_of_lt_of_le (m := s.nextVar)
