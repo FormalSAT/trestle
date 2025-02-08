@@ -33,7 +33,7 @@ def coordinates : EncCNF (Vars n s) Unit := do
       -- at least one of the `c_ij-` variables is true
       addClause vars
       -- at most one of the `c_ij-` variables is true
-      Cardinality.amoPairwise vars
+      Cardinality.amoSeqCounter vars
 
 -- ensure for all pairs where only one coordinate *must* be different,
 -- that there is a second coordinate which is also different
@@ -128,24 +128,66 @@ def canonicalColumns (n : Nat) (len : Nat) (hs : s > 0) : List (Vector (Vector (
 def symmBreak (n s) : EncCNF (Vars n s) Unit := do
   if hs : s ≥ 2 then do
   if hn : n ≥ 2 then do
-  -- c0 = (0,0,0,0,0,0,0)
+  -- c0 = (0, 0, 0, 0, 0, 0*)
   for hi : i in [0:n] do
     have : i < n := hi.2
     set 0 i 0
-  -- c1 = (s,1,0,0,0,0,0)
+  -- c1 = (s, 1, 0, 0, 0, 0*)
   set 1 0 0
   set 1 1 1
   for hi : i in [2:n] do
     have : i < n := hi.2
     set 1 i 0
   if hn' : n ≥ 5 then do
-    -- c3 = (s,s+1,1,1,1,*,*)
+    -- c3 = (s, s+1, 1, 1, 1, _*)
     set 3 0 0
     for hi : i in [1:5] do
       have : i < 5 := hi.2
       set 3 i 1
 where set (a b c) (hb : b < n := by omega) (hc : c < s := by omega) :=
   unit <| .pos <| x a ⟨b,hb⟩ ⟨c,hc⟩
+
+def symmBreakSorted (n s) : EncCNF (Vars n s) Unit := do
+  -- this symmetry breaking is independent on each column
+  for j in List.fins n do
+    -- temporary `m_i,j,k` is true when
+    -- the max color in col `j` *prior* to `i` is `≥ k`
+    withTemps (BitVec n × Fin s) do
+      -- x_i,j,k -> m_i,j,k
+      for i in allBitVecs n do
+        for k in List.fins s do
+          addClause #[.neg (.inl <| x i j k), .pos (.inr (i,k))]
+
+      -- m_i,j,k+1 -> m_i,j,k
+      for i in allBitVecs n do
+        for k in List.fins s do
+          match k.succ? with
+          | none => pure ()
+          | some ksucc =>
+            addClause #[.neg (.inr (i,ksucc)), .pos (.inr (i,k))]
+
+      -- m_i,j,k -> m_i+1,j,k
+      for k in List.fins s do
+        for i in allBitVecs n do
+          match i.toFin.succ? with
+          | none => pure ()
+          | some isucc =>
+            addClause #[.neg (.inr (i,k)), .pos (.inr (isucc, k))]
+
+      -- m_0,j,1 is false lol. this is important otherwise it could assume the max came from earlier than here.
+      if h : s > 1 then
+        addClause #[.neg (.inr (0,⟨1,h⟩))]
+
+      -- now the symmetry breaking kicker: the max can only increase by one each i!
+      for i in allBitVecs n do
+        match i.toFin.succ? with
+        | none => pure ()
+        | some isucc =>
+        for k in List.fins s do
+          match k.succ? with
+          | none => pure ()
+          | some ksucc =>
+            addClause #[]
 
 def symmBreakCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
   let matrixList := SymmBreak.Matrix.canonicalCases.toList
