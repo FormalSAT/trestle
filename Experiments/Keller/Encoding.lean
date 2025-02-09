@@ -94,6 +94,96 @@ end Base
 section SymmBreaking
 open EncCNF Vars
 
+def c0_c1_c3 (n s) : EncCNF (Vars n s) Unit := do
+  if hs : s ≥ 2 then do
+  if hn : n ≥ 2 then do
+  -- c0 = (0, 0, 0, 0, 0, 0*)
+  for hi : j in [0:n] do
+    have : j < n := hi.2
+    set 0 j 0
+  -- c1 = (0, 1, 0, 0, 0, 0*)
+  set 1 0 0
+  set 1 1 1
+  for hi : j in [2:n] do
+    have : j < n := hi.2
+    set 1 j 0
+  if hn' : n ≥ 5 then do
+    -- c3 = (0, 1, 1, 1, 1, _*)
+    set 3 0 0
+    for hi : j in [1:5] do
+      have : j < 5 := hi.2
+      set 3 j 1
+    -- c7 = (0, 1, 1, _, _, _*)
+    set 7 0 0; set 7 1 1; set 7 2 1
+    -- c11 = (0, 1, _, 1, _, _*)
+    set 11 0 0; set 11 1 1; set 11 3 1
+    -- c19 = (0, 1, _, _, 1, _*)
+    set 19 0 0; set 19 1 1; set 19 4 1
+where set (a b c) (hb : b < n := by omega) (hc : c < s := by omega) :=
+  unit <| .pos <| x a ⟨b,hb⟩ ⟨c,hc⟩
+
+-- we are sorting each column with respect to an odd order of i's:
+def iOfIdx : Equiv.Perm (BitVec n) :=
+    Equiv.Perm.setAll [(0, 0), (1, 1), (2, 3), (3, 7), (4, 11), (5, 19)]
+
+
+def slowIncreasingUnits (j : Fin n) (startIdx : BitVec n) (startColor : Fin s) : EncCNF (Vars n s) Unit := do
+  -- Under iOfIdx ordering, the first six indices are all pretty low.
+  -- so we can insert lots of units implied by the other symmetry breaking and slowIncreasingStrict
+  for h : a in [0: (2^n - startIdx.toNat) ⊓ (s-startColor.val)] do
+    have : a < min _ _ := h.2
+    let i := (iOfIdx ⟨startIdx.toNat+a, by omega⟩)
+    for h : k in [startColor+a:s] do
+      have : k < s := h.2
+      unit <| .neg <| x i j ⟨k, by omega⟩
+
+
+def slowIncreasingStrict (j : Fin n) : EncCNF (Vars n s) Unit := do
+  -- temporary `m_idx,k` is true when
+  -- the max color in col `j` *prior* to `idx` is `≥ k`
+  let TempTy := BitVec n × Fin s
+  withTemps TempTy do
+    -- the max starts out below 0, so all m_0,k are false
+    for k in List.fins s do
+      addClause #[.neg (.inr (0,k))]
+
+    -- now we can define m_idx,k in terms of values to the left and above
+    -- `m_idx+1,k ↔ x_i[idx],k ∨ m_idx,k ∨ m_idx+1,k+1`
+    for idx in allBitVecs n do
+      match idx.toFin.succ? with
+      | none => pure ()
+      | some idxsucc =>
+      for k in List.fins s do
+        let misk : Vars n s ⊕ TempTy := .inr (idxsucc,k)
+        let xiik : Vars n s ⊕ TempTy := .inl (x (iOfIdx idx) j k)
+        let mik  : Vars n s ⊕ TempTy := .inr (idx,k)
+        match k.succ? with
+        | none =>
+          Subtype.val <| tseitin[ {misk} ↔ {xiik} ∨ {mik} ]
+        | some ksucc =>
+          let misks : Vars n s ⊕ (BitVec n × Fin s) := .inr (idxsucc,ksucc)
+          Subtype.val <| tseitin[ {misk} ↔ {xiik} ∨ {mik} ∨ {misks}]
+
+    -- now the symmetry breaking kicker: the max can only increase by one each i!
+    for i in allBitVecs n do
+      match i.toFin.succ? with
+      | none => pure ()
+      | some isucc =>
+      for k in List.fins s do
+        match k.succ? with
+        | none => pure ()
+        | some ksucc =>
+          addClause #[.pos (.inr (i,k)), .neg (.inr (isucc,ksucc))]
+
+def matrixCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
+  let matrixList := SymmBreak.Matrix.canonicalCases.toList
+  let idxs := #[7, 11, 19]
+  matrixList.map fun m =>
+    Array.mk <| List.flatten <|
+      List.ofFn fun r : Fin 3 => List.ofFn fun c : Fin 3 =>
+        let mval : Fin s := m.data[r][c].castLE (by omega)
+        .pos (x idxs[r] ⟨2+c, by omega⟩ mval)
+
 def triangle (L : List α) (n : Nat) : List (Vector α n) :=
   aux L n |>.map (·.reverse)
 where aux (L : List α) (n : Nat) : List (Vector α n) :=
@@ -124,87 +214,35 @@ def canonicalColumns (n : Nat) (len : Nat) (hs : s > 0) : List (Vector (Vector (
   let cols := canonicalColumn (s := s) ⟨0,hs⟩ len
   triangle cols n
 
-
-def symmBreak (n s) : EncCNF (Vars n s) Unit := do
-  if hs : s ≥ 2 then do
-  if hn : n ≥ 2 then do
-  -- c0 = (0, 0, 0, 0, 0, 0*)
-  for hi : i in [0:n] do
-    have : i < n := hi.2
-    set 0 i 0
-  -- c1 = (s, 1, 0, 0, 0, 0*)
-  set 1 0 0
-  set 1 1 1
-  for hi : i in [2:n] do
-    have : i < n := hi.2
-    set 1 i 0
-  if hn' : n ≥ 5 then do
-    -- c3 = (s, s+1, 1, 1, 1, _*)
-    set 3 0 0
-    for hi : i in [1:5] do
-      have : i < 5 := hi.2
-      set 3 i 1
-where set (a b c) (hb : b < n := by omega) (hc : c < s := by omega) :=
-  unit <| .pos <| x a ⟨b,hb⟩ ⟨c,hc⟩
-
-def symmBreakSorted (n s) : EncCNF (Vars n s) Unit := do
-  -- this symmetry breaking is independent on each column
-  for j in List.fins n do
-    -- temporary `m_i,j,k` is true when
-    -- the max color in col `j` *prior* to `i` is `≥ k`
-    withTemps (BitVec n × Fin s) do
-      -- x_i,j,k -> m_i,j,k
-      for i in allBitVecs n do
-        for k in List.fins s do
-          addClause #[.neg (.inl <| x i j k), .pos (.inr (i,k))]
-
-      -- m_i,j,k+1 -> m_i,j,k
-      for i in allBitVecs n do
-        for k in List.fins s do
-          match k.succ? with
-          | none => pure ()
-          | some ksucc =>
-            addClause #[.neg (.inr (i,ksucc)), .pos (.inr (i,k))]
-
-      -- m_i,j,k -> m_i+1,j,k
-      for k in List.fins s do
-        for i in allBitVecs n do
-          match i.toFin.succ? with
-          | none => pure ()
-          | some isucc =>
-            addClause #[.neg (.inr (i,k)), .pos (.inr (isucc, k))]
-
-      -- m_0,j,1 is false lol. this is important otherwise it could assume the max came from earlier than here.
-      if h : s > 1 then
-        addClause #[.neg (.inr (0,⟨1,h⟩))]
-
-      -- now the symmetry breaking kicker: the max can only increase by one each i!
-      for i in allBitVecs n do
-        match i.toFin.succ? with
-        | none => pure ()
-        | some isucc =>
-        for k in List.fins s do
-          match k.succ? with
-          | none => pure ()
-          | some ksucc =>
-            addClause #[]
-
-def symmBreakCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
-  let matrixList := SymmBreak.Matrix.canonicalCases.toList
-  let colsList := canonicalColumns (n-5) 4 (by omega)
+def lastColsCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
   let idxs := #[3, 7, 11, 19]
-  matrixList.flatMap fun m =>
-    let matAssn := Array.mk <| List.flatten <|
-      List.ofFn fun r => List.ofFn fun c =>
-        let mval : Fin s := m.data[r][c].castLE (by omega)
-        .pos (x idxs[r.succ] ⟨2+c, by omega⟩ mval)
-    colsList.map fun cols =>
-      matAssn ++ Array.flatten (
-        Array.ofFn (n := 4) fun r => Array.ofFn (n := n-5) fun c =>
-          .pos <| x idxs[r] ⟨c+5, by omega⟩ cols[c][r])
+  let colsList := canonicalColumns (n-5) idxs.size (by omega)
+  colsList.map fun cols =>
+    let cube := Array.flatten (
+      Array.ofFn fun r => Array.ofFn (n := n-5) fun c =>
+        .pos <| x idxs[r] ⟨c+5, by omega⟩ cols[c][r])
+    cube
 
 end SymmBreaking
 
 def fullEncoding (n s) : EncCNF (Vars n s) Unit := do
   baseEncoding n s
-  symmBreak n s
+  c0_c1_c3 n s
+  if hn : n ≥ 5 then
+    if hn : s > 5 then
+      slowIncreasingUnits ⟨0,by omega⟩ 6 ⟨2,by omega⟩
+      slowIncreasingUnits ⟨1,by omega⟩ 6 ⟨3,by omega⟩
+      slowIncreasingUnits ⟨2,by omega⟩ 6 ⟨5,by omega⟩
+      slowIncreasingUnits ⟨3,by omega⟩ 6 ⟨5,by omega⟩
+      slowIncreasingUnits ⟨4,by omega⟩ 6 ⟨5,by omega⟩
+      for h : i in [5:n] do
+        slowIncreasingUnits ⟨i,h.2⟩ 2 ⟨2,by omega⟩
+
+
+def allCubes : List (Clause <| Literal <| Vars n s) :=
+  if hn : n ≥ 5 then
+    if hs : s ≥ 4 then
+      matrixCubes hn hs ×ˢ lastColsCubes hn hs
+      |>.map (fun (a,b) => a ++ b)
+    else []
+  else []
