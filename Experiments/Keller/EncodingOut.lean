@@ -46,9 +46,7 @@ where runCnfCmd (p : Parsed) := do
   if inccnf then
     let cubes ← (do
       IO.println s!"calculating cubes..."
-      if h : n ≥ 5 ∧ s ≥ 4 then
-        pure <| Encoding.symmBreakCubes (n := n) (s := s) h.1 h.2
-      else pure []
+      return Encoding.allCubes
     )
     let cubes := cubes.map (·.map _ vMap)
     IO.println s!"writing incremental CNF to {file}"
@@ -59,9 +57,7 @@ where runCnfCmd (p : Parsed) := do
     let cube ← cube.bindM (fun idx => do
       let cubes ← (do
         IO.println s!"calculating cubes..."
-        if h : n ≥ 5 ∧ s ≥ 4 then
-          pure <| Encoding.symmBreakCubes (n := n) (s := s) h.1 h.2
-        else pure []
+        return Encoding.allCubes
       )
       if h : idx < cubes.length then
         return some <| cubes[idx].map ILit vMap
