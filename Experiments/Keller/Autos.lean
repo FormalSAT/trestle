@@ -35,10 +35,67 @@ def flip (mask : BitVec n) (v : KVertex n s) : KVertex n s :=
   { bv := v.bv ^^^ mask, colors := v.colors }
 
 theorem bv_flip (mask) {v : KVertex n s} : (flip mask v).bv = v.bv ^^^ mask := rfl
-@[simp] theorem bv_colors (mask) {v : KVertex n s} : (flip mask v).colors = v.colors := rfl
+@[simp] theorem colors_flip (mask) {v : KVertex n s} : (flip mask v).colors = v.colors := rfl
 
 @[simp] theorem flip_flip (mask : BitVec n) {v : KVertex n s} : (v.flip mask).flip mask = v := by
   simp [flip, BitVec.xor_assoc]
+
+-- Actually *super* non-obvious that this is an automorphism!!!!
+-- The justification is basically that if an s gap occurs at j, it still occurs there,
+-- while the colors never change so other inequalities are preserved
+def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
+  if v.colors[j] = k then
+    { bv := v.bv ^^^ (1 <<< j.val)
+    , colors := v.colors }
+  else
+    v
+
+theorem bv_flipAt (j k) {v : KVertex n s} :
+    (flipAt j k v).bv =
+      if v.colors[j] = k
+      then v.bv ^^^ (1 <<< j.val)
+      else v.bv := by
+  unfold flipAt; split <;> simp
+
+@[simp] theorem colors_flipAt {j k} {v : KVertex n s} : (flipAt j k v).colors = v.colors := by
+  unfold flipAt; split <;> rfl
+
+@[simp] theorem flipAt_flipAt {j k} {v : KVertex n s} : (v.flipAt j k).flipAt j k = v := by
+  unfold flipAt
+  split
+  · ext <;> simp
+  · rfl
+
+@[simp] theorem flipAt_inj {j k} : flipAt j k a = flipAt j k b ↔ a = b := by
+  constructor
+  · intro h; simpa using congrArg (flipAt j k) h
+  · rintro rfl; rfl
+
+@[simp] theorem bv_flipAt_inj_iff {j k} (h : a.colors[j] = b.colors[j]): (flipAt j k a).bv = (flipAt j k b).bv ↔ a.bv = b.bv := by
+  simp [bv_flipAt, h]
+  split
+  · rw [BitVec.xor_comm, BitVec.xor_comm b.bv, BitVec.xor_right_inj]
+  · rfl
+
+@[simp] theorem getElem_bv_flipAt_inj_iff {j : Fin n} {j2 : Nat} {hj2 : j2 < n} {k}
+      (h : a.colors[j2] = b.colors[j2])
+    : (flipAt j k a).bv[j2] = (flipAt j k b).bv[j2] ↔ a.bv[j2] = b.bv[j2] := by
+  if j = j2 then
+    subst j2
+    simp [bv_flipAt, h]
+    split
+    · simp
+    · rfl
+  else
+    simp [bv_flipAt]
+    split <;> split <;> simp <;> {
+      apply iff_of_eq; congr
+      rw [Bool.xor_eq_self_left]
+      rw [BitVec.getElem_eq_testBit_toNat, BitVec.toNat_ofNat
+        , Nat.shiftLeft_eq, Nat.one_mul, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) j.isLt)
+        , Nat.testBit_two_pow]
+      simp_all [Fin.ext_iff]
+    }
 
 
 def permute (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
@@ -102,6 +159,33 @@ def flip (mask : BitVec n) : KAuto n s :=
   DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
     (flip (n := n) (s := s) mask) x = KVertex.flip mask x := rfl
 
+def flipAt (j : Fin n) (k : Fin s) : KAuto n s :=
+  RelIso.mk ({
+    toFun := KVertex.flipAt j k
+    invFun := KVertex.flipAt j k
+    left_inv  := by intro; simp
+    right_inv := by intro; simp
+  }) (by
+    intro a b
+    simp [KAdj]
+    constructor
+    · rintro ⟨j1,bv_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
+      use j1
+      rw [KVertex.getElem_bv_flipAt_inj_iff cs_eq_j1] at bv_ne_j1
+      use bv_ne_j1, cs_eq_j1, j2, js_ne
+      by_cases a.colors[j2.val] = b.colors[j2.val] <;> simp_all
+    · rintro ⟨j1,bv_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
+      use j1
+      rw [KVertex.getElem_bv_flipAt_inj_iff cs_eq_j1]
+      use bv_ne_j1, cs_eq_j1, j2, js_ne
+      by_cases a.colors[j2.val] = b.colors[j2.val] <;> simp_all
+  )
+
+@[simp] theorem toFun_flipAt {x : KVertex _ _ } :
+  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
+    (flipAt (n := n) (s := s) j k) x = KVertex.flipAt j k x := rfl
+
+
 def permute (f : Fin n → Fin s ≃ Fin s) : KAuto n s :=
   RelIso.mk ({
     toFun := KVertex.permute (fun j => f j)
@@ -145,17 +229,29 @@ end KAuto
 
 namespace KClique
 
-theorem get_map_reorder {k : KClique n s} {f} {i}
-  : (k.map (KAuto.reorder f)).get i = Vector.ofFn fun j => (k.get (BitVec.ofFn fun j => i[f.symm j]))[f j] := by
-  simp [KClique.get_eq_iff_mem, map]
-  refine ⟨_, k.get_mem (BitVec.ofFn fun j => i[f.symm j]), ?_⟩
-  simp [KVertex.reorder]
-  ext; simp
+theorem get_map_flipAt {klique : KClique n s} {j k i}
+  : ((klique.map (KAuto.flipAt j k)).get i) = klique.get (if (klique.get i)[j.val] = k then i ^^^ (1 <<< j.val) else i) := by
+  simp [map, get_eq_iff_mem]
+  refine ⟨⟨if (klique.get i)[j.val] = k then i ^^^ (1 <<< j.val) else i,_⟩, klique.get_mem _, ?_⟩
+  split
+  · have := klique.get_adj_one_diff (i₁ := i) (i₂ := i ^^^ (1 <<< j.val)) (j₁ := j)
+      (by simp [bv_toNat])
+      (by intro j h; simp [bv_toNat] at h; rw [eq_comm] at h; simp [Nat.testBit_one_eq_true_iff_self_eq_zero] at h; omega)
+    replace this := this.1.symm; simp at this
+    simp [KVertex.flipAt, BitVec.xor_assoc, *]
+  · simp [KVertex.flipAt, *]
 
 theorem get_map_permute {k : KClique n s} {f} {i}
   : (k.map (KAuto.permute f)).get i = Vector.ofFn fun j => (f j) (k.get i)[j] := by
-  simp [KClique.get_eq_iff_mem, map]
-  refine ⟨_, k.get_mem i, ?_⟩
+  simp [get_eq_iff_mem, map]
+  refine ⟨⟨i,_⟩, k.get_mem _, ?_⟩
   simp [KVertex.permute]
+
+theorem get_map_reorder {k : KClique n s} {f} {i}
+  : (k.map (KAuto.reorder f)).get i = Vector.ofFn fun j => (k.get (BitVec.ofFn fun j => i[f.symm j]))[f j] := by
+  simp [get_eq_iff_mem, map]
+  refine ⟨_, k.get_mem (BitVec.ofFn fun j => i[f.symm j]), ?_⟩
+  simp [KVertex.reorder]
+  ext; simp
 
 end KClique
