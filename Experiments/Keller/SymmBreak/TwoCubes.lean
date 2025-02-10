@@ -235,7 +235,10 @@ private theorem bv_3_getElem (n j : Nat) (h : j < n)
   | 1 => simp [Nat.testBit_succ]
   | j+2 => simp [Nat.testBit_succ]
 
-theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[1] = 1 := by
+section c3
+variable (tc : TwoCubes n s)
+
+theorem c3_1 : (tc.kclique.get 3#(n+2))[1] = 1 := by
   have := tc.kclique.get_adj_one_diff (i₁ := 1) (i₂ := 3) (j₁ := 1)
       (by simp [bv_toNat]; decide)
       (by simp [bv_toNat]; rintro ⟨(_|_|_),_⟩ <;> simp [Nat.testBit_succ])
@@ -243,7 +246,7 @@ theorem c3_1 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[1] = 1 := by
   rw [tc.c1, eq_comm] at this
   simpa [Array.getElem_append] using this
 
-theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[0] = 0 := by
+theorem c3_0 : (tc.kclique.get 3#(n+2))[0] = 0 := by
   have := tc.kclique.get_adj (i₁ := 0) (i₂ := 3)
       (by simp [bv_toNat, Nat.pow_add, Nat.mul_comm _ 4, Nat.mod_mul])
   rcases this with ⟨⟨j1,w1⟩,bs_ne_at_j1,cs_eq_at_j1,-⟩
@@ -269,7 +272,8 @@ theorem c3_0 (tc : TwoCubes n s) : (tc.kclique.get 3#(n+2))[0] = 0 := by
   rw [← cs_eq_at_j1]
   simp only [TwoCubes.c0_j]
 
-theorem c3_j₂ (tc : TwoCubes n s) : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.kclique.get 3)[j₂] ≠ 0 := by
+/-- c3 must have a nonzero element at j ≥ 2-/
+theorem c3_has_nonzero : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.kclique.get 3)[j₂] ≠ 0 := by
   -- since c1 and c3 are only diff at `j₁ = 1`, the colors must differ at another place
   have := tc.kclique.get_adj_one_diff (i₁ := 1) (i₂ := 3) (j₁ := 1)
       (by simp [bv_toNat]; decide)
@@ -282,6 +286,10 @@ theorem c3_j₂ (tc : TwoCubes n s) : ∃ j₂ : Fin _, j₂.val ≥ 2 ∧ (tc.k
   contrapose! h2
   rw [tc.c1]
   simp_all [Fin.ext_iff]
+
+end c3
+
+section first_nonzero
 
 def c3_2.auto_equiv (j₂ : Fin (n+5)) := (Equiv.Perm.setAll [(2, j₂)])
 
@@ -328,9 +336,9 @@ theorem c3_2.auto.maps_c3_2 (k : KClique (n+5) (s+2)) (j₂_ge : j₂.val ≥ 2)
   simp [Fin.ext_iff]
 
 /-- We can always apply an automorphism to get a clique with c3[2] ≠ 0 -/
-theorem c3_2 (tc : TwoCubes (n+3) s) :
+theorem c3_2 (tc : TwoCubes (n+3) s):
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 := by
-  have ⟨j₂, j₂_ge, spec⟩ := c3_j₂ tc
+  have ⟨j₂, j₂_ge, spec⟩ := c3_has_nonzero tc
   refine ⟨{
     kclique := tc.kclique.map (KAuto.reorder <| c3_2.auto_equiv j₂)
     c0 := ?c0
@@ -357,9 +365,76 @@ theorem c3_2 (tc : TwoCubes (n+3) s) :
     convert spec; clear spec
     simp; apply c3_2.auto.maps_c3_2 _ j₂_ge
 
+end first_nonzero
+
+section c7
+variable (tc : TwoCubes (n+3) s)
+
+theorem seven_lt : 7 < 2^(n+3+2) := by
+    apply Nat.lt_of_lt_of_le (m := 32); decide
+    simp [Nat.pow_add, Nat.mul_assoc]; apply Nat.le_mul_of_pos_left
+    exact Nat.two_pow_pos n
+
+/- we know c7 has s gap with c3 at 2 -/
+theorem c7_2 : (tc.kclique.get 7)[2] = (tc.kclique.get 3)[2] := by
+  apply And.left
+  apply tc.kclique.get_adj_one_diff 2
+  · simp [bv_toNat]; decide
+  · rintro ⟨j, hj⟩; simp [bv_toNat, hj]
+    rcases j with (_|_|_|_) <;> simp [Nat.testBit_succ]
+    rfl
+
+variable (h32 : (tc.kclique.get 3)[2] ≠ 0) include h32
+
+/- therefore c7 has s gap with c1 at 1 -/
+theorem c7_1 : (tc.kclique.get 7)[1] = 1 := by
+  have ⟨⟨j₁,hj⟩, bit_diff, h, dont_care⟩ :=
+    tc.kclique.get_adj (i₁ := 7) (i₂ := 1)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt])
+  clear dont_care
+  simp [bv_toNat, hj] at bit_diff
+  -- 0 the bits are not diff, 2 the colors are already not zero, 3+ the bits are not diff
+  match j₁ with
+  | 0 => simp at bit_diff
+  | 1 => have := tc.c1_j (hj := hj); simp_all
+  | 2 => have := c7_2 tc; simp_all
+  | n+3 => simp [Nat.testBit_succ] at bit_diff
+
+/- therefore c7 has s gap with c0 at 0 -/
+theorem c7_0 : (tc.kclique.get 7)[0] = 0 := by
+  have ⟨⟨j₁,hj⟩, bit_diff, h, dont_care⟩ := tc.kclique.get_adj (i₁ := 7) (i₂ := 0) (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt])
+  clear dont_care
+  simp [bv_toNat, hj] at bit_diff
+  -- 0 the bits are not diff, 2 the colors are already not zero, 3+ the bits are not diff
+  match j₁ with
+  | 0 => have := tc.c0_j (hj := hj); simp_all
+  | 1 => have := c7_1 tc h32; simp_all
+  | 2 => have := c7_2 tc; simp_all
+  | n+3 => simp [Nat.testBit_succ] at bit_diff
+
+/- and there is another nonzero element in c7 since it is different from c3 -/
+theorem c7_diff_c3 : ∃ j₂ : Fin _, j₂.val ≥ 3 ∧ (tc.kclique.get 7)[j₂] ≠ (tc.kclique.get 3)[j₂] := by
+  -- since c7 and c3 are only diff at `j₁ = 2`, the colors must differ at another place
+  have := tc.kclique.get_adj_one_diff (i₁ := 7) (i₂ := 3) (j₁ := ⟨2, by omega⟩)
+      (by simp [bv_toNat]; decide)
+      (by simp [bv_toNat]; rintro ⟨(_|_|_|_),_⟩ <;> simp [Nat.testBit_succ])
+  rcases this with ⟨-,⟨j2,hj⟩,js_ne,h2⟩
+  -- the diff can't be 0 or 1 because we already know c7[0] = c3[0] and c7[1] = c3[1]
+  match j2 with
+  | 0 => have := c7_0 tc h32; have := c3_0 tc; simp_all
+  | 1 => have := c7_1 tc h32; have := c3_1 tc; simp_all
+  | 2 => contradiction
+  | j2+3 => use ⟨j2+3, hj⟩, (by simp)
+
+end c7
+
+section second_nonzero
+
 theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 := by
   sorry
+
+end second_nonzero
 
 theorem c3_4 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) (h3 : (tc.kclique.get 3)[3] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
@@ -414,7 +489,7 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   exact ⟨{
     kclique := tc4.kclique.map (KAuto.permute fun i =>
         if i.val ∈ [2,3,4] then
-          Equiv.Perm.setAll [(1, (tc4.kclique.get 3)[i])]
+          Equiv.Perm.setAll [((tc4.kclique.get 3)[i], 1)]
         else Equiv.refl _
       )
     c0 := by
@@ -424,12 +499,9 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
       split
       next h =>
         rw [← Fin.ext_iff]; apply Equiv.Perm.setAll_eq_of_not_mem
-        · simp only [ List.map_cons, List.map_nil, Fin.getElem_fin,
-          TwoCubes.c0_colors_j, List.mem_singleton, Fin.zero_eq_one_iff, Nat.reduceEqDiff,
-          not_false_eq_true]
         · specialize h4 ⟨j,hj⟩ h
-          simpa only [BitVec.ofNat_eq_ofNat, List.map_cons, List.map_nil, Fin.getElem_fin,
-          TwoCubes.c0_colors_j, List.mem_singleton, ne_eq] using h4.symm
+          simpa using h4.symm
+        · simp
       · rfl
     c1 := by
       rw [KClique.get_map_permute, tc4.c1]
@@ -441,18 +513,16 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
           simp [Fin.ext_iff] at h; rcases h with (_|_|_) <;> simp [*]
         rw [← Fin.ext_iff]
         simp [this]; apply Equiv.Perm.setAll_eq_of_not_mem
-        · simp only [List.map_cons, List.map_nil, List.mem_singleton, Fin.zero_eq_one_iff,
-          Nat.reduceEqDiff, not_false_eq_true]
         · specialize h4 ⟨j,hj⟩ h
-          simpa only [List.map_cons, List.map_nil, List.mem_singleton, BitVec.ofNat_eq_ofNat,
-          ne_eq] using h4.symm
+          simpa using h4.symm
+        · simp
       · rfl
     c3 := by
       rintro ⟨i, hi⟩ i_mem_234
       rw [KClique.get_map_permute]
       simp only [Fin.getElem_fin, Vector.getElem_ofFn, i_mem_234, if_true]
       specialize h4 _ i_mem_234
-      sorry
+      apply Equiv.Perm.setAll_eq_of_mem <;> simp
   }⟩
 
 end ThreeCubes
