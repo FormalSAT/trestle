@@ -235,6 +235,24 @@ private theorem bv_3_getElem (n j : Nat) (h : j < n)
   | 1 => simp [Nat.testBit_succ]
   | j+2 => simp [Nat.testBit_succ]
 
+theorem swap_preserves_earlier {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
+      Equiv.swap a b i = i := by
+  apply Equiv.swap_apply_of_ne_of_ne
+  · exact Fin.ne_of_lt hia
+  · apply Fin.ne_of_lt; exact Fin.lt_of_lt_of_le hia hab
+
+theorem swap_eq_earlier_iff {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
+      ∀ j, Equiv.swap a b j = i ↔ j = i := by
+  intro j
+  rw [Equiv.swap_apply_eq_iff, swap_preserves_earlier hab hia]
+
+theorem swap_later_stays_later (a b : Fin n) (h : a ≤ b) :
+      ∀ i ≥ a, Equiv.swap a b i ≥ a := by
+  intro i hi
+  rw [Equiv.swap_apply_def]
+  aesop
+
+
 section c3
 variable (tc : TwoCubes n s)
 
@@ -291,56 +309,12 @@ end c3
 
 section first_nonzero
 
-def c3_2.auto_equiv (j₂ : Fin (n+5)) := (Equiv.Perm.setAll [(2, j₂)])
-
-theorem c3_2.auto_equiv.app_0 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
-      c3_2.auto_equiv j₂ 0 = 0 := by
-  cases j₂; apply Equiv.Perm.setAll_eq_of_not_mem <;> simp_all [Fin.ext_iff]; omega
-
-theorem c3_2.auto_equiv.symm_0 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
-      (c3_2.auto_equiv j₂).symm 0 = 0 := by
-  rw [Equiv.symm_apply_eq, app_0 j₂_ge]
-
-theorem c3_2.auto_equiv.app_1 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
-      c3_2.auto_equiv j₂ 1 = 1 := by
-  cases j₂; apply Equiv.Perm.setAll_eq_of_not_mem <;> simp_all [Fin.ext_iff]; omega
-
-theorem c3_2.auto_equiv.symm_1 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
-      (c3_2.auto_equiv j₂).symm 1 = 1 := by
-  rw [Equiv.symm_apply_eq, app_1 j₂_ge]
-
-theorem c3_2.auto_equiv.above_2 {j₂ : Fin (n+5)} (j₂_ge : j₂.val ≥ 2) :
-      x ≥ 2 → (c3_2.auto_equiv j₂) x ≥ 2 := by
-  intro h
-  if x = 2 then
-    have : (auto_equiv j₂) x = j₂ :=
-      Equiv.Perm.setAll_eq_of_mem (by simp) (by simp) (by simp [*])
-    rw [this]; exact j₂_ge
-  else if x = j₂ then
-    have : (auto_equiv j₂) x = 2 := by
-      simp [auto_equiv, Equiv.Perm.setAll, Equiv.setAll, Equiv.setValue, *]
-    rw [this]
-  else
-    have : (auto_equiv j₂) x = x :=
-      Equiv.Perm.setAll_eq_of_not_mem (by simp [*]) (by simp [*])
-    rw [this]; exact h
-
-theorem c3_2.auto.maps_c3_2 (k : KClique (n+5) (s+2)) (j₂_ge : j₂.val ≥ 2)
-  : (KClique.map (KAuto.reorder <| c3_2.auto_equiv j₂) k |>.get 3)[2] = (k.get 3)[j₂] := by
-  rw [KClique.get_map_reorder]
-  simp
-  congr 2
-  ext i hi
-  simp only [bv_3_getElem, Fin.val_eq_iff_lt_and_eq, Fin.zero_eta, Equiv.symm_apply_eq,
-    c3_2.auto_equiv.app_0 j₂_ge, Fin.mk_one, c3_2.auto_equiv.app_1 j₂_ge]
-  simp [Fin.ext_iff]
-
 /-- We can always apply an automorphism to get a clique with c3[2] ≠ 0 -/
 theorem c3_2 (tc : TwoCubes (n+3) s):
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 := by
   have ⟨j₂, j₂_ge, spec⟩ := c3_has_nonzero tc
   refine ⟨{
-    kclique := tc.kclique.map (KAuto.reorder <| c3_2.auto_equiv j₂)
+    kclique := tc.kclique.map (KAuto.reorder <| Equiv.swap 2 j₂)
     c0 := ?c0
     c1 := ?c1
   }, ?point⟩
@@ -354,16 +328,26 @@ theorem c3_2 (tc : TwoCubes (n+3) s):
     rw [KClique.get_map_reorder]
     suffices BitVec.ofFn _ = 1#(n+5) by
       rw [this]
-      ext; simp
-      simp [Fin.val_eq_iff_lt_and_eq, Equiv.apply_eq_iff_eq_symm_apply, c3_2.auto_equiv.symm_1 j₂_ge]
+      ext i hi; simp; congr 2
+      simp [Fin.val_eq_iff_lt_and_eq]
+      rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])]
       simp [Fin.ext_iff]
     ext1 j hj
-    simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq, c3_2.auto_equiv.app_0 j₂_ge]
+    simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq]
+    rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])]
     simp [Fin.ext_iff]
   case point =>
     -- the new c3[2] should be the old c3[j₂]
     convert spec; clear spec
-    simp; apply c3_2.auto.maps_c3_2 _ j₂_ge
+    simp
+    rw (occs := .pos [1]) [KClique.get_map_reorder]
+    simp
+    congr 2
+    ext i hi
+    simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq]
+    rw [Bool.eq_iff_iff]; simp
+    iterate 2 ( rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])] )
+    simp [Fin.ext_iff]
 
 end first_nonzero
 
@@ -432,6 +416,57 @@ section second_nonzero
 
 theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 := by
+  have ⟨j₂, j₂_ge_3, h_ne_at_j2⟩ := c7_diff_c3 tc h2
+  -- we move j₂ to 3, while preserving all the other facts we know about tc
+  let tc' : TwoCubes _ _ := {
+    kclique := tc.kclique.map (KAuto.reorder <| Equiv.swap ⟨3,by omega⟩ j₂)
+    c0 := ?c0
+    c1 := ?c1
+  }
+  case c0 =>
+    simp [KClique.get_map_reorder]
+    suffices BitVec.ofFn _ = 0#(n+5) by
+      rw (occs := .pos [1]) [this]
+      ext; simp
+    ext1; simp
+  case c1 =>
+    rw [KClique.get_map_reorder]
+    suffices BitVec.ofFn _ = 1#(n+5) by
+      rw [this]
+      ext i hi; simp; congr 2
+      simp [Fin.val_eq_iff_lt_and_eq]
+      rw [swap_eq_earlier_iff j₂_ge_3 (by simp [Fin.lt_def])]
+      simp [Fin.ext_iff]
+    ext1 j hj
+    simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq]
+    rw [swap_eq_earlier_iff j₂_ge_3 (by simp [Fin.lt_def])]
+    simp [Fin.ext_iff]
+
+  replace h2 : (tc'.kclique.get 3)[2] ≠ 0 := by
+    sorry
+  replace h_ne_at_j2 : (tc'.kclique.get 7)[3] ≠ (tc'.kclique.get 3)[3] :=
+    sorry
+
+  clear_value tc'; clear tc
+
+  -- if we already are nonzero then woohoo!
+  if h : (tc'.kclique.get 3)[3] ≠ 0 then use tc' else
+  -- otherwise we're gonna move c7 to c3 by swapping
+  rw [not_ne_iff] at h; rw [h] at h_ne_at_j2; clear h
+  use {
+    kclique := tc'.kclique.map (KAuto.flipAt 3 (tc'.kclique.get 3)[3])
+    c0 := ?c0
+    c1 := ?c1
+  }
+  case c0 =>
+    rw [KClique.get_map_flipAt]
+    ext1 j hj
+    simp [tc'.c0_j]
+    sorry
+  case c1 =>
+    sorry
+
+  simp
   sorry
 
 end second_nonzero
