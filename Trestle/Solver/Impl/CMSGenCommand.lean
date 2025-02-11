@@ -21,7 +21,7 @@ def CMSGenCommand
   if sampleSet.isSome then
     dbgTrace "CMSGenCommand: sample set not supported; sampling all variables" fun () => pure ()
   -- CC: TODO for JG, figure out how to temp file across a fork
-  IO.FS.withTempFile (fun handle temp => do
+  IO.FS.withTempFile (fun _handle temp => do
   let child ← IO.Process.spawn {
     cmd := cmd
     args := flags.toArray ++ #[

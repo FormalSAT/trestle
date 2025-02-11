@@ -125,8 +125,8 @@ theorem vars_substOne : (PropForm.substOne φ v ψ).vars ⊆ (φ.vars \ {v}) ∪
       split at hv
       · simp [hv]
       · simp at hv; subst_vars; simp [*]
-  | tr  => simp
-  | fls => simp
+  | tr  => simp [substOne]
+  | fls => simp [substOne]
   | neg φ₁ ih =>
     simp [substOne]
     intro x hx
@@ -138,7 +138,7 @@ theorem vars_substOne : (PropForm.substOne φ v ψ).vars ⊆ (φ.vars \ {v}) ∪
   | conj φ₁ φ₂ ih₁ ih₂
   | impl φ₁ φ₂ ih₁ ih₂
   | biImpl φ₁ φ₂ ih₁ ih₂ =>
-    intro v hv; simp at *
+    intro v hv; simp [substOne] at *
     rcases hv with (⟨w, hφ, hw⟩ | ⟨w, hφ, hw⟩)
     all_goals (
       split at hw

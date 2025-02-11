@@ -145,7 +145,7 @@ where
       case neg =>
         -- If σ₁' no longer satisfies φ, we're done.
         use x₀, σ₁
-        simp [h₁, h₁']
+        simp +zetaDelta [h₁, h₁']
       case pos =>
         -- If σ₁' still satisfies φ, proceed by induction.
         have hS' : ∀ x ∈ s', σ₁' x ≠ σ₂ x := fun x hMem => by

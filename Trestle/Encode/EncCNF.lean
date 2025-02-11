@@ -209,6 +209,9 @@ def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulSta
 def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf :=
   (run e).2.cnf
 
+-- TODO(JG): EncCNF should support generating comments in the CNF file,
+-- including comments to indicate where new contexts are opened.
+set_option linter.unusedVariables false in
 def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
   let res ← inner
   return res

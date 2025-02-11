@@ -296,7 +296,7 @@ def encodeNNF
           · rintro idx
             apply h
             refine (separateLits_mem_notLits_iff.mp ?_).1
-            simp
+            simp +zetaDelta
       )
   | .any as =>
       let separated := separateLits as
@@ -348,7 +348,7 @@ def encodeNNF
             use Literal.pos (Sum.inr ⟨i,hi⟩)
             constructor
             · right; simp [Array.mem_def, List.mem_ofFn]
-            · simp [this, h]
+            · simp +zetaDelta [this, h]
       )
 termination_by sizeOf f
 decreasing_by

@@ -68,7 +68,6 @@ theorem Fin.pair_right_pair (x : Fin m) (y : Fin n) : Fin.pair_right (Fin.pair x
   rcases x with ⟨x,hx⟩; rcases y with ⟨y,hy⟩
   simp [pair_right, pair]
   have : n > 0 := by by_contra; simp_all
-  rw [Nat.mul_comm, Nat.mul_add_mod _ _ _]
   apply Nat.mod_eq_of_lt hy
 
 @[simp]
