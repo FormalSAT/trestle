@@ -130,45 +130,37 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     (ve : VEncCNF (ν ⊕ ι) α P) :
     VEncCNF ν α (fun τ => ∃ σ, τ = σ.map Sum.inl ∧ P σ) :=
   ⟨EncCNF.withTemps _ ve.1, by
+    -- this proof is about relating the states pre/post running ve
     intro ls_pre ls_post'
-    -- give various expressions names and specialize hypotheses
-    have def_ls_post : ls_post' = Prod.snd _ := rfl
-    generalize ls_post' = ls_post at *; clear ls_post'
-    generalize def_ls_post_pair : (EncCNF.withTemps ι ve.1).1 ls_pre = ls_post_pair
-      at def_ls_post
-    unfold EncCNF.withTemps at def_ls_post_pair
-    simp (config := {zeta := false}) at def_ls_post_pair
-    lift_lets at def_ls_post_pair
-    extract_lets vMap vMapInj ls_pre_temps at def_ls_post_pair
-    split at def_ls_post_pair
-    next a ls_post_temps def_pair =>
-    generalize_proofs h
-    subst def_ls_post_pair
-    simp [vMap] at def_ls_post; clear vMap
-    --generalize def_ls_pre_temps : LawfulState.withTemps (ι := ι) ls_pre = ls_pre_temps
-    unfold ls_pre_temps at def_pair
-    -- extract relationship between ls_pre_temps and ls_post_temps
-    have ls_temps_nextVar := ve.1.2 ls_pre_temps
-    simp [def_pair] at ls_temps_nextVar
-    have ls_temps_satisfies := ve.2 ls_pre_temps
-    simp [def_pair] at ls_temps_satisfies
-    --clear def_pair
-    rcases ls_temps_satisfies with ⟨hvmap, h⟩
-    -- now we prove the goals
-    subst ls_post
-    simp
+    unfold ls_post'; clear ls_post'
+    generalize retVal_def : (EncCNF.withTemps ι ve.val).val ls_pre = retVal
+    -- let's get through a nasty match in withTemps
+    dsimp [EncCNF.withTemps] at retVal_def
+    split at retVal_def; next a ls_post_withTemps pre_to_post =>
+    generalize ls_post_def : ls_post_withTemps.withoutTemps _ _ _ = ls_post at retVal_def
+    subst retVal; dsimp
+    -- now we can prove the first goal
+    constructor
+    · simp [← ls_post_def]
+    case right =>
+    -- ve's correctness property gives us some facts from pre_to_post
+    have ⟨vMap_pre_post, interp_pre_post⟩ := ve.prop ls_pre.withTemps
+    rw [pre_to_post] at vMap_pre_post interp_pre_post
+    -- the second goal relies on the interpretation of withoutTemps
+    rw [← ls_post_def]; clear! ls_post
     rw [LawfulState.interp_withoutTemps]
-    · simp_rw [h]
-      unfold ls_pre_temps
-      simp
-      clear h hvmap ls_temps_nextVar def_pair ls_post_temps vMapInj
-      intro τ
-      constructor
-      · aesop
-      · rintro ⟨x,σ,h1,h2⟩
-        use σ
-        simp_all
-    · aesop
+    -- hypothesis for `LawfulState.interp_withoutTemps`
+    case h =>
+      ext v
+      simp only [LawfulState.vMap_withTemps] at vMap_pre_post
+      simp only [vMap_pre_post, Function.comp_apply, State.withTemps.vMap]
+    -- In this branch we don't need vMap_pre_post and can rewrite interp_pre_post
+    simp only [interp_pre_post]; clear interp_pre_post vMap_pre_post
+    -- Now we can use some simp lemmas about `interp (withTemps _)`
+    simp only [LawfulState.interp_withTemps, PropPred.satisfies_def]
+    -- the rest is just reasoning about assignments
+    intro τ
+    aesop
   ⟩
 
 protected def bind (e1 : VEncCNF ν α P) (e2 : α → VEncCNF ν β Q) : VEncCNF ν β (P ⊓ Q) :=
