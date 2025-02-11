@@ -199,6 +199,11 @@ theorem Nat.shiftLeft_mod_pow_2 (x y n : Nat) : x <<< y % 2^n = ((x % 2^(n-y)) <
 theorem Fin.val_eq_iff_lt_and_eq (x : Fin n) (y : Nat) : x.val = y ↔ ∃ (h : y < n), x = ⟨y,h⟩ := by
   rcases x; simp; intro; simp_all
 
+theorem Fin.val_ofNat {n} [NeZero n] (x : Nat) : Fin.val (n := n) (no_index (OfNat.ofNat x)) = x % n := rfl
+
+@[simp] theorem Fin.val_ofNat_of_lt {n} [NeZero n] (x : Nat) (h : x < n) : Fin.val (n := n) (no_index (OfNat.ofNat x)) = x :=
+  by rw [Fin.val_ofNat, Nat.mod_eq_of_lt h]
+
 namespace Equiv
 
 def setAll [DecidableEq α] (L : List (α × β)) (f: α ≃ β) : α ≃ β :=
