@@ -99,19 +99,19 @@ def c0_c1_c3 (n s) : EncCNF (Vars n s) Unit := do
   if hn : n ≥ 2 then do
   -- c0 = (0, 0, 0, 0, 0, 0*)
   for hi : j in [0:n] do
-    have : j < n := hi.2
+    have : j < n := hi.upper
     set 0 j 0
   -- c1 = (0, 1, 0, 0, 0, 0*)
   set 1 0 0
   set 1 1 1
   for hi : j in [2:n] do
-    have : j < n := hi.2
+    have : j < n := hi.upper
     set 1 j 0
   if hn' : n ≥ 5 then do
     -- c3 = (0, 1, 1, 1, 1, _*)
     set 3 0 0
     for hi : j in [1:5] do
-      have : j < 5 := hi.2
+      have : j < 5 := hi.upper
       set 3 j 1
     -- c7 = (0, 1, 1, _, _, _*)
     set 7 0 0; set 7 1 1; set 7 2 1
@@ -131,10 +131,10 @@ def slowIncreasingUnits (j : Fin n) (startIdx : BitVec n) (startColor : Fin s) :
   -- Under iOfIdx ordering, the first six indices are all pretty low.
   -- so we can insert lots of units implied by the other symmetry breaking and slowIncreasingStrict
   for h : a in [0: (2^n - startIdx.toNat) ⊓ (s-startColor.val)] do
-    have : a < min _ _ := h.2
+    have : a < min _ _ := h.upper
     let i := (iOfIdx ⟨startIdx.toNat+a, by omega⟩)
     for h : k in [startColor+a:s] do
-      have : k < s := h.2
+      have : k < s := h.upper
       unit <| .neg <| x i j ⟨k, by omega⟩
 
 
@@ -236,7 +236,7 @@ def fullEncoding (n s) : EncCNF (Vars n s) Unit := do
       slowIncreasingUnits ⟨3,by omega⟩ 6 ⟨5,by omega⟩
       slowIncreasingUnits ⟨4,by omega⟩ 6 ⟨5,by omega⟩
       for h : i in [5:n] do
-        slowIncreasingUnits ⟨i,h.2⟩ 2 ⟨2,by omega⟩
+        slowIncreasingUnits ⟨i,h.upper⟩ 2 ⟨2,by omega⟩
 
 
 def allCubes : List (Clause <| Literal <| Vars n s) :=
