@@ -19,7 +19,7 @@ def ofBool (b : Bool) : PropForm V :=
 
 @[simp]
 theorem eval_ofBool (b : Bool) : (PropForm.ofBool b).eval τ = b := by
-  cases b <;> simp
+  cases b <;> simp [ofBool]
 
 /-- Any function from assignments to `Prop` over a list of variables
 can be written as a `PropForm`, by truth table construction. -/
@@ -48,7 +48,7 @@ theorem eval_ofFun [DecidableEq V] {L : List V} {hc}
   induction rem with
   | nil => simp [ofFun.aux]; congr; funext v; simp [*]
   | cons head tail ih =>
-    simp
+    simp [ofFun.aux]
     cases hhead : τ head <;> (simp; apply ih; intro v h; split <;> simp [*])
 
 @[simp]

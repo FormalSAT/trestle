@@ -51,95 +51,6 @@ def Function.iterate (f : α → α) : Nat → (α → α)
 
 /-! Array -/
 
-def Array.init (n : Nat) (f : Fin n → α) : Array α := Id.run do
-  let mut A := Array.mkEmpty n
-  for h:i in [0:n] do
-    A := A.push (f ⟨i,h.2⟩)
-  return A
-
-def Array.initM [Monad m] (n : Nat) (f : Fin n → m α) : m (Array α) := do
-  let mut A := Array.mkEmpty n
-  for h:i in [0:n] do
-    A := A.push (← f ⟨i,h.2⟩)
-  return A
-
-theorem Array.init_zero : Array.init 0 f = #[] := by
-  simp [init, Id.run, forIn', Std.Range.forIn']
-  unfold Std.Range.forIn'.loop
-  simp
-
-theorem Array.init_succ {f : Fin n.succ → α}
-  : Array.init n.succ f = (
-      Array.init n (fun i => f ⟨i,Nat.lt_trans i.isLt (by exact Nat.le_refl _)⟩)
-    ).push (f ⟨n, by exact Nat.le_refl _⟩)
-  := by
-  simp [init, Id.run, forIn', Std.Range.forIn']
-  suffices ∀ i (hi : i ≤ n) o (_ : o.size = n-i),
-    Std.Range.forIn'.loop (m := Id) 0 n.succ 1
-      (fun i h r => ForInStep.yield (push r (f ⟨i, h.2⟩)))
-      i.succ (n-i)
-      (Nat.zero_le _)
-      o
-    = push (Std.Range.forIn'.loop (m := Id) 0 n 1
-      (fun i h r => ForInStep.yield (push r (f ⟨i, Nat.le_step h.2⟩)))
-      i (n-i)
-      (Nat.zero_le _)
-      o) (f ⟨n, Nat.lt_succ_self n⟩)
-    by
-    have := this n (Nat.le_refl _) #[] (by simp)
-    simp at this
-    exact this
-  intro i hi o ho
-  induction i generalizing o with
-  | zero =>
-    unfold Std.Range.forIn'.loop
-    unfold Std.Range.forIn'.loop
-    simp
-  | succ i ih =>
-    conv => lhs; unfold Std.Range.forIn'.loop
-    conv => rhs; unfold Std.Range.forIn'.loop
-    simp
-    have hn := Nat.sub_lt_of_pos_le (Nat.succ_pos _) hi
-    have hn' : n - Nat.succ i < Nat.succ n := Nat.le_step hn
-    simp [hn, hn']
-    have : n - Nat.succ i + 1 = n - i := by omega
-    suffices ∀ j, j = n - Nat.succ i + 1 →
-      Std.Range.forIn'.loop (m := Id)  _ _ _ _ _ j (Nat.zero_le _) _
-      = push (Std.Range.forIn'.loop (m := Id) _ _ _ _ _ j (Nat.zero_le _) _) _
-      from this _ rfl
-    intro j hj
-    rw [this] at hj
-    cases hj
-    apply ih
-    exact Nat.le_of_lt hi
-    simp [ho, this]
-
-@[simp]
-theorem Array.size_init : (Array.init n f).size = n := by
-  induction n
-  . simp [size, init_zero]
-  . next ih =>
-    simp [init_succ]; exact ih
-
-@[simp]
-theorem Array.get_init {i : Nat} {h} : (Array.init n f)[i]'h = f ⟨i, @size_init n _ f ▸ h⟩ := by
-  induction n generalizing i with
-  | zero => simp at h
-  | succ n ih =>
-    simp [init_succ, Array.getElem_push]
-    split
-    next h =>
-      have := @ih (fun i => f ⟨i,Nat.lt_trans i.isLt (by exact Nat.le_refl _)⟩) i (by simp; assumption)
-      simp at this ⊢
-      rw [this]
-    next h' =>
-      simp at h'
-      have : i = n := Nat.le_antisymm
-        (Nat.le_of_succ_le_succ (by rw [size_init] at h; exact h))
-        h'
-      cases this
-      congr
-
 def Array.pop? (A : Array α) :=
   match A.back? with
   | none => none
@@ -159,10 +70,11 @@ def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
   else
     none
 
-theorem Array.mkArray_succ (n : Nat) (a : α) :
+theorem Array.mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
     Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
   apply Array.ext'; simp; rfl
 
+@[deprecated Array.mkArray_succ (since := "v4.16.0")]
 theorem Array.mkArray_succ' (n : Nat) (a : α) :
     Array.mkArray (n + 1) a = (Array.mkArray n a).push a := by
   apply Array.ext'
