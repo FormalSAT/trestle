@@ -1,3 +1,6 @@
 /.lake
 *.olean
 *.DS_Store
+
+*.icnf
+*.cnf
