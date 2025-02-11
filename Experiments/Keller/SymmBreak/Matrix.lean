@@ -106,7 +106,7 @@ instance : IsAntisymm (Matrix s) (· ≤ ·) where
     simp [instLEMatrix, Matrix.le] at h1 h2
     have := Prod.instIsAntisymmLexOfIsStrictOrder.antisymm _ _ h1 h2
     simp [Matrix.lt.aux, Vector.map] at this
-    apply Matrix.toVec_inj; apply Vector.ext'; apply Array.ext'
+    apply Matrix.toVec_inj; apply Vector.ext'
     exact this.2
 
 instance : IsTotal (Matrix s) (· ≤ ·) where
