@@ -397,7 +397,7 @@ theorem c7_0 : (tc.kclique.get 7)[0] = 0 := by
   | n+3 => simp [Nat.testBit_succ] at bit_diff
 
 /- and there is another nonzero element in c7 since it is different from c3 -/
-theorem c7_diff_c3 : ∃ j₂ : Fin _, j₂.val ≥ 3 ∧ (tc.kclique.get 7)[j₂] ≠ (tc.kclique.get 3)[j₂] := by
+theorem c7_diff_c3 : ∃ j₂ : Fin _, j₂.val ≥ 3 ∧ (tc.kclique.get 7)[j₂.val] ≠ (tc.kclique.get 3)[j₂.val] := by
   -- since c7 and c3 are only diff at `j₁ = 2`, the colors must differ at another place
   have := tc.kclique.get_adj_one_diff (i₁ := 7) (i₂ := 3) (j₁ := ⟨2, by omega⟩)
       (by simp [bv_toNat]; decide)
@@ -408,11 +408,41 @@ theorem c7_diff_c3 : ∃ j₂ : Fin _, j₂.val ≥ 3 ∧ (tc.kclique.get 7)[j�
   | 0 => have := c7_0 tc h32; have := c3_0 tc; simp_all
   | 1 => have := c7_1 tc h32; have := c3_1 tc; simp_all
   | 2 => contradiction
-  | j2+3 => use ⟨j2+3, hj⟩, (by simp)
+  | j2+3 =>
+    use ⟨j2+3, hj⟩, (by simp)
+    simpa using h2
 
 end c7
 
 section second_nonzero
+
+private lemma second_nonzero.swap_3_eq_3 {j₂ : Fin (n+3+2)} {j₂_ge_3 : j₂ ≥ ⟨3,by omega⟩}
+    (j : Fin _)
+    : (3#(n + 3 + 2))[(((Equiv.swap (⟨3, by omega⟩ : Fin _) j₂) j) : Nat)] = (3#(n+3+2))[j.val] := by
+  if j.val < 3 then
+    conv => enter [1,2]; rw [swap_preserves_earlier j₂_ge_3 (by simp [Fin.lt_def, *])]
+  else
+    have := swap_later_stays_later ⟨3, by omega⟩ j₂ j₂_ge_3 j (by simp [Fin.le_def]; omega)
+    simp [Fin.le_def] at this
+    rw [Bool.eq_iff_iff]; simp [bv_3_getElem]
+    omega
+
+private lemma second_nonzero.swap_7_eq_7 {j₂ : Fin (n+3+2)} {j₂_ge_3 : j₂ ≥ ⟨3,by omega⟩}
+    (j : Fin _)
+    : (7#(n + 3 + 2))[((Equiv.swap (⟨3, by omega⟩ : Fin _) j₂) j : Nat)] = (7#(n+3+2))[j.val] := by
+  rcases j with ⟨j,hj⟩
+  if j_lt_3 : j < 3 then
+    simp
+    conv => enter [1,2]; rw [swap_preserves_earlier j₂_ge_3 (by simp [Fin.lt_def, *])]
+  else
+    have x_ge := swap_later_stays_later ⟨3, by omega⟩ j₂ j₂_ge_3 ⟨j,hj⟩ (by simp [Fin.le_def]; omega)
+    generalize ((Equiv.swap _ _) (⟨j,hj⟩ : Fin _)) = x at *
+    rcases x with ⟨x,_⟩
+    simp [Fin.le_def] at x_ge j_lt_3 ⊢
+    simp [BitVec.getElem_eq_testBit_toNat, *]
+    rw [← Nat.sub_add_cancel x_ge, ← Nat.sub_add_cancel j_lt_3]
+    simp [Nat.testBit_succ]
+
 
 theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 := by
@@ -443,9 +473,17 @@ theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     simp [Fin.ext_iff]
 
   replace h2 : (tc'.kclique.get 3)[2] ≠ 0 := by
-    sorry
-  replace h_ne_at_j2 : (tc'.kclique.get 7)[3] ≠ (tc'.kclique.get 3)[3] :=
-    sorry
+    unfold tc'
+    simp [KClique.get_map_reorder]
+    convert h2
+    · ext j hj; simp; rw [second_nonzero.swap_3_eq_3]; simpa using j₂_ge_3
+    · rw [swap_preserves_earlier j₂_ge_3 (by simp)]
+  replace h_ne_at_j2 : (tc'.kclique.get 7)[3] ≠ (tc'.kclique.get 3)[3] := by
+    unfold tc'
+    simp [KClique.get_map_reorder]
+    convert h_ne_at_j2
+    · ext j hj; simp; rw [second_nonzero.swap_7_eq_7]; simpa using j₂_ge_3
+    · ext j hj; simp; rw [second_nonzero.swap_3_eq_3]; simpa using j₂_ge_3
 
   clear_value tc'; clear tc
 
@@ -454,20 +492,30 @@ theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
   -- otherwise we're gonna move c7 to c3 by swapping
   rw [not_ne_iff] at h; rw [h] at h_ne_at_j2; clear h
   use {
-    kclique := tc'.kclique.map (KAuto.flipAt 3 (tc'.kclique.get 3)[3])
+    kclique := tc'.kclique.map (KAuto.flipAt ⟨2, by omega⟩ (tc'.kclique.get 3)[2])
     c0 := ?c0
     c1 := ?c1
   }
   case c0 =>
     rw [KClique.get_map_flipAt]
-    ext1 j hj
-    simp [tc'.c0_j]
-    sorry
+    simp at h2
+    simp [Ne.symm h2]
+    exact tc'.c0
   case c1 =>
-    sorry
+    rw [KClique.get_map_flipAt]
+    simp at h2
+    simp [Ne.symm h2]
+    exact tc'.c1
 
-  simp
-  sorry
+  have : 3#(n+3+2) ^^^ 4#(n+3+2) = 7#(n+3+2) := by
+    simp [bv_toNat]
+    repeat (
+      rw [Nat.mod_eq_of_lt <|
+        Nat.lt_of_lt_of_le (m := 2^5) (by decide) (Nat.pow_le_pow_right (by decide) (by omega)) ]
+    )
+    decide
+  have c72 := c7_2 tc'
+  simp_all [KClique.get_map_flipAt]; exact h2
 
 end second_nonzero
 
