@@ -103,18 +103,21 @@ instance : Fintype (BitVec n) :=
   : v₁.cast h₁ = v₂.cast h₂ ↔ v₁ = v₂ := by
   simp [BitVec.cast, BitVec.ofNatLt, BitVec.toNat_eq]
 
-@[ext]
-theorem BitVec.ext {v₁ v₂ : BitVec n}
-    : (∀ i (hi : i < n), v₁[i] = v₂[i]) → v₁ = v₂ := by
-  intro h
-  apply BitVec.eq_of_getLsbD_eq_iff.mpr fun i => h (↑i) i.isLt
+theorem BitVec.eq_of_getElem_eq {v₁ v₂ : BitVec n}
+    : (∀ i (hi : i < n), v₁[i] = v₂[i]) → v₁ = v₂ :=
+  fun h => BitVec.eq_of_getLsbD_eq (h ↑·)
+
+theorem BitVec.eq_of_getElem_eq_iff {v₁ v₂ : BitVec n}
+    : v₁ = v₂ ↔ (∀ i (hi : i < n), v₁[i] = v₂[i]) :=
+  ⟨ by rintro rfl; simp
+  , BitVec.eq_of_getElem_eq⟩
 
 
 theorem BitVec.cons_inj (v₁ v₂ : BitVec n) (b₁ b₂) :
   v₁.cons b₁ = v₂.cons b₂ → v₁ = v₂ ∧ b₁ = b₂ := by
   intro h
-  rw [BitVec.ext_iff] at h
-  simp [BitVec.getElem_cons] at h
+  rw [BitVec.eq_of_getLsbD_eq_iff] at h
+  simp [BitVec.getLsbD_cons] at h
   constructor
   · ext i hi; specialize h i (by omega)
     simp [Nat.ne_of_lt hi] at h
@@ -134,6 +137,12 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
   : (BitVec.ofFn f)[i]'h = f ⟨i,h⟩ := by
   unfold ofFn
   rw [getElem_cast, ← getLsbD_eq_getElem, getLsb_ofBoolListLE]
+  simp [h]
+
+@[simp] theorem BitVec.getLsbD_ofFn (f : Fin n → Bool) (i : Nat) (h)
+  : (BitVec.ofFn f).getLsbD i = f ⟨i,h⟩ := by
+  unfold ofFn
+  rw [getLsbD_cast, getLsb_ofBoolListLE]
   simp [h]
 
 @[simp] theorem BitVec.getElem_ofBoolListLE (L : List Bool) (i : Nat) (h : i < L.length)

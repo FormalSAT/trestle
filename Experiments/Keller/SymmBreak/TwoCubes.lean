@@ -159,11 +159,16 @@ theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, c0_colors⟩ := by
     split <;> (apply Equiv.Perm.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
 
 theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
-  ext1 <;> ext1 j hj <;> specialize h j hj
-  · replace h := h.1
+  ext1
+  · apply BitVec.eq_of_getElem_eq
+    intro j hj
+    specialize h j hj
+    replace h := h.1
     unfold auto; simp [KVertex.bv_flip]
     by_cases j = 0 <;> aesop
-  · replace h := h.2
+  · ext1 j hj
+    specialize h j hj
+    replace h := h.2
     unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
     if hj : j = 1 then
       simp [hj, Array.getElem_append]
@@ -323,7 +328,7 @@ theorem c3_2 (tc : TwoCubes (n+3) s):
     suffices BitVec.ofFn _ = 0#(n+5) by
       rw (occs := .pos [1]) [this]
       ext; simp
-    ext1; simp
+    apply BitVec.eq_of_getElem_eq; simp
   case c1 =>
     rw [KClique.get_map_reorder]
     suffices BitVec.ofFn _ = 1#(n+5) by
@@ -332,7 +337,7 @@ theorem c3_2 (tc : TwoCubes (n+3) s):
       simp [Fin.val_eq_iff_lt_and_eq]
       rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])]
       simp [Fin.ext_iff]
-    ext1 j hj
+    apply BitVec.eq_of_getElem_eq; intro j hj
     simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq]
     rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])]
     simp [Fin.ext_iff]
@@ -343,7 +348,7 @@ theorem c3_2 (tc : TwoCubes (n+3) s):
     rw (occs := .pos [1]) [KClique.get_map_reorder]
     simp
     congr 2
-    ext i hi
+    apply BitVec.eq_of_getElem_eq; intro j hj
     simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq]
     rw [Bool.eq_iff_iff]; simp
     iterate 2 ( rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])] )
@@ -458,7 +463,7 @@ theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     suffices BitVec.ofFn _ = 0#(n+5) by
       rw (occs := .pos [1]) [this]
       ext; simp
-    ext1; simp
+    apply BitVec.eq_of_getElem_eq; intro j hj; simp
   case c1 =>
     rw [KClique.get_map_reorder]
     suffices BitVec.ofFn _ = 1#(n+5) by
@@ -467,7 +472,7 @@ theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
       simp [Fin.val_eq_iff_lt_and_eq]
       rw [swap_eq_earlier_iff j₂_ge_3 (by simp [Fin.lt_def])]
       simp [Fin.ext_iff]
-    ext1 j hj
+    apply BitVec.eq_of_getElem_eq; intro j hj
     simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq]
     rw [swap_eq_earlier_iff j₂_ge_3 (by simp [Fin.lt_def])]
     simp [Fin.ext_iff]
@@ -476,14 +481,17 @@ theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     unfold tc'
     simp [KClique.get_map_reorder]
     convert h2
-    · ext j hj; simp; rw [second_nonzero.swap_3_eq_3]; simpa using j₂_ge_3
+    · apply BitVec.eq_of_getElem_eq; intro j hj
+      simp; rw [second_nonzero.swap_3_eq_3]; simpa using j₂_ge_3
     · rw [swap_preserves_earlier j₂_ge_3 (by simp)]
   replace h_ne_at_j2 : (tc'.kclique.get 7)[3] ≠ (tc'.kclique.get 3)[3] := by
     unfold tc'
     simp [KClique.get_map_reorder]
     convert h_ne_at_j2
-    · ext j hj; simp; rw [second_nonzero.swap_7_eq_7]; simpa using j₂_ge_3
-    · ext j hj; simp; rw [second_nonzero.swap_3_eq_3]; simpa using j₂_ge_3
+    · apply BitVec.eq_of_getElem_eq; intro j hj; simp
+      rw [second_nonzero.swap_7_eq_7]; simpa using j₂_ge_3
+    · apply BitVec.eq_of_getElem_eq; intro j hj; simp
+      rw [second_nonzero.swap_3_eq_3]; simpa using j₂_ge_3
 
   clear_value tc'; clear tc
 

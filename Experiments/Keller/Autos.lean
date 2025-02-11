@@ -136,7 +136,7 @@ theorem reorder_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
   simp [reorder]
 
 @[simp] theorem reorder_id (v : KVertex n s) : reorder id v = v := by
-  ext <;> simp [reorder]
+  ext <;> simp [reorder, BitVec.getLsbD_eq_getElem, *]
 
 end KVertex
 
@@ -252,6 +252,6 @@ theorem get_map_reorder {k : KClique n s} {f} {i}
   simp [get_eq_iff_mem, map]
   refine ⟨_, k.get_mem (BitVec.ofFn fun j => i[f.symm j]), ?_⟩
   simp [KVertex.reorder]
-  ext; simp
+  ext; simp [BitVec.getLsbD_eq_getElem, *]
 
 end KClique
