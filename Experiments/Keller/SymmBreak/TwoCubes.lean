@@ -527,9 +527,76 @@ theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
 
 end second_nonzero
 
-theorem c3_4 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) (h3 : (tc.kclique.get 3)[3] ≠ 0) :
+section third_nonzero
+
+variable (tc : TwoCubes (n+3) s)
+
+lemma eleven_lt : 11 < 2^(n + 3 + 2) := by
+  apply Nat.lt_of_lt_of_le (m := 2^5)
+  · decide
+  · apply Nat.pow_le_pow_right
+    · decide
+    · omega
+
+/- we know c11 has s gap with c3 at 3 -/
+theorem c11_3 : (tc.kclique.get 11)[3] = (tc.kclique.get 3)[3] := by
+  refine tc.kclique.get_adj_one_diff 3 ?_ ?_ |>.left
+  · simp [bv_toNat]; decide
+  · rintro ⟨j, hj⟩; simp [bv_toNat, hj, Fin.ext_iff]
+    rcases j with (_|_|_|_|_) <;> simp [Nat.testBit_succ]
+
+variable (c3_3 : (tc.kclique.get 3)[3] ≠ 0) include c3_3
+
+/- therefore c7 has s gap with c1 at 1 -/
+theorem c11_1 : (tc.kclique.get 11)[1] = 1 := by
+  have ⟨⟨j₁,hj⟩, bit_diff, h, dont_care⟩ :=
+    tc.kclique.get_adj (i₁ := 11) (i₂ := 1)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, eleven_lt])
+  clear dont_care
+  simp [bv_toNat, hj] at bit_diff
+  -- 3 the colors are already not zero, and the other bits are not diff
+  match j₁ with
+  | 1 => have := tc.c1_j (hj := hj); simp_all
+  | 3 => have := c11_3 tc; simp_all
+  | 0 | 2 | n+4 =>
+    simp [Nat.testBit_succ] at bit_diff
+
+/- therefore c7 has s gap with c0 at 0 -/
+theorem c11_0 : (tc.kclique.get 11)[0] = 0 := by
+  have ⟨⟨j₁,hj⟩, bit_diff, h, dont_care⟩ :=
+    tc.kclique.get_adj (i₁ := 11) (i₂ := 0)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, eleven_lt])
+  clear dont_care
+  simp [bv_toNat, hj] at bit_diff
+  -- 2 the bits are not diff, 1 and 3 the colors are already not eq, 4+ the bits are not diff
+  match j₁ with
+  | 0 => have := tc.c0_j (hj := hj); simp_all
+  | 1 => have := c11_1 tc c3_3; simp_all
+  | 3 => have := c11_3 tc; simp_all
+  | 2 | n+4 =>
+    simp [Nat.testBit_succ] at bit_diff
+
+theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
+  -- have c7_0 = 0, c7_1 = 1, c7_2 = c3_2 again
+  have c7_0 := c7_0 tc c3_2
+  have c7_1 := c7_1 tc c3_2
+  have c7_2 := c7_2 tc
+  -- also have c11_0 = 0, c11_1 = 1, c11_3 = c3_3
+  have c11_0 := c11_0 tc c3_3
+  have c11_1 := c11_1 tc c3_3
+  have c11_3 := c11_3 tc
+  -- then, b/c c7 and c11 are adjacent, either c7_3 = c3_3 or c11_2 = c3_2
+  --have : (tc.kclique.get 7)[3] = (tc.kclique.get 3)[3] ∨
+  --      (tc.kclique.get 11)[2] = (tc.kclique.get 3)[2] := sorry
+  -- either c7 or c11 are equal to c3 on j < 4
+
+  -- whichever is equivalent, has a difference with c3 at j ≥ 4
+  -- if c3_4 ≠ 0 then we are done already
+  -- otherwise we swap c7/c11 to c3
   sorry
+
+end third_nonzero
 
 end ThreeCubes
 
