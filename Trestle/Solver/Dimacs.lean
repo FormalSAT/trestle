@@ -73,8 +73,17 @@ def parseLit (maxVar : Nat) (s : String) : Except String ILit := do
     parseVar maxVar s
 
 def parseClause (maxVar : Nat) (s : String) : Except String IClause := do
-  let lits ← s.splitOn " " |>.mapM (parseLit maxVar)
-  return ⟨lits⟩
+  aux (s.splitOn " ") #[]
+where aux (L : List String) (acc : Array ILit) := do
+  match L with
+  | [] => throw s!"Line was empty? `{s}`"
+  | [last] =>
+    if last = "0" then
+      return acc
+    else throw s!"Expected last entry of line to be zero; got: `{s}`"
+  | lit::rest =>
+    let lit ← parseLit maxVar lit
+    aux rest (acc.push lit)
 
 def parseHeader (s : String) : Except String (Nat × Nat) := do
   match s.splitOn " " with
@@ -90,7 +99,9 @@ def parseFormula (s : String) : Except String DimacsParseRes := do
     |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
     |>.expectNonempty fun () => "All lines are empty or comments"
   let (nvars, _) ← parseHeader pLine
-  let clauses ← clauseLines.mapM (parseClause nvars)
+  let clauses ← clauseLines.mapIdxM (fun lineNum line =>
+    parseClause nvars line
+    |>.mapError (s!"line {lineNum+1}: {·}"))
   return {
     vars := nvars
     clauses := clauses
