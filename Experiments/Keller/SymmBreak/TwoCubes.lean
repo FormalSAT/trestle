@@ -578,22 +578,56 @@ theorem c11_0 : (tc.kclique.get 11)[0] = 0 := by
 
 theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
+  -- c7_2 and c11_3 are equiv to c3_2 and c3_3
+  have c7_2 := c7_2 tc
+  have c11_3 := c11_3 tc
+  -- then, b/c c7 and c11 are adjacent, either c7_3 = c3_3 or c11_2 = c3_2
+  have : (tc.kclique.get 7)[3]'(by omega) = (tc.kclique.get 3)[3]'(by omega) ∨
+        (tc.kclique.get 11)[2]'(by omega) = (tc.kclique.get 3)[2]'(by omega) := by
+    have ⟨j1,bv_ne_at_j1,cs_eq_at_j1,j2⟩ :=
+      tc.kclique.get_adj (i₁ := 7) (i₂ := 11)
+        (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt])
+    clear j2
+    -- we need the clear * - so that omega does not pull j1 into the proof term
+    replace bv_ne_at_j1 : j1 = ⟨2,by clear * -; omega⟩ ∨ j1 = ⟨3, by clear * -; omega⟩ := by
+      rcases j1 with ⟨j1,_⟩
+      match j1 with
+      | 2 | 3 => simp
+      | 0 | 1 | _j1+4 =>
+        simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt, Nat.testBit_succ] at bv_ne_at_j1
+    rcases bv_ne_at_j1 with (rfl|rfl)
+    · right; rw [← c7_2]; exact cs_eq_at_j1.symm
+    · left; rw [← c11_3]; exact cs_eq_at_j1
+  -- so either c7 or c11 are equal to c3 on j < 4
+  replace this :
+    (∀ (j : Nat) (h : j < 4), (tc.kclique.get 7)[j]'(by omega) = (tc.kclique.get 3#(_))[j]'(by omega))
+    ∨ (∀ (j : Nat) (h : j < 4), (tc.kclique.get 11)[j]'(by omega) = (tc.kclique.get 3#(_))[j]'(by omega)) := by
+    rcases this with (woop|woop)
+    · left; intro j h
+      rcases h with (_|_|_|_|h)
+      · exact woop
+      · exact c7_2
+      · rw [c7_1 tc c3_2, c3_1 tc]
+      · rw [c7_0 tc c3_2, c3_0 tc]
+      · nomatch h
+    · right; intro j h
+      rcases h with (_|_|_|_|h)
+      · exact c11_3
+      · exact woop
+      · rw [c11_1 tc c3_3, c3_1 tc]
+      · rw [c11_0 tc c3_3, c3_0 tc]
+      · nomatch h
+
+  -- whichever is equivalent, has a difference with c3 at j ≥ 4 bc adjacent
+
+  -- if c3_j ≠ 0 then we are done already
+  -- otherwise we swap c7/c11 to c3
   -- have c7_0 = 0, c7_1 = 1, c7_2 = c3_2 again
   have c7_0 := c7_0 tc c3_2
   have c7_1 := c7_1 tc c3_2
-  have c7_2 := c7_2 tc
   -- also have c11_0 = 0, c11_1 = 1, c11_3 = c3_3
   have c11_0 := c11_0 tc c3_3
   have c11_1 := c11_1 tc c3_3
-  have c11_3 := c11_3 tc
-  -- then, b/c c7 and c11 are adjacent, either c7_3 = c3_3 or c11_2 = c3_2
-  --have : (tc.kclique.get 7)[3] = (tc.kclique.get 3)[3] ∨
-  --      (tc.kclique.get 11)[2] = (tc.kclique.get 3)[2] := sorry
-  -- either c7 or c11 are equal to c3 on j < 4
-
-  -- whichever is equivalent, has a difference with c3 at j ≥ 4
-  -- if c3_4 ≠ 0 then we are done already
-  -- otherwise we swap c7/c11 to c3
   sorry
 
 end third_nonzero
@@ -638,7 +672,7 @@ theorem countSymmOnes_eq_0 (tc : TwoCubes (n+3) s) : countSymmOnes tc = 0 →
 theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   have ⟨tc2,h2⟩ := c3_2 tc
   have ⟨tc3,h3⟩ := c3_3 tc2 h2
-  have ⟨tc4,h4⟩ := c3_4 tc3 h3.1 h3.2
+  have ⟨tc4,h4⟩ := c3_4 tc3 h3.2 h3.1
   clear! tc tc2 tc3
   replace h4 : ∀ i : Fin (n+5), i.val ∈ [2,3,4] → (tc4.kclique.get 3)[i] ≠ 0 := by
     rintro ⟨i,hi⟩ h; simp at h
