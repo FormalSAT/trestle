@@ -86,3 +86,19 @@ def kellerCmd : Cmd := `[Cli|
 
 def main (args : List String) := show IO _ from do
   kellerCmd.validate args
+
+
+-- #eval show IO _ from do
+--   let cnf ← IO.FS.readFile "full.cnf"
+--   let {clauses := full, ..} ← IO.ofExcept <| Solver.Dimacs.parseFormula cnf
+--   let cnf ← IO.FS.readFile "combinedCores.cnf"
+--   let {clauses := cores, ..} ← IO.ofExcept <| Solver.Dimacs.parseFormula cnf
+--   let coreSet := cores.foldl (init := Std.HashSet.empty (capacity := 200000))
+--     (fun set clause =>
+--       let clause := clause.sortDedup (α := Subtype (α := Int) _)
+--       set.insert clause)
+-- 
+--   IO.FS.withFile "full_in_core.cnf" .write fun handle =>
+--     for clause in full do
+--       if coreSet.contains <| clause.sortDedup (α := Subtype (α := Int) _) then
+--         handle.putStrLn <| Solver.Dimacs.formatClause clause
