@@ -26,6 +26,9 @@ def toICnf : RichCnf → ICnf :=
 
 def fromICnf : ICnf → RichCnf := Array.map (.clause ·)
 
+@[simp] def toPropFun (c : RichCnf) : Model.PropFun IVar :=
+  c.toICnf.toPropFun
+
 def maxVar (fml : RichCnf) : Nat :=
   fml.maxBy (fun
     | .comment _ => 0

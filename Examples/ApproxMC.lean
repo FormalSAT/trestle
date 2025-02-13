@@ -23,10 +23,10 @@ def main : IO Unit := do
   let enc : EncCNF (Fin 3) Unit := do
     Subtype.val tseitin[ {x} ∧ {y} ∧ {z} ∨ ¬{x} ∧ ¬{y} ]
 
-  let ((),state) := enc.run
+  let state := enc.runUnit
 
-  let res ← Solver.solve state.cnf
+  let res ← Solver.solve state.cnf.toICnf
   IO.println res
-  let res ← Solver.ModelCount.modelCount state.cnf (some <|
+  let res ← Solver.ModelCount.modelCount state.cnf.toICnf (some <|
     [x,y,z].map state.vMap)
   IO.println res
