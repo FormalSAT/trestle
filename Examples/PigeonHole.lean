@@ -39,5 +39,5 @@ def encoding (n) : VEncCNF (Var n) Unit (fun τ =>
 def main (args : List String) : IO Unit := do
   let n := args[0]!.toNat!
   let enc := encoding n
-  let cnf := enc.val.toICnf
-  Solver.Dimacs.printFormula IO.print cnf
+  let cnf := enc.val.toRichCnf
+  Solver.Dimacs.printRichCnf IO.print cnf

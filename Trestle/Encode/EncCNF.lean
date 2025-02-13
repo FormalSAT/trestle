@@ -239,8 +239,16 @@ instance : LawfulMonad (EncCNF ν) where
 def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
   e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
 
+def runUnit [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν Unit) : LawfulState ν :=
+  LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
+  |> e.1.run
+  |>.2
+
 def toRichCnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : RichCnf :=
   (run e).2.cnf
+
+def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf :=
+  (run e).2.cnf.toICnf
 
 def addClause (C : Clause (Literal ν)) : EncCNF ν Unit :=
   ⟨ fun s => ((), s.addClause C)

@@ -167,15 +167,15 @@ def K8_CNF : VCnf 8 (graphColoring K8) :=
   graphColoringCNF K8
 
 def PrintTheCNF : IO Unit :=
-  let cnf := K8_CNF.val.toICnf
-  Solver.Dimacs.printFormula IO.print cnf
+  let cnf := K8_CNF.val.toRichCnf
+  Solver.Dimacs.printRichCnf IO.print cnf
 
 -- In case we want to print the CNF to the Lean infoview.
 -- #eval PrintTheCNF
 
 -- We trust the SAT solver and axiomatize the UNSAT result
 -- TODO: Replace `axiom` with tactic to trust/insert SAT results directly from the solver.
-axiom cnfUnsat : ¬∃ τ : PropAssignment IVar, τ ⊨ K8_CNF.val.toICnf.toPropFun
+axiom cnfUnsat : ¬∃ τ : PropAssignment IVar, τ ⊨ K8_CNF.val.toRichCnf.toPropFun
 
 theorem unsat_result : ¬∃ (C : Coloring 8 4), isValidColoring K8 C := by
   apply mt (@coloringAssignment_exists_of_validColoring 8 K8)
