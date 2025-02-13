@@ -29,6 +29,7 @@ open EncCNF Model PropForm
 def coordinates : EncCNF (Vars n s) Unit := do
   for i in allBitVecs n do
     for j in Array.finRange n do
+      newCtx s!"exactly one x_{i.toNat},{j}" do
       let vars := Array.ofFn (fun k => Literal.pos <| Vars.x i j k)
       -- at least one of the `c_ij-` variables is true
       addClause vars
@@ -44,6 +45,7 @@ def twoDiffs : EncCNF (Vars n s) Unit := do
       let i' : BitVec n := i ||| BitVec.shiftLeft 1 j
       -- when `j` bit is already high, `i = i'`, so filter that out
       if i < i' then
+        newCtx s!"two diffs c{i.toNat} c{i'.toNat}" do
         withTemps (Fin n × Fin s) (do
           for j' in List.finRange n do
             if j' ≠ j then
@@ -70,8 +72,10 @@ def hasSGapAt (i i' : BitVec n) (j : Fin n) : PropForm (Vars n s) :=
 def hasSGap (i i' : BitVec n) : EncCNF (Vars n s) Unit := do
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
   let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
+  newCtx s!"s gap c{i.toNat} c{i'.toNat}" do
   withTemps (Fin n) (do
     for j in potentialJs do
+      newCtx s!"s gap c{i.toNat} c{i'.toNat} at {j}" do
       for k in List.finRange s do
         addClause #[Literal.neg (Sum.inr j), Literal.pos (Sum.inl (.x i j k)), Literal.neg (Sum.inl (.x i' j k))]
         addClause #[Literal.neg (Sum.inr j), Literal.neg (Sum.inl (.x i j k)), Literal.pos (Sum.inl (.x i' j k))]

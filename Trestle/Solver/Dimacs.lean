@@ -72,7 +72,7 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 
 structure DimacsParseRes where
   vars : Nat
-  clauses : List IClause
+  clauses : RichCnf
 
 def parseVar (maxVar : Nat) (s : String) : Except String IVar := do
   let n ← liftM <| s.toNat?.expectSome fun () => s!"Expected variable; got non-Nat: `{s}`"
@@ -111,15 +111,21 @@ def parseHeader (s : String) : Except String (Nat × Nat) := do
     return (vars, clss)
   | _ => .error s!"Expected header `p cnf <#vars> <#clauses>`; got `{s}`"
 
+-- TODO(JG): currently this fails if the p line occurs after some comment lines. fix that.
 def parseFormula (s : String) : Except String DimacsParseRes := do
   let ⟨pLine, clauseLines⟩ ←
     s.splitOn "\n"
-    |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
-    |>.expectNonempty fun () => "All lines are empty or comments"
+    |>.map (·.trim)
+    |>.filter (!·.isEmpty)
+    |>.expectNonempty fun () => "Missing p line"
   let (nvars, _) ← parseHeader pLine
-  let clauses ← clauseLines.mapIdxM (fun lineNum line =>
-    parseClause nvars line
-    |>.mapError (s!"line {lineNum+1}: {·}"))
+  let clauses ← clauseLines.toArray.mapIdxM (fun lineNum line =>
+    if line.startsWith "c " then
+      .ok (.comment (line.drop 2))
+    else
+      parseClause nvars line
+      |>.map (.clause ·)
+      |>.mapError (s!"line {lineNum+1}: {·}"))
   return {
     vars := nvars
     clauses := clauses
@@ -161,7 +167,7 @@ def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State IVar) := do
   let {vars, clauses} ← IO.ofExcept <| Solver.Dimacs.parseFormula contents
   return {
     nextVar := vars.succPNat
-    cnf := RichCnf.fromICnf clauses.toArray
+    cnf := clauses
     vMap := id
   }
 

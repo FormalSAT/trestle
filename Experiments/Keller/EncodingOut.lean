@@ -76,30 +76,54 @@ where runCnfCmd (p : Parsed) := do
       handle.flush
   return 0
 
+def filterCoreCmd : Cmd := `[Cli|
+  "filter-core" VIA run;
+  "Filter one CNF by another (usually the unsat core)."
+
+  FLAGS:
+    full : String;    "Filepath to full CNF."
+    core : String;    "Filepath to the CNF on which to filter (usually unsat core)."
+    out : String;     "Filepath to the output."
+]
+where run (p : Parsed) := do
+  let fullFile : System.FilePath := p.flag! "full" |>.as! String
+  let coreFile : System.FilePath := p.flag! "core" |>.as! String
+  let outFile  : System.FilePath := p.flag! "out"  |>.as! String
+
+  let {clauses := full, ..} ← IO.ofExcept <|
+    Solver.Dimacs.parseFormula (← IO.FS.readFile fullFile)
+  let {clauses := core, ..} ← IO.ofExcept <|
+    Solver.Dimacs.parseFormula (← IO.FS.readFile coreFile)
+
+  let coreSet := core.foldl (init := Std.HashSet.empty (capacity := 200000))
+    (fun set line =>
+      match line with
+      | .clause clause =>
+        let clause := clause.sortDedup (α := Subtype (α := Int) _)
+        set.insert clause
+      | _ => set)
+
+  let filtered : RichCnf := full.filter (fun
+    | .clause c => coreSet.contains (c.sortDedup (α := Subtype (α := Int) _))
+    | _ => true)
+
+  IO.FS.withFile outFile .write fun handle =>
+    Solver.Dimacs.printRichCnf handle.putStr filtered
+
+  return 0
+
+
 def kellerCmd : Cmd := `[Cli|
-  keller NOOP; ["0.0.1"]
-  "Keller conjecture SAT encoding formalization output."
+  keller VIA run; ["0.0.1"]
+  "Keller conjecture SAT encoding tools."
 
   SUBCOMMANDS:
-    cnfCmd
-
+    cnfCmd;
+    filterCoreCmd
 ]
+where run (p) := do
+  Parsed.printHelp p
+  return 0
 
-def main (args : List String) := show IO _ from do
+def main (args : List String) : IO UInt32 :=
   kellerCmd.validate args
-
-
--- #eval show IO _ from do
---   let cnf ← IO.FS.readFile "full.cnf"
---   let {clauses := full, ..} ← IO.ofExcept <| Solver.Dimacs.parseFormula cnf
---   let cnf ← IO.FS.readFile "combinedCores.cnf"
---   let {clauses := cores, ..} ← IO.ofExcept <| Solver.Dimacs.parseFormula cnf
---   let coreSet := cores.foldl (init := Std.HashSet.empty (capacity := 200000))
---     (fun set clause =>
---       let clause := clause.sortDedup (α := Subtype (α := Int) _)
---       set.insert clause)
---
---   IO.FS.withFile "full_in_core.cnf" .write fun handle =>
---     for clause in full do
---       if coreSet.contains <| clause.sortDedup (α := Subtype (α := Int) _) then
---         handle.putStrLn <| Solver.Dimacs.formatClause clause
