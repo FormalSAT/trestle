@@ -448,7 +448,7 @@ private lemma second_nonzero.swap_7_eq_7 {j₂ : Fin (n+3+2)} {j₂_ge_3 : j₂ 
     rw [← Nat.sub_add_cancel x_ge, ← Nat.sub_add_cancel j_lt_3]
     simp [Nat.testBit_succ]
 
-
+seal BitVec.ofNat in
 theorem c3_3 (tc : TwoCubes (n+3) s) (h2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 := by
   have ⟨j₂, j₂_ge_3, h_ne_at_j2⟩ := c7_diff_c3 tc h2
@@ -576,14 +576,15 @@ theorem c11_0 : (tc.kclique.get 11)[0] = 0 := by
   | 2 | n+4 =>
     simp [Nat.testBit_succ] at bit_diff
 
+seal BitVec.ofNat in
 theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
     ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
   -- c7_2 and c11_3 are equiv to c3_2 and c3_3
   have c7_2 := c7_2 tc
   have c11_3 := c11_3 tc
   -- then, b/c c7 and c11 are adjacent, either c7_3 = c3_3 or c11_2 = c3_2
-  have : (tc.kclique.get 7)[3]'(by omega) = (tc.kclique.get 3)[3]'(by omega) ∨
-        (tc.kclique.get 11)[2]'(by omega) = (tc.kclique.get 3)[2]'(by omega) := by
+  have : (tc.kclique.get 7)[3] = (tc.kclique.get 3)[3] ∨
+        (tc.kclique.get 11)[2] = (tc.kclique.get 3)[2] := by
     have ⟨j1,bv_ne_at_j1,cs_eq_at_j1,j2⟩ :=
       tc.kclique.get_adj (i₁ := 7) (i₂ := 11)
         (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt])
@@ -600,8 +601,8 @@ theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
     · left; rw [← c11_3]; exact cs_eq_at_j1
   -- so either c7 or c11 are equal to c3 on j < 4
   replace this :
-    (∀ (j : Nat) (h : j < 4), (tc.kclique.get 7)[j]'(by omega) = (tc.kclique.get 3#(_))[j]'(by omega))
-    ∨ (∀ (j : Nat) (h : j < 4), (tc.kclique.get 11)[j]'(by omega) = (tc.kclique.get 3#(_))[j]'(by omega)) := by
+    (∀ (j : Nat) (h : j < 4), (tc.kclique.get 7)[j] = (tc.kclique.get 3#(_))[j])
+    ∨ (∀ (j : Nat) (h : j < 4), (tc.kclique.get 11)[j] = (tc.kclique.get 3#(_))[j]) := by
     rcases this with (woop|woop)
     · left; intro j h
       rcases h with (_|_|_|_|h)
