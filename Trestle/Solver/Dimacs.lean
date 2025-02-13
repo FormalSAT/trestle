@@ -23,18 +23,36 @@ def formatLit (l : ILit) : String :=
 def formatClause : IClause → String
 | ⟨lits⟩ => lits.map (formatLit ·) ++ ["0"] |> String.intercalate " "
 
+def formatComment (s : String) : String :=
+  s.splitOn (sep := "\n")
+  |>.map ("c " ++ ·)
+  |> String.intercalate "\n"
+
 def formatFormula (f : ICnf) : String :=
   let vars := f.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
   let clauses := f.size
   s!"p cnf {vars} {clauses}\n" ++ (
     f.map formatClause |>.toList |> String.intercalate "\n" )
 
-def printFormula [Monad m] (print : String → m Unit) (f : ICnf) : m Unit := do
+def printICnf [Monad m] (print : String → m Unit) (f : ICnf) : m Unit := do
   let vars := f.maxVar
   let clauses := f.size
   print <| s!"p cnf {vars} {clauses}\n"
   for c in f do
     print <| formatClause c ++ "\n"
+
+def printRichCnf [Monad m] (print : String → m Unit) (f : RichCnf) : m Unit := do
+  let vars := f.maxVar
+  let clauses := f.foldl (· + match · with |.clause _ => 1 | _ => 0) 0
+  print <| s!"p cnf {vars} {clauses}\n"
+  for line in show Array _ from f do
+    match line with
+    | .clause c =>
+      print <| formatClause c
+      print "\n"
+    | .comment s =>
+      print <| formatComment s
+      print "\n"
 
 def formatAssn (a : HashAssn ILit) : String :=
   a.fold (fun str v b =>
@@ -137,12 +155,13 @@ def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
   | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 
 
+/-- auxiliary for getting an EncCNF.State from a DIMACS cnf file -/
 def fromFileEnc (cnfFile : String) : IO (Encode.EncCNF.State IVar) := do
   let contents ← IO.FS.withFile cnfFile .read (·.readToEnd)
-  let {vars, clauses} ← IO.ofExcept <| Dimacs.parseFormula contents
+  let {vars, clauses} ← IO.ofExcept <| Solver.Dimacs.parseFormula contents
   return {
     nextVar := vars.succPNat
-    cnf := clauses.toArray
+    cnf := RichCnf.fromICnf clauses.toArray
     vMap := id
   }
 

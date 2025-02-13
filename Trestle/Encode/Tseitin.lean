@@ -464,7 +464,7 @@ def ex : Model.PropForm V :=
     ∧ ({s} → ({p} ∧ {t}))
   ]
 
-example : (Tseitin.encode ex).val.toICnf =
+example : (Tseitin.encode ex).val.toRichCnf.toICnf =
   #[
     -- d0 → p ∧ q ∧ ¬r
     #[-6, 1],
