@@ -51,7 +51,7 @@ where runCnfCmd (p : Parsed) := do
     let cubes := cubes.map (·.map _ vMap)
     IO.println s!"writing incremental CNF to {file}"
     IO.FS.withFile file .write <| fun handle => do
-      Solver.Dimacs.printIncCNF (handle.putStr) cnf cubes
+      Solver.Dimacs.printIncCNF (handle.putStr) cnf.toICnf cubes
       handle.flush
   else
     let cube ← cube.bindM (fun idx => do
@@ -69,9 +69,10 @@ where runCnfCmd (p : Parsed) := do
     let cnf :=
       match cube with
       | none => cnf
-      | some cube => cnf ++ Array.map (#[·]) cube
+      | some cube =>
+        (show Array _ from cnf) ++ Array.map (RichCnf.Line.clause #[·]) cube
     IO.FS.withFile file .write <| fun handle => do
-      Solver.Dimacs.printFormula (handle.putStr) cnf
+      Solver.Dimacs.printRichCnf (handle.putStr) cnf
       handle.flush
   return 0
 
@@ -97,7 +98,7 @@ def main (args : List String) := show IO _ from do
 --     (fun set clause =>
 --       let clause := clause.sortDedup (α := Subtype (α := Int) _)
 --       set.insert clause)
--- 
+--
 --   IO.FS.withFile "full_in_core.cnf" .write fun handle =>
 --     for clause in full do
 --       if coreSet.contains <| clause.sortDedup (α := Subtype (α := Int) _) then

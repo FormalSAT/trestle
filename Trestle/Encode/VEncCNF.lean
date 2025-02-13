@@ -37,8 +37,8 @@ where aux (e' : StateM _ α) :=
 theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
           (e : EncCNF ν α) (P : PropPred ν) (h : encodesProp e P)
   : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
-    (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toICnf.toPropFun) := by
-  simp [toICnf, run, StateT.run]
+    (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toRichCnf.toICnf.toPropFun) := by
+  simp [EncCNF.toRichCnf, run, StateT.run]
   generalize hls : LawfulState.new' _ _ = ls
   have := h ls
   generalize hls' : e.1 ls = ls' at this
@@ -87,6 +87,23 @@ theorem bind_encodesProp (e1 : EncCNF ν α) (f : α → EncCNF ν β)
 @[simp] theorem encodesProp_pure (a : α) : encodesProp (pure a : EncCNF ν α) ⊤ := by
   intro s; simp [Pure.pure, StateT.pure]
 
+theorem encodesProp_map (e1 : EncCNF ν α) (f : α → β)
+  : (f <$> e1).encodesProp P ↔ e1.encodesProp P
+  := by
+  constructor
+  · intro h s
+    specialize h s
+    intro s'
+    extract_lets s'' at h
+    suffices s' = s'' by rw [this]; exact h
+    rfl
+  · intro h
+    rw [map_eq_pure_bind]
+    rw [show P = P ⊓ ⊤ by simp]
+    apply bind_encodesProp
+    · exact h
+    simp
+
 end EncCNF
 
 /-- The verified encoding monad. -/
@@ -98,7 +115,7 @@ namespace VEncCNF
 instance : CoeHead (VEncCNF ν α P) (EncCNF ν α) := ⟨(·.1)⟩
 
 theorem toICnf_equisatisfiable [IndexType ν] [LawfulIndexType ν] (v : VEncCNF ν α P) :
-    (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toICnf.toPropFun) ↔
+    (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toRichCnf.toICnf.toPropFun) ↔
     (∃ τ : PropAssignment ν, open PropPred in τ ⊨ P)
   := by
   rw [v.val.encodesProp_equisatisfiable _ v.property]
@@ -107,7 +124,18 @@ def mapProp {P P' : PropPred ν} (h : P = P') : VEncCNF ν α P → VEncCNF ν �
   fun ⟨e,he⟩ => ⟨e, h ▸ he⟩
 
 def newCtx (name : String) (inner : VEncCNF ν α P) : VEncCNF ν α P :=
-  ⟨EncCNF.newCtx name inner, inner.2⟩
+  ⟨ EncCNF.newCtx name inner
+  , by
+    simp [EncCNF.newCtx]
+    rw (occs := .pos [2]) [show P = ⊤ ⊓ (P ⊓ ⊤) by simp]
+    apply bind_encodesProp
+    · intro s; simp [addComment]
+    rintro -
+    apply bind_encodesProp
+    · apply inner.prop
+    intro s; rw [encodesProp_map]; clear s
+    intro s; simp [addComment]
+  ⟩
 
 open PropPred in
 protected def pure (a : α) : VEncCNF ν α ⊤ :=

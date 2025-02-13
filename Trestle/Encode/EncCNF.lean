@@ -11,6 +11,7 @@ import Trestle.Data.ICnf
 import Trestle.Data.Literal
 import Trestle.Data.HashAssn
 import Trestle.Upstream.ToStd
+import Trestle.Data.RichCnf
 import Trestle.Model.Quantifiers
 import Trestle.Upstream.IndexType
 import Trestle.Upstream.IndexTypeInstances
@@ -31,12 +32,13 @@ because otherwise we need to prove everywhere that clauses are "within range"
 @[ext]
 structure State (ν : Type u) where
   nextVar : PNat
-  cnf : ICnf
+  cnf : RichCnf
   vMap : ν → IVar
 
 namespace State
 
-variable [LitVar L ν]
+@[simp]
+def toPropFun (s : State ν) : PropFun IVar := s.cnf.toICnf.toPropFun
 
 def new (vars : PNat) (f : ν → IVar) : State ν := {
   nextVar := vars
@@ -55,18 +57,31 @@ def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
   }
 
 @[simp] theorem toPropFun_addClause (C : Clause (Literal ν)) (s)
-  : (addClause C s).cnf.toPropFun = s.cnf.toPropFun ⊓ (PropFun.map s.vMap C)
+  : (addClause C s).toPropFun = s.toPropFun ⊓ (PropFun.map s.vMap C)
   := by
   simp [dbgTraceIfShared, addClause, himp_eq, sup_comm]
 
-instance : ToString (State ν) := ⟨toString ∘ State.cnf⟩
+
+def addComment (comment : String) (s : State ν) : State ν :=
+  match s with
+  | {nextVar, cnf, vMap} => {
+    nextVar := nextVar
+    vMap := vMap
+    cnf := cnf.addComment comment
+  }
+
+@[simp] theorem toPropFun_addComment (comment) (s : State ν) :
+      (addComment comment s).toPropFun = s.toPropFun := by
+  simp [addComment]
+
+--instance : ToString (State ν) := ⟨toString ∘ State.cnf⟩
 
 end State
 
 /-- Lawfulness conditions on encoding state. -/
 @[ext]
 structure LawfulState (ν) extends State ν where
-  cnfVarsLt : ∀ c ∈ cnf, ∀ l ∈ c, (LitVar.toVar l) < nextVar
+  cnfVarsLt : ∀ c ∈ cnf.toICnf, ∀ l ∈ c, (LitVar.toVar l) < nextVar
   vMapLt : ∀ v, vMap v < nextVar
   vMapInj : vMap.Injective
 
@@ -75,7 +90,7 @@ namespace LawfulState
 instance : Coe (LawfulState ν) (State ν) := ⟨LawfulState.toState⟩
 
 theorem semVars_toPropFun_cnf_lt (s : LawfulState ν)
-  : ∀ v ∈ s.cnf.toPropFun.semVars, v < s.nextVar := by
+  : ∀ v ∈ s.toPropFun.semVars, v < s.nextVar := by
   intro v h
   replace h := Cnf.mem_semVars_toPropFun _ _ h
   rcases h with ⟨C,hC,h⟩
@@ -92,12 +107,12 @@ formula's interpretation, but with all temporaries
 existentially quantified away.
 -/
 noncomputable def interp (s : LawfulState ν) : PropAssignment ν → Prop :=
-  fun τ => ∃ σ, τ = PropAssignment.map s.vMap σ ∧ σ ⊨ s.cnf.toPropFun
+  fun τ => ∃ σ, τ = PropAssignment.map s.vMap σ ∧ σ ⊨ s.toPropFun
 
 def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
     : LawfulState ν := {
   State.new vars f with
-  cnfVarsLt := by intro c hc _ _; simp [State.new, Array.mem_def] at hc
+  cnfVarsLt := by intro c hc _ _; simp [State.new, RichCnf.toICnf] at hc
   vMapLt := h
   vMapInj := f.injective
 }
@@ -106,7 +121,7 @@ def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
 theorem interp_new (vars) (f : ν ↪ IVar) (h)
   : interp (new vars f h) = fun _ => True := by
   ext τ
-  simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map]
+  simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map, RichCnf.toICnf]
   apply τ.exists_preimage
 
 @[simp]
@@ -141,10 +156,8 @@ def addClause (C : Clause (Literal ν)) : LawfulState ν → LawfulState ν
       simp [LitVar.map]; apply vMapLt
 }
 
-set_option pp.proofs.withType false in
 open PropFun in
-@[simp]
-theorem interp_addClause
+@[simp] theorem interp_addClause
         (C : Clause (Literal ν)) (s : LawfulState ν)
   : interp (addClause C s) = fun τ => interp s τ ∧ (τ ⊨ ↑C) := by
   ext τ
@@ -152,6 +165,26 @@ theorem interp_addClause
   rw [← exists_and_right]
   apply exists_congr; intro σ
   aesop
+
+def addComment (comm : String) : LawfulState ν → LawfulState ν
+| {toState, vMapLt, vMapInj, cnfVarsLt} => {
+  toState := toState.addComment comm
+  vMapLt := vMapLt
+  vMapInj := vMapInj
+  cnfVarsLt := by
+    intro c hc v hv
+    simp [State.addComment] at hc ⊢
+    apply cnfVarsLt <;> assumption
+}
+
+@[simp] theorem interp_addComment (comm : String) (s : LawfulState ν)
+  : interp (addComment comm s) = interp s := by
+  ext τ
+  simp [addComment, interp, State.addComment, imp_iff_not_or]
+
+@[simp] theorem vMap_addComment (comm : String) (s : LawfulState ν)
+  : (addComment comm s).vMap = s.vMap := by
+  simp [addComment, State.addComment]
 
 end LawfulState
 
@@ -206,19 +239,22 @@ instance : LawfulMonad (EncCNF ν) where
 def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
   e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
 
-def toICnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : ICnf :=
+def toRichCnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : RichCnf :=
   (run e).2.cnf
-
--- TODO(JG): EncCNF should support generating comments in the CNF file,
--- including comments to indicate where new contexts are opened.
-set_option linter.unusedVariables false in
-def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
-  let res ← inner
-  return res
 
 def addClause (C : Clause (Literal ν)) : EncCNF ν Unit :=
   ⟨ fun s => ((), s.addClause C)
   , by simp [LawfulState.addClause, State.addClause]⟩
+
+def addComment (comm : String) : EncCNF ν Unit :=
+  ⟨ fun s => ((), s.addComment comm)
+  , by simp [LawfulState.addComment, State.addComment] ⟩
+
+def newCtx (name : String) (inner : EncCNF ν α) : EncCNF ν α := do
+  addComment s!"start: {name}"
+  let res ← inner
+  addComment s!"end: {name}"
+  return res
 
 def unit (l : Literal ν) : EncCNF ν Unit := addClause #[l]
 

@@ -28,7 +28,7 @@ def DimacsCommand
     stdout := .piped
   }
   let (stdin, child) ← child.takeStdin
-  Dimacs.printFormula (stdin.putStr) fml
+  Dimacs.printICnf (stdin.putStr) fml
   stdin.flush
   let output ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
   let _ ← child.wait
