@@ -204,6 +204,8 @@ theorem Fin.val_ofNat {n} [NeZero n] (x : Nat) : Fin.val (n := n) (no_index (OfN
 @[simp] theorem Fin.val_ofNat_of_lt {n} [NeZero n] (x : Nat) (h : x < n) : Fin.val (n := n) (no_index (OfNat.ofNat x)) = x :=
   by rw [Fin.val_ofNat, Nat.mod_eq_of_lt h]
 
+attribute [-simp] lt_add_iff_pos_left
+
 namespace Equiv
 
 def setAll [DecidableEq α] (L : List (α × β)) (f: α ≃ β) : α ≃ β :=
