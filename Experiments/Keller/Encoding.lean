@@ -22,76 +22,285 @@ deriving IndexType, Hashable
 
 def allBitVecs (n) : Array (BitVec n) := Array.ofFn (BitVec.ofFin)
 
-section Base
-open EncCNF Model PropForm
+@[simp] theorem mem_allBitVecs (x : BitVec n) : x ∈ allBitVecs n := by
+  simp [allBitVecs]
 
--- ensure that each vertex has a defined coordinate on each dimension
-def coordinates : EncCNF (Vars n s) Unit := do
-  for i in allBitVecs n do
-    for j in Array.finRange n do
-      newCtx s!"exactly one x_{i.toNat},{j}" do
+
+
+section Spec
+
+def cliqueToAssn (c : KClique n s) : Model.PropAssignment (Vars n s) :=
+  fun | .x i j k => (c.get i)[j] = k
+
+def assnToVertices (τ : Model.PropAssignment (Vars n s)) : Set (KVertex n s) :=
+  fun ⟨i,cs⟩ => ∀ j, τ (Vars.x i j (cs[j]))
+
+end Spec
+
+
+section Base
+open VEncCNF Model Vars
+
+/-- ensure that each vertex has a defined coordinate on each dimension -/
+def coordinates : VEncCNF (Vars n s) Unit (fun τ =>
+    open PropFun in ∀ i j, ∃! k, τ ⊨ .var (x i j k) ) :=
+  (for_all (allBitVecs n) fun i =>
+    for_all (Array.finRange n) fun j =>
+      newCtx s!"exactly one x_{i.toNat},{j}" <|
       let vars := Array.ofFn (fun k => Literal.pos <| Vars.x i j k)
-      -- at least one of the `c_ij-` variables is true
-      addClause vars
-      -- at most one of the `c_ij-` variables is true
-      Cardinality.amoSeqCounter vars
+      seq[
+        -- at least one of the `c_ij-` variables is true
+        Cardinality.atLeastOne vars,
+        -- at most one of the `c_ij-` variables is true
+        Cardinality.amoSeqCounter vars
+      ]
+  ).mapProp (by
+    -- annoying boilerplate
+    ext τ; simp
+    apply forall_congr'; intro i
+    apply forall_congr'; intro j
+    -- LHS says card is equal to one
+    rw [← Nat.le_antisymm_iff, eq_comm, Cardinality.card_eq_one]
+    case nodup =>
+      simp [List.nodup_ofFn]; intro; simp [LitVar.ext_iff]
+    -- wiggle some defs around
+    simp [List.mem_ofFn, LitVar.mkPos]
+    simp_rw [ExistsUnique, ← exists_and_right]
+    aesop
+  )
+
+
 
 -- ensure for all pairs where only one coordinate *must* be different,
 -- that there is a second coordinate which is also different
-def twoDiffs : EncCNF (Vars n s) Unit := do
-  for i in allBitVecs n do
-    for j in Array.finRange n do
+def twoDiffs : VEncCNF (Vars n s) Unit (fun τ =>
+    ∀ (i i' : BitVec n) (j : Fin n), i ^^^ i' = 1#n <<< j.val → ∃ j' ≠ j, ∃ k, τ (x i j' k) ≠ τ (x i' j' k)) :=
+  (for_all (allBitVecs n) fun i =>
+    for_all (Array.finRange n) fun j =>
       -- the bitvector which must be different only at coord `j`
-      let i' : BitVec n := i ||| BitVec.shiftLeft 1 j
-      -- when `j` bit is already high, `i = i'`, so filter that out
-      if i < i' then
-        newCtx s!"two diffs c{i.toNat} c{i'.toNat}" do
-        withTemps (Fin n × Fin s) (do
-          for j' in List.finRange n do
-            if j' ≠ j then
-              for k in List.finRange s do
-                let temp := Literal.neg (Sum.inr (j',k))
-                addClause #[temp, Literal.pos <| Sum.inl (Vars.x i j' k), Literal.pos <| Sum.inl (Vars.x i' j' k)]
-                addClause #[temp, Literal.neg <| Sum.inl (Vars.x i j' k), Literal.neg <| Sum.inl (Vars.x i' j' k)]
-          addClause (Array.mk (do
-            let j' ← List.finRange n
-            guard (j' ≠ j)
-            let k ← List.finRange s
-            return Literal.pos (Sum.inr (j',k))
-          ))
-        )
-
--- true if `i` and `i'` on coord `j` are equal `mod s`
-def hasSGapAt (i i' : BitVec n) (j : Fin n) : PropForm (Vars n s) :=
-  all (do
-    let k ← List.finRange s
-    return [propform| {Vars.x i j k} ↔ {Vars.x i' j k}]
+      let i' : BitVec n := i ^^^ BitVec.shiftLeft 1 j
+      -- this is symmetric so only output the i < i' case
+      VEncCNF.guard (i < i') fun h =>
+        twoDiffsAt i i' j
+  ).mapProp (by
+    ext τ; simp
+    constructor
+    · intro h i i'; revert h
+      wlog h_lt : i ≤ i'
+      · specialize this τ i' i (BitVec.le_total _ _ |>.resolve_left h_lt)
+        simp_rw [BitVec.xor_comm (x := i) (y := i'), eq_comm (a := τ (x i _ _))]
+        exact this
+      intro h j i_i'
+      specialize h i j
+      have : i ^^^ 1#n <<< j.val = i' := by
+        rw [← i_i', ← BitVec.xor_assoc]; simp
+      have : i < i' := by
+        apply BitVec.lt_of_le_ne ‹_›; rintro rfl
+        have := congrArg (·[j]) i_i'; simp at this; subst n; exact j.elim0
+      simp [*] at h
+      exact h
+    · intro h i j
+      split <;> simp
+      next h_lt =>
+      apply h
+      simp [← BitVec.xor_assoc]
   )
+where
+  twoDiffsAt (i i' j) : VEncCNF (Vars n s) Unit
+    (fun τ => ∃ j' ≠ j, ∃ k, τ (x i j' k) ≠ τ (x i' j' k))
+  :=
+    (newCtx s!"two diffs c{i.toNat} c{i'.toNat}" <|
+    withTemps (Fin n × Fin s) <|
+    seq[
+      for_all (Array.finRange n) fun j' =>
+        VEncCNF.guard (j' ≠ j) fun _h =>
+          for_all (Array.finRange s) fun k =>
+            xNeAt i i' j' k
+    , addClause (Array.mk (do
+        let j' ← List.finRange n
+        guard (j' ≠ j)
+        let k ← List.finRange s
+        return Literal.pos (Sum.inr (j',k))
+      ))
+    ]).mapProp (by
+      ext τ
+      simp [Clause.satisfies_iff, _root_.guard, failure]
+      constructor
+      · rintro ⟨σ,rfl,h1,_,⟨j',j'_ne,k,rfl⟩,h_sat⟩
+        simp at h_sat
+        use j', j'_ne, k
+        specialize h1 j'; simp [j'_ne, h_sat] at h1
+        specialize h1 k; simp [h_sat] at h1
+        simp [h1]
+      · rintro ⟨j',j'_ne,k,h⟩
+        use (fun | .inl v => τ v | .inr (_j',_k) => j' = _j' ∧ k = _k)
+        refine ⟨?_,?_,?_⟩
+        · ext v; simp
+        · intro _j'; split <;> aesop
+        · use Literal.pos (.inr (j',k))
+          simp
+          use j', j'_ne, k
+      )
+  xNeAt (i i' j' k) : VEncCNF (Vars n s ⊕ _ × _) Unit
+        (fun τ => τ (.inr (j',k)) → τ (.inl <| x i j' k) ≠ τ (.inl <| x i' j' k)) :=
+    let temp := Literal.neg (Sum.inr (j',k))
+    seq[
+      addClause #[temp, Literal.pos <| Sum.inl (Vars.x i j' k), Literal.pos <| Sum.inl (Vars.x i' j' k)],
+      addClause #[temp, Literal.neg <| Sum.inl (Vars.x i j' k), Literal.neg <| Sum.inl (Vars.x i' j' k)]]
+    |>.mapProp (by
+      ext τ; simp [Clause.satisfies_iff, temp]
+      generalize τ _ = a; generalize τ _ = b; generalize τ _ = c
+      cases a <;> cases b <;> simp
+    )
 
--- ensures `i` and `i'` have a coord `j` on which they are equal `mod s`
-def hasSGap (i i' : BitVec n) : EncCNF (Vars n s) Unit := do
+
+-- ensures `i` and `i'` have a coord `j` on which the bits differ but colors equal
+def hasSGap (i i' : BitVec n) : VEncCNF (Vars n s) Unit
+      (fun τ => ∃ j, i[j] ≠ i'[j] ∧ ∀ k, τ (x i j k) = τ (x i' j k))
+  :=
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
-  let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
-  newCtx s!"s gap c{i.toNat} c{i'.toNat}" do
-  withTemps (Fin n) (do
-    for j in potentialJs do
-      newCtx s!"s gap c{i.toNat} c{i'.toNat} at {j}" do
-      for k in List.finRange s do
-        addClause #[Literal.neg (Sum.inr j), Literal.pos (Sum.inl (.x i j k)), Literal.neg (Sum.inl (.x i' j k))]
-        addClause #[Literal.neg (Sum.inr j), Literal.neg (Sum.inl (.x i j k)), Literal.pos (Sum.inl (.x i' j k))]
-    addClause (potentialJs |>.map (Literal.pos <| Sum.inr ·))
+  (let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
+  newCtx s!"s gap c{i.toNat} c{i'.toNat}" <|
+  withTemps (Fin n) <|
+    seq[
+      for_all potentialJs fun j =>
+        newCtx s!"s gap c{i.toNat} c{i'.toNat} at {j}" <|
+        for_all (Array.finRange s) fun k =>
+          seq[
+            addClause #[Literal.neg (Sum.inr j),
+              Literal.pos (Sum.inl (x i j k)), Literal.neg (Sum.inl (x i' j k))],
+            addClause #[Literal.neg (Sum.inr j),
+              Literal.neg (Sum.inl (x i j k)), Literal.pos (Sum.inl (x i' j k))]
+          ]
+    , addClause (potentialJs |>.map (Literal.pos <| Sum.inr ·)) ]
+  )
+  |>.mapProp (by
+    ext τ; simp [Clause.satisfies_iff]
+    constructor
+    · rintro ⟨σ, rfl, h_js, j, is_ne_at_j, j_true⟩
+      use j, is_ne_at_j
+      intro k
+      specialize h_js j is_ne_at_j k
+      aesop
+    · rintro ⟨j,is_ne_at_j,h⟩
+      use (fun | .inl v => τ v | .inr _j => _j = j)
+      constructor
+      · ext v; simp
+      · simp +contextual [← imp_iff_not_or, h, is_ne_at_j])
+
+def allSGap : VEncCNF (Vars n s) Unit (fun τ =>
+    ∀ i i', i ≠ i' → ∃ j, i[j] ≠ i'[j] ∧ ∀ k, τ (x i j k) = τ (x i' j k)) :=
+  (for_all (allBitVecs n) fun i =>
+    for_all (allBitVecs n) fun i' =>
+      guard (i < i') fun _h => hasSGap i i'
+  ).mapProp (by
+    ext τ; simp
+    constructor
+    · intro h i i' is_ne
+      wlog h_lt : i < i'
+      · replace is_ne := Ne.symm is_ne
+        replace h_lt := BitVec.lt_of_le_ne (BitVec.not_lt.mp h_lt) is_ne
+        specialize this τ h i' i is_ne h_lt
+        simp_rw [eq_comm (a := i[_]'_), eq_comm (a := τ (x i _ _))]
+        exact this
+      simpa [h_lt] using h i i'
+    · intro h i i'
+      split <;> simp
+      exact h i i' (BitVec.ne_of_lt ‹_›)
   )
 
-def allSGap : EncCNF (Vars n s) Unit := do
-  for i in allBitVecs n do
-    for i' in allBitVecs n do
-      if i < i' then
-        hasSGap i i'
-
-def baseEncoding (n s) : EncCNF (Vars n s) Unit := do
-  coordinates
-  twoDiffs
-  allSGap
+def baseEncoding (n s) : VEncCNF (Vars n s) Unit
+    (fun τ => ∃ c : KClique n s, τ = cliqueToAssn c) :=
+  seq[
+    coordinates,
+    twoDiffs,
+    allSGap
+  ]
+  |>.mapProp (by
+    ext τ
+    constructor
+    · rintro ⟨coords,twoDiffs,sGaps,-⟩
+      let verts : Finset (KVertex n s) :=
+        Finset.univ (α := BitVec n)
+        |>.map ⟨fun i => ⟨i,Vector.ofFn fun j => (coords i j).choose⟩
+          , by intro; simp⟩
+      refine ⟨
+        ⟨verts
+        ,?isClique,?card⟩
+        ,?eqτ⟩
+      case card => simp [verts]
+      case isClique =>
+        rintro ⟨i1,c1⟩ mem1 ⟨i2,c2⟩ mem2 ne
+        -- mem1 and mem2 essentially tell us how to interpret τ
+        replace mem1 : ∀ j k, τ (x i1 j k) = true ↔ k = c1[j.val] := by
+          intro j k
+          have := mem1; simp [verts] at this
+          have := congrArg (·[j]) this; simp at this
+          have := this ▸ Exists.choose_spec (coords i1 j)
+          exact ⟨this.2 k, fun h => h ▸ this.1⟩
+        replace mem2 : ∀ j k, τ (x i2 j k) = true ↔ k = c2[j.val] := by
+          intro j k
+          have := mem2; simp [verts] at this
+          have := congrArg (·[j]) this; simp at this
+          have := this ▸ Exists.choose_spec (coords i2 j)
+          exact ⟨this.2 k, fun h => h ▸ this.1⟩
+        -- now we can show the indices are diff
+        replace ne : i1 ≠ i2 := by
+          rintro rfl; apply ne; simp; ext1 j hj
+          rw [← mem2 ⟨j,hj⟩, mem1]
+        -- get the sgap
+        specialize sGaps i1 i2 ne
+        rcases sGaps with ⟨j1,is_ne_j1,cs_eq_j1⟩
+        use j1, is_ne_j1
+        constructor
+        · -- this is a cool case to step through
+          simp; rw [← mem2 j1, ← cs_eq_j1, mem1]
+        if just_one_diff : i1 ^^^ i2 = 1#n <<< j1.val then
+          specialize twoDiffs i1 i2 j1 just_one_diff
+          rcases twoDiffs with ⟨j2,js_ne,k,x_ne⟩
+          use j2, js_ne.symm
+          rw [Ne, Bool.eq_iff_iff, mem1, mem2] at x_ne
+          right; intro; simp_all
+        else
+          rw [BitVec.eq_of_getElem_eq_iff] at just_one_diff
+          simp at just_one_diff
+          rcases just_one_diff with ⟨j2,hj2,h⟩
+          use ⟨j2,hj2⟩
+          rw [Bool.eq_iff_iff, not_iff] at h
+          simp at h
+          have : j1 ≠ ⟨j2,hj2⟩ := by
+            rintro rfl; simp [h] at is_ne_j1; omega
+          simp [this]; left
+          cases j1; simp_all; omega
+      case eqτ =>
+        ext ⟨i,j,k⟩
+        rw [Bool.eq_iff_iff]
+        simp only [cliqueToAssn]
+        generalize hcs : KClique.get _ _ = cs
+        rw [KClique.get_eq_iff_mem] at hcs
+        simp [verts] at hcs; subst hcs
+        simp
+        have := Exists.choose_spec (coords i j)
+        simp at this
+        generalize Exists.choose _ = boop at this ⊢
+        clear * - this
+        aesop
+    · rintro ⟨clique,rfl⟩
+      simp [cliqueToAssn]
+      constructor
+      · intro i i' j h
+        have := clique.get_adj_one_diff (i₁ := i) (i₂ := i') j
+          (by simpa [Nat.zero_lt_of_lt j.isLt] using congrArg (·[j]) h)
+          (by intro j' hj'; simp at hj'
+              have := congrArg (·[j']) h
+              rw [Bool.eq_iff_iff] at this; simp [hj'] at this; omega)
+        rcases this with ⟨-,j',js_ne,cs_ne⟩
+        use j', js_ne, (clique.get i')[j']
+        simpa using cs_ne
+      · intro i i' is_ne
+        have ⟨j1,bv_ne_j1,cs_eq_j1,_⟩ := clique.get_adj is_ne
+        use j1, bv_ne_j1, cs_eq_j1
+  )
 
 end Base
 

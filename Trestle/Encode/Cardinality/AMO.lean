@@ -30,7 +30,6 @@ open VEncCNF Model PropFun
   The only way to satisfy the encoding is to never have any pair of literals
   both set to false in the assignment. Thus, at most one literal is true.
 -/
-@[inline]
 def amoPairwise (lits : Array (Literal ν)) :
     VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) := (
   -- for every pair (i, j) of literals in `lits`, they can't both be true

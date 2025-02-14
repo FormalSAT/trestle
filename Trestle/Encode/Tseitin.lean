@@ -77,6 +77,7 @@ def ofPropForm (neg : Bool) : PropForm ν → NegNormForm ν
   else
     .any #[ofPropForm true a, ofPropForm false b]
 | .biImpl a b =>
+  -- TODO(JG): maybe both cases should have `all` node on top?
   if neg then
     .any #[
       .all #[ofPropForm false a, ofPropForm true b]

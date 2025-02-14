@@ -35,6 +35,8 @@ theorem satisfies_cardPred (lits : Multiset (Literal ν)) (P) [DecidablePred P] 
 abbrev atMost (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· ≤ k)
 abbrev atLeast (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· ≥ k)
 
+abbrev exactly (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· = k)
+
 theorem ofList_eq_map_get (L : List α)
   : Multiset.ofList L = (Finset.univ.val.map fun i => L.get i) := by
   conv => lhs; rw [← List.finRange_map_get (l := L)]
@@ -76,5 +78,28 @@ theorem card_map
   ext l
   simp only [Function.comp_apply, LitVar.toPropFun_map,
     satisfies_map, decide_eq_decide]
+
+theorem card_eq_one (ls : Multiset (Literal ν)) (nodup : ls.Nodup)
+  : card ls τ = 1 ↔ ∃! l ∈ ls, τ ⊨ LitVar.toPropFun l := by
+  open Classical in
+  simp [card]
+  rw [Multiset.countP_eq_card_filter, Multiset.card_eq_one]
+  constructor
+  · rintro ⟨a,h⟩
+    use a
+    have := fun x => congrArg (x ∈ ·) h
+    simp at this
+    simp [this]
+  · rintro ⟨a, ⟨mem, a_true⟩, unique⟩
+    use a
+    rw [Multiset.ext]; intro b
+    specialize unique b
+    rw [Multiset.count_filter]
+    if h : a = b then
+      subst b; simp [a_true]; exact Multiset.count_eq_one_of_mem nodup mem
+    else
+      simp [Multiset.count_singleton, Ne.symm h]
+      intro b_true b_mem
+      apply h; rw [eq_comm]; apply unique; simp [b_mem, b_true]
 
 end Trestle.Encode.Cardinality
