@@ -8,6 +8,7 @@ Authors: James Gallicchio
 import Experiments.Keller.Autos
 
 import Mathlib.Data.Finset.Sort
+import Mathlib.Tactic.LiftLets
 
 namespace Keller.SymmBreak
 
@@ -145,10 +146,28 @@ def Matrix.Perm.all : List Matrix.Perm := [
   Equiv.Perm.setAll [(0,2),(1,1),(2,0)],
 ]
 
+@[simp] theorem Matrix.Perm.mem_all (p : Matrix.Perm) : p ∈ all := by
+  simp [all, p.ext_iff, Fin.forall_fin_succ, Equiv.Perm.setAll, Equiv.setAll, Equiv.setValue, Equiv.swap, Equiv.swapCore]
+  have p01 : (show Equiv.Perm _ from p) 0 ≠ (show Equiv.Perm _ from p) 1 := by simp
+  have p02 : (show Equiv.Perm _ from p) 0 ≠ (show Equiv.Perm _ from p) 2 := by simp
+  have p12 : (show Equiv.Perm _ from p) 1 ≠ (show Equiv.Perm _ from p) 2 := by simp
+  generalize (show Equiv.Perm _ from p) 0 = p0 at *
+  generalize (show Equiv.Perm _ from p) 1 = p1 at *
+  generalize (show Equiv.Perm _ from p) 2 = p2 at *
+  rcases p0 with ⟨(_|_|_),_⟩ <;>
+    rcases p1 with ⟨(_|_|_),_⟩ <;>
+      rcases p2 with ⟨(_|_|_),_⟩ <;> simp_all [Fin.ext_iff] <;> omega
+
 def Matrix.Perm.apply (m : Matrix s) (a: Matrix.Perm) : Matrix s := {
   data := Vector.ofFn fun r => Vector.ofFn fun c => m.get (a.toFun r) (a.toFun c)
   transpose_one := by intros; simp; apply m.transpose_one
 }
+
+def Matrix.Perm.id : Matrix.Perm := Equiv.refl _
+
+@[simp] theorem Matrix.Perm.apply_id (m : Matrix s) :
+    Matrix.Perm.apply m id = m := by
+  ext; simp [apply, id]
 
 
 
@@ -166,6 +185,15 @@ def Matrix.Renumber.apply (m : Matrix s) (a : Matrix.Renumber s h) : Matrix s :=
       replace h1 := Fin.eq_of_val_eq (j := ⟨1,h⟩) h1
       simp [h1, a.renumber_1])
 }
+
+def Matrix.Renumber.id (s) (h : s > 1 := by trivial) : Matrix.Renumber s h where
+  renumber := fun _ => Equiv.refl _
+  renumber_0 := by simp
+  renumber_1 := by simp
+
+@[simp] theorem Matrix.Renumber.apply_id (m : Matrix s) (h : s > 1 := by trivial) :
+    Matrix.Renumber.apply m (id s h) = m := by
+  ext; simp [apply, id]
 
 private def renumber_fins (m : List (Fin s)) : Equiv.Perm (Fin s) :=
   match m.head? with
@@ -200,22 +228,42 @@ def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 3 := by trivial) : Optio
   guard (m' < m)
   return m'
 
+theorem Matrix.findSmallerRenumber?_eq_some (m m' : Matrix 4) :
+    m.findSmallerRenumber? = some m' →
+      ∃ (r : Renumber _), r.apply m = m' ∧ m' < m := by
+  unfold findSmallerRenumber?
+  suffices ∀ popt : Option _, bind popt _ = some m' → _ from this _
+  rintro (_|r)
+  · simp
+  · simp [Option.bind_eq_some]; simp +contextual [eq_comm]
+
 def Matrix.findSmaller? (m : Matrix 4) : Option (Matrix 4) :=
   let perms := Matrix.Perm.all.map (fun p => p.apply m)
   match perms.find? (· < m) with
   | some p => some p
-  | none => Id.run do
-    for p in perms do
-      match p.findSmallerRenumber? with
-      | none => continue
-      | some m' =>
-        if m' < m then return some m'
-    return none
+  | none =>
+    perms.findSome? fun p =>
+      p.findSmallerRenumber?.filter (· < m)
 
 theorem Matrix.findSmaller?_eq_some (m m' : Matrix 4) :
     m.findSmaller? = some m' →
-      ∃ (p : Perm) (r : Renumber _), r.apply (p.apply m) = m' := by
-  sorry
+      ∃ (p : Perm) (r : Renumber _), r.apply (p.apply m) = m' ∧ m' < m := by
+  intro eq_some
+  simp [Id.run, findSmaller?] at eq_some
+  split at eq_some
+  next _x m1 ms_related =>
+    cases eq_some; simp at ms_related
+    rcases ms_related with ⟨p,smaller,rfl⟩
+    use p, Renumber.id 4
+    simp [List.find?_eq_some_iff_append] at smaller
+    simp [smaller]
+  next x ms_related =>
+  clear x
+  clear ms_related --simp at ms_related
+  simp [List.findSome?_eq_some_iff, List.map_eq_append_iff, List.map_eq_cons_iff] at eq_some
+  rcases eq_some with ⟨-,m_mid,⟨-,-,-,-,-,p,-,-,h_mid,-⟩,⟨h,hlt⟩,-⟩
+  replace h := findSmallerRenumber?_eq_some _ _ h
+  use p; subst m_mid; aesop
 
 def Matrix.canonicalCases :=
   Array.filterMap aux #[
