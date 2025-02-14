@@ -149,11 +149,6 @@ theorem get_adj {i₁ i₂ : BitVec n} (k : KClique n s) (h : i₁ ≠ i₂)
   case in_xor       => simpa [bv_toNat] using bs_ne_at_j1
   case colors_diff  => simpa [bv_toNat] using h2
 
---theorem get_adj_j₁ {i₁ i₂ : BitVec n} (k : KClique n s) (h : i₁ ≠ i₂)
---    : ∃ j₁ : Fin n, i₁[j₁] ≠ i₂[j₁] ∧ (k.get i₁)[j₁] = (k.get i₂)[j₁] :=
---  have ⟨j₁, h1, h2, _⟩ := get_adj k h
---  ⟨j₁, h1, h2⟩
-
 theorem get_adj_one_diff {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
     : i₁[j₁] ≠ i₂[j₁] → (∀ j, i₁[j] ≠ i₂[j] → j = j₁) →
       (k.get i₁)[j₁] = (k.get i₂)[j₁] ∧ ∃ j₂ ≠ j₁, (k.get i₁)[j₂] ≠ (k.get i₂)[j₂] := by
@@ -173,6 +168,25 @@ theorem get_adj_one_diff {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
     -- there's still only one coord where i₁ and i₂ differ
     exfalso; specialize i1_i2 j2 h; contradiction
   case inr h => use cs_eq_at_j1, j2, js_ne, h
+
+theorem get_adj_of_eq_xor {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
+    : i₂ = i₁ ^^^ BitVec.oneAt j₁ →
+      (k.get i₁)[j₁] = (k.get i₂)[j₁] ∧ ∃ j₂ ≠ j₁, (k.get i₁)[j₂] ≠ (k.get i₂)[j₂] := by
+  rintro rfl
+  apply get_adj_one_diff
+  · simp
+  · intro j hj; by_contra contra; simp [← Fin.ext_iff, Ne.symm contra] at hj
+
+theorem get_adj_of_xor_eq {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
+    : i₁ ^^^ i₂ = BitVec.oneAt j₁ →
+      (k.get i₁)[j₁] = (k.get i₂)[j₁] ∧ ∃ j₂ ≠ j₁, (k.get i₁)[j₂] ≠ (k.get i₂)[j₂] := by
+  intro xor_eq
+  apply get_adj_one_diff
+  · simpa using congrArg (·[j₁]) xor_eq
+  · intro j
+    have := congrArg (·[j]) xor_eq
+    simp [Bool.eq_iff_iff (b := decide _)] at this
+    simp [this, Fin.ext_iff, eq_comm]
 
 end KClique
 
