@@ -45,6 +45,41 @@ instance {P : Fin n → Prop} [DecidablePred P] : Decidable (∃ i : Fin n, P i)
   rw [Fin.any_iff_exists] at this
   simpa using this
 
+theorem Multiset.countP_singleton (p) [DecidablePred p] (x : α) :
+      Multiset.countP p {x} = if p x then 1 else 0 := by
+  rw [← cons_zero, countP_cons]
+  simp
+
+theorem Multiset.countP_eq_succ [DecidableEq α] (p) [DecidablePred p] (xs : Multiset α) :
+      xs.countP p = n+1 ↔ ∃ x ∈ xs, p x ∧ (xs.erase x).countP p = n := by
+  induction xs using Multiset.induction generalizing n
+  · simp
+  next hd tl ih =>
+  if p_hd : p hd then
+    match n with
+    | 0 =>
+      simp [p_hd]
+      intro a ha pa
+      rw [erase_cons_tail_of_mem ha]
+      simp [p_hd]
+    | n+1 =>
+      simp [p_hd]
+      intro a ha pa h
+      rw [ih]
+      use a, ha, pa
+      rw [erase_cons_tail_of_mem ha] at h
+      simpa [p_hd] using h
+  else
+    simp [p_hd]
+    rw [ih]
+    apply exists_congr; intro a
+    apply and_congr_right; intro ha
+    simp [countP_eq_zero, erase_cons_tail_of_mem ha, p_hd]
+
+
+@[simp] theorem Array.mem_finRange (x : Fin n) : x ∈ Array.finRange n := by
+  simp [Array.finRange, mem_def, List.mem_ofFn]
+
 @[simp] theorem Vector.getElem_mk (A : Array α) (h : A.size = n) (i : Nat) (h2) :
     (Vector.mk A h)[i]'h2 = A[i] := rfl
 

@@ -210,6 +210,7 @@ def seq (e1 : VEncCNF ν Unit P) (e2 : VEncCNF ν β Q) : VEncCNF ν β (fun τ 
 
 scoped syntax "seq[ " term,+ " ]" : term
 
+-- TODO(JG): this inserts unnecessary ⊤ propfuns
 macro_rules
 | `(seq[$as:term,*]) => do
   as.getElems.foldrM (β := Lean.TSyntax `term)
