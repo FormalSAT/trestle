@@ -192,6 +192,14 @@ theorem BitVec.getElem_ofNat (n i : Nat) (hj : j < n)
     : (BitVec.ofNat n i)[j] = i.testBit j := by
   simp [bv_toNat, hj]
 
+def BitVec.oneAt (i : Fin n) : BitVec n :=
+  1#n <<< i.val
+
+@[simp] theorem BitVec.getElem_oneAt (i : Fin n) (j) (hj : j < n) : (oneAt i)[j] = decide (i = j) := by
+  rw [Bool.eq_iff_iff]
+  simp [oneAt, Nat.zero_lt_of_lt hj, Nat.sub_eq_zero_iff_le]
+  exact antisymm_iff
+
 theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (hi : i < 2^minWidth)
   : BitVec.ofNat n i = ⟨i, Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)⟩ := by
   simp only [bv_toNat]
@@ -219,11 +227,21 @@ theorem Nat.shiftLeft_mod_pow_2 (x y n : Nat) : x <<< y % 2^n = ((x % 2^(n-y)) <
   replace h := congrArg (·.testBit i) h
   simpa using h
 
+@[simp] theorem BitVec.xor_left_inj (x y z : BitVec n) : x ^^^ y = z ^^^ y ↔ x = z := by
+  refine ⟨fun h => ?_, by rintro rfl; rfl⟩
+  simp [bv_toNat] at h ⊢
+  apply Nat.eq_of_testBit_eq; intro i
+  replace h := congrArg (·.testBit i) h
+  simpa using h
+
 @[simp] theorem BitVec.xor_eq_self_left (x y : BitVec n) : x ^^^ y = x ↔ y = 0#n := by
   rw (occs := .pos [2]) [← BitVec.xor_zero (x := x)]; simp only [BitVec.xor_right_inj]
 
 @[simp] theorem Bool.xor_eq_self_left (x y : Bool) : ((x ^^ y) = x) ↔ (y = false) := by
   rw (occs := .pos [2]) [← Bool.xor_false (x := x)]; simp only [Bool.xor_right_inj]
+
+theorem BitVec.xor_eq_symm (x y z : BitVec n) : x ^^^ y = z ↔ x = z ^^^ y := by
+  rw [← BitVec.xor_left_inj, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
 
 @[simp] theorem Nat.shiftLeft_pos (x y : Nat) : 0 < x <<< y ↔ 0 < x := by
   simp [Nat.shiftLeft_eq, Nat.mul_pos_iff_of_pos_right, Nat.pow_pos]
