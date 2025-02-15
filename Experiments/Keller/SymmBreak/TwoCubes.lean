@@ -261,6 +261,10 @@ theorem swap_later_stays_later (a b : Fin n) (h : a ≤ b) :
 section c3
 variable (tc : TwoCubes n s)
 
+theorem three_lt : 3 < 2^(n+2) :=
+  Nat.lt_of_lt_of_le (m := 2^2) (by simp)
+    (Nat.pow_le_pow_right (by decide) (by simp))
+
 theorem c3_1 : (tc.kclique.get 3#(n+2))[1] = 1 := by
   have := tc.kclique.get_adj_one_diff (i₁ := 1) (i₂ := 3) (j₁ := 1)
       (by simp [bv_toNat]; decide)
@@ -576,9 +580,12 @@ theorem c11_0 : (tc.kclique.get 11)[0] = 0 := by
   | 2 | n+4 =>
     simp [Nat.testBit_succ] at bit_diff
 
+variable (c3_2 : (tc.kclique.get 3)[2] ≠ 0) include c3_2
+
 seal BitVec.ofNat in
-theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
-    ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
+theorem c7_or_11_diff_c3 :
+    ∃ i : BitVec (n+3+2), (i = 7 ∨ i = 11) ∧ (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) ∧
+    ∃ j : Fin _, j.val ≥ 4 ∧ (tc.kclique.get i)[j] ≠ (tc.kclique.get 3)[j] := by
   -- c7_2 and c11_3 are equiv to c3_2 and c3_3
   have c7_2 := c7_2 tc
   have c11_3 := c11_3 tc
@@ -600,18 +607,17 @@ theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
     · right; rw [← c7_2]; exact cs_eq_at_j1.symm
     · left; rw [← c11_3]; exact cs_eq_at_j1
   -- so either c7 or c11 are equal to c3 on j < 4
-  replace this :
-    (∀ (j : Nat) (h : j < 4), (tc.kclique.get 7)[j] = (tc.kclique.get 3#(_))[j])
-    ∨ (∀ (j : Nat) (h : j < 4), (tc.kclique.get 11)[j] = (tc.kclique.get 3#(_))[j]) := by
+  replace this : ∃ i : BitVec _, (i = 7 ∨ i = 11) ∧
+      (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) := by
     rcases this with (woop|woop)
-    · left; intro j h
+    · refine ⟨_, .inl rfl, fun j h => ?_⟩
       rcases h with (_|_|_|_|h)
       · exact woop
       · exact c7_2
       · rw [c7_1 tc c3_2, c3_1 tc]
       · rw [c7_0 tc c3_2, c3_0 tc]
       · nomatch h
-    · right; intro j h
+    · refine ⟨_, .inr rfl, fun j h => ?_⟩
       rcases h with (_|_|_|_|h)
       · exact c11_3
       · exact woop
@@ -619,10 +625,123 @@ theorem c3_4 (c3_2 : (tc.kclique.get 3)[2] ≠ 0) :
       · rw [c11_0 tc c3_3, c3_0 tc]
       · nomatch h
 
-  -- whichever is equivalent, has a difference with c3 at j ≥ 4 bc adjacent
+  rcases this with ⟨i,i_cases, i_eq_c3_lt_4⟩
 
-  -- if c3_j ≠ 0 then we are done already
+  have ⟨j1,i_diff_j1⟩ : ∃ j1, i ^^^ 3#(_) = .oneAt j1 := by
+      rcases i_cases with (rfl|rfl)
+      · use 2; simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, three_lt]
+      · use 3; simp [bv_toNat, Nat.mod_eq_of_lt, eleven_lt, three_lt]
+
+  -- whichever is equivalent, has a difference with c3 at j ≥ 4 bc adjacent
+  have ⟨j,j_ge_4,diff_j⟩ : ∃ j : Fin (n+3+2), j.val ≥ 4 ∧
+      (tc.kclique.get i)[j] ≠ (tc.kclique.get 3#(_))[j] := by
+    have := tc.kclique.get_adj_of_xor_eq (i₁ := i) (i₂ := 3) j1 i_diff_j1
+    rcases this with ⟨cs_eq_j1,j2,js_ne,ne_j2⟩
+    use j2
+    constructor
+    · by_contra h; specialize i_eq_c3_lt_4 j2 (by omega); contradiction
+    · exact ne_j2
+  clear i_diff_j1 j1
+
+  use i, i_cases, i_eq_c3_lt_4, j, j_ge_4, diff_j
+
+theorem c7_or_11_diff_at_4 :
+  ∃ tc' : TwoCubes (n+3) s,
+    (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧
+    ∃ i : BitVec _, (i = 7 ∨ i = 11) ∧
+    (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) ∧
+    (tc.kclique.get i)[4] ≠ (tc.kclique.get 3)[4] := by
+  have ⟨i, i_cases, i_eq_c3, j, j_ge, spec⟩ := c7_or_11_diff_c3 tc c3_3 c3_2
+  refine ⟨{
+    kclique := tc.kclique.map (KAuto.reorder <| Equiv.swap 4 j)
+    c0 := ?c0
+    c1 := ?c1
+  }, ?c3_2, ?c3_3, ?rest⟩
+  case c0 =>
+    simp [KClique.get_map_reorder]
+    suffices BitVec.ofFn _ = 0#(n+5) by
+      rw (occs := .pos [1]) [this]
+      ext; simp
+    apply BitVec.eq_of_getElem_eq; simp
+  case c1 =>
+    rw [KClique.get_map_reorder]
+    suffices BitVec.ofFn _ = 1#(n+5) by
+      rw [this]
+      ext i hi; simp; congr 2
+      simp [Fin.val_eq_iff_lt_and_eq]
+      rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+      simp [Fin.ext_iff]
+    apply BitVec.eq_of_getElem_eq; intro j hj
+    simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq]
+    rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+    simp [Fin.ext_iff]
+  case c3_2 =>
+    rw [KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
+    convert c3_2
+    · apply BitVec.eq_of_getElem_eq; intro j' hj'
+      simp
+      if j'_lt : j' < 4 then
+        congr 1
+        rw [Fin.val_eq_iff_lt_and_eq]; use (by omega)
+        rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def, j'_lt])]
+      else
+        simp [bv_toNat, *]
+        generalize hswapped : (Equiv.swap 4 j) ⟨j',hj'⟩ = swapped_j'
+        have := swap_later_stays_later 4 j j_ge ⟨j',hj'⟩ (by simpa using j'_lt)
+        rw [hswapped] at this; clear hswapped
+        rcases swapped_j' with ⟨swapped_j',_⟩
+        simp [Fin.le_def] at this j'_lt
+        trans false
+        · rcases this with (_|_|_) <;> simp [Nat.testBit_succ]
+        · rcases j'_lt with (_|_|_) <;> simp [Nat.testBit_succ]
+    · rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
+      rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+  case c3_3 =>
+    rw [KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
+    convert c3_3
+    · apply BitVec.eq_of_getElem_eq; intro j' hj'
+      simp
+      if j'_lt : j' < 4 then
+        congr 1
+        rw [Fin.val_eq_iff_lt_and_eq]; use (by omega)
+        rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def, j'_lt])]
+      else
+        simp [bv_toNat, *]
+        generalize hswapped : (Equiv.swap 4 j) ⟨j',hj'⟩ = swapped_j'
+        have := swap_later_stays_later 4 j j_ge ⟨j',hj'⟩ (by simpa using j'_lt)
+        rw [hswapped] at this; clear hswapped
+        rcases swapped_j' with ⟨swapped_j',_⟩
+        simp [Fin.le_def] at this j'_lt
+        trans false
+        · rcases this with (_|_|_) <;> simp [Nat.testBit_succ]
+        · rcases j'_lt with (_|_|_) <;> simp [Nat.testBit_succ]
+    · rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
+      rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+  case rest =>
+  -- the new c3[4] should be the old c3[j]
+  convert spec; clear spec
+  simp
+  stop
+  rw (occs := .pos [1]) [KClique.get_map_reorder]
+  simp
+  congr 2
+  apply BitVec.eq_of_getElem_eq; intro j hj
+  simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq]
+  rw [Bool.eq_iff_iff]; simp
+  iterate 2 ( rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])] )
+  simp [Fin.ext_iff]
+
+/-- We can further apply automorphisms to get a clique with c3[4] ≠ 0 -/
+theorem c3_4 : ∃ tc' : TwoCubes (n+3) s,
+      (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
+  have ⟨i, i_cases, i_eq_c3, spec⟩ := c7_or_11_diff_at_4 tc c3_3 c3_2
+
+  -- if c3_4 ≠ 0 then we are done already
+  if c3_4 : (tc.kclique.get 3)[4] ≠ 0 then use tc else
+  simp at c3_4
+
   -- otherwise we swap c7/c11 to c3
+
   -- have c7_0 = 0, c7_1 = 1, c7_2 = c3_2 again
   have c7_0 := c7_0 tc c3_2
   have c7_1 := c7_1 tc c3_2
