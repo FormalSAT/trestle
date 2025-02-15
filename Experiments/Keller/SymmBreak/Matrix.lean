@@ -251,15 +251,12 @@ theorem Matrix.findSmaller?_eq_some (m m' : Matrix 4) :
   intro eq_some
   simp [Id.run, findSmaller?] at eq_some
   split at eq_some
-  next _x m1 ms_related =>
+  next m1 ms_related =>
     cases eq_some; simp at ms_related
     rcases ms_related with ⟨p,smaller,rfl⟩
     use p, Renumber.id 4
     simp [List.find?_eq_some_iff_append] at smaller
     simp [smaller]
-  next x ms_related =>
-  clear x
-  clear ms_related --simp at ms_related
   simp [List.findSome?_eq_some_iff, List.map_eq_append_iff, List.map_eq_cons_iff] at eq_some
   rcases eq_some with ⟨-,m_mid,⟨-,-,-,-,-,p,-,-,h_mid,-⟩,⟨h,hlt⟩,-⟩
   replace h := findSmallerRenumber?_eq_some _ _ h

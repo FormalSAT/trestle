@@ -134,6 +134,13 @@ theorem clique_of_satisfies_baseSpec {τ : Model.PropAssignment (Vars n s)} :
     clear * - this
     aesop
 
+def threeCubesSpec : Model.PropPred (Vars n s) :=
+  fun τ => ∀ c : KClique n s, τ = cliqueToAssn c →
+    c.get 0 = TwoCubes.c0
+
+def matrixSpec : Model.PropPred (Vars n s) :=
+  fun τ => ∀ c : KClique n s, τ = cliqueToAssn c →
+
 end Spec
 
 

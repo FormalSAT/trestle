@@ -200,6 +200,12 @@ def BitVec.oneAt (i : Fin n) : BitVec n :=
   simp [oneAt, Nat.zero_lt_of_lt hj, Nat.sub_eq_zero_iff_le]
   exact antisymm_iff
 
+@[simp] theorem BitVec.toNat_oneAt (i : Fin n) : (oneAt i).toNat = 2^i.val := by
+  simp [oneAt, Nat.shiftLeft_eq]
+  rw [Nat.mod_eq_iff_lt]
+  · apply Nat.pow_lt_pow_right (by decide) i.isLt
+  · apply Nat.ne_of_lt'; apply Nat.pow_pos; decide
+
 theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (hi : i < 2^minWidth)
   : BitVec.ofNat n i = ⟨i, Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)⟩ := by
   simp only [bv_toNat]
