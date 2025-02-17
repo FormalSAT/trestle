@@ -59,11 +59,15 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
   -- K_0 must not be a clique, because the conjecture holds in that dimension
   have K_0_not_clique : ¬ _ := (h (s+1)).false ∘ Subtype.mk K_0
   -- find the vertices in K_0 which are the not adjacent
-  simp [KClique, SimpleGraph.isNClique_iff, K_0_card,
-      SimpleGraph.isClique_iff, Set.Pairwise] at K_0_not_clique
-  clear K_0_card h
-  rcases K_0_not_clique with ⟨⟨i₁,c₁⟩, hv₁, ⟨i₂,c₂⟩, hv₂, hne, hnotadj⟩
-  simp [K_0] at hv₁ hv₂; clear K_0
+  have ⟨⟨i₁,c₁⟩, hv₁, ⟨i₂,c₂⟩, hv₂, hne, hnotadj⟩ :
+    ∃ x ∈ K_0, ∃ x_1 ∈ K_0, ¬x = x_1 ∧ ¬KAdj x x_1 := by
+    simpa [KClique, SimpleGraph.isNClique_iff, K_0_card,
+      SimpleGraph.isClique_iff, Set.Pairwise] using K_0_not_clique
+  -- simplify hv₁ hv₂ based on the def of K_0
+  simp only [K_0, Finset.mem_map, Finset.mem_univ, Function.Embedding.coeFn_mk,
+      KVertex.mk.injEq, true_and, exists_eq_left] at hv₁ hv₂
+  clear K_0_card K_0_not_clique h K_0
+
   -- the indices in smaller graph must be diff
   have i_diff : i₁ ≠ i₂ := by
     intro contra; subst hv₁ hv₂; simp [contra] at hne
@@ -78,27 +82,33 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
     apply kclique.isClique
     iterate 2 (apply KClique.get_mem)
     simp [i_diff]
-  simp [KAdj] at this hnotadj
   -- by def of adjacency, we get a j₁, j₂ in big graph
-  rcases this with ⟨⟨j₁,hj₁⟩,is_diff_at_j1,ks_same,⟨j₂,hj₂⟩,js_diff,h⟩
-  simp_all
-  -- the i's are different at index j₁
+  rcases this with ⟨⟨j₁,hj₁⟩,is_diff_at_j1,ks_same,⟨j₂,hj₂⟩,js_diff,diff_at_j2⟩
+  simp only [ne_eq, Fin.getElem_fin, Fin.mk.injEq] at *
+  -- j₁ can't be the last dimension because the big graph bitvecs are the same there!
   have : j₁ ≠ n+1 := by intro contra; simp [BitVec.getElem_cons, contra] at is_diff_at_j1
   replace hj₁ : j₁ < n+1 := by omega
-  simp [BitVec.getElem_cons, this] at is_diff_at_j1
+  -- now we know the small graph i's are different at index j₁
+  replace is_diff_at_j1 : i₁[j₁] ≠ i₂[j₁] := by
+    simpa [BitVec.getElem_cons, this] using is_diff_at_j1
   clear this
+  -- but since small graph i's are not adjacent, they must be equal everywhere other than j₁
+  simp only [KAdj, Fin.getElem_fin, ne_eq, Vector.getElem_cast, Vector.getElem_take, not_exists,
+    not_and, not_or, Decidable.not_not] at hnotadj
   specialize hnotadj ⟨j₁, hj₁⟩ is_diff_at_j1 ks_same
-  -- j₂ must be n+1, because vertices in small graph are not adjacent
+  -- Therefore, to satisfy `diff_at_j2`, `j₂` must be `n+1`
   by_cases this : j₂ = n+1
   case neg =>
     exfalso
     replace hj₂ : j₂ < n+1 := by omega
     specialize hnotadj ⟨j₂,hj₂⟩
     simp [js_diff] at hnotadj
-    simp [BitVec.getElem_cons, Nat.ne_of_lt hj₂, hnotadj.2] at h
-    apply h hnotadj.1
+    simp [BitVec.getElem_cons, Nat.ne_of_lt hj₂, hnotadj.2] at diff_at_j2
+    apply diff_at_j2 hnotadj.1
   subst this
-  simp [BitVec.getElem_cons] at h
+  -- and we can sensibly conclude the big graph colors differ at `n+1`
+  replace diff_at_j2 : ¬k₁[n + 1] = k₂[n + 1] := by
+    simpa [BitVec.getElem_cons] using diff_at_j2
 
   -- Ok! We have all the info we need to fill the goal!
   use ⟨i₁.cons false, k₁⟩, (hk₁ ▸ kclique.get_mem ..),
@@ -107,7 +117,8 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
   simp [js_diff]
   rintro j -
   by_cases eq_j1 : j = j₁
-  · simp_all [BitVec.getElem_cons]
+  · -- TODO BitVec.getElem_cons is a bad rewrite rule...
+    simp_all [BitVec.getElem_cons]; simpa [← BitVec.getLsbD_eq_getElem]
   · by_cases eq_last : j = n+1
     · simp_all [BitVec.getElem_cons]
     · specialize hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm eq_j1)
@@ -219,6 +230,8 @@ theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
     use b2, b2_mem
     apply auto_v₂; exact same_on
 
+/-! ### Useful TwoCubes theorems -/
+
 @[simp] theorem c0_j (tc : TwoCubes n s) {j : Nat} {hj : j < (n+2)}
     : (tc.kclique.get 0#(n+2))[j] = 0 := by
   simpa using congrArg (·[j]) tc.c0
@@ -226,6 +239,8 @@ theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
 @[simp] theorem c1_j (tc : TwoCubes n s) {j} {hj : j < (n+2)}
     : (tc.kclique.get 1#(n+2))[j] = if j = 1 then 1 else 0 := by
   simpa using congrArg (·[j]) tc.c1
+
+
 
 end TwoCubes
 
