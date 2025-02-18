@@ -74,6 +74,12 @@ theorem Matrix.toVec_inj (m1 m2 : Matrix s) : m1.toVec = m2.toVec → m1 = m2 :=
   intro h
   simpa [Matrix.ofVec?_toVec] using congrArg Matrix.ofVec? h
 
+/-! ### Matrix <, ≤
+
+We use these relations to justify an inductive argument that
+all matrices are related to canonical ones.
+-/
+
 def Matrix.lt (x y : Matrix s) : Bool :=
   Prod.Lex (· > ·) (· < ·) (aux x) (aux y)
 where aux (m : Matrix s) :=
@@ -88,6 +94,11 @@ instance : IsTrans (Matrix s) (· < ·) where
   trans := by
     intro a b c; simp [instLTMatrix, Matrix.lt]
     intro h1 h2; trans; exact h1; exact h2
+
+instance : IsIrrefl (Matrix s) (· < ·) where
+  irrefl := by
+    intro a
+    simp [instLTMatrix, Matrix.lt, Prod.lex_iff]
 
 def Matrix.le (x y : Matrix s) : Bool :=
   Prod.Lex (· > ·) (· ≤ ·) (Matrix.lt.aux x) (Matrix.lt.aux y)
@@ -118,7 +129,20 @@ instance : IsTotal (Matrix s) (· ≤ ·) where
       total_of (Prod.Lex (fun x1 x2 => x1 > x2) fun x1 x2 => x1 ≤ x2) (Matrix.lt.aux a)
         (Matrix.lt.aux b)
 
+def Matrix.castLE (m : Matrix s) {s'} (h : s ≤ s') : Matrix s' where
+  data := .ofFn fun r => .ofFn fun c => m.data[r][c].castLE h
+  transpose_one := by simp; exact m.transpose_one
 
+
+/-! ### Matrix Fintype
+
+`Matrix s` is a finite type. We use this to show that `Matrix.lt` is well-founded.
+
+It also allows us to iterate over all matrices,
+so universally quantified statements `∀ m : Matrix s, P m` are decidable.
+We use this in the proof of `Matrix.canonicalCases_are_canonical`,
+which is proven by `decide`.
+-/
 
 instance : Fintype (Matrix s) where
   elems :=
@@ -134,6 +158,14 @@ instance : Fintype (Matrix s) where
     simp only [Finset.mem_filterMap, Finset.mem_univ, Option.dite_none_right_eq_some, true_and]
     use m.data, m.transpose_one
 
+instance : WellFoundedLT (Matrix s) where
+  wf := Finite.wellFounded_of_trans_of_irrefl ..
+
+
+/-! ### Matrix.Perm
+
+This is one of the two operations which we use to canonicalize the matrices.
+-/
 
 def Matrix.Perm := Equiv.Perm (Fin 3)
 
@@ -170,6 +202,10 @@ def Matrix.Perm.id : Matrix.Perm := Equiv.refl _
   ext; simp [apply, id]
 
 
+/-! ### Matrix.Renumber
+
+This is the second of the two operations which we use to canonicalize the matrices.
+-/
 
 structure Matrix.Renumber (s) (h : s > 1 := by trivial) where
   renumber : Fin 3 → (Fin s ≃ Fin s)
@@ -195,6 +231,49 @@ def Matrix.Renumber.id (s) (h : s > 1 := by trivial) : Matrix.Renumber s h where
     Matrix.Renumber.apply m (id s h) = m := by
   ext; simp [apply, id]
 
+/-! ### renumberToFour
+
+At the moment, the matrices are over arbitrary `s`,
+but we can effectively shrink a matrix to just be over `s = 4`.
+-/
+opaque renumberToFour.perm (L : List (Fin s)) : Equiv.Perm (Fin s) :=
+  sorry
+
+theorem renumberToFour.perm_zero (L : List (Fin s)) (h : s > 0) : (perm L) ⟨0,h⟩ = ⟨0,h⟩ := by
+  sorry
+
+theorem renumberToFour.perm_one (L : List (Fin s)) (h : s > 1) : (perm L) ⟨1,h⟩ = ⟨1,h⟩ := by
+  sorry
+
+theorem renumberToFour.perm_lt_four (L : List (Fin s)) : ∀ x ∈ L, ((perm L) x).val < 4 := by
+  sorry
+
+def renumberToFour (m : Matrix s) (h : s > 1 := by trivial) : Matrix.Renumber s where
+  renumber := fun c => renumberToFour.perm (List.ofFn fun r => m.data[r][c])
+  renumber_0 := by simp [renumberToFour.perm_zero]
+  renumber_1 := by simp [renumberToFour.perm_one]
+
+theorem renumberToFour.exists_eq_castLE (m : Matrix s) (h : s ≥ 4) :
+    ∃ m' : Matrix 4, (renumberToFour m (by omega)).apply m = m'.castLE h := by
+  use {
+    data := .ofFn fun r => .ofFn fun c =>
+      ⟨ (perm [m.data[0][c], m.data[1][c], m.data[2][c]]) m.data[r][c]
+      , by apply perm_lt_four; match r with | ⟨0,_⟩ | ⟨1,_⟩ | ⟨2,_⟩ => simp⟩
+    transpose_one := by
+      have : 1 < s := by omega
+      intro r c; cases m.transpose_one r c <;> simp_all [Fin.val_eq_iff_lt_and_eq, perm_one]
+  }
+  simp [renumberToFour, Matrix.Renumber.apply, Matrix.castLE]
+
+
+/-! ### findSmaller?
+
+This section implements the computation for checking
+that all matrices are related to a canonical matrix.
+We do not need to verify anything about the code for *finding* appropriate permutations--
+all we care about is that one exists.
+-/
+
 private def renumber_fins (m : List (Fin s)) : Equiv.Perm (Fin s) :=
   match m.head? with
   | none => Equiv.refl _
@@ -215,10 +294,10 @@ where
       if _ : nextSpot = s-1 then acc
       else aux ⟨nextSpot+1, by omega⟩ xs acc
 
-def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 3 := by trivial) : Option (Matrix s) := do
+def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 2 := by trivial) : Option (Matrix s) := do
   let p : Matrix.Renumber s (by omega) ← (do
     let renumber := fun c =>
-      renumber_fins <| ⟨0,by omega⟩ :: ⟨1,by omega⟩ :: List.ofFn fun r => m.get r c
+      renumber_fins <| ⟨0,by omega⟩ :: ⟨1,by omega⟩ :: (List.finRange 3 |>.filter (· ≠ c) |>.map fun r => m.get r c)
     if h : _ then some {
       renumber := renumber
       renumber_0 := And.left h
@@ -228,16 +307,16 @@ def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 3 := by trivial) : Optio
   guard (m' < m)
   return m'
 
-theorem Matrix.findSmallerRenumber?_eq_some (m m' : Matrix 4) :
+theorem Matrix.findSmallerRenumber?_eq_some (m m' : Matrix s) (h : s > 2 := by trivial) :
     m.findSmallerRenumber? = some m' →
-      ∃ (r : Renumber _), r.apply m = m' ∧ m' < m := by
+      ∃ (r : Renumber s (by omega)), r.apply m = m' ∧ m' < m := by
   unfold findSmallerRenumber?
   suffices ∀ popt : Option _, bind popt _ = some m' → _ from this _
   rintro (_|r)
   · simp
   · simp [Option.bind_eq_some]; simp +contextual [eq_comm]
 
-def Matrix.findSmaller? (m : Matrix 4) : Option (Matrix 4) :=
+def Matrix.findSmaller? (m : Matrix s) (h : s > 2 := by trivial) : Option (Matrix s) :=
   let perms := Matrix.Perm.all.map (fun p => p.apply m)
   match perms.find? (· < m) with
   | some p => some p
@@ -245,23 +324,27 @@ def Matrix.findSmaller? (m : Matrix 4) : Option (Matrix 4) :=
     perms.findSome? fun p =>
       p.findSmallerRenumber?.filter (· < m)
 
-theorem Matrix.findSmaller?_eq_some (m m' : Matrix 4) :
+theorem Matrix.findSmaller?_eq_some (m m' : Matrix s) (h : s > 2 := by trivial) :
     m.findSmaller? = some m' →
-      ∃ (p : Perm) (r : Renumber _), r.apply (p.apply m) = m' ∧ m' < m := by
+      ∃ (p : Perm) (r : Renumber s (by omega)), r.apply (p.apply m) = m' ∧ m' < m := by
   intro eq_some
   simp [Id.run, findSmaller?] at eq_some
   split at eq_some
   next m1 ms_related =>
     cases eq_some; simp at ms_related
     rcases ms_related with ⟨p,smaller,rfl⟩
-    use p, Renumber.id 4
+    use p, Renumber.id s (by omega)
     simp [List.find?_eq_some_iff_append] at smaller
     simp [smaller]
   simp [List.findSome?_eq_some_iff, List.map_eq_append_iff, List.map_eq_cons_iff] at eq_some
   rcases eq_some with ⟨-,m_mid,⟨-,-,-,-,-,p,-,-,h_mid,-⟩,⟨h,hlt⟩,-⟩
-  replace h := findSmallerRenumber?_eq_some _ _ h
+  replace h := findSmallerRenumber?_eq_some _ _ (by omega) h
   use p; subst m_mid; aesop
 
+/-! ### Canonical cases
+
+Here we list the canonical matrices and perform the computation that says all matrices are related to these.
+-/
 def Matrix.canonicalCases :=
   Array.filterMap aux #[
   #[0, 1, 1, 0, 0, 1] ,
@@ -299,4 +382,20 @@ where aux (a : Array Nat) : Option (Matrix 4) :=
   else none
 
 theorem Matrix.canonicalCases_are_canonical : ∀ m : Matrix 4, m ∈ canonicalCases ∨ (findSmaller? m).isSome := by
-  native_decide
+  decide +native
+
+theorem Matrix.exists_related_canonicalCase (m : Matrix s) (h : s ≥ 4) :
+        ∃ m' : Matrix 4, m' ∈ canonicalCases ∧
+          ∃ (p : Perm) (r : Renumber s (by omega)), r.apply (p.apply m) = m'.castLE h := by
+  -- first, reduce to `s = 4`.
+  have ⟨m1, h1⟩ := renumberToFour.exists_eq_castLE m (by omega)
+  
+  induction m1 using WellFoundedLT.induction generalizing m
+  case ind m1 ih =>
+  match h2 : findSmaller? m1 with
+  | some m2 =>
+    have ⟨p,r,h3,lt⟩ := findSmaller?_eq_some _ _ _ h2
+    specialize ih m2 lt
+    sorry
+  | none =>
+    sorry
