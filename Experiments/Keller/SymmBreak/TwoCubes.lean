@@ -324,6 +324,10 @@ lemma bv_3_getElem (n j : Nat) (h : j < n)
   | 1 => simp [Nat.testBit_succ]
   | j+2 => simp [Nat.testBit_succ]
 
+lemma bv_3_eq_above_2 (n j : Nat) (h : j < n) (j_ge : j ≥ 2) :
+  (BitVec.ofNat n 3)[j] = false := by
+  rw [bv_3_getElem]; simp; omega
+
 lemma swap_preserves_earlier {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
       Equiv.swap a b i = i := by
   apply Equiv.swap_apply_of_ne_of_ne
@@ -340,6 +344,16 @@ lemma swap_later_stays_later (a b : Fin n) (h : a ≤ b) :
   intro i hi
   rw [Equiv.swap_apply_def]
   aesop
+
+lemma swap_at_least_stays_at_least (a b : Fin n) (hab : a ≤ b) {k} (hk : k < a) :
+      ∀ i ≥ k, Equiv.swap a b i ≥ k := by
+  intro i hi
+  by_cases h : i < a
+  case pos => rw [swap_preserves_earlier hab h]; exact hi
+  case neg =>
+    simp at h
+    have := swap_later_stays_later a b hab i h
+    omega
 
 lemma three_lt : 3 < 2^(n+2) :=
   Nat.lt_of_lt_of_le (m := 2^2) (by simp)
@@ -449,7 +463,7 @@ and must differ from `c3` at some column `j ≥ 3` (ie `c7[j] ≠ c3[j]`).
 
 Then, we reorder `j` to 3.
 If `c3[3]` is nonzero we are done; otherwise, we know `c7[3] ≠ 0`
-so we flip `c3` and `c7` on column 3 to get the nonzero into `c3`.
+so we flip `c3` and `c7` on column 2 to get the nonzero into `c3`.
 -/
 section second_nonzero
 
@@ -590,13 +604,31 @@ end second_nonzero
 
 This is the most complicated argument in the file.
 
-We currently assume the clique looks like
+At this point the clique looks like:
 
+```
+  j = 0   1   2   3   4
+c0  | 0 | 0 | 0 | 0 | 0
+c1  |_0_| 1 | 0 | 0 | 0
+c3  |_0_|_1_| x | y | ?
+c7  |_0_|_1_|_x_| ? | ?
+c11 |_0_|_1_| ? |_y_| ?
+```
 
+Here `x` and `y` are nonzero, and underlines indicate the true bits in each index.
+The `c11[0]`, `c11[1]`, and `c11[3]` claims are proven below.
 
-Then, we reorder `j` to 3.
-If `c3[3]` is nonzero we are done; otherwise, we know `c7[3] ≠ 0`
-so we flip `c3` and `c7` on column 3 to get the nonzero into `c3`.
+Note that in order for `c7` and `c11` to be adjacent,
+we have an `s`-gap at either 2 or 3, meaning either `c11[2] = x` or `c7[3] = y`.
+Either way, one of these indices matches `c3` on the first four colors,
+therefore they must have a difference at `j ≥ 4`.
+
+We reorder `j` to 4. Note that after reordering,
+we still have one of `c7` and `c11` matching `c3` on the first four colors.
+
+If `c3[4]` is nonzero we are done.
+Otherwise, the index `i ∈ [7,11]` that matches `c3` has `ci[4] ≠ 0`.
+So, we flip `c3` and `ci` at the appropriate column to get our third nonzero in `c3`.
 -/
 
 section third_nonzero
@@ -644,6 +676,7 @@ theorem c11_0 : (tc.kclique.get 11)[0] = 0 := by
 variable (c3_2 : (tc.kclique.get 3)[2] ≠ 0) include c3_2
 
 seal BitVec.ofNat in
+/-- Either `c7` or `c11` are identical to `c3` on `j < 4` and therefore have a diff at some `j ≥ 4`. -/
 theorem c7_or_11_diff_c3 :
     ∃ i : BitVec (n+3+2), (i = 7 ∨ i = 11) ∧ (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) ∧
     ∃ j : Fin _, j.val ≥ 4 ∧ (tc.kclique.get i)[j] ≠ (tc.kclique.get 3)[j] := by
@@ -713,6 +746,7 @@ theorem c7_or_11_diff_at_4 :
     (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) ∧
     (tc.kclique.get i)[4] ≠ (tc.kclique.get 3)[4] := by
   have ⟨i, i_cases, i_eq_c3, j, j_ge, spec⟩ := c7_or_11_diff_c3 tc c3_3 c3_2
+
   refine ⟨{
     kclique := tc.kclique.map (KAuto.reorder <| Equiv.swap 4 j)
     c0 := ?c0
@@ -756,7 +790,7 @@ theorem c7_or_11_diff_at_4 :
         · rcases this with (_|_|_) <;> simp [Nat.testBit_succ]
         · rcases j'_lt with (_|_|_) <;> simp [Nat.testBit_succ]
     · rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
-      rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+    rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
   case c3_3 =>
     rw [KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
     convert c3_3
@@ -777,7 +811,7 @@ theorem c7_or_11_diff_at_4 :
         · rcases this with (_|_|_) <;> simp [Nat.testBit_succ]
         · rcases j'_lt with (_|_|_) <;> simp [Nat.testBit_succ]
     · rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
-      rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+    rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
   case rest =>
   -- the new c3[4] should be the old c3[j]
   convert spec; clear spec
@@ -814,6 +848,8 @@ theorem c3_4 : ∃ tc' : TwoCubes (n+3) s,
 end third_nonzero
 
 end ThreeCubes
+
+/-! ### Fully symmetry-broken c3 -/
 
 structure ThreeCubes (n s) extends TwoCubes (n+3) s where
   c3 : ∀ i : Fin (n+5), i.val ∈ [2,3,4] → (kclique.get 3)[i] = 1
