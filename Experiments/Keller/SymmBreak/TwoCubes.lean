@@ -393,6 +393,70 @@ private lemma three_xor_eight : 3#(n+3+2) ^^^ 8#(n+3+2) = 11#(n+3+2) := by
   )
   decide
 
+/-! ### Useful adjacency lemmas -/
+
+namespace TwoCubes
+variable (tc : TwoCubes (n+3) s) include tc
+
+/-- s-gap between c7 and c11 can only occur at 2 or 3. -/
+theorem c7_c11_eq_or_eq :
+        (tc.kclique.get 7)[2] = (tc.kclique.get 11)[2] ∨
+        (tc.kclique.get 7)[3] = (tc.kclique.get 11)[3] := by
+  have ⟨j1,bv_ne_at_j1,cs_eq_at_j1,j2⟩ :=
+    tc.kclique.get_adj (i₁ := 7) (i₂ := 11)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt])
+  clear j2
+  -- we need the clear * - so that omega does not pull j1 into the proof term
+  replace bv_ne_at_j1 : j1 = ⟨2,by clear * -; omega⟩ ∨ j1 = ⟨3, by clear * -; omega⟩ := by
+    rcases j1 with ⟨j1,_⟩
+    match j1 with
+    | 2 | 3 => simp
+    | 0 | 1 | _j1+4 =>
+      simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt, Nat.testBit_succ] at bv_ne_at_j1
+  rcases bv_ne_at_j1 with (rfl|rfl)
+  · left; exact cs_eq_at_j1
+  · right; exact cs_eq_at_j1
+
+/-- s-gap between c7 and c19 can only occur at 2 or 4 -/
+theorem c7_c19_eq_or_eq :
+        (tc.kclique.get 7)[2] = (tc.kclique.get 19)[2] ∨
+        (tc.kclique.get 7)[4] = (tc.kclique.get 19)[4] := by
+  have ⟨j1,bv_ne_at_j1,cs_eq_at_j1,j2⟩ :=
+    tc.kclique.get_adj (i₁ := 7) (i₂ := 19)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, nineteen_lt])
+  clear j2
+  -- we need the clear * - so that omega does not pull j1 into the proof term
+  replace bv_ne_at_j1 : j1 = ⟨2,by clear * -; omega⟩ ∨ j1 = ⟨4, by clear * -; omega⟩ := by
+    rcases j1 with ⟨j1,_⟩
+    match j1 with
+    | 2 | 4 => simp
+    | 0 | 1 | 3 | _j1+5 =>
+      simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, nineteen_lt, Nat.testBit_succ] at bv_ne_at_j1
+  rcases bv_ne_at_j1 with (rfl|rfl)
+  · left; exact cs_eq_at_j1
+  · right; exact cs_eq_at_j1
+
+/-- s-gap between c11 and c19 can only occur at 3 or 4 -/
+theorem c11_c19_eq_or_eq :
+        (tc.kclique.get 11)[3] = (tc.kclique.get 19)[3] ∨
+        (tc.kclique.get 11)[4] = (tc.kclique.get 19)[4] := by
+  have ⟨j1,bv_ne_at_j1,cs_eq_at_j1,j2⟩ :=
+    tc.kclique.get_adj (i₁ := 11) (i₂ := 19)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, eleven_lt, nineteen_lt])
+  clear j2
+  -- we need the clear * - so that omega does not pull j1 into the proof term
+  replace bv_ne_at_j1 : j1 = ⟨3,by clear * -; omega⟩ ∨ j1 = ⟨4, by clear * -; omega⟩ := by
+    rcases j1 with ⟨j1,_⟩
+    match j1 with
+    | 3 | 4 => simp
+    | 0 | 1 | 2 | _j1+5 =>
+      simp [bv_toNat, Nat.mod_eq_of_lt, eleven_lt, nineteen_lt, Nat.testBit_succ] at bv_ne_at_j1
+  rcases bv_ne_at_j1 with (rfl|rfl)
+  · left; exact cs_eq_at_j1
+  · right; exact cs_eq_at_j1
+
+end TwoCubes
+
 
 /-! ### First (Nontrivial) nonzero element in c3
 
@@ -704,41 +768,25 @@ theorem c7_or_11_diff_c3 :
   -- c7_2 and c11_3 are equiv to c3_2 and c3_3
   have c7_2 := c7_2 tc
   have c11_3 := c11_3 tc
-  -- then, b/c c7 and c11 are adjacent, either c7_3 = c3_3 or c11_2 = c3_2
-  have : (tc.kclique.get 7)[3] = (tc.kclique.get 3)[3] ∨
-        (tc.kclique.get 11)[2] = (tc.kclique.get 3)[2] := by
-    have ⟨j1,bv_ne_at_j1,cs_eq_at_j1,j2⟩ :=
-      tc.kclique.get_adj (i₁ := 7) (i₂ := 11)
-        (by simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt])
-    clear j2
-    -- we need the clear * - so that omega does not pull j1 into the proof term
-    replace bv_ne_at_j1 : j1 = ⟨2,by clear * -; omega⟩ ∨ j1 = ⟨3, by clear * -; omega⟩ := by
-      rcases j1 with ⟨j1,_⟩
-      match j1 with
-      | 2 | 3 => simp
-      | 0 | 1 | _j1+4 =>
-        simp [bv_toNat, Nat.mod_eq_of_lt, seven_lt, eleven_lt, Nat.testBit_succ] at bv_ne_at_j1
-    rcases bv_ne_at_j1 with (rfl|rfl)
-    · right; rw [← c7_2]; exact cs_eq_at_j1.symm
-    · left; rw [← c11_3]; exact cs_eq_at_j1
+  -- then, b/c c7 and c11 are adjacent, s-gap is at either 2 or 3
+  have := tc.c7_c11_eq_or_eq
+  rw [c7_2, c11_3] at this
   -- so either c7 or c11 are equal to c3 on j < 4
   replace this : ∃ i : BitVec _, (i = 7 ∨ i = 11) ∧
       (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) := by
+    -- to ensure simp normalizes towards smaller indices
+    rw [eq_comm] at this
     rcases this with (woop|woop)
-    · refine ⟨_, .inl rfl, fun j h => ?_⟩
-      rcases h with (_|_|_|_|h)
-      · exact woop
-      · exact c7_2
-      · rw [c7_1 tc c3_2, c3_1 tc]
-      · rw [c7_0 tc c3_2, c3_0 tc]
-      · nomatch h
     · refine ⟨_, .inr rfl, fun j h => ?_⟩
-      rcases h with (_|_|_|_|h)
-      · exact c11_3
-      · exact woop
-      · rw [c11_1 tc c3_3, c3_1 tc]
-      · rw [c11_0 tc c3_3, c3_0 tc]
-      · nomatch h
+      have := tc.c11_1 c3_3; have := tc.c11_0 c3_3
+      match j with
+      | 0 | 1 | 2 | 3 => simp_all [tc.c3_0, tc.c3_1]
+      | j+4 => nomatch h
+    · refine ⟨_, .inl rfl, fun j h => ?_⟩
+      have := tc.c7_1 c3_2; have := tc.c7_0 c3_2
+      match j with
+      | 0 | 1 | 2 | 3 => simp_all [tc.c3_0, tc.c3_1]
+      | j+4 => nomatch h
 
   rcases this with ⟨i,i_cases, i_eq_c3_lt_4⟩
 
@@ -970,5 +1018,6 @@ theorem c19_0 : (tc.kclique.get 19)[0] = 0 := by
   | 4 => have := tc.c19_4; simp_all
   | 2 | 3 | n+5 =>
     simp [Nat.testBit_succ] at bit_diff
+
 
 end ThreeCubes
