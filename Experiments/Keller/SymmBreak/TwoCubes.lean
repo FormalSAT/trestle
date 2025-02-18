@@ -743,88 +743,72 @@ theorem c7_or_11_diff_at_4 :
   ∃ tc' : TwoCubes (n+3) s,
     (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧
     ∃ i : BitVec _, (i = 7 ∨ i = 11) ∧
-    (∀ j (h : j < 4), (tc.kclique.get i)[j] = (tc.kclique.get 3#(_))[j]) ∧
-    (tc.kclique.get i)[4] ≠ (tc.kclique.get 3)[4] := by
+    (∀ j (h : j < 4), (tc'.kclique.get i)[j] = (tc'.kclique.get 3#(_))[j]) ∧
+    (tc'.kclique.get i)[4] ≠ (tc'.kclique.get 3)[4] := by
   have ⟨i, i_cases, i_eq_c3, j, j_ge, spec⟩ := c7_or_11_diff_c3 tc c3_3 c3_2
 
-  refine ⟨{
-    kclique := tc.kclique.map (KAuto.reorder <| Equiv.swap 4 j)
-    c0 := ?c0
-    c1 := ?c1
-  }, ?c3_2, ?c3_3, ?rest⟩
-  case c0 =>
-    simp [KClique.get_map_reorder]
-    suffices BitVec.ofFn _ = 0#(n+5) by
-      rw (occs := .pos [1]) [this]
-      ext; simp
-    apply BitVec.eq_of_getElem_eq; simp
-  case c1 =>
-    rw [KClique.get_map_reorder]
-    suffices BitVec.ofFn _ = 1#(n+5) by
-      rw [this]
-      ext i hi; simp; congr 2
-      simp [Fin.val_eq_iff_lt_and_eq]
-      rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
-      simp [Fin.ext_iff]
-    apply BitVec.eq_of_getElem_eq; intro j hj
-    simp [Fin.val_eq_iff_lt_and_eq, Equiv.symm_apply_eq]
-    rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
-    simp [Fin.ext_iff]
+  -- let's move `j` to `4`!
+
+  -- 3 isn't going to move when we swap `4` with `j`
+  have mapped_3_eq_3 : (BitVec.ofFn fun j_1 => (3#(_))[(Equiv.swap ⟨4,by omega⟩ j) j_1]) = 3 := by
+    apply BitVec.eq_of_getElem_eq; intro j' hj'
+    simp only [Equiv.symm_swap, BitVec.getElem_ofFn]
+    by_cases j'_lt : j' < 2
+    case pos =>
+      have := swap_preserves_earlier (a := ⟨4,by omega⟩) (b := j) (i := ⟨j',hj'⟩)
+        (by simpa using j_ge) (by simp [Fin.lt_def]; omega)
+      conv => enter [1,2]; rw [this]
+      simp
+    case neg =>
+      replace j'_lt : j' ≥ 2 := by omega
+      simp only [BitVec.ofNat_eq_ofNat, Fin.getElem_fin]
+      rw [bv_3_eq_above_2 _ _ _ j'_lt, bv_3_eq_above_2]
+      have := swap_at_least_stays_at_least (a := 4) (b := j) (k := 2) (i := ⟨j',hj'⟩)
+        (hab := by simpa using j_ge) (hk := by simp [Fin.lt_def]) (by simpa using j'_lt)
+      simpa using this
+
+  refine ⟨tc.reorder (Equiv.swap ⟨4,by omega⟩ j) ?fixed_0 ?fixed_1, ?c3_2, ?c3_3, ?rest⟩
+  case fixed_0 | fixed_1 =>
+    apply swap_preserves_earlier
+    · simpa using j_ge
+    · simp [Fin.lt_def]
+
+  -- c3[2] still ≠ 0
   case c3_2 =>
-    rw [KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
+    rw [tc.kclique_reorder, KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
     convert c3_2
-    · apply BitVec.eq_of_getElem_eq; intro j' hj'
-      simp
-      if j'_lt : j' < 4 then
-        congr 1
-        rw [Fin.val_eq_iff_lt_and_eq]; use (by omega)
-        rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def, j'_lt])]
-      else
-        simp [bv_toNat, *]
-        generalize hswapped : (Equiv.swap 4 j) ⟨j',hj'⟩ = swapped_j'
-        have := swap_later_stays_later 4 j j_ge ⟨j',hj'⟩ (by simpa using j'_lt)
-        rw [hswapped] at this; clear hswapped
-        rcases swapped_j' with ⟨swapped_j',_⟩
-        simp [Fin.le_def] at this j'_lt
-        trans false
-        · rcases this with (_|_|_) <;> simp [Nat.testBit_succ]
-        · rcases j'_lt with (_|_|_) <;> simp [Nat.testBit_succ]
-    · rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
+    rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
     rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
+  -- c3[3] still ≠ 0
   case c3_3 =>
-    rw [KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
+    rw [tc.kclique_reorder, KClique.get_map_reorder, Vector.getElem_ofFn, Fin.getElem_fin]
     convert c3_3
-    · apply BitVec.eq_of_getElem_eq; intro j' hj'
-      simp
-      if j'_lt : j' < 4 then
-        congr 1
-        rw [Fin.val_eq_iff_lt_and_eq]; use (by omega)
-        rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def, j'_lt])]
-      else
-        simp [bv_toNat, *]
-        generalize hswapped : (Equiv.swap 4 j) ⟨j',hj'⟩ = swapped_j'
-        have := swap_later_stays_later 4 j j_ge ⟨j',hj'⟩ (by simpa using j'_lt)
-        rw [hswapped] at this; clear hswapped
-        rcases swapped_j' with ⟨swapped_j',_⟩
-        simp [Fin.le_def] at this j'_lt
-        trans false
-        · rcases this with (_|_|_) <;> simp [Nat.testBit_succ]
-        · rcases j'_lt with (_|_|_) <;> simp [Nat.testBit_succ]
-    · rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
+    rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
     rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
-  case rest =>
+
   -- the new c3[4] should be the old c3[j]
-  convert spec; clear spec
-  simp
-  stop
-  rw (occs := .pos [1]) [KClique.get_map_reorder]
-  simp
-  congr 2
-  apply BitVec.eq_of_getElem_eq; intro j hj
-  simp [bv_3_getElem, Fin.val_eq_iff_lt_and_eq]
-  rw [Bool.eq_iff_iff]; simp
-  iterate 2 ( rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])] )
-  simp [Fin.ext_iff]
+  case rest =>
+  use i, i_cases
+  refine ⟨?i_eq_c3, ?i_ne_c3⟩
+  case i_eq_c3 =>
+    intro j' hj'
+    specialize i_eq_c3 j' hj'
+    have := swap_preserves_earlier (a := ⟨4,by omega⟩) (b := j) (i := ⟨j',by omega⟩)
+      (by simpa using j_ge) (by simpa [Fin.lt_def] using hj')
+    simp only [TwoCubes.kclique_reorder, KClique.get_map_reorder, Equiv.symm_swap,
+      Vector.getElem_ofFn, this]
+    simp_all
+    rw [← i_eq_c3]; congr 1
+    -- TODO(JG): why can't I use `congr` tactic here?
+    apply congrArg
+    clear! j' mapped_3_eq_3 spec
+    sorry
+  case i_ne_c3 =>
+    simp [KClique.get_map_reorder, Equiv.swap_apply_left]
+    simp_all
+    -- TODO(JG): again can't use `congr`
+    convert spec using 3; apply congrArg
+    sorry
 
 /-- We can further apply automorphisms to get a clique with c3[4] ≠ 0 -/
 theorem c3_4 : ∃ tc' : TwoCubes (n+3) s,
