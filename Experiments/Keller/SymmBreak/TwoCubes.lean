@@ -371,6 +371,22 @@ lemma eleven_lt : 11 < 2^(n + 3 + 2) := by
     · decide
     · omega
 
+lemma three_xor_four : 3#(n+3+2) ^^^ 4#(n+3+2) = 7#(n+3+2) := by
+  simp [bv_toNat]
+  repeat (
+    rw [Nat.mod_eq_of_lt <|
+      Nat.lt_of_lt_of_le (m := 2^5) (by decide) (Nat.pow_le_pow_right (by decide) (by omega)) ]
+  )
+  decide
+
+lemma three_xor_eight : 3#(n+3+2) ^^^ 8#(n+3+2) = 11#(n+3+2) := by
+  simp [bv_toNat]
+  repeat (
+    rw [Nat.mod_eq_of_lt <|
+      Nat.lt_of_lt_of_le (m := 2^5) (by decide) (Nat.pow_le_pow_right (by decide) (by omega)) ]
+  )
+  decide
+
 
 /-! ### First (Nontrivial) nonzero element in c3
 
@@ -560,13 +576,7 @@ theorem c3_3 : ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'
   rw [not_ne_iff] at h; rw [h] at h_ne_at_j2; clear h
   use tc'.flipAt ⟨2, by omega⟩ (tc'.kclique.get 3)[2] (by simp) c3_2
 
-  have : 3#(n+3+2) ^^^ 4#(n+3+2) = 7#(n+3+2) := by
-    simp [bv_toNat]
-    repeat (
-      rw [Nat.mod_eq_of_lt <|
-        Nat.lt_of_lt_of_le (m := 2^5) (by decide) (Nat.pow_le_pow_right (by decide) (by omega)) ]
-    )
-    decide
+  have three_xor_four := three_xor_four (n := n)
   have c72 := c7_2 tc'
   simp_all [KClique.get_map_flipAt]; exact c3_2
 
@@ -739,6 +749,7 @@ theorem c7_or_11_diff_c3 :
 
   use i, i_cases, i_eq_c3_lt_4, j, j_ge_4, diff_j
 
+seal BitVec.ofNat in
 theorem c7_or_11_diff_at_4 :
   ∃ tc' : TwoCubes (n+3) s,
     (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧
@@ -767,7 +778,22 @@ theorem c7_or_11_diff_at_4 :
         (hab := by simpa using j_ge) (hk := by simp [Fin.lt_def]) (by simpa using j'_lt)
       simpa using this
 
-  refine ⟨tc.reorder (Equiv.swap ⟨4,by omega⟩ j) ?fixed_0 ?fixed_1, ?c3_2, ?c3_3, ?rest⟩
+  have mapped_i_eq_i : (BitVec.ofFn fun j_1 => i[(Equiv.swap ⟨4,by omega⟩ j) j_1]) = i := by
+    have i_bits_false : ∀ (j') (hj' : j' < n+3+2), j' ≥ 4 → i[j'] = false := by
+      intro j' hj' h
+      conv => lhs; arg 2; rw [← Nat.sub_add_cancel h]
+      rcases i_cases with (rfl|rfl) <;> simp [bv_toNat] <;> simp [Nat.testBit_succ]
+
+    apply BitVec.eq_of_getElem_eq; intro j' hj'; simp
+    if h : j' < 4 then
+      congr; rw [swap_preserves_earlier (by simpa using j_ge) (by simpa [Fin.lt_def] using h)]
+    else
+      have : j' ≥ 4 := by omega
+      have := swap_later_stays_later ⟨4,by omega⟩ j (by simpa using j_ge) ⟨j',hj'⟩ (this)
+      simp_all [Fin.le_def]
+
+  refine ⟨tc.reorder (Equiv.swap ⟨4,by omega⟩ j) ?fixed_0 ?fixed_1, ?c3_2, ?c3_3,
+          i, i_cases, ?i_eq_c3, ?i_ne_c3⟩
   case fixed_0 | fixed_1 =>
     apply swap_preserves_earlier
     · simpa using j_ge
@@ -786,10 +812,7 @@ theorem c7_or_11_diff_at_4 :
     rw [Fin.val_eq_iff_lt_and_eq]; use (by simp)
     rw [swap_eq_earlier_iff j_ge (by simp [Fin.lt_def])]
 
-  -- the new c3[4] should be the old c3[j]
-  case rest =>
-  use i, i_cases
-  refine ⟨?i_eq_c3, ?i_ne_c3⟩
+  -- for `j' < 4`, ci[j'] is still equal to c3[j']
   case i_eq_c3 =>
     intro j' hj'
     specialize i_eq_c3 j' hj'
@@ -798,36 +821,41 @@ theorem c7_or_11_diff_at_4 :
     simp only [TwoCubes.kclique_reorder, KClique.get_map_reorder, Equiv.symm_swap,
       Vector.getElem_ofFn, this]
     simp_all
-    rw [← i_eq_c3]; congr 1
-    -- TODO(JG): why can't I use `congr` tactic here?
-    apply congrArg
-    clear! j' mapped_3_eq_3 spec
-    sorry
+
+  -- and ci[4] is not equal to c3[4]
   case i_ne_c3 =>
     simp [KClique.get_map_reorder, Equiv.swap_apply_left]
     simp_all
-    -- TODO(JG): again can't use `congr`
-    convert spec using 3; apply congrArg
-    sorry
 
+seal BitVec.ofNat in
 /-- We can further apply automorphisms to get a clique with c3[4] ≠ 0 -/
 theorem c3_4 : ∃ tc' : TwoCubes (n+3) s,
       (tc'.kclique.get 3)[2] ≠ 0 ∧ (tc'.kclique.get 3)[3] ≠ 0 ∧ (tc'.kclique.get 3)[4] ≠ 0 := by
-  have ⟨i, i_cases, i_eq_c3, spec⟩ := c7_or_11_diff_at_4 tc c3_3 c3_2
+  -- by previous lemma, c7 or c11 have a diff with c3
+  have := c7_or_11_diff_at_4 tc c3_3 c3_2
+  clear c3_3 c3_2 tc
+
+  rcases this with ⟨tc, c3_2, c3_3, i, i_cases, i_eq_c3, i_ne_c3⟩
 
   -- if c3_4 ≠ 0 then we are done already
   if c3_4 : (tc.kclique.get 3)[4] ≠ 0 then use tc else
-  simp at c3_4
+  push_neg at c3_4; rw [c3_4] at i_ne_c3; clear c3_4
 
   -- otherwise we swap c7/c11 to c3
 
-  -- have c7_0 = 0, c7_1 = 1, c7_2 = c3_2 again
-  have c7_0 := c7_0 tc c3_2
-  have c7_1 := c7_1 tc c3_2
-  -- also have c11_0 = 0, c11_1 = 1, c11_3 = c3_3
-  have c11_0 := c11_0 tc c3_3
-  have c11_1 := c11_1 tc c3_3
-  sorry
+  rcases i_cases with (rfl|rfl)
+  case inl =>
+    -- swap c7 with c3
+    use tc.flipAt ⟨2, by omega⟩ (tc.kclique.get 3)[2] (by simp) c3_2
+    simp at i_eq_c3
+    simp [KClique.get_map_flipAt, three_xor_four, i_eq_c3]
+    exact ⟨c3_2, c3_3, i_ne_c3⟩
+  case inr =>
+    -- swap c11 with c3
+    use tc.flipAt ⟨3, by omega⟩ (tc.kclique.get 3)[3] (by simp) c3_3
+    simp at i_eq_c3
+    simp [KClique.get_map_flipAt, three_xor_eight, i_eq_c3]
+    exact ⟨c3_2, c3_3, i_ne_c3⟩
 
 end third_nonzero
 
@@ -876,5 +904,9 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   simp only [Fin.getElem_fin, Vector.getElem_ofFn, i_mem_234, if_true]
   specialize h4 _ i_mem_234
   apply Equiv.Perm.setAll_eq_of_mem <;> simp
+
+theorem ofClique (clique : KClique (n+5) (s+2)) (h : conjectureIn (n+4)) : Nonempty (ThreeCubes n s) := by
+  have ⟨tc⟩ := TwoCubes.ofClique clique h
+  exact ofTwoCubes tc
 
 end ThreeCubes
