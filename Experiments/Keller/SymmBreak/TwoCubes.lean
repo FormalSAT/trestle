@@ -1019,5 +1019,28 @@ theorem c19_0 : (tc.kclique.get 19)[0] = 0 := by
   | 2 | 3 | n+5 =>
     simp [Nat.testBit_succ] at bit_diff
 
+/-- Either c7[3] or c11[2] must be one. -/
+theorem c7_or_c11_eq_one : (tc.kclique.get 7)[3] = 1 ∨ (tc.kclique.get 11)[2] = 1 := by
+  have := tc.toTwoCubes.c7_c11_eq_or_eq
+  rw [tc.c7_2, tc.c11_3] at this
+  cases this with
+  | inl h => simp only [h, or_true]
+  | inr h => simp only [h, true_or]
+
+/-- Either c7[4] or c19[2] must be one. -/
+theorem c7_or_c19_eq_one : (tc.kclique.get 7)[4] = 1 ∨ (tc.kclique.get 19)[2] = 1 := by
+  have := tc.toTwoCubes.c7_c19_eq_or_eq
+  rw [tc.c7_2, tc.c19_4] at this
+  cases this with
+  | inl h => simp only [h, or_true]
+  | inr h => simp only [h, true_or]
+
+/-- Either c11[4] or c19[3] must be one. -/
+theorem c11_or_c19_eq_one : (tc.kclique.get 11)[4] = 1 ∨ (tc.kclique.get 19)[3] = 1 := by
+  have := tc.toTwoCubes.c11_c19_eq_or_eq
+  rw [tc.c11_3, tc.c19_4] at this
+  cases this with
+  | inl h => simp only [h, or_true]
+  | inr h => simp only [h, true_or]
 
 end ThreeCubes
