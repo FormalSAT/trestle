@@ -9,6 +9,7 @@ import Trestle.Encode
 import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
 import Experiments.Keller.KellerGraph
+import Experiments.Keller.SymmBreak.TwoCubes
 import Experiments.Keller.SymmBreak.Matrix
 
 namespace Keller.Encoding
@@ -134,12 +135,14 @@ theorem clique_of_satisfies_baseSpec {τ : Model.PropAssignment (Vars n s)} :
     clear * - this
     aesop
 
-def threeCubesSpec : Model.PropPred (Vars n s) :=
-  fun τ => ∀ c : KClique n s, τ = cliqueToAssn c →
-    c.get 0 = TwoCubes.c0
+def threeCubesSpec : Model.PropPred (Vars (n+5) (s+2)) :=
+  fun τ => ∀ c : KClique (n+5) (s+2), τ = cliqueToAssn c →
+    c.get 0 = SymmBreak.TwoCubes.c0_colors ∧
+    c.get 1 = SymmBreak.TwoCubes.c1_colors ∧
+    ∀ j : Fin (n+5), j ∈ [2,3,4] → (c.get 3)[j] = 1
 
-def matrixSpec : Model.PropPred (Vars n s) :=
-  fun τ => ∀ c : KClique n s, τ = cliqueToAssn c →
+--def matrixSpec : Model.PropPred (Vars n s) :=
+--  fun τ => ∀ c : KClique n s, τ = cliqueToAssn c →
 
 end Spec
 

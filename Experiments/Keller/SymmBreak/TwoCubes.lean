@@ -314,9 +314,8 @@ def flipAt (j : Fin (n+2)) (k : Fin (s+2)) (j_ge : j.val ≥ 2) (k_ne_0 : k ≠ 
 end TwoCubes
 
 
-namespace ThreeCubes
 
-lemma bv_3_getElem (n j : Nat) (h : j < n)
+private lemma bv_3_getElem (n j : Nat) (h : j < n)
     : (BitVec.ofNat n 3)[j] = decide (j = 0 ∨ j = 1) := by
   simp [BitVec.getElem_ofNat]
   match j with
@@ -324,28 +323,28 @@ lemma bv_3_getElem (n j : Nat) (h : j < n)
   | 1 => simp [Nat.testBit_succ]
   | j+2 => simp [Nat.testBit_succ]
 
-lemma bv_3_eq_above_2 (n j : Nat) (h : j < n) (j_ge : j ≥ 2) :
+private lemma bv_3_eq_above_2 (n j : Nat) (h : j < n) (j_ge : j ≥ 2) :
   (BitVec.ofNat n 3)[j] = false := by
   rw [bv_3_getElem]; simp; omega
 
-lemma swap_preserves_earlier {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
+private lemma swap_preserves_earlier {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
       Equiv.swap a b i = i := by
   apply Equiv.swap_apply_of_ne_of_ne
   · exact Fin.ne_of_lt hia
   · apply Fin.ne_of_lt; exact Fin.lt_of_lt_of_le hia hab
 
-lemma swap_eq_earlier_iff {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
+private lemma swap_eq_earlier_iff {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
       ∀ j, Equiv.swap a b j = i ↔ j = i := by
   intro j
   rw [Equiv.swap_apply_eq_iff, swap_preserves_earlier hab hia]
 
-lemma swap_later_stays_later (a b : Fin n) (h : a ≤ b) :
+private lemma swap_later_stays_later (a b : Fin n) (h : a ≤ b) :
       ∀ i ≥ a, Equiv.swap a b i ≥ a := by
   intro i hi
   rw [Equiv.swap_apply_def]
   aesop
 
-lemma swap_at_least_stays_at_least (a b : Fin n) (hab : a ≤ b) {k} (hk : k < a) :
+private lemma swap_at_least_stays_at_least (a b : Fin n) (hab : a ≤ b) {k} (hk : k < a) :
       ∀ i ≥ k, Equiv.swap a b i ≥ k := by
   intro i hi
   by_cases h : i < a
@@ -355,23 +354,30 @@ lemma swap_at_least_stays_at_least (a b : Fin n) (hab : a ≤ b) {k} (hk : k < a
     have := swap_later_stays_later a b hab i h
     omega
 
-lemma three_lt : 3 < 2^(n+2) :=
+private lemma three_lt : 3 < 2^(n+2) :=
   Nat.lt_of_lt_of_le (m := 2^2) (by simp)
     (Nat.pow_le_pow_right (by decide) (by simp))
 
-lemma seven_lt : 7 < 2^(n+3+2) := by
+private lemma seven_lt : 7 < 2^(n+3+2) := by
     apply Nat.lt_of_lt_of_le (m := 32); decide
     simp [Nat.pow_add, Nat.mul_assoc]; apply Nat.le_mul_of_pos_left
     exact Nat.two_pow_pos n
 
-lemma eleven_lt : 11 < 2^(n + 3 + 2) := by
+private lemma eleven_lt : 11 < 2^(n + 3 + 2) := by
   apply Nat.lt_of_lt_of_le (m := 2^5)
   · decide
   · apply Nat.pow_le_pow_right
     · decide
     · omega
 
-lemma three_xor_four : 3#(n+3+2) ^^^ 4#(n+3+2) = 7#(n+3+2) := by
+private lemma nineteen_lt : 19 < 2^(n + 3 + 2) := by
+  apply Nat.lt_of_lt_of_le (m := 2^5)
+  · decide
+  · apply Nat.pow_le_pow_right
+    · decide
+    · omega
+
+private lemma three_xor_four : 3#(n+3+2) ^^^ 4#(n+3+2) = 7#(n+3+2) := by
   simp [bv_toNat]
   repeat (
     rw [Nat.mod_eq_of_lt <|
@@ -379,7 +385,7 @@ lemma three_xor_four : 3#(n+3+2) ^^^ 4#(n+3+2) = 7#(n+3+2) := by
   )
   decide
 
-lemma three_xor_eight : 3#(n+3+2) ^^^ 8#(n+3+2) = 11#(n+3+2) := by
+private lemma three_xor_eight : 3#(n+3+2) ^^^ 8#(n+3+2) = 11#(n+3+2) := by
   simp [bv_toNat]
   repeat (
     rw [Nat.mod_eq_of_lt <|
@@ -397,6 +403,7 @@ Then, we can reorder columns to get `c3[2] ≠ 0`.
 -/
 section first_nonzero
 
+namespace TwoCubes
 variable (tc : TwoCubes n s)
 
 theorem c3_1 : (tc.kclique.get 3#(n+2))[1] = 1 := by
@@ -470,6 +477,7 @@ theorem c3_2 (tc : TwoCubes (n+3) s) : ∃ tc' : TwoCubes (n+3) s, (tc'.kclique.
   iterate 2 ( rw [swap_eq_earlier_iff j₂_ge (by simp [Fin.lt_def])] )
   simp [Fin.ext_iff]
 
+end TwoCubes
 end first_nonzero
 
 /-! ### Second (Nontrivial) nonzero element in c3
@@ -483,6 +491,7 @@ so we flip `c3` and `c7` on column 2 to get the nonzero into `c3`.
 -/
 section second_nonzero
 
+namespace TwoCubes
 variable (tc : TwoCubes (n+3) s)
 
 /- we know c7 has s gap with c3 at 2 -/
@@ -608,6 +617,7 @@ where
       rw [← Nat.sub_add_cancel x_ge, ← Nat.sub_add_cancel j_lt_3]
       simp [Nat.testBit_succ]
 
+end TwoCubes
 end second_nonzero
 
 /-! ### Third (Nontrivial) nonzero element in c3
@@ -643,6 +653,7 @@ So, we flip `c3` and `ci` at the appropriate column to get our third nonzero in 
 
 section third_nonzero
 
+namespace TwoCubes
 variable (tc : TwoCubes (n+3) s)
 
 /- we know c11 has s gap with c3 at 3 -/
@@ -857,9 +868,9 @@ theorem c3_4 : ∃ tc' : TwoCubes (n+3) s,
     simp [KClique.get_map_flipAt, three_xor_eight, i_eq_c3]
     exact ⟨c3_2, c3_3, i_ne_c3⟩
 
+end TwoCubes
 end third_nonzero
 
-end ThreeCubes
 
 /-! ### Fully symmetry-broken c3 -/
 
@@ -870,9 +881,9 @@ namespace ThreeCubes
 
 theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
   -- We can get a clique with `c3[2], c3[3], c3[4] ≠ 0`
-  have ⟨tc2,h2⟩ := c3_2 tc
-  have ⟨tc3,h3⟩ := c3_3 tc2 h2
-  have ⟨tc4,h4⟩ := c3_4 tc3 h3.2 h3.1
+  have ⟨tc2,h2⟩ := tc.c3_2
+  have ⟨tc3,h3⟩ := tc2.c3_3 h2
+  have ⟨tc4,h4⟩ := tc3.c3_4 h3.2 h3.1
   clear! tc tc2 tc3
   -- just summarizing that info in the way we want for `ThreeCubes`
   replace h4 : ∀ i : Fin (n+5), i.val ∈ [2,3,4] → (tc4.kclique.get 3)[i] ≠ 0 := by
@@ -908,5 +919,56 @@ theorem ofTwoCubes (tc : TwoCubes (n+3) s) : Nonempty (ThreeCubes n s) := by
 theorem ofClique (clique : KClique (n+5) (s+2)) (h : conjectureIn (n+4)) : Nonempty (ThreeCubes n s) := by
   have ⟨tc⟩ := TwoCubes.ofClique clique h
   exact ofTwoCubes tc
+
+variable (tc : ThreeCubes n s)
+
+theorem c3_2 : (tc.kclique.get 3)[2] = 1 := tc.c3 2 (by simp)
+theorem c3_3 : (tc.kclique.get 3)[3] = 1 := tc.c3 3 (by simp)
+theorem c3_4 : (tc.kclique.get 3)[4] = 1 := tc.c3 4 (by simp)
+
+theorem c7_0 : (tc.kclique.get 7)[0] = 0 := tc.toTwoCubes.c7_0 (by rw [tc.c3_2]; simp)
+theorem c7_1 : (tc.kclique.get 7)[1] = 1 := tc.toTwoCubes.c7_1 (by rw [tc.c3_2]; simp)
+theorem c7_2 : (tc.kclique.get 7)[2] = 1 := by rw [tc.toTwoCubes.c7_2]; exact tc.c3_2
+
+theorem c11_0 : (tc.kclique.get 11)[0] = 0 := tc.toTwoCubes.c11_0 (by rw [tc.c3_3]; simp)
+theorem c11_1 : (tc.kclique.get 11)[1] = 1 := tc.toTwoCubes.c11_1 (by rw [tc.c3_3]; simp)
+theorem c11_3 : (tc.kclique.get 11)[3] = 1 := by rw [tc.toTwoCubes.c11_3]; exact tc.c3_3
+
+/-- s-gap between c3 and c19 must be at 4, thus we know c19[4] = 1 -/
+theorem c19_4 : (tc.kclique.get 19)[4] = 1 := by
+  rw [← c3_4]
+  refine tc.kclique.get_adj_one_diff 4 ?_ ?_ |>.left
+  · simp [bv_toNat]; decide
+  · rintro ⟨j, hj⟩; simp [bv_toNat, hj, Fin.ext_iff]
+    rcases j with (_|_|_|_|_|_) <;> simp [Nat.testBit_succ]
+
+/-- s-gap between c1 and c19 must be at 1, so c19[1] = 1 -/
+theorem c19_1 : (tc.kclique.get 19)[1] = 1 := by
+  have ⟨⟨j₁,hj⟩, bit_diff, h, dont_care⟩ :=
+    tc.kclique.get_adj (i₁ := 19) (i₂ := 1)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, nineteen_lt])
+  clear dont_care
+  simp [bv_toNat, hj] at bit_diff
+  -- we want j₁ = 1. for j₁ = 4, the colors are already ≠, and all other j₁ have same bits
+  match j₁ with
+  | 1 => have := tc.c1_j (hj := hj); simp_all
+  | 4 => have := tc.c19_4; simp_all
+  | 0 | 2 | 3 | n+5 =>
+    simp [Nat.testBit_succ] at bit_diff
+
+/-- s-gap between c0 and c19 must be at 0, so c19[0] = 0. -/
+theorem c19_0 : (tc.kclique.get 19)[0] = 0 := by
+  have ⟨⟨j₁,hj⟩, bit_diff, h, dont_care⟩ :=
+    tc.kclique.get_adj (i₁ := 19) (i₂ := 0)
+      (by simp [bv_toNat, Nat.mod_eq_of_lt, nineteen_lt])
+  clear dont_care
+  simp [bv_toNat, hj] at bit_diff
+  -- we want j₁ = 0. for j₁ ∈ [1, 4], the colors are already ≠, and all other j₁ have same bits
+  match j₁ with
+  | 0 => have := tc.c0_j (hj := hj); simp_all
+  | 1 => have := tc.c19_1; simp_all
+  | 4 => have := tc.c19_4; simp_all
+  | 2 | 3 | n+5 =>
+    simp [Nat.testBit_succ] at bit_diff
 
 end ThreeCubes
