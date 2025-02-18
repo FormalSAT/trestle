@@ -80,32 +80,8 @@ theorem Multiset.countP_eq_succ [DecidableEq α] (p) [DecidablePred p] (xs : Mul
 @[simp] theorem Array.mem_finRange (x : Fin n) : x ∈ Array.finRange n := by
   simp [Array.finRange, mem_def, List.mem_ofFn]
 
-@[simp] theorem Vector.getElem_mk (A : Array α) (h : A.size = n) (i : Nat) (h2) :
-    (Vector.mk A h)[i]'h2 = A[i] := rfl
-
-@[ext]
-def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
-    (h : ∀ (i : Nat) (h : i < n), v₁[i] = v₂[i]) : v₁ = v₂ := by
-  rcases v₁ with ⟨v₁⟩; rcases v₂ with ⟨v₂⟩
-  simp [Vector.cast] at h ⊢
-  ext i
-  · omega
-  apply h i; omega
-
 def Vector.ext' {v₁ : Vector α n} {v₂ : Vector α n} (h : v₁.toArray = v₂.toArray) : v₁ = v₂ := by
   cases v₁; cases v₂; simp_all
-
-@[simp] theorem Vector.getElem_ofFn (f : Fin n → α) (i : Nat) (h)
-  : (Vector.ofFn f)[i]'h = f ⟨i,h⟩ := by
-  simp [ofFn]
-
-@[simp] theorem Vector.getElem_cast (h : n = n') (v : Vector α n) (i : Nat) (hi)
-  : (Vector.cast h v)[i]'hi = v[i] := by
-  cases v; simp [Vector.cast]
-
-@[simp] theorem Vector.getElem_take (v : Vector α n) (n') (i : Nat) (hi)
-  : (v.take n')[i]'hi = v[i] := by
-  cases v; simp [Vector.take]
 
 instance [Fintype α] : Fintype (Vector α n) where
   elems :=
@@ -137,15 +113,6 @@ instance : Fintype (BitVec n) :=
 @[simp] theorem BitVec.cast_inj (v₁ v₂ : BitVec n) (h₁ h₂ : n = n')
   : v₁.cast h₁ = v₂.cast h₂ ↔ v₁ = v₂ := by
   simp [BitVec.cast, BitVec.ofNatLt, BitVec.toNat_eq]
-
-theorem BitVec.eq_of_getElem_eq {v₁ v₂ : BitVec n}
-    : (∀ i (hi : i < n), v₁[i] = v₂[i]) → v₁ = v₂ :=
-  fun h => BitVec.eq_of_getLsbD_eq (h ↑·)
-
-theorem BitVec.eq_of_getElem_eq_iff {v₁ v₂ : BitVec n}
-    : v₁ = v₂ ↔ (∀ i (hi : i < n), v₁[i] = v₂[i]) :=
-  ⟨ by rintro rfl; simp
-  , BitVec.eq_of_getElem_eq⟩
 
 
 theorem BitVec.cons_inj (v₁ v₂ : BitVec n) (b₁ b₂) :
@@ -208,9 +175,7 @@ def BitVec.oneAt (i : Fin n) : BitVec n :=
 
 theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (hi : i < 2^minWidth)
   : BitVec.ofNat n i = ⟨i, Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)⟩ := by
-  simp only [bv_toNat]
-  rw [Nat.mod_eq_of_lt]
-  exact Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)
+  ext j hj; simp [bv_toNat, hj]
 
 theorem Nat.xor_mod_pow_2 (x y n : Nat) : x % 2^n ^^^ y % 2^n = (x ^^^ y) % 2^n := by
   apply Nat.eq_of_testBit_eq
@@ -226,19 +191,12 @@ theorem Nat.shiftLeft_mod_pow_2 (x y n : Nat) : x <<< y % 2^n = ((x % 2^(n-y)) <
   rw [and_comm, and_congr_right_iff]
   simp (config := {contextual := true}) [Nat.sub_lt_sub_iff_right]
 
-@[simp] theorem BitVec.xor_right_inj (x y z : BitVec n) : x ^^^ y = x ^^^ z ↔ y = z := by
-  refine ⟨fun h => ?_, by rintro rfl; rfl⟩
-  simp [bv_toNat] at h ⊢
-  apply Nat.eq_of_testBit_eq; intro i
-  replace h := congrArg (·.testBit i) h
-  simpa using h
-
-@[simp] theorem BitVec.xor_left_inj (x y z : BitVec n) : x ^^^ y = z ^^^ y ↔ x = z := by
-  refine ⟨fun h => ?_, by rintro rfl; rfl⟩
-  simp [bv_toNat] at h ⊢
-  apply Nat.eq_of_testBit_eq; intro i
-  replace h := congrArg (·.testBit i) h
-  simpa using h
+@[simp] theorem BitVec.getElem_cons' {b : Bool} {n} {x : BitVec n} {i : Nat} (h : i < n + 1) :
+    (cons b x)[i] = if is_msb : i = n then b else x[i]'(by omega) := by
+  split
+  · simp [cons, getElem_append, *]
+  · have : i < n := by omega
+    simp [cons, getElem_append, *]
 
 @[simp] theorem BitVec.xor_eq_self_left (x y : BitVec n) : x ^^^ y = x ↔ y = 0#n := by
   rw (occs := .pos [2]) [← BitVec.xor_zero (x := x)]; simp only [BitVec.xor_right_inj]
