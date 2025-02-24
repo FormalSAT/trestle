@@ -6,6 +6,7 @@ Authors: James Gallicchio, Cayden Codel
 -/
 
 import Std
+import Batteries
 
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
@@ -107,9 +108,6 @@ theorem Array.foldl_append (f : β → α → β) (init : β) (A B : Array α) :
   have ⟨B⟩ := B
   simp only [List.append_toArray, size_toArray, List.length_append,
     List.foldl_toArray', List.foldl_append]
-
-@[simp] theorem Array.size_set! (A : Array α) (i : Nat) (v : α) : (A.set! i v).size = A.size := by
-  rw [set!, Array.size_setIfInBounds]
 
 @[simp]
 theorem Array.mem_ofFn {a : α} {f : Fin n → α}
