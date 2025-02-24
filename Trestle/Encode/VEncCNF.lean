@@ -151,6 +151,9 @@ def addClause (C : Clause (Literal ν)) : VEncCNF ν Unit C :=
     simp; simp [SemanticEntails.entails, himp, compl, LawfulState.addClause, dbgTraceIfShared, State.addClause]
     ⟩
 
+def unit (l : Literal ν) : VEncCNF ν Unit l :=
+  addClause #[l] |>.mapProp (by ext τ; simp [Clause.toPropFun])
+
 open PropFun in
 set_option pp.proofs.withType false in
 @[inline]
@@ -340,5 +343,10 @@ def defDisj (v : Literal ν) (vs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑v ↔ (∃ v ∈ vs, τ ⊨ ↑v)) :=
   seq (implyOr v vs) (orImply vs v)
   |> mapProp (by aesop)
+
+
+def castVar (h : ν₁ = ν₂) (ve : VEncCNF ν₁ α P) : VEncCNF ν₂ α (h ▸ P) :=
+  match ve with
+  | ⟨e,he⟩ => ⟨h ▸ e, by subst h; exact he⟩
 
 end
