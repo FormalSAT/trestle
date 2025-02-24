@@ -8,6 +8,7 @@ Authors: James Gallicchio
 import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Finset.Pi
+import Batteries.Data.Vector.Lemmas
 
 def Fin.any (n : Nat) (P : Fin n → Bool) : Bool :=
   aux 0
@@ -80,24 +81,8 @@ theorem Multiset.countP_eq_succ [DecidableEq α] (p) [DecidablePred p] (xs : Mul
 @[simp] theorem Array.mem_finRange (x : Fin n) : x ∈ Array.finRange n := by
   simp [Array.finRange, mem_def, List.mem_ofFn]
 
-@[simp] theorem Vector.getElem_mk (A : Array α) (h : A.size = n) (i : Nat) (h2) :
-    (Vector.mk A h)[i]'h2 = A[i] := rfl
-
-@[ext]
-def Vector.ext {v₁ : Vector α n} {v₂ : Vector α n}
-    (h : ∀ (i : Nat) (h : i < n), v₁[i] = v₂[i]) : v₁ = v₂ := by
-  rcases v₁ with ⟨v₁⟩; rcases v₂ with ⟨v₂⟩
-  simp [Vector.cast] at h ⊢
-  ext i
-  · omega
-  apply h i; omega
-
 def Vector.ext' {v₁ : Vector α n} {v₂ : Vector α n} (h : v₁.toArray = v₂.toArray) : v₁ = v₂ := by
   cases v₁; cases v₂; simp_all
-
-@[simp] theorem Vector.getElem_ofFn (f : Fin n → α) (i : Nat) (h)
-  : (Vector.ofFn f)[i]'h = f ⟨i,h⟩ := by
-  simp [ofFn]
 
 @[simp] theorem Vector.getElem_cast (h : n = n') (v : Vector α n) (i : Nat) (hi)
   : (Vector.cast h v)[i]'hi = v[i] := by

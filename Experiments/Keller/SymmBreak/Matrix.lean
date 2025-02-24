@@ -9,6 +9,7 @@ import Experiments.Keller.Autos
 
 import Mathlib.Data.Finset.Sort
 import Mathlib.Tactic.LiftLets
+import Lean.Elab.GuardMsgs
 
 namespace Keller.SymmBreak
 
@@ -231,39 +232,166 @@ def Matrix.Renumber.id (s) (h : s > 1 := by trivial) : Matrix.Renumber s h where
     Matrix.Renumber.apply m (id s h) = m := by
   ext; simp [apply, id]
 
-/-! ### renumberToFour
+/-! ### Increment Sorted
 
-At the moment, the matrices are over arbitrary `s`,
-but we can effectively shrink a matrix to just be over `s = 4`.
+We say a list is "increment sorted" when every
+element in the list is `≤ (max before the element)+1`.
+
+For example, `[0,1,2,0]` is inc sorted, and `[0,1,3,0]` is not.
+
+For any list `L`, we can construct a permutation `p`
+such that `L.map p` is inc sorted.
+
+This is a funky looking function with a big job.
+Given a list `L : List (Fin s)` of values, it returns a permutation on `Fin s`
+such that `L` mapped by the permutation is "incrementally increasing".
+i.e. `L'[j] = x + 1` implies `∃ j' < j, L[j'] = x`.
 -/
-opaque renumberToFour.perm (L : List (Fin s)) : Equiv.Perm (Fin s) :=
-  sorry
 
-theorem renumberToFour.perm_zero (L : List (Fin s)) (h : s > 0) : (perm L) ⟨0,h⟩ = ⟨0,h⟩ := by
-  sorry
+def incSorted (L : List (Fin s)) : Prop :=
+  ∀ pre x, pre ≠ [] → (pre ++ [x]) <+: L → ∃ y ∈ pre, x.val ≤ y.val + 1
 
-theorem renumberToFour.perm_one (L : List (Fin s)) (h : s > 1) : (perm L) ⟨1,h⟩ = ⟨1,h⟩ := by
-  sorry
+theorem incSorted.nil : incSorted (s := s) [] := by simp [incSorted]
+theorem incSorted.singleton : incSorted (s := s) [x] := by
+  simp [incSorted]
+  rintro (_|⟨pre_hd,pre_tl⟩) y h1 h2 <;> simp_all
 
-theorem renumberToFour.perm_lt_four (L : List (Fin s)) : ∀ x ∈ L, ((perm L) x).val < 4 := by
-  sorry
+theorem incSorted.snoc (L : List (Fin s)) (x : Fin s) (exists_prev : ∃ y ∈ L, x.val ≤ y.val + 1) (h : incSorted L) :
+      incSorted (L ++ [x]) := by
+  intro pre y pre_ne_nil pre_prefix
+  rw [List.prefix_concat_iff] at pre_prefix
+  cases pre_prefix
+  case inl pre_eq_L =>
+    replace pre_eq_L := List.append_inj' pre_eq_L rfl
+    simp at pre_eq_L; rcases pre_eq_L with ⟨rfl,rfl⟩
+    exact exists_prev
+  case inr pre_prefix =>
+    exact h pre y pre_ne_nil pre_prefix
 
-def renumberToFour (m : Matrix s) (h : s > 1 := by trivial) : Matrix.Renumber s where
-  renumber := fun c => renumberToFour.perm (List.ofFn fun r => m.data[r][c])
-  renumber_0 := by simp [renumberToFour.perm_zero]
-  renumber_1 := by simp [renumberToFour.perm_one]
+def renumberIncr (L : List (Fin s)) : Equiv.Perm (Fin s) :=
+  let dedup := L.reverse.dedup.reverse
+  let pairs := dedup.zip (List.finRange s)
+  Equiv.Perm.setAll pairs
 
-theorem renumberToFour.exists_eq_castLE (m : Matrix s) (h : s ≥ 4) :
-    ∃ m' : Matrix 4, (renumberToFour m (by omega)).apply m = m'.castLE h := by
-  use {
-    data := .ofFn fun r => .ofFn fun c =>
-      ⟨ (perm [m.data[0][c], m.data[1][c], m.data[2][c]]) m.data[r][c]
-      , by apply perm_lt_four; match r with | ⟨0,_⟩ | ⟨1,_⟩ | ⟨2,_⟩ => simp⟩
-    transpose_one := by
-      have : 1 < s := by omega
-      intro r c; cases m.transpose_one r c <;> simp_all [Fin.val_eq_iff_lt_and_eq, perm_one]
-  }
-  simp [renumberToFour, Matrix.Renumber.apply, Matrix.castLE]
+/-- info: [0, 1, 2, 1, 3, 4, 0] -/
+#guard_msgs in
+#eval let L : List (Fin 10) := [0,2,1,2,5,3,0]
+      L.map (renumberIncr L)
+
+lemma renumberIncr.dedup_length (L : List (Fin s)) : L.dedup.length ≤ s := by
+  simpa only [Fintype.card_fin] using L.nodup_dedup.length_le_card
+
+lemma renumberIncr.dedup_length_of_not_mem (L : List (Fin s)) {x : Fin s} (hx : x ∉ L) :
+    L.dedup.length < s := by
+  simpa only [Fintype.card_fin, hx, not_false_eq_true, List.dedup_cons_of_not_mem]
+    using (x :: L).nodup_dedup.length_le_card
+
+theorem renumberIncr.eq_of_mem' (L : List (Fin s)) (i : Nat) (hi : i < L.reverse.dedup.reverse.length) :
+      renumberIncr L (L.reverse.dedup.reverse[i]'hi) = ⟨i, by
+        have := dedup_length L.reverse
+        simp at hi; omega⟩ := by
+  apply Equiv.Perm.setAll_eq_of_mem
+  · rw [List.pairwise_iff_getElem]
+    intro i j hi hj i_lt_j
+    simp at hi hj ⊢
+    rw [L.reverse.nodup_dedup.getElem_inj_iff]
+    omega
+  · rw [List.pairwise_iff_getElem]
+    intro i j hi hj i_lt_j
+    simp at hi hj ⊢
+    omega
+  · apply List.mem_iff_getElem.mpr
+    have := dedup_length L.reverse
+    simp at hi; simp_all
+
+theorem renumberIncr.eq_of_mem (L : List (Fin s)) {x y : Fin s}
+      (hy : y.val < L.reverse.dedup.reverse.length) (h : x = L.reverse.dedup.reverse[y]) :
+      renumberIncr L x = y := by
+  apply Equiv.Perm.setAll_eq_of_mem
+  · rw [List.pairwise_iff_getElem]
+    intro i j hi hj i_lt_j
+    simp at hi hj ⊢
+    rw [L.reverse.nodup_dedup.getElem_inj_iff]
+    omega
+  · rw [List.pairwise_iff_getElem]
+    intro i j hi hj i_lt_j
+    simp at hi hj ⊢
+    omega
+  · apply List.mem_iff_getElem.mpr
+    have := dedup_length L.reverse
+    use y
+    simp at hy
+    simp_all
+
+theorem renumberIncr.snoc_mem (L : List (Fin s)) {x : Fin s} (x_mem : x ∈ L) :
+    renumberIncr (L ++ [x]) = renumberIncr L := by
+  simp [renumberIncr, x_mem]
+
+theorem renumberIncr.snoc_not_mem (L : List (Fin s)) {x : Fin s} (x_not_mem : x ∉ L) :
+    (∀ y ∈ L, renumberIncr (L ++ [x]) y = renumberIncr L y) ∧
+      renumberIncr (L ++ [x]) x = ⟨L.reverse.dedup.length, dedup_length_of_not_mem L.reverse (by simpa using x_not_mem)⟩ := by
+  constructor
+  · intro y y_mem
+    have ⟨i,hi, (h : L.reverse.dedup.reverse[i]'hi = y)⟩ := List.getElem_of_mem (by simp [y_mem])
+    subst y
+    rw [List.length_reverse] at hi
+    refine Eq.trans (b := ⟨i,?i_lt⟩) ?L (Eq.symm ?R)
+    case i_lt =>
+      have := dedup_length L.reverse; omega
+    case L =>
+      apply eq_of_mem
+      · simp [x_not_mem, List.getElem_append, hi]
+      · simp [x_not_mem]; omega
+    case R =>
+      apply eq_of_mem
+      · simp [x_not_mem, List.getElem_append, hi]
+      · simp [x_not_mem]; omega
+  · apply eq_of_mem <;> simp [x_not_mem]
+
+theorem renumberIncr.exists_max (L : List (Fin s)) (nonempty : L ≠ []) :
+    ∃ y ∈ L, renumberIncr L y = ⟨L.reverse.dedup.reverse.length-1, by
+      have := dedup_length L.reverse; have := y.isLt; simp; omega⟩ := by
+  have dedup_nonempty : L.reverse.dedup.reverse.length ≠ 0 := by
+    intro h; simp at h; contradiction
+  let prev_max := L.reverse.dedup.reverse[L.reverse.dedup.reverse.length-1]
+  have : prev_max ∈ L := by
+    have : prev_max ∈ _ := List.getElem_mem ..
+    simpa using this
+  use prev_max, this
+  apply eq_of_mem
+  · simp [prev_max]
+  · simp; rw [List.length_reverse] at dedup_nonempty; omega
+
+theorem renumberIncr.incSorted_map (L : List (Fin s)) :
+    incSorted (L.map <| renumberIncr L) := by
+  rw [← List.reverse_reverse L]
+  induction L.reverse with
+  | nil => simp; exact incSorted.nil
+  | cons hd tl ih =>
+    by_cases tl.length = 0
+    case pos len_zero =>
+      match tl with | [] => apply incSorted.singleton
+    case neg tl_len_pos =>
+    rw [List.reverse_cons, List.map_append]
+    by_cases hd ∈ tl
+    case pos mem =>
+      rw [snoc_mem _ (by simpa using mem)]
+      apply incSorted.snoc
+      · simp; use hd; simp [mem]
+      · simpa using ih
+    case neg mem =>
+      have ⟨tl_same, hd_maps⟩ := snoc_not_mem tl.reverse (mem ∘ List.mem_reverse.mp)
+      simp_rw [List.mem_reverse] at tl_same
+      apply incSorted.snoc
+      · simp
+        have ⟨y, y_mem, hy⟩ := exists_max tl.reverse (by simpa using tl_len_pos)
+        use y
+        rw [List.mem_reverse] at y_mem
+        specialize tl_same _ y_mem
+        simp [tl_same, y_mem, hd_maps, hy]
+        omega
+      · convert ih using 1
+        simp +contextual [tl_same]
 
 
 /-! ### findSmaller?
@@ -274,30 +402,11 @@ We do not need to verify anything about the code for *finding* appropriate permu
 all we care about is that one exists.
 -/
 
-private def renumber_fins (m : List (Fin s)) : Equiv.Perm (Fin s) :=
-  match m.head? with
-  | none => Equiv.refl _
-  | some ⟨_,h⟩ =>
-    Equiv.Perm.setAll (
-      aux ⟨0,by omega⟩ m []
-    )
-where
-  aux (nextSpot : Fin s) (L : List (Fin s))
-      (acc : List (Fin s × Fin s)) : List (Fin s × Fin s) :=
-  match L with
-  | []    => acc
-  | x::xs =>
-    if acc.any (·.1 = x) then
-      aux nextSpot xs acc
-    else
-      let acc := (x,nextSpot) :: acc
-      if _ : nextSpot = s-1 then acc
-      else aux ⟨nextSpot+1, by omega⟩ xs acc
 
 def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 2 := by trivial) : Option (Matrix s) := do
   let p : Matrix.Renumber s (by omega) ← (do
     let renumber := fun c =>
-      renumber_fins <| ⟨0,by omega⟩ :: ⟨1,by omega⟩ :: (List.finRange 3 |>.filter (· ≠ c) |>.map fun r => m.get r c)
+      renumberIncr <| ⟨0,by omega⟩ :: ⟨1,by omega⟩ :: (List.finRange 3 |>.filter (· ≠ c) |>.map fun r => m.get r c)
     if h : _ then some {
       renumber := renumber
       renumber_0 := And.left h
@@ -383,19 +492,3 @@ where aux (a : Array Nat) : Option (Matrix 4) :=
 
 theorem Matrix.canonicalCases_are_canonical : ∀ m : Matrix 4, m ∈ canonicalCases ∨ (findSmaller? m).isSome := by
   decide +native
-
-theorem Matrix.exists_related_canonicalCase (m : Matrix s) (h : s ≥ 4) :
-        ∃ m' : Matrix 4, m' ∈ canonicalCases ∧
-          ∃ (p : Perm) (r : Renumber s (by omega)), r.apply (p.apply m) = m'.castLE h := by
-  -- first, reduce to `s = 4`.
-  have ⟨m1, h1⟩ := renumberToFour.exists_eq_castLE m (by omega)
-  
-  induction m1 using WellFoundedLT.induction generalizing m
-  case ind m1 ih =>
-  match h2 : findSmaller? m1 with
-  | some m2 =>
-    have ⟨p,r,h3,lt⟩ := findSmaller?_eq_some _ _ _ h2
-    specialize ih m2 lt
-    sorry
-  | none =>
-    sorry
