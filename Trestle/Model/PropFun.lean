@@ -476,6 +476,22 @@ theorem satisfies_any {a : Multiset (PropFun ν)} {τ : PropAssignment ν}
   | empty => simp [any]
   | cons => simp_all [any]
 
+@[simp]
+theorem any_zero : any (0 : Multiset (PropFun ν)) = ⊥ := by
+  simp only [any, Multiset.sup_zero]
+
+@[simp]
+theorem any_empty : any (∅ : Multiset (PropFun ν)) = ⊥ := by
+  simp only [Multiset.empty_eq_zero, any_zero]
+
+@[simp]
+theorem all_zero : all (0 : Multiset (PropFun ν)) = ⊤ := by
+  simp only [all, Multiset.inf_zero]
+
+@[simp]
+theorem all_empty : all (∅ : Multiset (PropFun ν)) = ⊤ := by
+  simp only [Multiset.empty_eq_zero, all_zero]
+
 /-! # satisfiable and eqsat -/
 
 def satisfiable (φ : PropFun ν) : Prop :=

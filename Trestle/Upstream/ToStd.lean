@@ -7,6 +7,26 @@ Authors: James Gallicchio, Cayden Codel
 
 import Std
 
+@[simp] theorem Bool.bnot_eq_bnot (a b : Bool) :
+  ((!a) = !b) ↔ (a = b) := by cases a <;> cases b <;> decide
+@[simp] theorem Bool.eq_true_iff_eq_true (a b : Bool) :
+  (a = true ↔ b = true) ↔ (a = b) := by cases a <;> cases b <;> decide
+@[simp] theorem Bool.eq_false_iff_eq_false (a b : Bool) :
+  (a = false ↔ b = false) ↔ (a = b) := by cases a <;> cases b <;> decide
+
+theorem Bool.bnot_eq (a b : Bool) :
+  ((!a) = b) ↔ ¬(a = b) := by cases a <;> cases b <;> decide
+theorem Bool.eq_bnot (a b : Bool) :
+  (a = (!b)) ↔ ¬(a = b) := by cases a <;> cases b <;> decide
+
+/-! Int -/
+
+theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 := by
+  intro h
+  by_cases hLt : 0 < i
+  . have := h.mpr hLt; omega
+  . have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); omega
+
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
               (h : i + rest.length = L.length) :=
@@ -70,18 +90,25 @@ def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
   else
     none
 
+-- CC: This is included in `Init.Data.Array.Lemmas` in v4.17
+@[simp]
+theorem Array.append_singleton {a : α} {as : Array α} : as ++ #[a] = as.push a := rfl
+
 theorem Array.mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
     Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
   apply Array.ext'; simp; rfl
 
-@[deprecated Array.mkArray_succ (since := "v4.16.0")]
-theorem Array.mkArray_succ' (n : Nat) (a : α) :
-    Array.mkArray (n + 1) a = (Array.mkArray n a).push a := by
+-- CC: This is included in `Init.Data.Array.Lemmas` in v4.17
+/-- Variant of `mkArray_succ` that prepends `a` at the beginning of the array. -/
+theorem Array.mkArray_succ' : mkArray (n + 1) a = #[a] ++ mkArray n a := by
   apply Array.ext'
-  simp [Array.toList_mkArray, List.replicate]
-  induction n with
-  | zero => rfl
-  | succ n ih => simp [List.replicate]; exact ih
+  simp [List.replicate_succ]
+
+-- CC: This is included in `Init.Data.Array.Lemmas` in v4.17
+@[simp]
+theorem Array.mem_mkArray {a b : α} {n} : b ∈ mkArray n a ↔ n ≠ 0 ∧ b = a := by
+  unfold mkArray
+  simp only [mem_toArray, List.mem_replicate]
 
 @[simp]
 theorem Array.foldl_empty (f : β → α → β) (init : β) (start stop : Nat) :
