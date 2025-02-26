@@ -62,7 +62,10 @@ where runCnfCmd (p : Parsed) := do
     IO.println s!"writing DSR proof to {dsrFile}"
     IO.FS.withFile dsrFile .write <| fun handle => do
       for {c, pivot, true_lits, substs} in sr do
-        IO.println s!"{c} -- {pivot} {true_lits} -- {substs}"
+        IO.println s!"{
+          c.toList.map toString |> String.intercalate " " } | {
+          (pivot :: true_lits).map toString |> String.intercalate " " } | {
+          substs.map (fun (v,l) => s!"{v} > {l}") |> String.intercalate "; " }"
         let line := formatSRLine
             (c := c.map _ vMap)
             (pivot := LitVar.map vMap pivot)
