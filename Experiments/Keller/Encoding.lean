@@ -8,6 +8,7 @@ Authors: James Gallicchio
 import Trestle.Encode
 import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
+
 import Experiments.Keller.KellerGraph
 import Experiments.Keller.SymmBreak.TwoCubes
 import Experiments.Keller.SymmBreak.Matrix
@@ -19,7 +20,10 @@ open Trestle Encode
 inductive Vars (n s : Nat)
 -- coordinates of each of the 2^n clique nodes
 | x (i : BitVec n) (j : Fin n) (k : Fin s)
-deriving IndexType, Hashable
+deriving IndexType, Hashable, Ord
+
+instance : ToString (Vars n s) where
+  toString | Vars.x i j k => s!"x{i.toNat},{j},{k}"
 
 def allBitVecs (n) : Array (BitVec n) := Array.ofFn (BitVec.ofFin)
 
@@ -376,9 +380,48 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit full_spec :=
 
 end CNF
 
+structure SRLine (n s) where
+  c : Clause (Literal (Vars n s))
+  pivot : Literal (Vars n s)
+  true_lits : List (Literal (Vars n s))
+  substs : List (Vars n s × Literal (Vars n s))
+
 namespace SR
 
+def matrixIndices : Array (BitVec n) := #[7#n,11#n,19#n,35#n,67#n]
 
+open Vars in
+def matrixRenumber (n s) : Array (SRLine n s) :=
+  if hn : ¬(5 ≤ n ∧ n ≤ 7) then #[] else Id.run do
+  let mut res := #[]
+
+  for hj : j in [2:n] do
+    let j : Fin n := ⟨j,hj.upper⟩
+
+    for h : matRow in [0:n-2] do
+      let i : BitVec n := matrixIndices[matRow]'(by
+        have := h.upper; simp +zetaDelta [matrixIndices] at this hn ⊢; omega
+      )
+      -- we want to show c_i[j] < idx+2, eg c_i[j] ≠ k for k >= idx+2
+      -- proof by swapping k to idx+1 (within column j)
+      if hswap : matRow+2 < s then
+      let kswap : Fin s := ⟨matRow+2, hswap⟩
+      for hk : k in [matRow+3:min 10 s] do
+        let k : Fin s := ⟨k,(lt_min_iff.mp hk.upper).2⟩
+        let c         := #[Literal.neg (x i j k)]
+        let pivot     :=   Literal.neg (x i j k)
+        let true_lits := [ Literal.pos (x i j kswap)]
+        let mut substs := #[]
+        for i' in allBitVecs n do
+          if i' ≠ i then
+            substs := substs.push (x i' j k, Literal.pos (x i' j kswap))
+            substs := substs.push (x i' j kswap, Literal.pos (x i' j k))
+        res := res.push { c, pivot, true_lits, substs := substs.toList }
+
+  return res
+
+def all (n s) : Array (SRLine n s) :=
+  matrixRenumber n s
 
 end SR
 
