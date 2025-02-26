@@ -115,6 +115,8 @@ def BitVec.equiv_fin (n) : BitVec n ≃ Fin (2^n) := {
 instance : Fintype (BitVec n) :=
   Fintype.ofEquiv (Fin (2^n)) (BitVec.equiv_fin n).symm
 
+deriving instance Ord for BitVec
+
 @[simp] theorem BitVec.card (n) : Fintype.card (BitVec n) = 2^n := by
   rw [← Fintype.card_fin (n := 2^n)]
   apply Fintype.card_congr; apply BitVec.equiv_fin
