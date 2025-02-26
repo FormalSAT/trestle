@@ -406,8 +406,8 @@ def matrixRenumber (n s) : Array (SRLine n s) :=
       -- proof by swapping k to idx+1 (within column j)
       if hswap : matRow+2 < s then
       let kswap : Fin s := ⟨matRow+2, hswap⟩
-      for hk : k in [matRow+3:min 10 s] do
-        let k : Fin s := ⟨k,(lt_min_iff.mp hk.upper).2⟩
+      for hk : k in [matRow+3:s] do
+        let k : Fin s := ⟨k,hk.upper⟩
         let c         := #[Literal.neg (x i j k)]
         let pivot     :=   Literal.neg (x i j k)
         let true_lits := [ Literal.pos (x i j kswap)]
