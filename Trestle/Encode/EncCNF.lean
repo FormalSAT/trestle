@@ -34,23 +34,24 @@ structure State (ν : Type u) where
   nextVar : PNat
   cnf : RichCnf
   vMap : ν → IVar
+  vNames : Batteries.RBMap IVar String compare
 
 namespace State
 
 @[simp]
 def toPropFun (s : State ν) : PropFun IVar := s.cnf.toICnf.toPropFun
 
-def new (vars : PNat) (f : ν → IVar) : State ν := {
+def new (vars : PNat) (f : ν → IVar) (vNames : List (ν × String)) : State ν := {
   nextVar := vars
   cnf := #[]
   vMap := f
+  vNames := vNames.foldl (init := .empty) (fun acc (v,n) => acc.insert (f v) n)
 }
 
 def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
   match s with
-  | {nextVar, cnf, vMap} => {
-    nextVar := nextVar
-    vMap := vMap
+  | {nextVar, cnf, vMap, vNames} => {
+    nextVar, vMap, vNames
     cnf :=
       let cnf := dbgTraceIfShared "State.addClause: cnf is shared (performance bug!)" cnf
       cnf.addClause (C.map _ vMap)
@@ -64,9 +65,8 @@ def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
 
 def addComment (comment : String) (s : State ν) : State ν :=
   match s with
-  | {nextVar, cnf, vMap} => {
-    nextVar := nextVar
-    vMap := vMap
+  | {nextVar, cnf, vMap, vNames} => {
+    nextVar, vMap, vNames
     cnf := cnf.addComment comment
   }
 
@@ -109,26 +109,26 @@ existentially quantified away.
 noncomputable def interp (s : LawfulState ν) : PropAssignment ν → Prop :=
   fun τ => ∃ σ, τ = PropAssignment.map s.vMap σ ∧ σ ⊨ s.toPropFun
 
-def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars)
+def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) (names : List (ν × String))
     : LawfulState ν := {
-  State.new vars f with
+  State.new vars f names with
   cnfVarsLt := by intro c hc _ _; simp [State.new, RichCnf.toICnf] at hc
   vMapLt := h
   vMapInj := f.injective
 }
 
 @[simp]
-theorem interp_new (vars) (f : ν ↪ IVar) (h)
-  : interp (new vars f h) = fun _ => True := by
+theorem interp_new (vars) (f : ν ↪ IVar) (h) (names)
+  : interp (new vars f h names) = fun _ => True := by
   ext τ
   simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map, RichCnf.toICnf]
   apply τ.exists_preimage
 
 @[simp]
-theorem toState_new (vars) (f : ν ↪ IVar) (h)
-  : (new vars f h).toState = State.new vars f := rfl
+theorem toState_new (vars) (f : ν ↪ IVar) (h) (names)
+  : (new vars f h names).toState = State.new vars f names := rfl
 
-def new' (vars : Nat) (f : ν ↪ Fin vars) : LawfulState ν :=
+def new' (vars : Nat) (f : ν ↪ Fin vars) (names : List (ν × String)) : LawfulState ν :=
   new (Nat.succPNat vars)
     ⟨ fun v => Nat.succPNat (f v)
     , by intro x y; simp [State.new, ← PNat.val_eq_val, Fin.val_inj]⟩
@@ -136,10 +136,11 @@ def new' (vars : Nat) (f : ν ↪ Fin vars) : LawfulState ν :=
       intro v; simp [State.new, Nat.succPNat]
       rw [PNat.mk_lt_mk, Nat.succ_lt_succ_iff]
       exact (f v).isLt)
+    names
 
 @[simp]
-theorem interp_new' (vars) (f : ν ↪ Fin vars)
-  : interp (new' vars f) = fun _ => True := by simp [new']
+theorem interp_new' (vars) (f : ν ↪ Fin vars) (names)
+  : interp (new' vars f names) = fun _ => True := by simp [new']
 
 def addClause (C : Clause (Literal ν)) : LawfulState ν → LawfulState ν
 | {toState, vMapLt, vMapInj, cnfVarsLt} => {
@@ -236,11 +237,11 @@ instance : LawfulMonad (EncCNF ν) where
   bind_assoc := by
     intros; simp [bind]; rfl
 
-def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : α × LawfulState ν :=
-  e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
+def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) (names : List (ν × String) := []) : α × LawfulState ν :=
+  e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding) names
 
-def runUnit [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν Unit) : LawfulState ν :=
-  LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding)
+def runUnit [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν Unit) (names : List (ν × String) := []) : LawfulState ν :=
+  LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding) names
   |> e.1.run
   |>.2
 
@@ -276,10 +277,18 @@ def addAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit 
 
 /-! ### Temporaries -/
 
-def State.withTemps [IndexType ι] (s : State ν) : State (ν ⊕ ι) where
+def State.withTemps [IndexType ι] (s : State ν) (names : Option (ι → String)) : State (ν ⊕ ι) where
+  cnf := s.cnf
   nextVar := ⟨s.nextVar + IndexType.card ι, by simp⟩
   vMap := vMap s.vMap s.nextVar
-  cnf := s.cnf
+  vNames :=
+    match names with
+    | none => s.vNames
+    | some nameF =>
+      Fin.foldl (IndexType.card ι) (init := s.vNames) (fun acc t =>
+        let i : ι := IndexType.fromFin t
+        acc.insert (vMap s.vMap s.nextVar <| Sum.inr i) (nameF i)
+      )
 -- !!!!! an old version of this code passed the entire state `s` to
 -- this `vMap` helper, which would cause the state to become shared
 -- every time `State.withTemps` was called! yikes!!!
@@ -289,12 +298,12 @@ where vMap (vMap nextVar x):=
   | Sum.inr i => ⟨nextVar + IndexType.toFin i, by simp⟩
 
 @[simp] theorem State.cnf_withTemps [IndexType ι] (s : State ν) :
-    (State.withTemps s (ι := ι)).cnf = s.cnf
+    (State.withTemps s (ι := ι) names).cnf = s.cnf
   := by simp [State.withTemps]
 
-def LawfulState.withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν)
+def LawfulState.withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν) (names : Option (ι → String))
   : LawfulState (ν ⊕ ι) where
-  toState := s.toState.withTemps
+  toState := s.toState.withTemps names
   cnfVarsLt := by
     simp [State.withTemps]
     intro c hc l hl
@@ -323,12 +332,12 @@ def LawfulState.withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState �
       exact h
 
 @[simp] theorem LawfulState.vMap_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν) :
-    (s.withTemps (ι := ι)).vMap = State.withTemps.vMap s.vMap s.nextVar
+    (s.withTemps (ι := ι) names).vMap = State.withTemps.vMap s.vMap s.nextVar
   := by simp [LawfulState.withTemps, State.withTemps]
 
 @[simp]
 theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν)
-    : (s.withTemps (ι := ι)).interp = fun τ => s.interp (τ.map Sum.inl) := by
+    : (s.withTemps (ι := ι) names).interp = fun τ => s.interp (τ.map Sum.inl) := by
   ext τ
   simp [interp, withTemps, State.withTemps]
   constructor
@@ -336,7 +345,7 @@ theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : La
     use σ; simp [h]
     ext v; simp [State.withTemps.vMap]
   · rintro ⟨σ,h1,h2⟩
-    have ⟨σ',hσ'⟩ := τ.exists_preimage ⟨State.withTemps.vMap s.vMap s.nextVar, (LawfulState.withTemps s).vMapInj⟩
+    have ⟨σ',hσ'⟩ := τ.exists_preimage ⟨State.withTemps.vMap s.vMap s.nextVar, (LawfulState.withTemps s names).vMapInj⟩
     cases hσ'
     simp [PropAssignment.map] at h2 ⊢
     use σ.setMany
@@ -369,8 +378,9 @@ theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : La
 
 def State.withoutTemps (vMap : ν → IVar) (s : State (ν ⊕ ι)) : State ν where
   nextVar := s.nextVar
-  cnf := s.cnf
   vMap := vMap
+  vNames := s.vNames
+  cnf := s.cnf
 
 @[simp] theorem State.vMap_withoutTemps (s : State _) :
     (State.withoutTemps (ν := ν) (ι := ι) vm s).vMap = vm
@@ -416,11 +426,11 @@ def nextVar_mono_of_eq {e : EncCNF ν α} (h : e.1 s = (a, s')) :
   have := h ▸ e.2 s
   exact this
 
-def withTemps (ι) [IndexType ι] [LawfulIndexType ι] (e : EncCNF (ν ⊕ ι) α) : EncCNF ν α :=
+def withTemps (ι) [IndexType ι] [LawfulIndexType ι] (e : EncCNF (ν ⊕ ι) α) (names : Option (ι → String) := none) : EncCNF ν α :=
   ⟨ fun s =>
     let vMap := s.vMap
     let vMapInj := s.vMapInj
-    let tempify := s.withTemps
+    let tempify := s.withTemps names
     match h : e.1 tempify with
     | (a,s') =>
     (a, s'.withoutTemps vMap (by

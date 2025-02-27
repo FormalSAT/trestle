@@ -39,7 +39,7 @@ theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
   : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
     (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toRichCnf.toICnf.toPropFun) := by
   simp [EncCNF.toRichCnf, run, StateT.run]
-  generalize hls : LawfulState.new' _ _ = ls
+  generalize hls : LawfulState.new' _ _ _ = ls
   have := h ls
   generalize hls' : e.1 ls = ls' at this
   rcases ls' with ⟨a,ls'⟩
@@ -158,13 +158,13 @@ open PropFun in
 set_option pp.proofs.withType false in
 @[inline]
 def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν ⊕ ι) → Prop}
-    (ve : VEncCNF (ν ⊕ ι) α P) :
+    (ve : VEncCNF (ν ⊕ ι) α P) (names : Option (ι → String) := none) :
     VEncCNF ν α (fun τ => ∃ σ, τ = σ.map Sum.inl ∧ P σ) :=
-  ⟨EncCNF.withTemps _ ve.1, by
+  ⟨EncCNF.withTemps _ ve.1 names, by
     -- this proof is about relating the states pre/post running ve
     intro ls_pre ls_post'
     unfold ls_post'; clear ls_post'
-    generalize retVal_def : (EncCNF.withTemps ι ve.val).val ls_pre = retVal
+    generalize retVal_def : (EncCNF.withTemps ι ve.val _).val ls_pre = retVal
     -- let's get through a nasty match in withTemps
     dsimp [EncCNF.withTemps] at retVal_def
     split at retVal_def; next a ls_post_withTemps pre_to_post =>
@@ -175,7 +175,7 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     · simp [← ls_post_def]
     case right =>
     -- ve's correctness property gives us some facts from pre_to_post
-    have ⟨vMap_pre_post, interp_pre_post⟩ := ve.prop ls_pre.withTemps
+    have ⟨vMap_pre_post, interp_pre_post⟩ := ve.prop (ls_pre.withTemps names)
     rw [pre_to_post] at vMap_pre_post interp_pre_post
     -- the second goal relies on the interpretation of withoutTemps
     rw [← ls_post_def]; clear! ls_post

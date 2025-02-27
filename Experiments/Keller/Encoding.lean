@@ -229,7 +229,8 @@ where
     (fun τ => ∃ j' ≠ j, ∃ k, τ (x i j' k) ≠ τ (x i' j' k))
   :=
     (newCtx s!"two diffs c{i.toNat} c{i'.toNat}" <|
-    withTemps (Fin n × Fin s) <|
+    withTemps (Fin n × Fin s)
+      (names := some fun (j',k) => s!"y{i.toNat},{i'.toNat},{j'},{k}") <|
     seq[
       for_all (Array.finRange n) fun j' =>
         VEncCNF.guard (j' ≠ j) fun _h =>
@@ -280,7 +281,7 @@ def hasSGap (i i' : BitVec n) : VEncCNF (Vars n s) Unit
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
   (let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
   newCtx s!"s gap c{i.toNat} c{i'.toNat}" <|
-  withTemps (Fin n) <|
+  withTemps (Fin n) (names := some fun j => s!"z{i},{i'},{j}") <|
     seq[
       for_all potentialJs fun j =>
         newCtx s!"s gap c{i.toNat} c{i'.toNat} at {j}" <|
