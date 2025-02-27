@@ -34,15 +34,13 @@ def formatFormula (f : ICnf) : String :=
   s!"p cnf {vars} {clauses}\n" ++ (
     f.map formatClause |>.toList |> String.intercalate "\n" )
 
-def printICnf [Monad m] (print : String → m Unit) (f : ICnf) : m Unit := do
-  let vars := f.maxVar
+def printICnf [Monad m] (print : String → m Unit) (f : ICnf) (vars := f.maxVar) : m Unit := do
   let clauses := f.size
   print <| s!"p cnf {vars} {clauses}\n"
   for c in f do
     print <| formatClause c ++ "\n"
 
-def printRichCnf [Monad m] (print : String → m Unit) (f : RichCnf) : m Unit := do
-  let vars := f.maxVar
+def printRichCnf [Monad m] (print : String → m Unit) (f : RichCnf) (vars := f.maxVar) : m Unit := do
   let clauses := f.foldl (· + match · with |.clause _ => 1 | _ => 0) 0
   print <| s!"p cnf {vars} {clauses}\n"
   for line in show Array _ from f do
