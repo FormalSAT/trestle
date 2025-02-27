@@ -400,12 +400,12 @@ structure Line (n s) where
   true_lits : List (Literal (AllVars n s))
   substs : List (AllVars n s × Literal (AllVars n s))
 
-def lineOfClauseAndSubsts? (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
+def lineOfClauseAndSubsts (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
   -- take the first literal as the pivot
   let pivot := c[0]
   let true_lits :=
-    List.ofFn (n := c.size-1) fun i => c[i]
+    List.ofFn (n := c.size-1) fun i => c[i.val+1]
   let substs := substs.filterMap fun (v, l) =>
     match v with
     | .x i j k =>
@@ -442,7 +442,7 @@ def matrixRenumber (n s) : Array (Line n s) :=
   let k : Fin s := ⟨3,by omega⟩
   let k' : Fin s := ⟨2,by omega⟩
   res := res.push <|
-    lineOfClauseAndSubsts?
+    lineOfClauseAndSubsts
       (c := #[Literal.neg <| .x 11#n j k, Literal.pos <| .x 11#n j k'])
       (substs := renumberSwapSubsts j k k' |>.toList)
 
@@ -462,9 +462,18 @@ def matrixRenumber (n s) : Array (Line n s) :=
 
   return res
 
+def test (n s) : Array (Line n s) :=
+  if h : n > 2 ∧ s > 2 then
+    #[
+      lineOfClauseAndSubsts
+        (c := #[ Literal.neg <| .x 0#n ⟨0,by omega⟩ ⟨1,by omega⟩
+               , Literal.pos <| .x 0#n ⟨0,by omega⟩ ⟨0,by omega⟩])
+        (substs := renumberSwapSubsts ⟨0,by omega⟩ ⟨1,by omega⟩ ⟨0,by omega⟩ |>.toList)
+    ]
+  else #[]
 
 def all (n s) : Array (Line n s) :=
-  matrixRenumber n s
+  test n s
 
 end SR
 
