@@ -49,6 +49,9 @@ where runCnfCmd (p : Parsed) := do
 
   IO.println s!"encoding G_{n}_{s}"
   let {cnf, vMap, ..} := Encoding.fullEncoding n s |>.val.runUnit
+    (names := List.flatten <| List.flatten <|
+      .ofFn fun (i : Fin (2^n)) => .ofFn fun (j : Fin n) => .ofFn fun (k : Fin s) =>
+      (Encoding.Vars.x i j k, s!"x{i},{j},{k}"))
 
   if let some cnfFile := cnfFileArg then
     IO.println s!"writing CNF to {cnfFile}"
