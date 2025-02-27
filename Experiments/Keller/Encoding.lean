@@ -381,18 +381,23 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit full_spec :=
 
 end CNF
 
-structure SRLine (n s) where
-  c : Clause (Literal (Vars n s))
-  pivot : Literal (Vars n s)
-  true_lits : List (Literal (Vars n s))
-  substs : List (Vars n s × Literal (Vars n s))
-
 namespace SR
+
+inductive AllVars (n s : Nat)
+| x (i : BitVec n) (j : Fin n) (k : Fin s)
+| y (i i' : BitVec n) (j : Fin n) (k : Fin s)
+| z (i i' : BitVec n) (j : Fin n)
+
+structure Line (n s) where
+  c : Clause (Literal (AllVars n s))
+  pivot : Literal (AllVars n s)
+  true_lits : List (Literal (AllVars n s))
+  substs : List (AllVars n s × Literal (AllVars n s))
 
 def matrixIndices : Array (BitVec n) := #[7#n,11#n,19#n,35#n,67#n]
 
 open Vars in
-def matrixRenumber (n s) : Array (SRLine n s) :=
+def matrixRenumber (n s) : Array (Line n s) :=
   if hn : ¬(5 ≤ n ∧ n ≤ 7) then #[] else Id.run do
   let mut res := #[]
 
@@ -409,19 +414,19 @@ def matrixRenumber (n s) : Array (SRLine n s) :=
       let kswap : Fin s := ⟨matRow+2, hswap⟩
       for hk : k in [matRow+3:s] do
         let k : Fin s := ⟨k,hk.upper⟩
-        let c         := #[Literal.neg (x i j k)]
-        let pivot     :=   Literal.neg (x i j k)
-        let true_lits := [ Literal.pos (x i j kswap)]
-        let mut substs := #[]
+        let c         := #[.neg (.x i j k) ]
+        let pivot     :=   .neg (.x i j k)
+        let true_lits :=  [.pos (.x i j kswap)]
+        let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
         for i' in allBitVecs n do
           if i' ≠ i then
-            substs := substs.push (x i' j k, Literal.pos (x i' j kswap))
-            substs := substs.push (x i' j kswap, Literal.pos (x i' j k))
+            substs := substs.push (.x i' j k, .pos (.x i' j kswap))
+            substs := substs.push (.x i' j kswap, .pos (.x i' j k))
         res := res.push { c, pivot, true_lits, substs := substs.toList }
 
   return res
 
-def all (n s) : Array (SRLine n s) :=
+def all (n s) : Array (Line n s) :=
   matrixRenumber n s
 
 end SR
