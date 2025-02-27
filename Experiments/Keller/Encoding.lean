@@ -415,6 +415,39 @@ def lineOfClauseAndSubsts (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 
     | _ => some (v, l)
   { c, pivot, true_lits, substs }
 
+def reorderSubsts {s} (j j' : Fin n) := Id.run do
+  let iMap := fun (i: BitVec n) => BitVec.ofFn ( i[(Equiv.swap j j') ·] )
+
+  let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
+  -- x_i,j,k <-> x_map(i),j',k
+  for i in allBitVecs n do
+    for k in Array.finRange s do
+      substs := substs.push (.x i        j  k, .pos (.x (iMap i) j' k))
+      substs := substs.push (.x (iMap i) j' k, .pos (.x i        j  k))
+
+  -- y_i,i',j,k <-> y_map(i),map(i'),j',k
+  for i in allBitVecs n do
+    for hjd: jdiff in [0:n] do
+      let i' := i ^^^ BitVec.oneAt ⟨jdiff, hjd.upper⟩
+      if i < i' then
+        let (i1,i2) :=
+          if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
+        for k in Array.finRange s do
+          substs := substs.push (.y i i' j  k, .pos (.y i1 i2 j' k))
+          substs := substs.push (.y i1 i2 j' k, .pos (.y i i' j  k))
+
+  -- z_i,i',j <-> z_map(i),map(i'),j'
+  for i in allBitVecs n do
+    for i' in allBitVecs n do
+      if i < i' then
+        -- note that z vars are symmetric in the is, but we only use the one where i < i'
+        -- so we need to figure out which one is which after the mapping
+        let (i1,i2) :=
+          if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
+        substs := substs.push (.z i i' j, .pos (.z i1 i2 j'))
+        substs := substs.push (.z i1 i2 j', .pos (.z i i' j))
+  return substs
+
 def renumberSwapSubsts (j : Fin n) (k k' : Fin s) := Id.run do
   let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
   -- x_i,j,k <-> x_i,j,k'
@@ -466,11 +499,8 @@ def test (n s) : Array (Line n s) :=
   if h : n ≥ 5 ∧ s > 4 then
     #[
       lineOfClauseAndSubsts
-        (c := #[ Literal.neg <| .x 11#n ⟨2,by omega⟩ ⟨3,by omega⟩ ])
-        (substs := renumberSwapSubsts ⟨2,by omega⟩ ⟨3,by omega⟩ ⟨2,by omega⟩ |>.toList)
-    ,  lineOfClauseAndSubsts
-        (c := #[ Literal.neg <| .x 11#n ⟨2,by omega⟩ ⟨4,by omega⟩ ])
-        (substs := renumberSwapSubsts ⟨2,by omega⟩ ⟨4,by omega⟩ ⟨2,by omega⟩ |>.toList)
+        (c := #[ Literal.pos <| .x 7#n ⟨3,by omega⟩ ⟨1,by omega⟩ ])
+        (substs := reorderSubsts ⟨2,by omega⟩ ⟨3,by omega⟩ |>.toList)
     ]
   else #[]
 

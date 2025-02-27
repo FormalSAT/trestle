@@ -48,7 +48,7 @@ where runCnfCmd (p : Parsed) := do
   let cubeFileArg := p.flag? "cube" |>.map (·.as! String)
 
   IO.println s!"encoding G_{n}_{s}"
-  let {cnf, vMap, vNames, ..} :=
+  let {cnf, vMap, vNames, nextVar, ..} :=
     Encode.EncCNF.runUnit (Encoding.fullEncoding n s)
     (names := List.flatten <| List.flatten <|
       .ofFn fun (i : Fin (2^n)) => .ofFn fun (j : Fin n) => .ofFn fun (k : Fin s) =>
@@ -57,7 +57,9 @@ where runCnfCmd (p : Parsed) := do
   if let some cnfFile := cnfFileArg then
     IO.println s!"writing CNF to {cnfFile}"
     IO.FS.withFile cnfFile .write <| fun handle => do
-      Solver.Dimacs.printRichCnf (handle.putStr) cnf
+      for (v, name) in vNames do
+        handle.putStrLn s!"c {v} := {name}"
+      Solver.Dimacs.printRichCnf (handle.putStr) cnf (vars := nextVar.natPred)
       handle.flush
 
   if let some dsrFile := dsrFileArg then
