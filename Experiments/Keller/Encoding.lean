@@ -463,12 +463,14 @@ def matrixRenumber (n s) : Array (Line n s) :=
   return res
 
 def test (n s) : Array (Line n s) :=
-  if h : n > 2 ∧ s > 2 then
+  if h : n ≥ 5 ∧ s > 4 then
     #[
       lineOfClauseAndSubsts
-        (c := #[ Literal.neg <| .x 0#n ⟨0,by omega⟩ ⟨1,by omega⟩
-               , Literal.pos <| .x 0#n ⟨0,by omega⟩ ⟨0,by omega⟩])
-        (substs := renumberSwapSubsts ⟨0,by omega⟩ ⟨1,by omega⟩ ⟨0,by omega⟩ |>.toList)
+        (c := #[ Literal.neg <| .x 11#n ⟨2,by omega⟩ ⟨3,by omega⟩ ])
+        (substs := renumberSwapSubsts ⟨2,by omega⟩ ⟨3,by omega⟩ ⟨2,by omega⟩ |>.toList)
+    ,  lineOfClauseAndSubsts
+        (c := #[ Literal.neg <| .x 11#n ⟨2,by omega⟩ ⟨4,by omega⟩ ])
+        (substs := renumberSwapSubsts ⟨2,by omega⟩ ⟨4,by omega⟩ ⟨2,by omega⟩ |>.toList)
     ]
   else #[]
 
