@@ -25,6 +25,18 @@ deriving IndexType, Hashable, Ord
 instance : ToString (Vars n s) where
   toString | Vars.x i j k => s!"x{i.toNat},{j},{k}"
 
+inductive AllVars (n s : Nat)
+| x (i : BitVec n) (j : Fin n) (k : Fin s)
+| y (i i' : BitVec n) (j : Fin n) (k : Fin s)
+| z (i i' : BitVec n) (j : Fin n)
+deriving DecidableEq
+
+instance : ToString (AllVars n s) where
+  toString
+    | .x i j k    => s!"x{i.toNat},{j},{k}"
+    | .y i i' j k => s!"y{i.toNat},{i'.toNat},{j},{k}"
+    | .z i i' j   => s!"z{i.toNat},{i'.toNat},{j}"
+
 def allBitVecs (n) : Array (BitVec n) := Array.ofFn (BitVec.ofFin)
 
 @[simp] theorem mem_allBitVecs (x : BitVec n) : x ∈ allBitVecs n := by
@@ -172,7 +184,7 @@ def coordinates : VEncCNF (Vars n s) Unit (fun τ =>
         -- at least one of the `c_ij-` variables is true
         Cardinality.atLeastOne vars,
         -- at most one of the `c_ij-` variables is true
-        Cardinality.amoSeqCounter vars
+        Cardinality.amoPairwise vars
       ]
   ).mapProp (by
     -- annoying boilerplate
@@ -230,7 +242,7 @@ where
   :=
     (newCtx s!"two diffs c{i.toNat} c{i'.toNat}" <|
     withTemps (Fin n × Fin s)
-      (names := some fun (j',k) => s!"y{i.toNat},{i'.toNat},{j'},{k}") <|
+      (names := some fun (j',k) => toString (AllVars.y i i' j' k)) <|
     seq[
       for_all (Array.finRange n) fun j' =>
         VEncCNF.guard (j' ≠ j) fun _h =>
@@ -276,12 +288,11 @@ where
 
 /-- ensures `i` and `i'` have a coord `j` on which the bits differ but colors equal -/
 def hasSGap (i i' : BitVec n) : VEncCNF (Vars n s) Unit
-      (fun τ => ∃ j, i[j] ≠ i'[j] ∧ ∀ k, τ (x i j k) = τ (x i' j k))
-  :=
+      (fun τ => ∃ j, i[j] ≠ i'[j] ∧ ∀ k, τ (x i j k) = τ (x i' j k)) :=
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
   (let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
   newCtx s!"s gap c{i.toNat} c{i'.toNat}" <|
-  withTemps (Fin n) (names := some fun j => s!"z{i},{i'},{j}") <|
+  withTemps (Fin n) (names := some fun j => toString (AllVars.z (s := s) i i' j)) <|
     seq[
       for_all potentialJs fun j =>
         newCtx s!"s gap c{i.toNat} c{i'.toNat} at {j}" <|
@@ -383,48 +394,74 @@ end CNF
 
 namespace SR
 
-inductive AllVars (n s : Nat)
-| x (i : BitVec n) (j : Fin n) (k : Fin s)
-| y (i i' : BitVec n) (j : Fin n) (k : Fin s)
-| z (i i' : BitVec n) (j : Fin n)
-
 structure Line (n s) where
   c : Clause (Literal (AllVars n s))
   pivot : Literal (AllVars n s)
   true_lits : List (Literal (AllVars n s))
   substs : List (AllVars n s × Literal (AllVars n s))
 
+def lineOfClauseAndSubsts? (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
+        (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
+  -- take the first literal as the pivot
+  let pivot := c[0]
+  let true_lits :=
+    List.ofFn (n := c.size-1) fun i => c[i]
+  let substs := substs.filterMap fun (v, l) =>
+    match v with
+    | .x i j k =>
+      if c.any fun cvar => LitVar.toVar cvar = .x i j k then
+        none
+      else some (v,l)
+    | _ => some (v, l)
+  { c, pivot, true_lits, substs }
+
+def renumberSwapSubsts (j : Fin n) (k k' : Fin s) := Id.run do
+  let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
+  -- x_i,j,k <-> x_i,j,k'
+  for i in allBitVecs n do
+    substs := substs.push (.x i j k , .pos (.x i j k'))
+    substs := substs.push (.x i j k', .pos (.x i j k ))
+  -- y_i,i',j,k <-> y_i,i',j,k'
+  for i in allBitVecs n do
+    for hjd: jdiff in [0:n] do
+      let i' := i ^^^ BitVec.oneAt ⟨jdiff, hjd.upper⟩
+      if i < i' then
+        substs := substs.push (.y i i' j k, .pos (.y i i' j k'))
+        substs := substs.push (.y i i' j k', .pos (.y i i' j k))
+  return substs
+
 def matrixIndices : Array (BitVec n) := #[7#n,11#n,19#n,35#n,67#n]
 
-open Vars in
+open AllVars in
 def matrixRenumber (n s) : Array (Line n s) :=
-  if hn : ¬(5 ≤ n ∧ n ≤ 7) then #[] else Id.run do
+  if hn : ¬(5 ≤ n ∧ n ≤ 7) then #[] else
+  if hs : ¬(4 ≤ s) then #[] else Id.run do
   let mut res := #[]
 
-  for hj : j in [2:n] do
-    let j : Fin n := ⟨j,hj.upper⟩
+  let j : Fin n := ⟨2,by omega⟩
+  let k : Fin s := ⟨3,by omega⟩
+  let k' : Fin s := ⟨2,by omega⟩
+  res := res.push <|
+    lineOfClauseAndSubsts?
+      (c := #[Literal.neg <| .x 11#n j k, Literal.pos <| .x 11#n j k'])
+      (substs := renumberSwapSubsts j k k' |>.toList)
 
-    for h : matRow in [0:n-2] do
-      let i : BitVec n := matrixIndices[matRow]'(by
-        have := h.upper; simp +zetaDelta [matrixIndices] at this hn ⊢; omega
-      )
-      -- we want to show c_i[j] < idx+2, eg c_i[j] ≠ k for k >= idx+2
-      -- proof by swapping k to idx+1 (within column j)
-      if hswap : matRow+2 < s then
-      let kswap : Fin s := ⟨matRow+2, hswap⟩
-      for hk : k in [matRow+3:s] do
-        let k : Fin s := ⟨k,hk.upper⟩
-        let c         := #[.neg (.x i j k) ]
-        let pivot     :=   .neg (.x i j k)
-        let true_lits :=  [.pos (.x i j kswap)]
-        let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
-        for i' in allBitVecs n do
-          if i' ≠ i then
-            substs := substs.push (.x i' j k, .pos (.x i' j kswap))
-            substs := substs.push (.x i' j kswap, .pos (.x i' j k))
-        res := res.push { c, pivot, true_lits, substs := substs.toList }
+--  for hj : j in [2:n] do
+--    let j : Fin n := ⟨j,hj.upper⟩
+--
+--    for h : matRow in [0:n-2] do
+--      let i : BitVec n := matrixIndices[matRow]'(by
+--        have := h.upper; simp +zetaDelta [matrixIndices] at this hn ⊢; omega
+--      )
+--      -- we want to show c_i[j] < idx+2, eg c_i[j] ≠ k for k >= idx+2
+--      -- proof by swapping k to idx+1 (within column j)
+--      if hswap : matRow+2 < s then
+--        let kswap : Fin s := ⟨matRow+2, hswap⟩
+--        let substs := renumberSwapSubsts j k kswap
+--        let c := #[.neg (.x i j k) ]
 
   return res
+
 
 def all (n s) : Array (Line n s) :=
   matrixRenumber n s

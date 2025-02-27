@@ -48,7 +48,7 @@ where runCnfCmd (p : Parsed) := do
   let cubeFileArg := p.flag? "cube" |>.map (·.as! String)
 
   IO.println s!"encoding G_{n}_{s}"
-  let {cnf, vMap, ..} := Encoding.fullEncoding n s |>.val.runUnit
+  let {cnf, vMap, vNames, ..} := Encoding.fullEncoding n s |>.val.runUnit
     (names := List.flatten <| List.flatten <|
       .ofFn fun (i : Fin (2^n)) => .ofFn fun (j : Fin n) => .ofFn fun (k : Fin s) =>
       (Encoding.Vars.x i j k, s!"x{i},{j},{k}"))
@@ -60,20 +60,24 @@ where runCnfCmd (p : Parsed) := do
       handle.flush
 
   if let some dsrFile := dsrFileArg then
+    IO.println s!"calculating reverse variable map"
+    let avMap : Encoding.AllVars n s → IVar :=
+      let revMap : Batteries.RBMap String IVar compare :=
+        vNames.foldl (init := Batteries.RBMap.empty) (fun acc var name => acc.insert name var)
+      fun v =>
+        match revMap.find? (toString v) with
+        | some k => k
+        | none => panic! s!"reverse variable map does not include \"{toString v}\""
     IO.println s!"calculating SR lines..."
     let sr := Encoding.SR.all n s
     IO.println s!"writing DSR proof to {dsrFile}"
     IO.FS.withFile dsrFile .write <| fun handle => do
       for {c, pivot, true_lits, substs} in sr do
-        IO.println s!"{
-          c.toList.map toString |> String.intercalate " " } | {
-          (pivot :: true_lits).map toString |> String.intercalate " " } | {
-          substs.map (fun (v,l) => s!"{v} > {l}") |> String.intercalate "; " }"
         let line := formatSRLine
-            (c := c.map _ vMap)
-            (pivot := LitVar.map vMap pivot)
-            (true_lits := true_lits.map (LitVar.map vMap))
-            (substs := substs.map (fun (v,l) => (vMap v, LitVar.map (L' := ILit) vMap l)))
+            (c := c.map _ avMap)
+            (pivot := LitVar.map avMap pivot)
+            (true_lits := true_lits.map (LitVar.map avMap))
+            (substs := substs.map (fun (v,l) => (avMap v, LitVar.map avMap l)))
         handle.putStrLn line
       handle.flush
 
