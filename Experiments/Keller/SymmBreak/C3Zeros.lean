@@ -49,12 +49,12 @@ namespace C3ZerosSorted
 
 theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
   -- we're going to build up a sorted region inductively
-  suffices ∀ (upTo : Nat),
+  suffices ∀ (upTo : Nat) (upTo_le : upTo ≤ n),
     ∃ (tc' : TwoCubes n s) (zeroStart : Nat), (2 ≤ zeroStart ∧ zeroStart ≤ (upTo+2)) ∧
-      ∀ j : Fin (n+2), 2 ≤ j.val ∧ j.val < (upTo+2) →
-        if j.val < zeroStart then (tc'.kclique.get 3)[j] ≠ 0 else (tc'.kclique.get 3)[j] = 0
+      ∀ (j) (j_in_range : 2 ≤ j ∧ j < upTo+2),
+        if j < zeroStart then (tc'.kclique.get 3)[j] ≠ 0 else (tc'.kclique.get 3)[j] = 0
   by
-    have ⟨tc',zeroStart,⟨zS_ge,zS_le⟩,h⟩ := this n; clear this
+    have ⟨tc',zeroStart,⟨zS_ge,zS_le⟩,h⟩ := this n (by simp); clear this
     refine ⟨tc', ?_⟩
     rintro j₁ j₂ ⟨j1_ge_2,j1_lt_j2⟩
     have h_at_j1 := h j₁ (by omega)
@@ -65,13 +65,13 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
       simp_all
     · simp_all
   -- now we induct!
-  intro upTo
+  intro upTo upTo_le
   induction upTo with
   | zero =>
     -- easy done
     use tc, 2; simp
   | succ upTo ih =>
-    rcases ih with ⟨tc',zeroStart,⟨zS_ge,zS_le⟩,ih⟩
+    rcases ih (Nat.le_of_lt upTo_le) with ⟨tc',zeroStart,⟨zS_ge,zS_le⟩,ih⟩
     -- if upTo is already at the end, it's equivalent to the upTo+1 case
     if upTo_lt : upTo ≥ n then
       use tc', zeroStart, by omega
@@ -85,13 +85,13 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
       -- if c3[upTo+2] = 0, we don't need to do any swapping around
       use tc', zeroStart, by omega
       intro j j_in_range
-      if j.val < upTo + 2 then
+      if j < upTo + 2 then
         apply ih
         omega
       else
-        have j_eq : j.val = upTo+2 := by omega
-        have j_lt : ¬ (j.val < zeroStart) := by omega
-        simp_rw [j_lt, if_false, Fin.getElem_fin, j_eq]
+        have j_eq : j = upTo+2 := by omega
+        have j_lt : ¬ (j < zeroStart) := by omega
+        simp_rw [j_lt, if_false, j_eq]
         simpa using h
     else
 
@@ -99,11 +99,11 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
       -- again, we don't need to do any swapping around
       use tc', zeroStart+1, by omega
       intro j j_in_range
-      if j.val = upTo+2 then
-        have : j.val < zeroStart + 1 := by omega
+      if j = upTo+2 then
+        have : j < zeroStart + 1 := by omega
         simp_all
       else
-        have : j.val < zeroStart := by omega
+        have : j < upTo+2 := by omega
         specialize ih j (by omega)
         simp_all
     else
@@ -147,32 +147,32 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
 
     use zeroStart+1, by omega
     intro j j_in_range
-    by_cases is_one : j.val < zeroStart + 1 <;> simp only [is_one, if_true, if_false]
+    by_cases is_one : j < zeroStart + 1 <;> simp only [is_one, if_true, if_false]
     case pos =>
-      if j_lt : j.val < zeroStart then
+      if j_lt : j < zeroStart then
         -- `j ↦ j`
         specialize ih j (by omega)
         simp [j_lt] at ih
         convert ih
-        apply Equiv.swap_apply_of_ne_of_ne
+        rw [Equiv.swap_apply_of_ne_of_ne]
           <;> simp [Fin.ext_iff] <;> omega
       else
         -- `j = zeroStart ↦ upTo + 2`
-        have j_eq : j = ⟨zeroStart, by omega⟩ := by simp [Fin.ext_iff]; omega
+        have j_eq : j = zeroStart := by omega
         simp [j_eq]; exact h
     case neg =>
-      if j_lt : j.val < upTo + 2 then
+      if j_lt : j < upTo + 2 then
         -- `j ↦ j`
         specialize ih j (by omega)
-        have : ¬(j.val < zeroStart) := by omega
+        have : ¬(j < zeroStart) := by omega
         simp [this] at ih
         convert ih
-        apply Equiv.swap_apply_of_ne_of_ne
+        rw [Equiv.swap_apply_of_ne_of_ne]
           <;> simp [Fin.ext_iff] <;> omega
       else
         -- `j = upTo + 2 ↦ zeroStart`
-        have j_eq : j = ⟨upTo+2, by omega⟩ := by simp [Fin.ext_iff]; omega
-        specialize ih ⟨zeroStart, by omega⟩ (by simp; omega)
+        have j_eq : j = upTo+2 := by omega
+        specialize ih zeroStart (by omega)
         simpa [j_eq] using ih
 
 end C3ZerosSorted
