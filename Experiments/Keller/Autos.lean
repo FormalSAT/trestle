@@ -40,9 +40,14 @@ theorem bv_flip (mask) {v : KVertex n s} : (flip mask v).bv = v.bv ^^^ mask := r
 @[simp] theorem flip_flip (mask : BitVec n) {v : KVertex n s} : (v.flip mask).flip mask = v := by
   simp [flip, BitVec.xor_assoc]
 
--- Actually *super* non-obvious that this is an automorphism!!!!
--- The justification is basically that if an s gap occurs at j, it still occurs there,
--- while the colors never change so other inequalities are preserved
+/--
+Actually *super* non-obvious that this is an automorphism!!!!
+The justification is basically that if an s gap occurs at j, it still occurs there,
+while the colors never change so other inequalities are preserved
+
+I don't think this is an SR clausal symmetry?
+This would require something stronger, like fully general substitutions.
+-/
 def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
   if v.colors[j] = k then
     { bv := v.bv ^^^ (1 <<< j.val)

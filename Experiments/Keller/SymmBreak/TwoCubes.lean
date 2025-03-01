@@ -9,12 +9,11 @@ import Experiments.Keller.Autos
 
 namespace Keller.SymmBreak
 
-/-! ## First Three Cubes
+/-! ## First Two Cubes
 
-Any Keller clique can be mapped to a Keller clique where
-`c_0`, `c_1`, and the first five coordinates of `c_3` are fixed.
-This argument relies on the veracity
-of the Keller conjecture for the previous dimension.
+Any Keller clique can be mapped to a Keller clique with `c_0` and `c_1` fixed.
+The justification relies on the veracity of
+the Keller conjecture for the previous dimension.
 -/
 
 
@@ -327,7 +326,7 @@ private lemma bv_3_eq_above_2 (n j : Nat) (h : j < n) (j_ge : j ≥ 2) :
   (BitVec.ofNat n 3)[j] = false := by
   rw [bv_3_getElem]; simp; omega
 
-private lemma swap_preserves_earlier {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
+lemma swap_preserves_earlier {a b : Fin n} (hab : a ≤ b) (hia : i < a) :
       Equiv.swap a b i = i := by
   apply Equiv.swap_apply_of_ne_of_ne
   · exact Fin.ne_of_lt hia
@@ -344,7 +343,7 @@ private lemma swap_later_stays_later (a b : Fin n) (h : a ≤ b) :
   rw [Equiv.swap_apply_def]
   aesop
 
-private lemma swap_at_least_stays_at_least (a b : Fin n) (hab : a ≤ b) {k} (hk : k < a) :
+lemma swap_at_least_stays_at_least (a b : Fin n) (hab : a ≤ b) {k} (hk : k ≤ a) :
       ∀ i ≥ k, Equiv.swap a b i ≥ k := by
   intro i hi
   by_cases h : i < a
@@ -822,7 +821,7 @@ theorem c7_or_11_diff_at_4 :
   -- 3 isn't going to move when we swap `4` with `j`
   have mapped_3_eq_3 : (BitVec.ofFn fun j_1 => (3#(_))[(Equiv.swap ⟨4,by omega⟩ j) j_1]) = 3 := by
     apply BitVec.eq_of_getElem_eq; intro j' hj'
-    simp only [Equiv.symm_swap, BitVec.getElem_ofFn]
+    simp only [BitVec.getElem_ofFn]
     by_cases j'_lt : j' < 2
     case pos =>
       have := swap_preserves_earlier (a := ⟨4,by omega⟩) (b := j) (i := ⟨j',hj'⟩)
@@ -834,7 +833,7 @@ theorem c7_or_11_diff_at_4 :
       simp only [BitVec.ofNat_eq_ofNat, Fin.getElem_fin]
       rw [bv_3_eq_above_2 _ _ _ j'_lt, bv_3_eq_above_2]
       have := swap_at_least_stays_at_least (a := 4) (b := j) (k := 2) (i := ⟨j',hj'⟩)
-        (hab := by simpa using j_ge) (hk := by simp [Fin.lt_def]) (by simpa using j'_lt)
+        (hab := by simpa using j_ge) (hk := by simp [Fin.le_def]) (by simpa using j'_lt)
       simpa using this
 
   have mapped_i_eq_i : (BitVec.ofFn fun j_1 => i[(Equiv.swap ⟨4,by omega⟩ j) j_1]) = i := by
