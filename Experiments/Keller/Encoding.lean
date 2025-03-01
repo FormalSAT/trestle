@@ -392,6 +392,25 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit full_spec :=
 
 end CNF
 
+def AllVars.reorder (f : Fin n → Fin n) : AllVars n s → AllVars n s :=
+  let iMap : BitVec n → BitVec n := fun i => BitVec.ofFn ( i[f ·] )
+  fun
+  | .x i j k => .x (iMap i) (f j) k
+  | .y i i' j k =>
+    -- the y vars are symmetric in the `i`s, and we only use the one where `i` < `i'`
+    -- so we need to figure out which one is which after the mapping
+    let (i1,i2) := if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
+    .y i1 i2 (f j) k
+  | .z i i' j =>
+    -- see above
+    let (i1,i2) := if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
+    .z i1 i2 (f j)
+
+def AllVars.renumber (f : Fin n → Fin s → Fin s) : AllVars n s → AllVars n s
+| .x i j k => .x i j (f j k)
+| .y i i' j k => .y i i' j (f j k)
+| .z i i' j => .z i i' j
+
 namespace SR
 
 structure Line (n s) where
@@ -415,38 +434,38 @@ def lineOfClauseAndSubsts (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 
     | _ => some (v, l)
   { c, pivot, true_lits, substs }
 
-def reorderSubsts {s} (j j' : Fin n) := Id.run do
-  let iMap := fun (i: BitVec n) => BitVec.ofFn ( i[(Equiv.swap j j') ·] )
+/-- Given a mapping, this returns all the substitutions for all "changed" variables -/
+def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal (AllVars n s)) := Id.run do
+  let subst : AllVars n s → _ × _ := fun v => (v, Literal.pos (f v))
 
   let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
   -- x_i,j,k <-> x_map(i),j',k
   for i in allBitVecs n do
-    for k in Array.finRange s do
-      substs := substs.push (.x i        j  k, .pos (.x (iMap i) j' k))
-      substs := substs.push (.x (iMap i) j' k, .pos (.x i        j  k))
+    for j in Array.finRange n do
+      for k in Array.finRange s do
+        substs := substs.push <| subst <| .x i j  k
 
   -- y_i,i',j,k <-> y_map(i),map(i'),j',k
   for i in allBitVecs n do
-    for hjd: jdiff in [0:n] do
-      let i' := i ^^^ BitVec.oneAt ⟨jdiff, hjd.upper⟩
+    for jdiff in Array.finRange n do
+      let i' := i ^^^ BitVec.oneAt jdiff
       if i < i' then
-        let (i1,i2) :=
-          if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
-        for k in Array.finRange s do
-          substs := substs.push (.y i i' j  k, .pos (.y i1 i2 j' k))
-          substs := substs.push (.y i1 i2 j' k, .pos (.y i i' j  k))
+        for j in Array.finRange n do
+          if j ≠ jdiff then
+            for k in Array.finRange s do
+              substs := substs.push <| subst <| .y i i' j  k
 
   -- z_i,i',j <-> z_map(i),map(i'),j'
   for i in allBitVecs n do
     for i' in allBitVecs n do
       if i < i' then
-        -- note that z vars are symmetric in the is, but we only use the one where i < i'
-        -- so we need to figure out which one is which after the mapping
-        let (i1,i2) :=
-          if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
-        substs := substs.push (.z i i' j, .pos (.z i1 i2 j'))
-        substs := substs.push (.z i1 i2 j', .pos (.z i i' j))
-  return substs
+        for j in Array.finRange n do
+          substs := substs.push <| subst <| .z i i' j
+
+  return substs.filter (fun (v,l) => v ≠ LitVar.toVar l) |>.toList
+
+def reorderSubsts {s} (j j' : Fin n) :=
+  substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j j'
 
 def renumberSwapSubsts (j : Fin n) (k k' : Fin s) := Id.run do
   let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
@@ -496,11 +515,11 @@ def matrixRenumber (n s) : Array (Line n s) :=
   return res
 
 def test (n s) : Array (Line n s) :=
-  if h : n ≥ 5 ∧ s > 4 then
+  if h : n ≥ 5 ∧ s ≥ 3 then
     #[
       lineOfClauseAndSubsts
         (c := #[ Literal.pos <| .x 7#n ⟨3,by omega⟩ ⟨1,by omega⟩ ])
-        (substs := reorderSubsts ⟨2,by omega⟩ ⟨3,by omega⟩ |>.toList)
+        (substs := reorderSubsts ⟨2,by omega⟩ ⟨3,by omega⟩)
     ]
   else #[]
 
