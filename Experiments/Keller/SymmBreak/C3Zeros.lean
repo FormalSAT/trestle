@@ -20,7 +20,7 @@ From adjacency with `c0` and `c1`, `c3[0] = 0` and `c3[1] = 1` are fixed.
 Then, WLOG we can sort the columns `j ≥ 2` to put `c3` zero elements later
 (if there is a zero before a nonzero, swap those cols).
 
-Next we relate `c3` to certain special vertices.
+Furthermore, we relate `c3` to certain special vertices.
 For n=7 these vertices are `c7`, `c11`, `c19`, `c35`, `c67`.
 These are special because we can flip one bit to swap them with `c3`
 (see the `flipAt` automorphism for more details).
@@ -34,10 +34,17 @@ So, we break the symmetry by asserting
 Intuitively, if `c3` is nonzero up until `j`, but `cX` is nonzero up until `j+1`,
 we swap `cX` into `c3`'s place to get a longer prefix of nonzero elements.
 
-N.B.  Both of these conditions break the symmetry
-      that columns can be arbitrarily reordered.
-      But if we prove (or assume) `c3[2:j] = 1` for a range `[2:j]`,
-      we *get back* this symmetry on columns `[2:j]`!
+We must prove we can break these symmetries simultaneously,
+because they interfere with one another.
+The proof proceeds by building this structure on columns `[2:j]`,
+inducting on j until we reach `n`.
+
+N.B.  These conditions interfere with
+      the column reordering symmetry.
+      But if we prove (or assume) `c3[2:j] = 1`,
+      we can reorder columns `[2:j]`.
+      Similarly, if we prove (or assume) `c3[j:n] = 0`,
+      we can reorder columns `[j:n]`.
 -/
 
 structure C3ZerosSorted (n s) extends TwoCubes n s where
@@ -177,16 +184,75 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
 
 end C3ZerosSorted
 
-structure C3Zeros (n s) extends C3ZerosSorted n s where
+structure C3Zeros (n s) extends TwoCubes n s where
+  /-- `c3` should have all its zeros at the end. -/
+  c3_zeros_sorted : ∀ (j₁ j₂ : Nat) (range : 2 ≤ j₁ ∧ j₁ < j₂ ∧ j₂ < n+2),
+      (kclique.get 3)[j₁] = 0 → (kclique.get 3)[j₂] = 0
   /-- `c3` has a nonzero prefix at least as long as any of the other `cX`s -/
-  c3_more_nonzero : ∀ (col : Fin (n+2)), col ≥ 2 →
+  c3_more_nonzero : ∀ (col : Fin (n+2)), col.val ≥ 2 →
     let X : BitVec (n+2) := 3#(n+2) + BitVec.oneAt col
-    ∀ (j : Fin (n+2)), j ≥ 2 →
-      (∀ _j, 2 ≤ _j → _j < j → (kclique.get 3)[_j] ≠ 0) ∧ (kclique.get 3)[j] = 0 →
-      (∃ (_j : Fin (n+2)), 2 ≤ _j ∧ _j ≤ j ∧ (kclique.get X)[_j] = 0)
+    ∀ (j : Nat) (range : 2 ≤ j ∧ j < n+1),
+      (kclique.get 3)[j] ≠ 0 ∧ (kclique.get 3)[j+1] = 0 →
+      (∃ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j), (kclique.get X)[_j] = 0)
 
 
 namespace C3Zeros
 
-theorem ofC3ZerosSorted (tc : C3ZerosSorted n s) : Nonempty (C3Zeros n s) :=
+/-- This is a version of `C3Zeros` where the conditions only hold up to `upTo + 2`. -/
+private structure UpTo (n s) (upTo : Nat) (upTo_le : upTo ≤ n) extends TwoCubes n s where
+  zeroStart : Nat
+  zeroStart_ge : zeroStart ≥ 2
+  zeroStart_le : zeroStart ≤ upTo+2
+  c3_nonzeros : ∀ (j) (range : 2 ≤ j ∧ j < zeroStart), (kclique.get 3)[j] ≠ 0
+  c3_zeros : ∀ (j) (range : zeroStart ≤ j ∧ j < upTo+2), (kclique.get 3)[j] = 0
+  c3_more_nonzero : ∀ (col) (range : 2 ≤ col ∧ col < upTo+2),
+    let X : BitVec (n+2) := 3#(n+2) + BitVec.oneAt ⟨col, by omega⟩
+    (∃ (j : Nat) (range : 2 ≤ j ∧ j < zeroStart), (kclique.get X)[j] = 0)
+
+def UpTo.zero (tc : TwoCubes n s) : UpTo n s 0 (by simp) where
+  toTwoCubes := tc
+  zeroStart := 2
+  zeroStart_ge := by simp
+  zeroStart_le := by simp
+  c3_nonzeros := by simp
+  c3_zeros := by simp
+  c3_more_nonzero := by simp
+
+theorem UpTo.step (u : UpTo n s upTo upTo_le) (upTo_lt : upTo < n) : Nonempty (UpTo n s (upTo+1) upTo_lt) := by
   sorry
+
+def UpTo.at_n (u : UpTo n s n (Nat.le_refl _)) : C3Zeros n s where
+  toTwoCubes := u.toTwoCubes
+  c3_zeros_sorted := by
+    intro j₁ j₂ range h
+    if j₂ ≥ u.zeroStart then
+      exact u.c3_zeros j₂ (by omega)
+    else
+      have := u.c3_nonzeros j₁ (by omega)
+      contradiction
+  c3_more_nonzero := by
+    rintro ⟨col,col_lt⟩ col_ge; simp at col_ge
+    intro X j range ⟨ne_zero,eq_zero⟩
+    -- ne_zero and eq_zero fix zeroStart
+    have : u.zeroStart > j := by
+      have := u.c3_zeros j
+      simp only [ne_zero, imp_false] at this
+      omega
+    have : u.zeroStart ≤ j+1 := by
+      have := u.c3_nonzeros (j+1)
+      simp only [eq_zero] at this
+      omega
+    have ⟨j,range,h⟩ := u.c3_more_nonzero col (by omega)
+    use j, by omega
+
+theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3Zeros n s) := by
+  suffices ∀ upTo h, Nonempty (UpTo n s upTo h) by
+    have ⟨u⟩ := this n (Nat.le_refl _)
+    exact ⟨UpTo.at_n u⟩
+  intro upTo upTo_le
+  induction upTo with
+  | zero =>
+    exact ⟨UpTo.zero tc⟩
+  | succ upTo ih =>
+    have ⟨u⟩ := ih (Nat.le_of_lt upTo_le)
+    exact UpTo.step u _
