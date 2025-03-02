@@ -11,6 +11,7 @@ import Trestle.Upstream.IndexTypeInstances
 
 import Experiments.Keller.KellerGraph
 import Experiments.Keller.SymmBreak.TwoCubes
+import Experiments.Keller.SymmBreak.C3Zeros
 import Experiments.Keller.SymmBreak.Matrix
 
 namespace Keller.Encoding
@@ -63,14 +64,27 @@ def c0_c1_spec : Model.PropPred (Vars (n+2) (s+2)) :=
     (∀ j, τ (x 0 j SymmBreak.TwoCubes.c0_colors[j])) ∧
     (∀ j, τ (x 1 j SymmBreak.TwoCubes.c1_colors[j]))
 
-def c3_spec : Model.PropPred (Vars (n+5) (s+2)) :=
-  fun τ => ∀ j, j ∈ [2,3,4] → τ (x 3 j 1)
+def c3_sorted_spec : Model.PropPred (Vars (n+2) (s+2)) :=
+  fun τ => ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n+2),
+    τ (x 3 ⟨j,by omega⟩ 0) → τ (x 3 ⟨j+1,by omega⟩ 0)
 
-def full_spec : Model.PropPred (Vars n s) :=
+def c3_more_nonzero_spec : Model.PropPred (Vars (n+2) (s+2)) :=
+  fun τ =>
+    ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n + 2)
+      (col : Nat) (cr : 2 ≤ col ∧ col ≤ j),
+      ¬ τ (x 3 ⟨j,by omega⟩ 0) ∧ τ (x 3 ⟨j+1,by omega⟩ 0) →
+      (∀ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j),
+        ¬ τ (x (SymmBreak.C3Zeros.X col (by omega)) ⟨_j,by omega⟩ 0))
+      → (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
+        τ (x (SymmBreak.C3Zeros.X col (by omega)) ⟨_j,by omega⟩ 0))
+
+
+def fullSpec : Model.PropPred (Vars n s) :=
   fun τ =>
     baseSpec τ ∧
-    (match n,s with | _+2, _+2 => c0_c1_spec τ  | _,_ => True) ∧
-    (match n,s with | _+5, _+2 => c3_spec τ     | _,_ => True)
+    (match n,s with
+    | _+2, _+2 => c0_c1_spec τ ∧ c3_sorted_spec τ ∧ c3_more_nonzero_spec τ
+    | _,_ => True)
 
 
 def cliqueToAssn (c : KClique n s) : Model.PropAssignment (Vars n s) :=
@@ -95,6 +109,24 @@ theorem cliqueToAssn_satisfies_baseSpec (c : KClique n s) :
     have ⟨j1,is_ne_j1,cs_eq_j1,_⟩ := c.get_adj is_ne
     use j1, is_ne_j1
     simpa using cs_eq_j1
+
+open Model.PropPred in
+/-- `fullSpec` is satisfied by a `C3Zeros` instance -/
+theorem cliqueToAssn_satisfies_fullSpec (c : SymmBreak.C3Zeros n s) :
+    cliqueToAssn c.kclique ⊨ fullSpec := by
+  unfold fullSpec
+  simp
+  refine ⟨cliqueToAssn_satisfies_baseSpec _, ?_, ?_, ?_⟩
+  · simp [c0_c1_spec, cliqueToAssn]
+  · simp [c3_sorted_spec, cliqueToAssn]
+    intros; apply c.c3_zeros_sorted
+    · assumption
+    · omega
+  · simp only [
+      c3_more_nonzero_spec, add_lt_add_iff_right, cliqueToAssn,
+      decide_eq_true_eq]
+    rintro j jrange col crange c3_nz_z
+    apply c.c3_more_nonzero j (by omega) c3_nz_z col crange
 
 /-- This direction is more complicated, and also we don't need it,
     but we prove it as an interesting aside. -/
@@ -230,9 +262,7 @@ def twoDiffs : VEncCNF (Vars n s) Unit (fun τ =>
       specialize h i j
       simp [← i_i', ← BitVec.xor_assoc, this] at h
       exact h
-    · intro h i j
-      split <;> simp
-      next h_lt =>
+    · intro h i j h_lt
       apply h
       simp [← BitVec.xor_assoc]
   )
@@ -268,7 +298,7 @@ where
         use (fun | .inl v => τ v | .inr (_j',_k) => j' = _j' ∧ k = _k)
         refine ⟨?_,?_,?_⟩
         · ext v; simp
-        · intro _j'; split <;> aesop
+        · aesop
         · use Literal.pos (.inr (j',k))
           simp
           use j', j'_ne, k
@@ -336,8 +366,7 @@ def allSGap : VEncCNF (Vars n s) Unit (fun τ =>
         simp_rw [eq_comm (a := i[_]'_), eq_comm (a := τ (x i _ _))]
         exact this
       simpa [h_lt] using h i i'
-    · intro h i i'
-      split <;> simp
+    · intro h i i' i_lt
       exact h i i' (BitVec.ne_of_lt ‹_›)
   )
 
@@ -359,35 +388,92 @@ def c0_c1 (n s) : VEncCNF (Vars (n+2) (s+2)) Unit c0_c1_spec :=
   ]
   |>.mapProp (by ext τ; simp [c0_c1_spec])
 
-def c3 (n s) : VEncCNF (Vars (n+5) (s+2)) Unit c3_spec :=
-  seq[
-    -- c3 = (0, 1, 1, 1, 1, _*)
-    unit <| .pos (x 3 2 1),
-    unit <| .pos (x 3 3 1),
-    unit <| .pos (x 3 4 1)
-  ]
-  |>.mapProp (by ext τ; simp [c3_spec])
+def c3_sorted (n s) : VEncCNF (Vars (n+2) (s+2)) Unit c3_sorted_spec :=
+  (for_all (Array.finRange (n+2)) fun j =>
+    VEncCNF.guard (2 ≤ j.val ∧ j.val+1 < n+2) fun h =>
+      addClause #[Literal.neg <| x 3 ⟨j,by omega⟩ 0
+                , Literal.pos <| x 3 ⟨j+1,by omega⟩ 0]
+  ).mapProp (by
+    ext τ; simp [-Bool.not_eq_true, c3_sorted_spec, Clause.satisfies_iff]
+    constructor
+    · intro h j range; specialize h ⟨j,by omega⟩ (by simp; omega)
+      simp only [← imp_iff_not_or] at h
+      exact h
+    · intro h j range
+      rw [← imp_iff_not_or]; apply h; omega
+  )
 
-def fullEncoding (n s) : VEncCNF (Vars n s) Unit full_spec :=
+-- TODO(JG): this def is SUPER slow, fix it somehow
+seal BitVec.ofNat in
+def c3_more_nonzero (n s) : VEncCNF (Vars (n+2) (s+2)) Unit c3_more_nonzero_spec :=
+  ( for_all (Array.finRange (n+2)) fun j =>
+    VEncCNF.guard (2 ≤ j.val ∧ j.val + 1 < n+2) fun h =>
+      for_all (Array.finRange (n+2)) fun col =>
+      VEncCNF.guard (2 ≤ col.val ∧ col.val ≤ j.val) fun cr =>
+        aux j h col cr
+  ).mapProp (by
+    ext τ; simp only [Array.mem_finRange, add_lt_add_iff_right,
+      BitVec.ofNat_eq_ofNat, Fin.eta, and_imp, forall_const, c3_more_nonzero_spec]
+    constructor
+    · intro h j jr col cr
+      exact h ⟨j,by omega⟩ (by dsimp; omega) ⟨col,by omega⟩ (by dsimp; omega)
+    · intro h j jr col cr
+      exact h j.val jr col.val cr
+  )
+where
+  aux (j : Nat) (jr : 2 ≤ j ∧ j + 1 < n+2)
+      (col : Nat) (cr : 2 ≤ col ∧ col ≤ j)
+      : VEncCNF (Vars (n+2) (s+2)) Unit (fun τ =>
+        ¬ τ (x 3 ⟨j,by omega⟩ 0) ∧ τ (x 3 ⟨j+1,by omega⟩ 0) →
+        (∀ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j),
+          ¬ τ (x (SymmBreak.C3Zeros.X col (by omega)) ⟨_j,by omega⟩ 0))
+        → (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
+          τ (x (SymmBreak.C3Zeros.X col (by omega)) ⟨_j,by omega⟩ 0))
+      ) :=
+    let idx : BitVec (n+2) := (SymmBreak.C3Zeros.X col (by omega))
+    VEncCNF.andImplyAnd
+      (hyps :=
+        #[Literal.neg (x 3 ⟨j,by omega⟩ 0), Literal.pos (x 3 ⟨j+1,by omega⟩ 0)]
+        ++ Array.ofFn (n := (j+1)-2) fun _j => Literal.neg <| x idx ⟨2+_j,by omega⟩ 0)
+      (concs :=
+        Array.ofFn (n := (n+2)-(j+1)) fun _j => Literal.pos <| x idx ⟨j+1+_j,by omega⟩ 0)
+    |>.mapProp (by
+      ext τ
+      simp +contextual [-Bool.not_eq_true,-BitVec.ofNat_eq_ofNat,or_imp,forall_and]
+      apply imp_congr_right; rintro -; apply imp_congr_right; rintro -
+      constructor
+      · rintro h cX_nz
+        specialize h (fun a => cX_nz _ (by omega))
+        intro j' range'
+        convert h ⟨j'-(j+1),by omega⟩
+        dsimp; omega
+      · intro h hyps j'
+        apply h ?_ _ (by omega)
+        intro j' range'
+        convert hyps ⟨j'-2,by omega⟩
+        dsimp; omega)
+
+def fullEncoding (n s) : VEncCNF (Vars n s) Unit fullSpec :=
   seq[
     baseEncoding n s
   , VEncCNF.guard (n ≥ 2 ∧ s ≥ 2) fun h =>
-      c0_c1 (n-2) (s-2)
-      |>.castVar (by congr <;> simp [h])
-  , VEncCNF.guard (n ≥ 5 ∧ s ≥ 2) fun h =>
-      c3 (n-5) (s-2)
+      seq[
+        c0_c1 (n-2) (s-2)
+      , c3_sorted (n-2) (s-2)
+      , c3_more_nonzero (n-2) (s-2)
+      ]
       |>.castVar (by congr <;> simp [h])
   ]
   |>.mapProp (by
     ext τ
-    unfold full_spec
+    unfold fullSpec
     simp; rintro -
     match s with
     | 0 | 1 => simp
     | s+2 =>
     match n with
-    | 0 | 1 | 2 | 3 | 4 => simp
-    | n+5 => simp
+    | 0 | 1 => simp
+    | n+2 => simp
   )
 
 end CNF

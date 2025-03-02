@@ -240,12 +240,12 @@ def for_all (arr : Array α) {P : α → PropPred ν} (f : (a : α) → VEncCNF 
 -- One would think that P could be of type {P : PropFun ν}. But Lean timed out synthesizing that
 def guard (p : Prop) [Decidable p] {P : p → PropPred ν}
       (f : (h : p) → VEncCNF ν Unit (P h))
-  : VEncCNF ν Unit (if h : p then P h else ⊤) :=
+  : VEncCNF ν Unit (fun τ => ∀ (h : p), P h τ) :=
   ⟨ do if h : p then f h
   , by
     by_cases h : p
     · simp [h]; simpa using (f h).2
-    · simp [h]
+    · simp [h]; apply encodesProp_pure
   ⟩
 
 def ite (p : Prop) [Decidable p] {P : p → PropPred ν} {Q : ¬p → PropPred ν}
