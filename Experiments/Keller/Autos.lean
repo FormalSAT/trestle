@@ -50,7 +50,7 @@ This would require something stronger, like fully general substitutions.
 -/
 def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
   if v.colors[j] = k then
-    { bv := v.bv ^^^ (1 <<< j.val)
+    { bv := v.bv ^^^ BitVec.oneAt j
     , colors := v.colors }
   else
     v
@@ -58,7 +58,7 @@ def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
 theorem bv_flipAt (j k) {v : KVertex n s} :
     (flipAt j k v).bv =
       if v.colors[j] = k
-      then v.bv ^^^ (1 <<< j.val)
+      then v.bv ^^^ BitVec.oneAt j
       else v.bv := by
   unfold flipAt; split <;> simp
 
@@ -93,14 +93,7 @@ theorem bv_flipAt (j k) {v : KVertex n s} :
     · rfl
   else
     simp [bv_flipAt]
-    split <;> split <;> simp <;> {
-      apply iff_of_eq; congr
-      rw [Bool.xor_eq_self_left]
-      rw [BitVec.getElem_eq_testBit_toNat, BitVec.toNat_ofNat
-        , Nat.shiftLeft_eq, Nat.one_mul, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) j.isLt)
-        , Nat.testBit_two_pow]
-      simp_all [Fin.ext_iff]
-    }
+    split <;> split <;> simp [*]
 
 
 def permute (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
@@ -235,11 +228,11 @@ end KAuto
 namespace KClique
 
 theorem get_map_flipAt {klique : KClique n s} {j k i}
-  : ((klique.map (KAuto.flipAt j k)).get i) = klique.get (if (klique.get i)[j.val] = k then i ^^^ (1 <<< j.val) else i) := by
+  : ((klique.map (KAuto.flipAt j k)).get i) = klique.get (if (klique.get i)[j.val] = k then i ^^^ BitVec.oneAt j else i) := by
   simp [map, get_eq_iff_mem]
-  refine ⟨⟨if (klique.get i)[j.val] = k then i ^^^ (1 <<< j.val) else i,_⟩, klique.get_mem _, ?_⟩
+  refine ⟨⟨if (klique.get i)[j.val] = k then i ^^^ BitVec.oneAt j else i,_⟩, klique.get_mem _, ?_⟩
   split
-  · have := klique.get_adj_one_diff (i₁ := i) (i₂ := i ^^^ (1 <<< j.val)) (j₁ := j)
+  · have := klique.get_adj_one_diff (i₁ := i) (i₂ := i ^^^ BitVec.oneAt j) (j₁ := j)
       (by simp [bv_toNat])
       (by intro j h; simp [bv_toNat] at h; rw [eq_comm] at h; simp [Nat.testBit_one_eq_true_iff_self_eq_zero] at h; omega)
     replace this := this.1.symm; simp at this
