@@ -49,15 +49,15 @@ def C3Zeros.X (col : Nat) (range : 2 ≤ col ∧ col < n+2) : BitVec (n+2) :=
 
 structure C3Zeros (n s) extends TwoCubes n s where
   /-- `c3` should have all its zeros at the end. -/
-  c3_zeros_sorted : ∀ (j₁ j₂ : Nat) (range : 2 ≤ j₁ ∧ j₁ < j₂ ∧ j₂ < n+2),
-      (kclique.get 3)[j₁] = 0 → (kclique.get 3)[j₂] = 0
+  c3_zeros_sorted : ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n+2),
+      (kclique.get 3)[j] = 0 → (kclique.get 3)[j+1] = 0
   /-- if `c3` is nonzero up to `j`, then for the `cX` up to `j`,
       either there is a nonzero element at or before `j`,
       or *all* the elements after `j` are zero. -/
   c3_more_nonzero :
     ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n + 2),
       (kclique.get 3)[j] ≠ 0 ∧ (kclique.get 3)[j+1] = 0 →
-      ∀ (col : Fin (n+2)) (cr : 2 ≤ col.val ∧ col.val ≤ j),
+      ∀ (col : Nat) (cr : 2 ≤ col ∧ col ≤ j),
       (∀ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j),
         (kclique.get (C3Zeros.X col (by omega)))[_j] ≠ 0)
       → (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
@@ -111,8 +111,8 @@ theorem of_hasNumNz_n (tc : TwoCubes n s) (h : hasNumNz tc n (Nat.le_refl _)) :
   refine ⟨{
     toTwoCubes := tc
     c3_zeros_sorted := by
-      intro j₁ j₂ range j1_zero
-      have := h j₁ (by omega)
+      intro j range j_zero
+      have := h j (by omega)
       contradiction
     c3_more_nonzero := by
       rintro j range ⟨-,c3_jsucc_z⟩
@@ -238,9 +238,9 @@ theorem of_hasNumNz (tc : TwoCubes n s) (hasNum : hasNumNz tc numNz numNz_le) :
   exact ⟨{
     toTwoCubes := tc
     c3_zeros_sorted := by
-      intro j₁ j₂ range h
+      intro j range h
       apply h_c3
-      have := hasNum j₁; simp only [ne_eq,h] at this
+      have := hasNum j; simp only [ne_eq,h] at this
       simp at this
       omega
     c3_more_nonzero := by
@@ -251,7 +251,7 @@ theorem of_hasNumNz (tc : TwoCubes n s) (hasNum : hasNumNz tc numNz numNz_le) :
         clear * - range upper lower
         simp at upper lower
         omega
-      apply h_cX col.val (by omega)
+      apply h_cX col (by omega)
       · intro j'' range''; apply cX_nz; omega
       · omega
   }⟩
