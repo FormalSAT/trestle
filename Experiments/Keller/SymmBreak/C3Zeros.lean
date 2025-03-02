@@ -184,19 +184,123 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3ZerosSorted n s) := by
 
 end C3ZerosSorted
 
+def C3Zeros.X (col : Nat) (range : 2 ≤ col ∧ col < n+2) : BitVec (n+2) :=
+  3#(n+2) + BitVec.oneAt ⟨col,range.2⟩
+
 structure C3Zeros (n s) extends TwoCubes n s where
   /-- `c3` should have all its zeros at the end. -/
   c3_zeros_sorted : ∀ (j₁ j₂ : Nat) (range : 2 ≤ j₁ ∧ j₁ < j₂ ∧ j₂ < n+2),
       (kclique.get 3)[j₁] = 0 → (kclique.get 3)[j₂] = 0
-  /-- `c3` has a nonzero prefix at least as long as any of the other `cX`s -/
-  c3_more_nonzero : ∀ (col : Fin (n+2)), col.val ≥ 2 →
-    let X : BitVec (n+2) := 3#(n+2) + BitVec.oneAt col
-    ∀ (j : Nat) (range : 2 ≤ j ∧ j < n+1),
+  /-- if `c3` is nonzero up to `j`, then for the `cX` up to `j`,
+      either there is a nonzero element at or before `j`,
+      or *all* the elements after `j` are zero. -/
+  c3_more_nonzero :
+    ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n + 2),
       (kclique.get 3)[j] ≠ 0 ∧ (kclique.get 3)[j+1] = 0 →
-      (∃ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j), (kclique.get X)[_j] = 0)
+      ∀ (col : Fin (n+2)) (cr : 2 ≤ col.val ∧ col.val ≤ j),
+      (∃ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j),
+        (kclique.get (C3Zeros.X col (by omega)))[_j] = 0)
+      ∨ (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
+        (kclique.get (C3Zeros.X col (by omega)))[_j] = 0)
 
 
 namespace C3Zeros
+
+/-! ### Sketch of proof
+
+Call the number of nonzero elements in `c3` on columns `[2:j]` as `numNz`.
+The proof proceeds by finding cliques with higher `numNz`,
+until eventually we can prove both properties in `C3Zeros`.
+
+There are basically 4 cases:
+
+  (0) We hit `numNz = n`, which suffices to prove `C3Zeros`.
+
+  (1) `c3` already has another nonzero element at col `j ≥ 2+numNz`.
+      If we swap `j` with `2+numNz`, the new clique will have `numNz+1`.
+
+  (2) There's a `cX` with `2 ≤ col < 2+numNz`,
+          and `cX` is entirely nonzero before `2+numNz`,
+          and `cX` has a nonzero element at col `j ≥ 2+numNz`.
+      If we flip `cX` up to `c3`, then we can apply the same argument as (1)
+      to get to `numNz+1`.
+
+  (3) Neither (1) nor (2) apply, which suffices to prove `C3Zeros`
+
+-/
+
+/-- asserts that `c3[2:2+numNz] ≠ 0`. -/
+def hasNumNz (tc : TwoCubes n s) (numNz : Nat) (h : numNz ≤ n) : Prop :=
+  ∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.kclique.get 3)[j] ≠ 0
+
+/-- all cliques can have `numNz = 0`. -/
+theorem hasNumNz_zero (tc : TwoCubes n s) : hasNumNz tc 0 (Nat.zero_le _) := by
+  simp [hasNumNz]
+
+/-- if a clique has `numNz = n`, then it satisfies `C3Zeros` -/
+theorem of_hasNumNz_n (tc : TwoCubes n s) (h : hasNumNz tc n (Nat.le_refl _)) :
+              Nonempty (C3Zeros n s) := by
+  refine ⟨{
+    toTwoCubes := tc
+    c3_zeros_sorted := by
+      intro j₁ j₂ range j1_zero
+      have := h j₁ (by omega)
+      contradiction
+    c3_more_nonzero := by
+      rintro j range ⟨-,c3_jsucc_z⟩
+      exfalso
+      have := h (j+1) (by omega)
+      contradiction
+  }⟩
+
+/-- if `c3` has a nonzero element at or after `2+numNz`,
+then we can get a new clique with a higher `numNz`. -/
+theorem hasNumNz_succ_of_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
+      (hasNum : hasNumNz tc numNz (Nat.le_of_lt numNz_lt))
+      (j : Nat) (range : 2 + numNz ≤ j ∧ j < n+2)
+      (j_nonzero : (tc.kclique.get 3)[j] ≠ 0)
+      : ∃ tc : TwoCubes n s, hasNumNz tc (numNz+1) numNz_lt := by
+  use tc.reorder (Equiv.swap ⟨j,by omega⟩ ⟨2+numNz,by omega⟩) ?fix0 ?fix1
+  case fix0 | fix1 =>
+    apply Equiv.swap_apply_of_ne_of_ne <;> simp [Fin.ext_iff] <;> omega
+
+  intro j' range'
+  rw [TwoCubes.kclique_reorder, KClique.get_map_reorder, Vector.getElem_ofFn]
+
+  -- rewrite the bitvec to be 3 again (it's just 3)
+  suffices (tc.kclique.get 3)[(Equiv.swap (α := Fin (n+2)) ⟨j, _⟩ ⟨2 + numNz, by omega⟩) ⟨j', by omega⟩] ≠ 0 by
+    convert this
+    apply BitVec.eq_of_getElem_eq; intro i hi
+    simp only [BitVec.getElem_ofFn, Equiv.symm_swap, Fin.getElem_fin]
+    -- for i < 2 the swap doesn't touch j, and for i ≥ 2 it doesn't matter
+    by_cases i < 2
+    case pos i_lt =>
+      congr 1; rw [Equiv.swap_apply_of_ne_of_ne] <;> simp <;> omega
+    case neg i_ge =>
+      replace i_ge : i ≥ 2 := by omega
+      simp [BitVec.getElem_eq_testBit_toNat, hi]
+      generalize hi' : (Equiv.swap (α := Fin (n+2)) _ _ _).val = i'
+      replace hi' : i' ≥ 2 := by
+        simp [Equiv.swap, Equiv.swapCore] at hi'
+        split at hi'
+        · simp at hi'; omega
+        · split at hi' <;> simp at hi' <;> omega
+
+      rcases i_ge with (_|_|_) <;> rcases hi' with (_|_|_) <;> simp [Nat.testBit_succ]
+
+  if j' = 2+numNz then
+    -- the nonzero element we just swapped in is here
+    subst j'; simp only [Equiv.swap_apply_right, Fin.getElem_fin]
+    exact j_nonzero
+  else
+    -- it's the same nonzero element it was before
+    have : j' < 2+numNz := by omega
+    rw [Equiv.swap_apply_of_ne_of_ne ?beep ?boop]
+    case beep | boop => simp; omega
+    simpa using hasNum j' (by omega)
+
+
+
 
 /-- This is a version of `C3Zeros` where the conditions only hold up to `upTo + 2`. -/
 private structure UpTo (n s) (upTo : Nat) (upTo_le : upTo ≤ n) extends TwoCubes n s where
@@ -205,11 +309,13 @@ private structure UpTo (n s) (upTo : Nat) (upTo_le : upTo ≤ n) extends TwoCube
   zeroStart_le : zeroStart ≤ upTo+2
   c3_nonzeros : ∀ (j) (range : 2 ≤ j ∧ j < zeroStart), (kclique.get 3)[j] ≠ 0
   c3_zeros : ∀ (j) (range : zeroStart ≤ j ∧ j < upTo+2), (kclique.get 3)[j] = 0
-  c3_more_nonzero : ∀ (col) (range : 2 ≤ col ∧ col < upTo+2),
-    let X : BitVec (n+2) := 3#(n+2) + BitVec.oneAt ⟨col, by omega⟩
-    (∃ (j : Nat) (range : 2 ≤ j ∧ j < zeroStart), (kclique.get X)[j] = 0)
+  c3_more_nonzero : ∀ (zS_lt : zeroStart < upTo+2) (col) (crange : 2 ≤ col ∧ col ≤ zeroStart),
+    (∃ (j : Nat) (range : 2 ≤ j ∧ j ≤ zeroStart ∧ j < n + 2),
+      (kclique.get (X col (by omega)))[j] = 0)
 
-def UpTo.zero (tc : TwoCubes n s) : UpTo n s 0 (by simp) where
+namespace UpTo
+
+def zero (tc : TwoCubes n s) : UpTo n s 0 (Nat.zero_le _) where
   toTwoCubes := tc
   zeroStart := 2
   zeroStart_ge := by simp
@@ -218,10 +324,39 @@ def UpTo.zero (tc : TwoCubes n s) : UpTo n s 0 (by simp) where
   c3_zeros := by simp
   c3_more_nonzero := by simp
 
-theorem UpTo.step (u : UpTo n s upTo upTo_le) (upTo_lt : upTo < n) : Nonempty (UpTo n s (upTo+1) upTo_lt) := by
+section step
+variable (u : UpTo n s upTo upTo_le) (upTo_lt : upTo < n) include u
+
+theorem step.next_c3_zero
+    (h1 : (u.kclique.get 3)[upTo+2] = 0) (h2 : u.zeroStart < upTo+2)
+    : Nonempty (UpTo n s (upTo+1) upTo_lt) := by
+  refine ⟨{
+    toTwoCubes := u.toTwoCubes
+    zeroStart := u.zeroStart
+    zeroStart_ge := u.zeroStart_ge
+    zeroStart_le := by have := u.zeroStart_le; omega
+    c3_nonzeros := u.c3_nonzeros
+    c3_zeros := ?zeros
+    c3_more_nonzero := ?more
+  }⟩
+  case zeros =>
+    intro j range
+    if j = upTo+2 then
+      subst j; exact h1
+    else
+      apply u.c3_zeros
+      omega
+  case more =>
+    intro zS_lt col range
+    apply u.c3_more_nonzero
+      <;> omega
+
+theorem step : Nonempty (UpTo n s (upTo+1) upTo_lt) := by
   sorry
 
-def UpTo.at_n (u : UpTo n s n (Nat.le_refl _)) : C3Zeros n s where
+end step
+
+def at_n (u : UpTo n s n (Nat.le_refl _)) : C3Zeros n s where
   toTwoCubes := u.toTwoCubes
   c3_zeros_sorted := by
     intro j₁ j₂ range h
@@ -231,8 +366,8 @@ def UpTo.at_n (u : UpTo n s n (Nat.le_refl _)) : C3Zeros n s where
       have := u.c3_nonzeros j₁ (by omega)
       contradiction
   c3_more_nonzero := by
-    rintro ⟨col,col_lt⟩ col_ge; simp at col_ge
-    intro X j range ⟨ne_zero,eq_zero⟩
+    rintro j range ⟨ne_zero,eq_zero⟩ ⟨col,col_lt⟩ col_ge
+    simp at col_ge
     -- ne_zero and eq_zero fix zeroStart
     have : u.zeroStart > j := by
       have := u.c3_zeros j
@@ -242,17 +377,91 @@ def UpTo.at_n (u : UpTo n s n (Nat.le_refl _)) : C3Zeros n s where
       have := u.c3_nonzeros (j+1)
       simp only [eq_zero] at this
       omega
-    have ⟨j,range,h⟩ := u.c3_more_nonzero col (by omega)
-    use j, by omega
+    have : u.zeroStart = j+1 := by omega
+    have ⟨j',range',h⟩ := u.c3_more_nonzero (by omega) col (by omega)
+    use j', by omega, h
+
+
+
+end UpTo
 
 theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3Zeros n s) := by
-  suffices ∀ upTo h, Nonempty (UpTo n s upTo h) by
-    have ⟨u⟩ := this n (Nat.le_refl _)
+  suffices ∀ upTo (h : upTo ≤ n), Nonempty (UpTo n s (upTo) h) by
+    have ⟨u⟩ := this n (by omega)
     exact ⟨UpTo.at_n u⟩
-  intro upTo upTo_le
-  induction upTo with
-  | zero =>
-    exact ⟨UpTo.zero tc⟩
-  | succ upTo ih =>
-    have ⟨u⟩ := ih (Nat.le_of_lt upTo_le)
+
+  intro steps h
+  induction steps with
+  | zero => exact ⟨UpTo.zero tc⟩
+  | succ steps ih =>
+    have ⟨u⟩ := ih (Nat.le_of_lt h)
     exact UpTo.step u _
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/-- This is nontrivial because we may need to swap cX with c3
+if cX has a longer nonzero prefix than c3.
+-/
+theorem start (tc : TwoCubes n s) (upTo : Nat) (upTo_le : upTo ≤ n)
+      (h : ∀ (j) (range : 2 ≤ j ∧ j < upTo+2), (tc.kclique.get 3)[j] ≠ 0) :
+    ∃ (upTo : Nat) (upTo_le : upTo ≤ n) (u : UpTo n s upTo upTo_le), True := by
+
+  -- if `upTo = n` we can satisfy everything
+  if upTo_lt : upTo = n then
+    subst upTo
+    use n, (by simp), {
+      toTwoCubes := tc
+      zeroStart := n+2
+      zeroStart_ge := by simp
+      zeroStart_le := by simp
+      c3_nonzeros := h
+      c3_zeros := by simp
+      c3_more_nonzero := by simp
+    }
+  else
+  replace upTo_lt : upTo < n := by omega
+
+  -- we can already satisfy everything except `c3_more_nonzero`
+  -- by setting `zeroStart := upTo+2`, so let's case on the property
+  by_cases ∀ (col) (crange : 2 ≤ col ∧ col < upTo+2),
+    (∃ (j : Nat) (range : 2 ≤ j ∧ j ≤ upTo+2 ∧ j < n + 2),
+      (tc.kclique.get (X col crange))[j] = 0)
+
+  case pos c3_more_nonzero =>
+    -- we're done!
+    use upTo, upTo_le, {
+      toTwoCubes := tc
+      zeroStart := upTo + 2
+      zeroStart_ge := by simp
+      zeroStart_le := by simp
+      c3_nonzeros := h
+      c3_zeros := by simp
+      c3_more_nonzero := by
+        rintro -
+        apply c3_more_nonzero
+    }
+
+  case neg exists_longer =>
+    -- in this case we need to swap some cX up to c3 cuz it's longer
+    clear h
+    push_neg at exists_longer
+    rcases exists_longer with ⟨col,crange,h⟩
+    apply start (upTo := upTo+1) (upTo_le := upTo_lt)
+      (tc := tc.flipAt ⟨col,crange.2⟩ (tc.kclique.get (X col crange))[col] crange.1)
+    case tc =>
+      sorry
+    sorry
+
+termination_by n-upTo
