@@ -99,7 +99,6 @@ def adjacentVertexesClauses (G : Graph n) [DecidableRel G.Adj] : VCnf n (edgeCon
   ( let U := (Array.finRange n)
     for_all U fun u =>
     for_all U fun v =>
-    VEncCNF.guard (u ≠ v) fun _ =>
     VEncCNF.guard (G.Adj u v) fun _ =>
       seq[
         addClause #[mkNeg <| blue   u, mkNeg <| blue   v],
@@ -110,9 +109,7 @@ def adjacentVertexesClauses (G : Graph n) [DecidableRel G.Adj] : VCnf n (edgeCon
   |> mapProp (by
     ext τ
     simp [edgeConstraints, adjacentVertexesGetDifferentColors, Clause.toPropFun, Array.mem_def]
-    apply forall_congr'; intro u
-    apply forall_congr'; intro v
-    aesop)
+  )
 
 def graphColoringCNF (G : Graph n) [DecidableRel G.Adj] : VCnf n (graphColoring G) :=
   (seq[
