@@ -13,9 +13,9 @@ import Lean.Elab.GuardMsgs
 
 namespace Keller.SymmBreak
 
-/-! ## 3x3 Matrix Symmetries
+/-! ## Matrix Symmetries
 
-For Keller graph with `n≥5`, we can do symmetry breaking
+For Keller graph with `n≥5`, we can freely swap the last `n-2` columns
 on dimension indices 2,3,4 from `c_7`, `c_11`, `c_19`
 by permuting those indices and renumbering the colors at each index.
 -/
