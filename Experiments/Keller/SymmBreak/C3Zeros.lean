@@ -11,41 +11,73 @@ namespace Keller.SymmBreak
 
 /-! ## Maximal Nonzeros in c3
 
-With `c0` and `c1` fixed, the `j ≥ 2` columns are still mostly unconstrained.
-It turns out we can force lots of structure on these columns and on `c3`,
-by constraining where zeros are allowed to occur.
+With `c0` and `c1` fixed, the `j ≥ 2` columns are still mostly unconstrained
 
-WLOG we can reorder the columns `j ≥ 2` such that the nonzero elements of
-`c3` occur before the zero elements.
+```
+      0   1   2   3   4   5   6
+ c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ c1 |-0-| 1 | 0 | 0 | 0 | 0 | 0 |
+```
+
+In particular we can still reorder these columns arbitrarily.
+So, we pick an ordering of columns `j ≥ 2` such that
+the nonzero elements of `c3` occur *before* the zero elements:
+
+  (1)  `c3[j] = 0 → c3[j+1] = 0`
 
 Furthermore, we relate `c3` to certain special vertices.
 For n=7 these vertices are `c7`, `c11`, `c19`, `c35`, `c67`.
-These are special because we can flip one bit to swap them with `c3`
-(see the `flipAt` automorphism for more details).
+These are special because we can flip one bit in their index
+to swap them with `c3` (see the `flipAt` automorphism for details).
 
-We want to force more nonzero elements into `c3`,
-because this permits further symmetry-breaking down the road.
-So, we break the symmetry by asserting
+It will help later on to have more nonzero elements in `c3`.
+So, if `c3` is nonzero up to `j`, and zero starting at `j+1`,
+and `cX` is nonzero up until `j`, then `cX` should also be zero starting at `j+1`.
+Otherwise we swap `cX` into `c3`'s place to get a longer
+prefix of nonzero elements:
+
+```
+      0   1   2   3   4   5   6
+ c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ c1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+ c3 | 0 | 1 | 1 | 1 | 1 | 0 | 0 |
+c19 | 0 | 1 | 2 | 2 | 1 | 0 | 1 |
+                              ^ nonzero!!!
+
+(exchange c3 with c19)
+
+      0   1   2   3   4   5   6
+ c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ c1 |-0-| 1 | 0 | 0 | 0 | 0 | 0 |
+ c3 |-0-|-1-| 2 | 2 | 1 | 0 | 1 |
+c19 |-0-|-1-| 1 | 1 |-1-| 0 | 0 |
+
+(swap columns 5<->6)
+
+      0   1   2   3   4   5   6
+ c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ c1 |-0-| 1 | 0 | 0 | 0 | 0 | 0 |
+ c3 |-0-|-1-| 2 | 2 | 1 | 1 | 0 |
+c19 |-0-|-1-| 1 | 1 |-1-| 0 | 0 |
+
+```
+
+In code, for each `X` we enforce that:
 
     `c3[j] ≠ 0 ∧ c3[j+1] = 0 ∧ (⋀ cX[2:j] ≠ 0) → (⋀ cX[j+1:n+2] = 0)`
 
-Intuitively, if `c3` is nonzero up until `j` (and zero after that),
-and `cX` is nonzero up until `j`, then `cX` should be zero after `j`.
-If `cX` is not zero after `j`,
-we swap `cX` into `c3`'s place to get more nonzero elements.
+In this file, we prove that any clique with `c0` and `c1` fixed
+can be transformed into one where both of these conditions on `c3` hold.
+We prove both conditions simultaneously.
 
-We prove the sorting symmetry and the `cX` symmetry simultaneously.
-
-N.B.  These conditions interfere with
-      the column reordering symmetry.
-      But if we prove (or assume) `c3[2:j] = 1`,
-      we can reorder columns `[2:j]`.
+N.B.  These conditions interfere with the column reordering symmetry.
+      But if we prove (or assume) `c3[2:j] = 1`, we can reorder columns `[2:j]`.
       Similarly, if we prove (or assume) `c3[j:n] = 0`,
       we can reorder columns `[j:n]`.
 -/
 
-def C3Zeros.X (col : Nat) (range : 2 ≤ col ∧ col < n+2) : BitVec (n+2) :=
-  3#(n+2) ^^^ BitVec.oneAt ⟨col,range.2⟩
+def C3Zeros.X (row : Nat) (range : 2 ≤ row ∧ row < n+2) : BitVec (n+2) :=
+  3#(n+2) ^^^ BitVec.oneAt ⟨row,range.2⟩
 
 structure C3Zeros (n s) extends TwoCubes n s where
   /-- `c3` should have all its zeros at the end. -/
@@ -57,18 +89,18 @@ structure C3Zeros (n s) extends TwoCubes n s where
   c3_more_nonzero :
     ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n + 2),
       (kclique.get 3)[j] ≠ 0 ∧ (kclique.get 3)[j+1] = 0 →
-      ∀ (col : Nat) (cr : 2 ≤ col ∧ col ≤ j),
+      ∀ (row : Nat) (cr : 2 ≤ row ∧ row ≤ j),
       (∀ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j),
-        (kclique.get (C3Zeros.X col (by omega)))[_j] ≠ 0)
+        (kclique.get (C3Zeros.X row (by omega)))[_j] ≠ 0)
       → (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
-        (kclique.get (C3Zeros.X col (by omega)))[_j] = 0)
+        (kclique.get (C3Zeros.X row (by omega)))[_j] = 0)
 
 
 namespace C3Zeros
 
-def X_get_col_eq_3_get_col (tc : TwoCubes n s) (col) (h) :
-  (tc.kclique.get (X col h))[col] = (tc.kclique.get 3)[col] := by
-  have := tc.kclique.get_adj_of_eq_xor (i₁ := 3) (i₂ := X col h) ⟨col,by omega⟩
+def X_get_col_eq_3_get_col (tc : TwoCubes n s) (row) (h) :
+  (tc.kclique.get (X row h))[row] = (tc.kclique.get 3)[row] := by
+  have := tc.kclique.get_adj_of_eq_xor (i₁ := 3) (i₂ := X row h) ⟨row,by omega⟩
   specialize this (by simp [X])
   exact this.1.symm
 
@@ -85,7 +117,7 @@ There are basically 4 cases:
   (1) `c3` already has another nonzero element at col `j ≥ 2+numNz`.
       If we swap `j` with `2+numNz`, the new clique will have `numNz+1`.
 
-  (2) There's a `cX` with `2 ≤ col < 2+numNz`,
+  (2) There's a `cX` with `2 ≤ row < 2+numNz`,
           and `cX` is entirely nonzero before `2+numNz`,
           and `cX` has a nonzero element at col `j ≥ 2+numNz`.
       If we flip `cX` up to `c3`, then we can apply the same argument as (1)
@@ -172,7 +204,7 @@ theorem hasNumNz_succ_of_c3_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
     simpa using hasNum j' (by omega)
 
 /-
-  (2) There's a `cX` with `2 ≤ col < 2+numNz`,
+  (2) There's a `cX` with `2 ≤ row < 2+numNz`,
           and `cX` is entirely nonzero before `2+numNz`,
           and `cX` has a nonzero element at col `j ≥ 2+numNz`.
       If we flip `cX` up to `c3`, then we can apply the same argument as (1)
@@ -180,16 +212,16 @@ theorem hasNumNz_succ_of_c3_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
 -/
 theorem hasNumNz_succ_of_cX_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
     (hasNum : hasNumNz tc numNz (Nat.le_of_lt numNz_lt))
-    (exists_nonzero : ∃ (col : Nat) (crange : 2 ≤ col ∧ col < 2+numNz),
-      (∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.kclique.get (X col (by omega)))[j] ≠ 0) ∧
+    (exists_nonzero : ∃ (row : Nat) (crange : 2 ≤ row ∧ row < 2+numNz),
+      (∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.kclique.get (X row (by omega)))[j] ≠ 0) ∧
       ∃ (j : Nat) (range : 2 + numNz ≤ j ∧ j < n+2),
-      (tc.kclique.get (X col (by omega)))[j] ≠ 0)
+      (tc.kclique.get (X row (by omega)))[j] ≠ 0)
     : ∃ tc : TwoCubes n s, hasNumNz tc (numNz+1) numNz_lt := by
 
-  rcases exists_nonzero with ⟨col,crange,cX_nz,j,range,j_nonzero⟩
+  rcases exists_nonzero with ⟨row,crange,cX_nz,j,range,j_nonzero⟩
 
   -- swap cX to c3
-  let tc' := tc.flipAt ⟨col,by omega⟩ (tc.kclique.get (X col (by omega)))[col]
+  let tc' := tc.flipAt ⟨row,by omega⟩ (tc.kclique.get (X row (by omega)))[row]
     (j_ge := by simp; omega)
     (k_ne_0 := by rw [X_get_col_eq_3_get_col]; apply hasNum; omega)
 
