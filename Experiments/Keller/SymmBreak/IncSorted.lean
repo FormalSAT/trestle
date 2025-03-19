@@ -7,6 +7,9 @@ Authors: James Gallicchio
 
 import Experiments.Keller.Autos
 
+import Mathlib.Logic.Equiv.Basic
+import Mathlib
+
 /-! ## Increment Sorted
 
 We say a list is "increment sorted" when every
@@ -16,22 +19,17 @@ For example, `[0,1,2,0]` is inc sorted, and `[0,1,3,0]` is not.
 
 For any list `L`, we can construct a permutation `p`
 such that `L.map p` is inc sorted.
-
-This is a funky looking function with a big job.
-Given a list `L : List (Fin s)` of values, it returns a permutation on `Fin s`
-such that `L` mapped by the permutation is "incrementally increasing".
-i.e. `L'[j] = x + 1` implies `∃ j' < j, L[j'] = x`.
 -/
 
-def incSorted (L : List (Fin s)) : Prop :=
-  ∀ pre x, pre ≠ [] → (pre ++ [x]) <+: L → ∃ y ∈ pre, x.val ≤ y.val + 1
+def incSorted (L : List Nat) : Prop :=
+  ∀ pre x, pre ≠ [] → (pre ++ [x]) <+: L → ∃ y ∈ pre, x ≤ y + 1
 
-theorem incSorted.nil : incSorted (s := s) [] := by simp [incSorted]
-theorem incSorted.singleton : incSorted (s := s) [x] := by
+theorem incSorted.nil : incSorted [] := by simp [incSorted]
+theorem incSorted.singleton : incSorted [x] := by
   simp [incSorted]
   rintro (_|⟨pre_hd,pre_tl⟩) y h1 h2 <;> simp_all
 
-theorem incSorted.snoc (L : List (Fin s)) (x : Fin s) (exists_prev : ∃ y ∈ L, x.val ≤ y.val + 1) (h : incSorted L) :
+theorem incSorted.snoc (L : List Nat) (x : Nat) (exists_prev : ∃ y ∈ L, x ≤ y + 1) (h : incSorted L) :
       incSorted (L ++ [x]) := by
   intro pre y pre_ne_nil pre_prefix
   rw [List.prefix_concat_iff] at pre_prefix
@@ -43,9 +41,14 @@ theorem incSorted.snoc (L : List (Fin s)) (x : Fin s) (exists_prev : ∃ y ∈ L
   case inr pre_prefix =>
     exact h pre y pre_ne_nil pre_prefix
 
-def renumberIncr (L : List (Fin s)) : Equiv.Perm (Fin s) :=
+/--
+Given a list `L : List Nat` of values,
+returns a permutation on `Fin s` such that
+`L` mapped by the permutation is incrementally sorted.
+-/
+def renumberIncr (L : List Nat) : Equiv.Perm Nat :=
   let dedup := L.reverse.dedup.reverse
-  let pairs := dedup.zip (List.finRange s)
+  let pairs := dedup.mapIdx (fun i a => (a,i))
   Equiv.Perm.setAll pairs
 
 /-- info: [0, 1, 2, 1, 3, 4, 0] -/
@@ -53,34 +56,8 @@ def renumberIncr (L : List (Fin s)) : Equiv.Perm (Fin s) :=
 #eval let L : List (Fin 10) := [0,2,1,2,5,3,0]
       L.map (renumberIncr L)
 
-lemma renumberIncr.dedup_length (L : List (Fin s)) : L.dedup.length ≤ s := by
-  simpa only [Fintype.card_fin] using L.nodup_dedup.length_le_card
-
-lemma renumberIncr.dedup_length_of_not_mem (L : List (Fin s)) {x : Fin s} (hx : x ∉ L) :
-    L.dedup.length < s := by
-  simpa only [Fintype.card_fin, hx, not_false_eq_true, List.dedup_cons_of_not_mem]
-    using (x :: L).nodup_dedup.length_le_card
-
-theorem renumberIncr.eq_of_mem' (L : List (Fin s)) (i : Nat) (hi : i < L.reverse.dedup.reverse.length) :
-      renumberIncr L (L.reverse.dedup.reverse[i]'hi) = ⟨i, by
-        have := dedup_length L.reverse
-        simp at hi; omega⟩ := by
-  apply Equiv.Perm.setAll_eq_of_mem
-  · rw [List.pairwise_iff_getElem]
-    intro i j hi hj i_lt_j
-    simp at hi hj ⊢
-    rw [L.reverse.nodup_dedup.getElem_inj_iff]
-    omega
-  · rw [List.pairwise_iff_getElem]
-    intro i j hi hj i_lt_j
-    simp at hi hj ⊢
-    omega
-  · apply List.mem_iff_getElem.mpr
-    have := dedup_length L.reverse
-    simp at hi; simp_all
-
-theorem renumberIncr.eq_of_mem (L : List (Fin s)) {x y : Fin s}
-      (hy : y.val < L.reverse.dedup.reverse.length) (h : x = L.reverse.dedup.reverse[y]) :
+theorem renumberIncr.eq_of_mem (L : List Nat) {x y : Nat}
+      (hy : y < L.reverse.dedup.reverse.length) (h : x = L.reverse.dedup.reverse[y]) :
       renumberIncr L x = y := by
   apply Equiv.Perm.setAll_eq_of_mem
   · rw [List.pairwise_iff_getElem]
@@ -93,26 +70,25 @@ theorem renumberIncr.eq_of_mem (L : List (Fin s)) {x y : Fin s}
     simp at hi hj ⊢
     omega
   · apply List.mem_iff_getElem.mpr
-    have := dedup_length L.reverse
     use y
     simp at hy
     simp_all
+    omega
 
-theorem renumberIncr.snoc_mem (L : List (Fin s)) {x : Fin s} (x_mem : x ∈ L) :
+theorem renumberIncr.snoc_mem (L : List Nat) {x : Nat} (x_mem : x ∈ L) :
     renumberIncr (L ++ [x]) = renumberIncr L := by
   simp [renumberIncr, x_mem]
 
-theorem renumberIncr.snoc_not_mem (L : List (Fin s)) {x : Fin s} (x_not_mem : x ∉ L) :
+theorem renumberIncr.snoc_not_mem (L : List Nat) {x : Nat} (x_not_mem : x ∉ L) :
     (∀ y ∈ L, renumberIncr (L ++ [x]) y = renumberIncr L y) ∧
-      renumberIncr (L ++ [x]) x = ⟨L.reverse.dedup.length, dedup_length_of_not_mem L.reverse (by simpa using x_not_mem)⟩ := by
+      renumberIncr (L ++ [x]) x = L.reverse.dedup.length := by
   constructor
   · intro y y_mem
-    have ⟨i,hi, (h : L.reverse.dedup.reverse[i]'hi = y)⟩ := List.getElem_of_mem (by simp [y_mem])
-    subst y
-    rw [List.length_reverse] at hi
-    refine Eq.trans (b := ⟨i,?i_lt⟩) ?L (Eq.symm ?R)
-    case i_lt =>
-      have := dedup_length L.reverse; omega
+    replace y_mem := List.getElem_of_mem (l := L.reverse.dedup.reverse)
+      (by simp; exact y_mem)
+    rcases y_mem with ⟨i,hi,rfl⟩
+    simp at hi
+    refine Eq.trans (b := i) ?L (Eq.symm ?R)
     case L =>
       apply eq_of_mem
       · simp [x_not_mem, List.getElem_append, hi]
@@ -123,9 +99,8 @@ theorem renumberIncr.snoc_not_mem (L : List (Fin s)) {x : Fin s} (x_not_mem : x 
       · simp [x_not_mem]; omega
   · apply eq_of_mem <;> simp [x_not_mem]
 
-theorem renumberIncr.exists_max (L : List (Fin s)) (nonempty : L ≠ []) :
-    ∃ y ∈ L, renumberIncr L y = ⟨L.reverse.dedup.reverse.length-1, by
-      have := dedup_length L.reverse; have := y.isLt; simp; omega⟩ := by
+theorem renumberIncr.exists_max (L : List Nat) (nonempty : L ≠ []) :
+    ∃ y ∈ L, renumberIncr L y = L.reverse.dedup.reverse.length-1 := by
   have dedup_nonempty : L.reverse.dedup.reverse.length ≠ 0 := by
     intro h; simp at h; contradiction
   let prev_max := L.reverse.dedup.reverse[L.reverse.dedup.reverse.length-1]
@@ -137,7 +112,7 @@ theorem renumberIncr.exists_max (L : List (Fin s)) (nonempty : L ≠ []) :
   · simp [prev_max]
   · simp; rw [List.length_reverse] at dedup_nonempty; omega
 
-theorem renumberIncr.incSorted_map (L : List (Fin s)) :
+theorem renumberIncr.incSorted_map (L : List Nat) :
     incSorted (L.map <| renumberIncr L) := by
   rw [← List.reverse_reverse L]
   induction L.reverse with
@@ -167,3 +142,93 @@ theorem renumberIncr.incSorted_map (L : List (Fin s)) :
         omega
       · convert ih using 1
         simp +contextual [tl_same]
+
+private theorem Nat.finset_card_le_max' (S : Finset Nat) (nonempty : S.Nonempty) :
+    S.card ≤ S.max' nonempty + 1 := by
+  induction S using Finset.induction_on_max
+  case h0 =>
+    simp at nonempty
+  case step max S lt_max ih =>
+    -- if S is empty then this is trivial
+    if empty : S = ∅ then
+      subst S; simp
+    else
+    have nonempty' : S.Nonempty := Finset.nonempty_of_ne_empty empty
+
+    specialize ih nonempty'
+
+    have max_not_mem : max ∉ S := by
+      intro contra; specialize lt_max _ contra; simp at lt_max
+    have max'_lt_max := lt_max (S.max' nonempty') (Finset.max'_mem ..)
+    clear lt_max
+
+    calc
+      _ = S.card+1  := by rw [Finset.card_insert_of_not_mem max_not_mem]
+      _ ≤ max + 1   := by omega
+      _ = _         := by simp [Finset.max'_insert, max_eq_right_of_lt, *]
+
+theorem renumberIncr.eq_of_gt_all (L : List Nat) (x : Nat) (h : ∀ y ∈ L, x > y) :
+  renumberIncr L x = x := by
+  simp [renumberIncr]
+  apply Equiv.Perm.setAll_eq_of_not_mem
+  · simp
+    rintro - idx idx_range idx_eq_x -
+    have : x ∈ L := by
+      have := List.mem_iff_getElem.mpr ⟨idx, idx_range, rfl⟩
+      rw [idx_eq_x] at this
+      simpa using this
+    clear! idx
+    specialize h x this
+    simp at h
+  · simp
+    rintro - idx idx_range -
+    suffices ∃ y ∈ L, y + 1 ≥ L.reverse.dedup.length by
+      rcases this with ⟨y,y_mem,y_ge⟩; specialize h y y_mem; omega
+    have : L ≠ [] := by rintro rfl; simp at idx_range
+    clear! idx h
+
+    have : L.reverse.dedup.length = L.toFinset.card := by
+      rw [List.card_toFinset]
+      apply List.Perm.length_eq
+      apply List.Perm.dedup
+      exact List.reverse_perm L
+    rw [this]; clear this
+
+    have := Nat.finset_card_le_max' L.toFinset (by simp [this])
+    refine ⟨_,?_,this⟩
+    rw [← List.mem_toFinset]
+    apply Finset.max'_mem
+
+theorem renumberIncr.lt_bound (L : List Nat) (bound : Nat) (h : ∀ x ∈ L, x < bound) :
+  ∀ y < bound, renumberIncr L y < bound := by
+  intro x
+  suffices bound ≤ (renumberIncr L) x → (renumberIncr L) x = x by
+    intro y_range
+    by_contra ge_bound
+    push_neg at ge_bound
+    specialize this ge_bound
+    omega
+
+  intro ge_bound
+  have : renumberIncr L ((renumberIncr L) x) = (renumberIncr L) x := by
+    apply renumberIncr.eq_of_gt_all
+    intro y y_mem; specialize h y y_mem; omega
+  simpa using this
+
+def renumberIncr' (L : List Nat) (s) (h : ∀ x ∈ L, x < s) : Equiv.Perm (Fin s) :=
+  let aux := renumberIncr L
+  let boop : Equiv.Perm { n // n < s } := aux.subtypeEquiv (by
+    intro i; unfold aux
+    constructor
+    · intro lt
+      refine renumberIncr.lt_bound _ _ ?_ _ lt
+      intro x x_mem; specialize h x x_mem; omega
+    · contrapose
+      simp
+      intro hle
+      rw [renumberIncr.eq_of_gt_all _ _ ?h]
+      case h =>
+        intro x hx; specialize h x hx; omega
+      exact hle
+    )
+  Fin.equivSubtype.trans boop |>.trans Fin.equivSubtype.symm
