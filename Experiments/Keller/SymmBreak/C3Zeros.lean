@@ -16,7 +16,7 @@ With `c0` and `c1` fixed, the `j ≥ 2` columns are still mostly unconstrained
 ```
       0   1   2   3   4   5   6
  c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
- c1 |-0-| 1 | 0 | 0 | 0 | 0 | 0 |
+ c1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 ```
 
 In particular we can still reorder these columns arbitrarily.
@@ -48,23 +48,23 @@ c19 | 0 | 1 | 2 | 2 | 1 | 0 | 1 |
 
       0   1   2   3   4   5   6
  c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
- c1 |-0-| 1 | 0 | 0 | 0 | 0 | 0 |
- c3 |-0-|-1-| 2 | 2 | 1 | 0 | 1 |
-c19 |-0-|-1-| 1 | 1 |-1-| 0 | 0 |
+ c1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+ c3 | 0 | 1 | 2 | 2 | 1 | 0 | 1 |
+c19 | 0 | 1 | 1 | 1 | 1 | 0 | 0 |
 
 (swap columns 5<->6)
 
       0   1   2   3   4   5   6
  c0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
- c1 |-0-| 1 | 0 | 0 | 0 | 0 | 0 |
- c3 |-0-|-1-| 2 | 2 | 1 | 1 | 0 |
-c19 |-0-|-1-| 1 | 1 |-1-| 0 | 0 |
+ c1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+ c3 | 0 | 1 | 2 | 2 | 1 | 1 | 0 |
+c19 | 0 | 1 | 1 | 1 | 1 | 0 | 0 |
 
 ```
 
 In code, for each `X` we enforce that:
 
-    `c3[j] ≠ 0 ∧ c3[j+1] = 0 ∧ (⋀ cX[2:j] ≠ 0) → (⋀ cX[j+1:n+2] = 0)`
+    `c3[j] ≠ 0 ∧ c3[j+1] = 0 ∧ (⋀ cX[2:j] ≠ 0) ∧ (⋁ cX[j+1:n+2] ≠ 0) → ⊥`
 
 In this file, we prove that any clique with `c0` and `c1` fixed
 can be transformed into one where both of these conditions on `c3` hold.
