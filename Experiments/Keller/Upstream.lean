@@ -99,6 +99,8 @@ def Vector.ext' {v₁ : Vector α n} {v₂ : Vector α n} (h : v₁.toArray = v�
   : (v.take n')[i]'hi = v[i] := by
   cases v; simp [Vector.take]
 
+deriving instance Hashable for Vector
+
 instance [Fintype α] : Fintype (Vector α n) where
   elems :=
     (Finset.univ : Finset (Fin n)).pi (fun _ => (Finset.univ : Finset α))

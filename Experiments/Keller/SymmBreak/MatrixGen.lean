@@ -31,11 +31,9 @@ using the automorphism as the SR witness.
 @[ext]
 structure Matrix (m : Nat) where
   data : Vector (Vector Nat m) m
-  /-- Each row should be bounded at 2+r (can always renumber into this state) -/
-  bounds : ∀ r c : Fin m, data[r][c] ≤ 2 + r
   /-- Every index is 1 in either the data or the tranposed data -/
   transpose_one : ∀ r c : Fin m, data[r][c] = 1 ∨ data[c][r] = 1
-deriving DecidableEq, Repr
+deriving DecidableEq, Repr, Hashable
 
 namespace Matrix
 
@@ -147,77 +145,77 @@ Notably, in order to maintain the `transpose_one` invariant,
 we check whether the last row's corresponding element is *not* one,
 in which case we are forced to place a one in the last column instead.
 -/
-def extend.withLastRow (x : Matrix m) (lastRow : Vector Nat m)
-  (lastRow_bounded : ∀ x ∈ lastRow, x < 2+m) : Array (Matrix (m+1)) :=
+def extend.withLastRow (x : Matrix m) (lastRow : Vector Nat m) : Array (Matrix (m+1)) :=
   let allButLastRow := fillLastCols x lastRow m (Nat.le_refl _)
   let datas := allButLastRow.map (·.push (lastRow.push 1))
-  datas.pmap (P := fun _ => _ ∧ _) (fun data h => {
+  datas.pmap (fun data h => {
     data
-    bounds := h.1
-    transpose_one := h.2
+    transpose_one := h
   }) (by
     intro data data_mem
     simp +zetaDelta at data_mem
     rcases data_mem with ⟨prevRows,prevRows_mem,rfl⟩
-    constructor
-    · intro r c
-      if r.val < m then
+    intro r c
+    if r.val < m then
+      simp [*]
+      if c.val < m then
         simp [*]
-        apply fillLastCols_bounded
+        apply fillLastCols_transposeOne_1
         apply prevRows_mem
       else
-        have : r.val = m := by omega
-        simp [this]
-        if c.val < m then
-          simp [*]
-          apply Nat.le_of_lt; apply lastRow_bounded
-          apply Vector.Mem.mk; rw [← Vector.getElem_toArray]
-          refine Array.getElem_mem ?_
-          simp [*]
-        else
-          have : c.val = m := by omega
-          simp [this]; omega
-    · intro r c
-      if r.val < m then
+        have : c.val = m := by omega
         simp [*]
-        if c.val < m then
-          simp [*]
-          apply fillLastCols_transposeOne_1
-          apply prevRows_mem
-        else
-          have : c.val = m := by omega
-          simp [*]
-          apply fillLastCols_transposeOne_2
-          apply prevRows_mem
+        apply fillLastCols_transposeOne_2
+        apply prevRows_mem
+    else
+      have : r.val = m := by omega
+      simp [this]
+      if c.val < m then
+        simp [*]
+        rw [or_comm]
+        apply fillLastCols_transposeOne_2
+        apply prevRows_mem
       else
-        have : r.val = m := by omega
+        have : c.val = m := by omega
         simp [this]
-        if c.val < m then
-          simp [*]
-          rw [or_comm]
-          apply fillLastCols_transposeOne_2
-          apply prevRows_mem
-        else
-          have : c.val = m := by omega
-          simp [this]
   )
 
 def extend (x : Matrix m) : Array (Matrix (m+1)) :=
   let lastRows : Array (Vector Nat m) := extend.lastRows (2+m) m
-  lastRows.pmap (extend.withLastRow x)
-    (by
-      intro lastRow lastRow_mem
-      simp [lastRows] at lastRow_mem
-      apply extend.lastRows_bounded
-      apply lastRow_mem
-    )
-  |>.flatten
+  lastRows.flatMap (extend.withLastRow x)
 
+
+inductive Auto : Nat → Type
+| renumber (f : Fin m → Equiv.Perm Nat) : Auto m
+| perm (p : Equiv.Perm (Fin m)) : Auto m
+| trans (a1 a2 : Auto m) : Auto m
+| lift (a : Auto m) : Auto (m+1)
+
+def renumber (x : Matrix m) : Option (Matrix m × Auto m) :=
+  let perm := Vector.ofFn (n := m) fun col =>
+    renumberIncr (0 :: 1 :: List.ofFn (n := m) (x.data[·][col]))
+
+  let res : Matrix m := {
+    data := Vector.ofFn fun row => Vector.ofFn fun col =>
+      perm[col] x.data[row][col]
+    transpose_one := sorry
+  }
+
+  if x == res then none else
+  some (res, .renumber (perm[·]))
 
 #eval! extend {
   data := #v[#v[1,1],#v[2,1]]
-  bounds := by decide
   transpose_one := by decide
-} |>.map (·.data)
+} |>.map fun m =>
+  let res := renumber m
+  (m.data.toArray.map (·.toArray), res.map (·.1.data.toArray.map (·.toArray)))
+
+
+def canonicalize (x : Matrix m) : Option (Matrix m × Auto m) :=
+  sorry
+
+#exit
+
 
 end Matrix
