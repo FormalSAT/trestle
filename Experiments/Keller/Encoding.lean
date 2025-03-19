@@ -509,15 +509,12 @@ def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
   -- take the first literal as the pivot
   let pivot := c[0]
-  let true_lits :=
-    List.ofFn (n := c.size-1) fun i => c[i.val+1]
-  let substs := substs.filterMap fun (v, l) =>
-    match v with
-    | .x i j k =>
-      if c.any fun cvar => LitVar.toVar cvar = .x i j k then
-        none
-      else some (v,l)
-    | _ => some (v, l)
+  let true_lits := c.filterMap (fun ⟨v,polarity⟩ =>
+      substs.find? (·.1 = v) |>.map fun (_, ⟨v',pol2⟩) => ⟨v',polarity ^^ pol2⟩
+    ) |>.toList
+  -- Any substitutions involving literals from `c` are redundant (and dsr-trim will complain)
+  let substs := substs.filter fun (v, l) =>
+    !c.any (fun cl => LitVar.toVar cl = v ∨ LitVar.toVar cl = LitVar.toVar l)
   { c, pivot, true_lits, substs }
 
 /-- Given a mapping, this returns all the substitutions for all "changed" variables -/
@@ -561,23 +558,67 @@ def renumberSubsts (j : Fin n) (k k' : Fin s) := Id.run do
 We can add so many facts!
 -/
 
+def bound (idx : BitVec n) (ltK : Nat) : Array (Line n s) := Id.run do
+  let mut lines := #[]
+  for hj : j in [2:n] do
+    let j : Fin n := ⟨j,hj.upper⟩
+    for hk : k in [ltK:s] do
+      have : ltK < s := Nat.lt_of_le_of_lt hk.lower hk.upper
+      let k : Fin s := ⟨k,hk.upper⟩
+      lines := lines.push <|
+        mkLine
+          (c := #[ Literal.neg <| .x idx j k ])
+          (substs := renumberSubsts j ⟨ltK-1,by omega⟩ k)
+  return lines
+
 /-! ##### Renumber c3
 
 for all j in [2:n], assume `c3[j] < 2`
 -/
 
-def c3_bounds : Array (Line n s) := Id.run do
+def c3_bounds : Array (Line n s) := bound 3 2
+
+/-! ##### Renumber cX
+
+Now we constrain the special indices below `c3`,
+so there are fewer cases to eliminate via matrix symmetries.
+
+Each column `j ≥ 2` can be renumbered into a normal form
+such that it "slowly increases".
+
+-/
+
+def cX_bounds : Array (Line n s) := Id.run do
   let mut lines := #[]
+
   for hj : j in [2:n] do
     let j : Fin n := ⟨j,hj.upper⟩
-    for hk : k in [2:s] do
-      have : 2 < s := Nat.lt_of_le_of_lt hk.lower hk.upper
-      let k : Fin s := ⟨k,hk.upper⟩
-      lines := lines.push <|
-        mkLine
-          (c := #[ Literal.neg <| .x 3#n j k ])
-          (substs := renumberSubsts j ⟨1,by omega⟩ k)
+
+    let mut prevRows : Array (BitVec n) := #[3]
+
+    for hi : row in [0:n-2] do
+      have : row < n-2 := hi.upper
+      let idx : BitVec n :=
+        SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
+        |>.cast (by omega)
+
+      for hk : k in [2:s] do
+        let k_1 : Fin s := ⟨k-1,by have : k < s := hk.upper; omega⟩
+        let k : Fin s := ⟨k,hk.upper⟩
+
+        -- if all the rows above `idx` are not `k-1`, then
+        -- we can swap `k` with `k-1` in order to disallow `k` at `idx`
+        let clause :=
+          #[.neg (.x idx j k)] ++
+          prevRows.map (.pos <| .x · j k_1)
+        let substs := renumberSubsts j k_1 k
+        lines := lines.push <|
+          mkLine clause (by simp +zetaDelta) substs
+
+      prevRows := prevRows.push idx
+
   return lines
+
 
 /-! ##### Fix c3[2:5]
 Now `c3[2] = c3[3] = 1` by unit prop.
@@ -600,104 +641,11 @@ def c3_fixed : Array (Line n s) :=
   ]
   else #[]
 
-/-! ##### Renumber cX
-
-Now we look at the special indices below `c3`.
-
-```
-    j ->
-idx  0 | 1 | 2 | 3 | 4 | 5 | 6
- 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0
- 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0
- 3 | 0 | 1 | 1 | 1 | 1 | <2| <2
- 7 | 0 | 1 | 1 |   |   |   |
-11 | 0 | 1 |   | 1 |   |   |
-19 | 0 | 1 |   |   | 1 |   |
-35 | 0 | 1 |   |   |   | <2|
-67 | 0 | 1 |   |   |   |   | <2
-```
-
-In order for c7 to have s-gap with c3, we are forced to set c7[2] = c3[2].
-Similarly for the other values on that diagonal.
-Therefore, we can renumber these columns such that:
-
-```
-    j ->
-idx  0 | 1 | 2 | 3 | 4 | 5 | 6
- 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0
- 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0
- 3 | 0 | 1 | 1 | 1 | 1 | <2| <2
- 7 | 0 | 1 | 1 | <3| <3| <3| <3
-11 | 0 | 1 | <3| 1 | <4| <4| <4
-19 | 0 | 1 | <4| <4| 1 | <5| <5
-35 | 0 | 1 | <5| <5| <5| <2| <6
-67 | 0 | 1 | <6| <6| <6| <6| <2
-```
-
--/
-
-def cX_bounds : Array (Line n s) := Id.run do
-  let mut res := #[]
-
-  for hrow : row in [0:n-2] do
-    have : row < n-2 := hrow.upper
-    let idx : BitVec n := 3#n ^^^ BitVec.oneAt ⟨row+2,by omega⟩
-    for hj : j in [2:n] do
-      let j : Fin n := ⟨j,hj.upper⟩
-      if j > row+2 then
-        let maxK := row+2
-        if hm : maxK < s then
-          for hk : k in [maxK+1:s] do
-            res := res.push <|
-              mkLine #[.neg (.x idx j ⟨k,hk.upper⟩)]
-                (substs := renumberSubsts j ⟨maxK,hm⟩ ⟨k,hk.upper⟩)
-
-      if j < row+2 then
-        let maxK := row+1
-        if hm : maxK < s then
-          for hk : k in [maxK+1:s] do
-            res := res.push <|
-              mkLine #[.neg (.x idx j ⟨k,hk.upper⟩)]
-                (substs := renumberSubsts j ⟨maxK,hm⟩ ⟨k,hk.upper⟩)
-
-  return res
-
-def matrixIndices : Array (BitVec n) := #[7#n,11#n,19#n,35#n,67#n]
-
-open AllVars in
-def matrixRenumber (n s) : Array (Line n s) :=
-  if hn : ¬(5 ≤ n ∧ n ≤ 7) then #[] else
-  if hs : ¬(4 ≤ s) then #[] else Id.run do
-  let mut res := #[]
-
-  let j : Fin n := ⟨2,by omega⟩
-  let k : Fin s := ⟨3,by omega⟩
-  let k' : Fin s := ⟨2,by omega⟩
-  res := res.push <|
-    mkLine
-      (c := #[Literal.neg <| .x 11#n j k, Literal.pos <| .x 11#n j k'])
-      (substs := renumberSubsts j k k')
-
---  for hj : j in [2:n] do
---    let j : Fin n := ⟨j,hj.upper⟩
---
---    for h : matRow in [0:n-2] do
---      let i : BitVec n := matrixIndices[matRow]'(by
---        have := h.upper; simp +zetaDelta [matrixIndices] at this hn ⊢; omega
---      )
---      -- we want to show c_i[j] < idx+2, eg c_i[j] ≠ k for k >= idx+2
---      -- proof by swapping k to idx+1 (within column j)
---      if hswap : matRow+2 < s then
---        let kswap : Fin s := ⟨matRow+2, hswap⟩
---        let substs := renumberSwapSubsts j k kswap
---        let c := #[.neg (.x i j k) ]
-
-  return res
 
 def all (n s) : Array (Line n s) :=
-  c3_bounds ++
-  c3_fixed ++
-  cX_bounds
+  c3_bounds
+  ++ cX_bounds
+  ++ c3_fixed
 
 end SR
 
