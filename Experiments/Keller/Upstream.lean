@@ -81,6 +81,13 @@ theorem Multiset.countP_eq_succ [DecidableEq α] (p) [DecidablePred p] (xs : Mul
 @[simp] theorem Array.mem_finRange (x : Fin n) : x ∈ Array.finRange n := by
   simp [Array.finRange, mem_def, List.mem_ofFn]
 
+@[simp] theorem Array.toList_flatMap (f : α → Array β) :
+    (Array.flatMap f arr).toList = arr.toList.flatMap (f · |>.toList) := by
+  have : arr = arr.toList.toArray := Array.toArray_toList _
+  generalize arr.toList = L at this ⊢
+  subst arr
+  simp
+
 def Vector.ext' {v₁ : Vector α n} {v₂ : Vector α n} (h : v₁.toArray = v₂.toArray) : v₁ = v₂ := by
   cases v₁; cases v₂; simp_all
 
