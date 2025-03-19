@@ -241,7 +241,10 @@ all we care about is that one exists.
 def Matrix.findSmallerRenumber? (m : Matrix s) (h : s > 2 := by trivial) : Option (Matrix s) := do
   let p : Matrix.Renumber s (by omega) ← (do
     let renumber := fun c =>
-      renumberIncr <| ⟨0,by omega⟩ :: ⟨1,by omega⟩ :: (List.finRange 3 |>.filter (· ≠ c) |>.map fun r => m.get r c)
+      renumberIncr'
+        (L := 0 :: 1 :: (List.finRange 3 |>.filter (· ≠ c) |>.map fun r => m.get r c))
+        _
+        <| by simp; omega
     if h : _ then some {
       renumber := renumber
       renumber_0 := And.left h
