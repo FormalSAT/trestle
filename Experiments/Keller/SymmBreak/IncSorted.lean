@@ -55,7 +55,7 @@ def renumberIncr (L : List Nat) : Equiv.Perm Nat :=
 #eval let L : List (Fin 10) := [0,2,1,2,5,3,0]
       L.map (renumberIncr L)
 
-theorem renumberIncr.eq_of_mem (L : List Nat) {x y : Nat}
+theorem renumberIncr.eq_of_mem_dedup (L : List Nat) {x y : Nat}
       (hy : y < L.reverse.dedup.reverse.length) (h : x = L.reverse.dedup.reverse[y]) :
       renumberIncr L x = y := by
   apply Equiv.Perm.setAll_eq_of_mem
@@ -89,27 +89,56 @@ theorem renumberIncr.snoc_not_mem (L : List Nat) {x : Nat} (x_not_mem : x ∉ L)
     simp at hi
     refine Eq.trans (b := i) ?L (Eq.symm ?R)
     case L =>
-      apply eq_of_mem
+      apply eq_of_mem_dedup
       · simp [x_not_mem, List.getElem_append, hi]
       · simp [x_not_mem]; omega
     case R =>
-      apply eq_of_mem
+      apply eq_of_mem_dedup
       · simp [x_not_mem, List.getElem_append, hi]
       · simp [x_not_mem]; omega
-  · apply eq_of_mem <;> simp [x_not_mem]
+  · apply eq_of_mem_dedup <;> simp [x_not_mem]
+
+theorem renumberIncr.eq_of_mem.aux (L : List Nat) (Lpre : List Nat) (x : Nat)
+    (h : Lpre ++ [x] <+: L) (h_not_mem : x ∉ Lpre) :
+  renumberIncr L x = Lpre.reverse.dedup.reverse.length := by
+  rcases h with ⟨Lsuf, rfl⟩
+  apply eq_of_mem_dedup
+  · simp [List.dedup_append, h_not_mem]
+    have := List.suffix_union_right Lsuf.reverse (x::Lpre.reverse.dedup)
+    have := List.IsSuffix.getElem this (n := 0) (by simp)
+    simp at this
+    convert this using 2
+    omega
+  · simp [List.dedup_append, h_not_mem]
+    rw [Nat.lt_iff_add_one_le]
+    trans (x :: Lpre.reverse.dedup).length
+    · simp
+    · apply List.IsSuffix.length_le
+      apply List.suffix_union_right
+
+@[simp] theorem List.length_dedup_reverse [DecidableEq α] (L : List α) :
+      L.reverse.dedup.length = L.dedup.length := by
+  apply List.Perm.length_eq
+  apply List.Perm.dedup
+  apply List.reverse_perm
+
+theorem renumberIncr.eq_of_mem (L : List Nat) (Lpre : List Nat) (x : Nat)
+    (h : Lpre ++ [x] <+: L) (h_not_mem : x ∉ Lpre) :
+  renumberIncr L x = Lpre.dedup.length := by
+  rw [eq_of_mem.aux L Lpre x h h_not_mem]
+  simp
 
 theorem renumberIncr.exists_max (L : List Nat) (nonempty : L ≠ []) :
     ∃ y ∈ L, renumberIncr L y = L.reverse.dedup.reverse.length-1 := by
-  have dedup_nonempty : L.reverse.dedup.reverse.length ≠ 0 := by
-    intro h; simp at h; contradiction
-  let prev_max := L.reverse.dedup.reverse[L.reverse.dedup.reverse.length-1]
+  have : L.dedup.length ≠ 0 := by simpa using nonempty
+  let prev_max := L.reverse.dedup.reverse[L.reverse.dedup.reverse.length-1]'(by simp; omega)
   have : prev_max ∈ L := by
     have : prev_max ∈ _ := List.getElem_mem ..
     simpa using this
   use prev_max, this
-  apply eq_of_mem
+  apply eq_of_mem_dedup
   · simp [prev_max]
-  · simp; rw [List.length_reverse] at dedup_nonempty; omega
+  · simp; omega
 
 theorem renumberIncr.incSorted_map (L : List Nat) :
     incSorted (L.map <| renumberIncr L) := by
@@ -173,24 +202,22 @@ theorem renumberIncr.eq_of_gt_all (L : List Nat) (x : Nat) (h : ∀ y ∈ L, x >
   · simp
     rintro - idx idx_range idx_eq_x -
     have : x ∈ L := by
-      have := List.mem_iff_getElem.mpr ⟨idx, idx_range, rfl⟩
-      rw [idx_eq_x] at this
-      simpa using this
+      rw [← idx_eq_x]
+      apply (List.reverse_perm _).subset
+      apply List.dedup_subset
+      apply List.getElem_mem
     clear! idx
     specialize h x this
     simp at h
   · simp
     rintro - idx idx_range -
-    suffices ∃ y ∈ L, y + 1 ≥ L.reverse.dedup.length by
+    suffices ∃ y ∈ L, y + 1 ≥ L.dedup.length by
       rcases this with ⟨y,y_mem,y_ge⟩; specialize h y y_mem; omega
     have : L ≠ [] := by rintro rfl; simp at idx_range
     clear! idx h
 
-    have : L.reverse.dedup.length = L.toFinset.card := by
+    have : L.dedup.length = L.toFinset.card := by
       rw [List.card_toFinset]
-      apply List.Perm.length_eq
-      apply List.Perm.dedup
-      exact List.reverse_perm L
     rw [this]; clear this
 
     have := Nat.finset_card_le_max' L.toFinset (by simp [this])

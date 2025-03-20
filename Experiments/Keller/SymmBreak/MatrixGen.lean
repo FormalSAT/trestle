@@ -184,38 +184,91 @@ def extend (x : Matrix m) : Array (Matrix (m+1)) :=
   let lastRows : Array (Vector Nat m) := extend.lastRows (2+m) m
   lastRows.flatMap (extend.withLastRow x)
 
-
-inductive Auto : Nat → Type
-| renumber (f : Fin m → Equiv.Perm Nat) : Auto m
-| perm (p : Equiv.Perm (Fin m)) : Auto m
-| trans (a1 a2 : Auto m) : Auto m
-| lift (a : Auto m) : Auto (m+1)
-
-def renumber (x : Matrix m) : Option (Matrix m × Auto m) :=
+def renumber (x : Matrix m) :=
   let perm := Vector.ofFn (n := m) fun col =>
     renumberIncr (0 :: 1 :: List.ofFn (n := m) (x.data[·][col]))
 
-  let res : Matrix m := {
+  (show Matrix _ from {
     data := Vector.ofFn fun row => Vector.ofFn fun col =>
       perm[col] x.data[row][col]
-    transpose_one := sorry
-  }
+    transpose_one := by
+      have : ∀ c (h : c < m) i, (perm[c]'h) i = 1 ↔ i = 1 := by
+        intro c h i
+        simp [perm]
+        generalize hL : (_ :: _) = L at perm ⊢
+        have : (renumberIncr L) 1 = 1 :=
+          renumberIncr.eq_of_mem _ [0] _ (by simp [← hL]) (by simp [← hL])
+        conv => lhs; rhs; rw [← this]
+        rw [Equiv.apply_eq_iff_eq]
+      rintro ⟨r,hr⟩ ⟨c,hc⟩
+      simpa [this] using x.transpose_one ⟨r,hr⟩ ⟨c,hc⟩
+    }
+  , perm)
 
-  if x == res then none else
-  some (res, .renumber (perm[·]))
 
-#eval! extend {
-  data := #v[#v[1,1],#v[2,1]]
-  transpose_one := by decide
-} |>.map fun m =>
-  let res := renumber m
-  (m.data.toArray.map (·.toArray), res.map (·.1.data.toArray.map (·.toArray)))
+inductive Auto : Nat → Type
+| renumber (f : Fin m → Equiv.Perm Nat) : Auto m
+| reorder (p : Equiv.Perm (Fin m)) : Auto m
+| trans (a1 a2 : Auto m) : Auto m
+| lift (a : Auto m) : Auto (m+1)
 
 
-def canonicalize (x : Matrix m) : Option (Matrix m × Auto m) :=
-  sorry
+def tryReorder (x : Matrix (m+1)) : Option (Matrix (m+1) × Auto (m+1)) := Id.run do
+  for h : swapLastTo in [0:m] do
+    let perm : Equiv.Perm (Fin (m+1)) :=
+      Equiv.swap
+        ⟨swapLastTo,by have : _ < m := h.upper; omega⟩
+        (Fin.last m)
+    let res : Matrix (m+1) := {
+      data := Vector.ofFn fun row => Vector.ofFn fun col => x.data[perm row][perm col]
+      transpose_one := by
+        intro r c
+        have := x.transpose_one (perm r) (perm c)
+        simpa using this
+    }
 
-#exit
+    let (res, colorPerm) := renumber res
 
+    if res < x then
+      return some (res, .trans (.reorder perm) (.renumber (colorPerm[·])))
+
+  return none
+
+def findSmaller (x : Matrix (m+1)) : Option (Matrix (m+1) × Auto (m+1)) :=
+  let (res, auto) := renumber x
+  if res < x then some (res, .renumber (auto[·]))
+  else
+  tryReorder x
+
+
+
+def mat0 : Array (Matrix 0) := #[ {data := #v[], transpose_one := by simp} ]
+def map0 : Std.HashMap (Matrix 0) (Option (Matrix 0 × Auto 0)) :=
+  .ofList <| mat0.toList.map (·,none)
+def canon0 : Array (Matrix 0) := map0.fold (init := #[]) fun acc k v =>
+  if v.isNone then acc.push k else acc
+
+def mat1 : Array (Matrix 1) := canon0.flatMap (·.extend)
+def map1 : Std.HashMap (Matrix 1) (Option (Matrix 1 × Auto 1)) :=
+  mat1.foldl (init := .empty) fun acc m =>
+    acc.insert m (findSmaller m)
+def canon1 : Array (Matrix 1) := map1.fold (init := #[]) fun acc k v =>
+  if v.isNone then acc.push k else acc
+
+def mat2 : Array (Matrix 2) := canon1.flatMap (·.extend)
+def map2 : Std.HashMap (Matrix 2) (Option (Matrix 2 × Auto 2)) :=
+  mat2.foldl (init := .empty) fun acc m =>
+    acc.insert m (findSmaller m)
+def canon2 : Array (Matrix 2) := map2.fold (init := #[]) fun acc k v =>
+  if v.isNone then acc.push k else acc
+
+def mat3 : Array (Matrix 3) := canon2.flatMap (·.extend)
+def map3 : Std.HashMap (Matrix 3) (Option (Matrix 3 × Auto 3)) :=
+  mat3.foldl (init := .empty) fun acc m =>
+    acc.insert m (findSmaller m)
+def canon3 : Array (Matrix 3) := map3.fold (init := #[]) fun acc k v =>
+  if v.isNone then acc.push k else acc
+
+#eval! canon3.size
 
 end Matrix
