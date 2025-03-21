@@ -320,4 +320,99 @@ theorem Perm.setAll_eq_of_not_mem [DecidableEq α] {L : List (α × α)}
     setAll L i = i :=
   Equiv.setAll_eq_of_not_mem not_mem_is not_mem_os
 
+section
+
+def allPerms.aux (m) : Array (Vector (Fin m) m) :=
+  match m with
+  | 0 => #[#v[]]
+  | m+1 =>
+    let prev := allPerms.aux m
+    (Array.ofFn (n := m+1) fun insertIdx =>
+      prev.map fun p =>
+        Vector.ofFn (n := m+1) fun i =>
+          if h : i.val < insertIdx.val then
+            p[i].castSucc
+          else if h : i.val = insertIdx.val then ⟨m,by omega⟩
+          else
+            p[i.val-1].castSucc
+    ) |>.flatten
+
+theorem allPerms.mem_aux (m) : ∀ v ∈ aux m, ∀ n : Fin m, n ∈ v := by
+  intro v v_mem_aux n
+  induction m with
+  | zero =>
+    apply n.elim0
+  | succ m ih =>
+    unfold aux at v_mem_aux
+    simp only [Array.mem_def,
+      Array.toList_flatten, List.mem_flatten,
+      List.mem_map, Array.toList_ofFn, List.mem_ofFn, Set.mem_range] at v_mem_aux
+    rcases v_mem_aux with ⟨-,⟨-,⟨ins_idx,rfl⟩,rfl⟩,v_mem_vecs⟩
+    simp only [Array.toList_map, List.mem_map, Array.mem_toList] at v_mem_vecs
+    rcases v_mem_vecs with ⟨prev,prev_mem_aux,rfl⟩
+    apply Vector.Mem.mk
+    simp only [Array.mem_def, Vector.toArray_ofFn, Array.toList_ofFn, List.mem_ofFn, Set.mem_range]
+    induction n using Fin.lastCases
+    · use ins_idx
+      simp [Fin.last]
+    next n =>
+      specialize ih prev prev_mem_aux n
+      replace ih := ih.val
+      simp only [Array.mem_iff_getElem, Vector.getElem_toArray] at ih
+      rcases ih with ⟨y,hy,rfl⟩
+      if y < ins_idx.val then
+        use ⟨y,by omega⟩
+        simp [*, Fin.lt_def]
+      else
+        simp at hy
+        use ⟨y+1,by omega⟩
+        simp; rw [dite_cond_eq_false (by simp; omega), dite_cond_eq_false (by simp; omega)]
+
+theorem allPerms.getElem_surj (m) : ∀ v ∈ aux m, (v[·] : Fin m → _).Surjective := by
+  intro v v_mem_aux i
+  have := mem_aux m v v_mem_aux i |>.val
+  simp [Array.mem_iff_getElem] at this
+  rcases this with ⟨i,hi,rfl⟩
+  use ⟨i,hi⟩
+  rfl
+
+theorem allPerms.getElem_bij (m) : ∀ v ∈ aux m, (v[·] : Fin m → _).Bijective := by
+  intro v v_mem_aux
+  rw [Fintype.bijective_iff_surjective_and_card]
+  constructor
+  · apply getElem_surj _ _ v_mem_aux
+  · simp
+
+def allPerms (m) : Array (Equiv.Perm (Fin m)) :=
+  allPerms.aux m |>.pmap (fun a h => {
+    toFun := (a[·])
+    invFun := fun i => Fin.find (a[·] = i) |>.get (by
+      rw [Option.isSome_iff_exists]
+      have ⟨prei,hpi⟩ := h.surjective i
+      subst hpi
+      use prei
+      rw [Fin.find_eq_some_iff]
+      constructor
+      · simp
+      · intro prei' as_eq
+        have := h.injective as_eq
+        subst this; apply Fin.le_refl
+        )
+    left_inv := by
+      intro i
+      apply Option.get_of_mem
+      simp [Fin.find_eq_some_iff]
+      intro i' as_eq
+      have := h.injective as_eq
+      subst i; apply Fin.le_refl
+    right_inv := by
+      intro ai
+      dsimp only
+      generalize_proofs h1 h2 h3
+      apply Fin.find_spec _ <| Option.get_mem h2
+  }
+  ) (allPerms.getElem_bij m)
+
+end
+
 end Equiv
