@@ -52,6 +52,14 @@ def printRichCnf [Monad m] (print : String → m Unit) (f : RichCnf) (vars := f.
       print <| formatComment s
       print "\n"
 
+def toFile (file : System.FilePath) (cnf : ICnf) : IO Unit := do
+  IO.FS.withFile file .write fun handle =>
+    printICnf handle.putStr cnf
+
+def toFileRich (file : System.FilePath) (cnf : RichCnf) : IO Unit := do
+  IO.FS.withFile file .write fun handle =>
+    printRichCnf handle.putStr cnf
+
 def formatAssn (a : HashAssn ILit) : String :=
   a.fold (fun str v b =>
     if b then
