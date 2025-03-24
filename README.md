@@ -19,9 +19,9 @@ Add the following to your project's `lakefile`:
 require «trestle» from git
   "https://github.com/FormalSAT/Trestle" @ "main"
 ```
-The main branch currently uses Lean `v4.15.0`,
-but Lean still has breaking changes every minor revision,
-so don't expect it to compile on other versions of Lean.
+The main branch currently uses Lean `v4.17.0`,
+and the corresponding stable version of mathlib.
+This project almost certainly will not compile on other versions of Lean.
 
 Since this project relies on `mathlib`,
 we recommend running `lake exe cache get` after modifying your lakefile.

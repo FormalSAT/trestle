@@ -7,7 +7,7 @@ Authors: Wojciech Nawrocki
 
 import Mathlib.Tactic.Linarith
 import Mathlib.Data.Fintype.Basic
-import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Union
 import Mathlib.Data.Setoid.Basic
 
 /-! Stuff that seems like it should be in std or mathlib. -/

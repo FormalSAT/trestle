@@ -75,15 +75,6 @@ theorem Array.mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
     Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
   apply Array.ext'; simp; rfl
 
-@[deprecated Array.mkArray_succ (since := "v4.16.0")]
-theorem Array.mkArray_succ' (n : Nat) (a : α) :
-    Array.mkArray (n + 1) a = (Array.mkArray n a).push a := by
-  apply Array.ext'
-  simp [Array.toList_mkArray, List.replicate]
-  induction n with
-  | zero => rfl
-  | succ n ih => simp [List.replicate]; exact ih
-
 @[simp]
 theorem Array.foldl_empty (f : β → α → β) (init : β) (start stop : Nat) :
     Array.foldl f init #[] start stop = init := by
@@ -99,20 +90,6 @@ theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List 
     Array.foldl f init { toList := a :: as } 0 (size { toList := a :: as }) =
       Array.foldl f (f init a) { toList := as } 0 (size { toList := as }) := by
   simp only [size_toArray, List.length_cons, List.foldl_toArray', List.foldl_cons]
-
-@[simp]
-theorem Array.foldl_append (f : β → α → β) (init : β) (A B : Array α) :
-    Array.foldl f init (A ++ B) 0 (size (A ++ B)) =
-      Array.foldl f (Array.foldl f init A 0 (size A)) B 0 (size B) := by
-  have ⟨A⟩ := A
-  have ⟨B⟩ := B
-  simp only [List.append_toArray, size_toArray, List.length_append,
-    List.foldl_toArray', List.foldl_append]
-
-@[simp]
-theorem Array.mem_ofFn {a : α} {f : Fin n → α}
-  : a ∈ Array.ofFn f ↔ ∃ i, f i = a := by
-  simp [Array.mem_iff_getElem, Fin.exists_iff]
 
 /-! List -/
 

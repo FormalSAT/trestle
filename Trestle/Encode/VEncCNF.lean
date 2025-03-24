@@ -289,7 +289,7 @@ def orImplyOr (hyps : Array (Literal ν)) (conc : Array (Literal ν))
   for_all hyps (fun hyp => andImplyOr #[hyp] conc)
   |> mapProp (by
     ext τ
-    simp [-List.mapM,Clause.satisfies_iff]
+    simp [Clause.satisfies_iff]
   )
 
 def orImply (hyps : Array (Literal ν)) (conc : Literal ν)
