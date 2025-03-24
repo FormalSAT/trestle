@@ -41,6 +41,8 @@ namespace State
 @[simp]
 def toPropFun (s : State ν) : PropFun IVar := s.cnf.toICnf.toPropFun
 
+-- extract_closed off because otherwise the empty array becomes a shared object...
+set_option compiler.extract_closed false in
 def new (vars : PNat) (f : ν → IVar) (vNames : List (ν × String)) : State ν := {
   nextVar := vars
   cnf := #[]
@@ -53,7 +55,10 @@ def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
   | {nextVar, cnf, vMap, vNames} => {
     nextVar, vMap, vNames
     cnf :=
-      let cnf := dbgTraceIfShared "State.addClause: cnf is shared (performance bug!)" cnf
+      let cnf :=
+        dbgTraceIfShared
+          "State.addClause: cnf is shared (performance bug!)"
+          cnf
       cnf.addClause (C.map _ vMap)
   }
 
