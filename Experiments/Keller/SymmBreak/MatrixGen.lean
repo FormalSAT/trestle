@@ -31,9 +31,7 @@ using the automorphism as the SR witness.
 @[ext]
 structure Matrix (m : Nat) where
   data : Vector (Vector Nat m) m
-  /-- Every index is 1 in either the data or the tranposed data -/
-  transpose_one : ∀ r c : Fin m, data[r][c] = 1 ∨ data[c][r] = 1
-deriving DecidableEq, Repr, Hashable
+deriving Inhabited, DecidableEq, Repr, Hashable
 
 namespace Matrix
 
@@ -68,6 +66,11 @@ instance : DecidableRel (α := Matrix m) (· ≤ ·) := Ord.instDecidableRelLe
 instance : LT (Matrix m) := ltOfOrd
 instance : DecidableRel (α := Matrix m) (· < ·) := Ord.instDecidableRelLt
 
+nonrec def toString (x : Matrix m) : String :=
+  x.data.map (·.map (toString) |>.toList |> String.intercalate " ")
+  |>.toList |> String.intercalate "\n"
+
+instance : ToString (Matrix m) := { toString }
 
 /-- Generate all possible values for the last row of the matrix extension.
 `kBound` is the (exclusive) upper bound for elements. -/
@@ -120,24 +123,6 @@ def extend.fillLastCols (x : Matrix m) (lastRow : Vector Nat m)
       thisRow.map (prev.push)
     )
 
-theorem extend.fillLastCols_bounded (x : Matrix m) (lastRow : Vector ℕ m)
-  (prevs : Vector (Vector ℕ (m + 1)) m)
-  (prevs_mem : prevs ∈ fillLastCols x lastRow m (Nat.le_refl _))
-  (r c : Nat) (hr : r < m) (hc : c < m+1) :
-  prevs[r][c] ≤ 2 + r := sorry
-
-theorem extend.fillLastCols_transposeOne_1 (x : Matrix m) (lastRow : Vector ℕ m)
-  (prevs : Vector (Vector ℕ (m + 1)) m)
-  (prevs_mem : prevs ∈ fillLastCols x lastRow m (Nat.le_refl _))
-  (r c : Nat) (hr : r < m) (hc : c < m) :
-  prevs[r][c] = 1 ∨ prevs[c][r] = 1 := sorry
-
-theorem extend.fillLastCols_transposeOne_2 (x : Matrix m) (lastRow : Vector ℕ m)
-  (prevs : Vector (Vector ℕ (m + 1)) m)
-  (prevs_mem : prevs ∈ fillLastCols x lastRow m (Nat.le_refl _))
-  (r : Nat) (hr : r < m) :
-  prevs[r][m] = 1 ∨ lastRow[r] = 1 := sorry
-
 /-- Given a matrix `x` and an extending last row `lastRow`,
 generate all viable matrices by filling in the last column.
 
@@ -148,127 +133,172 @@ in which case we are forced to place a one in the last column instead.
 def extend.withLastRow (x : Matrix m) (lastRow : Vector Nat m) : Array (Matrix (m+1)) :=
   let allButLastRow := fillLastCols x lastRow m (Nat.le_refl _)
   let datas := allButLastRow.map (·.push (lastRow.push 1))
-  datas.pmap (fun data h => {
+  datas.map (fun data => {
     data
-    transpose_one := h
-  }) (by
-    intro data data_mem
-    simp +zetaDelta at data_mem
-    rcases data_mem with ⟨prevRows,prevRows_mem,rfl⟩
-    intro r c
-    if r.val < m then
-      simp [*]
-      if c.val < m then
-        simp [*]
-        apply fillLastCols_transposeOne_1
-        apply prevRows_mem
-      else
-        have : c.val = m := by omega
-        simp [*]
-        apply fillLastCols_transposeOne_2
-        apply prevRows_mem
-    else
-      have : r.val = m := by omega
-      simp [this]
-      if c.val < m then
-        simp [*]
-        rw [or_comm]
-        apply fillLastCols_transposeOne_2
-        apply prevRows_mem
-      else
-        have : c.val = m := by omega
-        simp [this]
-  )
+  })
 
 def extend (x : Matrix m) : Array (Matrix (m+1)) :=
   let lastRows : Array (Vector Nat m) := extend.lastRows (2+m) m
   lastRows.flatMap (extend.withLastRow x)
 
-def renumber (x : Matrix m) :=
-  let perm := Vector.ofFn (n := m) fun col =>
-    renumberIncr (0 :: 1 :: List.ofFn (n := m) (x.data[·][col]))
+def shrink (x : Matrix (m+1)) : Matrix m := {
+  data := Vector.ofFn fun row => Vector.ofFn fun col => x.data[row][col]
+}
 
-  (show Matrix _ from {
-    data := Vector.ofFn fun row => Vector.ofFn fun col =>
-      perm[col] x.data[row][col]
-    transpose_one := by
-      have : ∀ c (h : c < m) i, (perm[c]'h) i = 1 ↔ i = 1 := by
-        intro c h i
-        simp [perm]
-        generalize hL : (_ :: _) = L at perm ⊢
-        have : (renumberIncr L) 1 = 1 :=
-          renumberIncr.eq_of_mem _ [0] _ (by simp [← hL]) (by simp [← hL])
-        conv => lhs; rhs; rw [← this]
-        rw [Equiv.apply_eq_iff_eq]
-      rintro ⟨r,hr⟩ ⟨c,hc⟩
-      simpa [this] using x.transpose_one ⟨r,hr⟩ ⟨c,hc⟩
-    }
-  , perm)
-
-
+/-- Matrix automorphisms. Used in the encoding to reconstruct SR witnesses. -/
 inductive Auto : Nat → Type
 | renumber (f : Fin m → Equiv.Perm Nat) : Auto m
 | reorder (p : Equiv.Perm (Fin m)) : Auto m
 | trans (a1 a2 : Auto m) : Auto m
 | lift (a : Auto m) : Auto (m+1)
 
+namespace Auto
 
-def tryReorder (x : Matrix (m+1)) : Option (Matrix (m+1) × Auto (m+1)) := Id.run do
-  for h : swapLastTo in [0:m] do
-    let perm : Equiv.Perm (Fin (m+1)) :=
-      Equiv.swap
-        ⟨swapLastTo,by have : _ < m := h.upper; omega⟩
-        (Fin.last m)
-    let res : Matrix (m+1) := {
-      data := Vector.ofFn fun row => Vector.ofFn fun col => x.data[perm row][perm col]
-      transpose_one := by
-        intro r c
-        have := x.transpose_one (perm r) (perm c)
-        simpa using this
-    }
+instance : Inhabited (Auto m) := ⟨.renumber default⟩
 
-    let (res, colorPerm) := renumber res
+partial def toFun (a : Auto m) (x : Matrix m) : Matrix m :=
+  aux (Nat.le_refl _) a x
+where aux {m1 m2} (h : m1 ≤ m2) (a : Auto m1) (x : Matrix m2) : Matrix m2 :=
+  match a with
+  | renumber f =>
+    ⟨ Vector.ofFn fun row => Vector.ofFn fun col =>
+        if h' : col.val < m1 then
+          f ⟨col.val,h'⟩ x.data[row][col]
+        else
+          x.data[row][col]
+      ⟩
+  | reorder p =>
+    ⟨ Vector.ofFn fun row => Vector.ofFn fun col =>
+        let row' := if h' : row.val < m1 then (p ⟨row,h'⟩).castLE h else row
+        let col' := if h' : col.val < m1 then (p ⟨col,h'⟩).castLE h else col
+        x.data[row'][col']
+      ⟩
+  | trans a1 a2 =>
+      x |> aux h a1 |> aux h a2
+  | lift a =>
+      aux (Nat.le_of_lt h) a x
 
-    if res < x then
-      return some (res, .trans (.reorder perm) (.renumber (colorPerm[·])))
+def reprPrec (a : Auto m) (prec : Nat) : Std.Format :=
+  match a with
+  | .renumber _ => .join [".renumber ", .line, "⋯"]
+  | .reorder p =>
+    let vec := Array.finRange _ |>.map p
+    .join [".reorder ", Repr.reprPrec vec prec]
+  | .trans a1 a2 =>
+    .nestD <| .join [".trans ", .line, reprPrec a1 prec, .line, reprPrec a2 prec]
+  | .lift a1 =>
+    .join [".lift ", reprPrec a1 prec]
 
-  return none
+instance : Repr (Auto m) := { reprPrec }
 
-def findSmaller (x : Matrix (m+1)) : Option (Matrix (m+1) × Auto (m+1)) :=
-  let (res, auto) := renumber x
-  if res < x then some (res, .renumber (auto[·]))
-  else
-  tryReorder x
+end Auto
 
 
+inductive CanonInfo (m : Nat)
+/-- All equiv matrices are greater than us.
+`eqPerms` is the column reorderings which are not identity but are idempotent. -/
+| canon (eqPerms : Array <| Equiv.Perm (Fin m))
+/-- There is a smaller equiv matrix `mat` which can be reached via automorphism `auto`. -/
+| noncanon (mat : Matrix m) (auto : Auto m)
+deriving Inhabited
 
-def mat0 : Array (Matrix 0) := #[ {data := #v[], transpose_one := by simp} ]
-def map0 : Std.HashMap (Matrix 0) (Option (Matrix 0 × Auto 0)) :=
-  .ofList <| mat0.toList.map (·,none)
-def canon0 : Array (Matrix 0) := map0.fold (init := #[]) fun acc k v =>
-  if v.isNone then acc.push k else acc
+/-- Canonicity info for all matrices of that size -/
+structure CanonicalMats (m) where
+  map : Std.HashMap (Matrix m) (CanonInfo m)
+  canonical : Array (Matrix m) :=
+    map.fold (init := #[]) fun acc k v =>
+      match v with
+      | .canon _ => acc.push k
+      | .noncanon _ _ => acc
 
-def mat1 : Array (Matrix 1) := canon0.flatMap (·.extend)
-def map1 : Std.HashMap (Matrix 1) (Option (Matrix 1 × Auto 1)) :=
-  mat1.foldl (init := .empty) fun acc m =>
-    acc.insert m (findSmaller m)
-def canon1 : Array (Matrix 1) := map1.fold (init := #[]) fun acc k v =>
-  if v.isNone then acc.push k else acc
+def renumber (x : Matrix m) :=
+  let vec := Vector.ofFn (n := m) fun col =>
+    renumberIncr (0 :: 1 :: List.ofFn (n := m) (x.data[·][col]))
+  (vec[·] : Fin _ → _)
 
-def mat2 : Array (Matrix 2) := canon1.flatMap (·.extend)
-def map2 : Std.HashMap (Matrix 2) (Option (Matrix 2 × Auto 2)) :=
-  mat2.foldl (init := .empty) fun acc m =>
-    acc.insert m (findSmaller m)
-def canon2 : Array (Matrix 2) := map2.fold (init := #[]) fun acc k v =>
-  if v.isNone then acc.push k else acc
+def extendPerm (e : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (m+1)) := {
+  toFun := fun i => i.lastCases (last := Fin.last _) (cast := (e · |>.castSucc))
+  invFun := fun i => i.lastCases (last := Fin.last _) (cast := (e.symm · |>.castSucc))
+  left_inv := by intro i; induction i using Fin.lastCases <;> simp
+  right_inv := by intro i; induction i using Fin.lastCases <;> simp
+}
 
-def mat3 : Array (Matrix 3) := canon2.flatMap (·.extend)
-def map3 : Std.HashMap (Matrix 3) (Option (Matrix 3 × Auto 3)) :=
-  mat3.foldl (init := .empty) fun acc m =>
-    acc.insert m (findSmaller m)
-def canon3 : Array (Matrix 3) := map3.fold (init := #[]) fun acc k v =>
-  if v.isNone then acc.push k else acc
+def tryReorder (x : Matrix (m+1)) (c : CanonicalMats m): CanonInfo (m+1) := Id.run do
+  -- if we find non-id idempotent permutations, they go here
+  let mut eqPerms := #[]
 
-#eval! canon3.size
+  for perm in Equiv.allPerms (m+1) do
+    let res := (Auto.reorder perm).toFun x
+    let a := Auto.reorder perm
+
+    let colorPerm := renumber res
+    let res := (Auto.renumber colorPerm).toFun res
+    let a := a.trans (Auto.renumber colorPerm)
+
+    match compare res x with
+    | .lt =>
+      return .noncanon res a
+    | .eq =>
+      eqPerms := eqPerms.push perm
+    | .gt => pure ()
+
+  return .canon eqPerms
+
+
+
+def findSmaller (x : Matrix (m+1)) (c : CanonicalMats m) : CanonInfo (m+1) :=
+  let colorPerm := renumber x
+  let res := (Auto.renumber colorPerm).toFun x
+  match compare res x with
+  | .lt =>
+    .noncanon res (.renumber colorPerm)
+  | .eq =>
+    tryReorder res c
+  | .gt =>
+    panic! "findSmaller renumber is gt??"
+
+
+def CanonicalMats.zero : CanonicalMats 0 where
+  map := Std.HashMap.ofList [(
+    ⟨#v[]⟩,
+    .canon #[]
+  )]
+
+def CanonicalMats.step (c : CanonicalMats m) : CanonicalMats (m+1) where
+  map :=
+    have mats := c.canonical.flatMap (·.extend)
+    have foundSmaller : Std.HashMap _ _ :=
+      mats.foldl (init := .empty) fun acc m =>
+        acc.insert m (findSmaller m c)
+    -- just doublecheck that x' is actually smaller...
+    if foundSmaller.toArray.any (fun |(_,.canon _) => .false | (x,.noncanon x' _) => !(x' < x))
+    then panic! "x' isn't actually smaller!!! D:" else
+    foundSmaller.map fun x i =>
+      match i with
+      | .canon eqPerms => .canon eqPerms
+      | .noncanon x' a =>
+        let (x',a) := chaseInfo foundSmaller x' a (foundSmaller.size)
+        .noncanon x' a
+where
+  chaseInfo (map : Std.HashMap (Matrix (m+1)) (CanonInfo (m+1)))
+    (x : Matrix (m+1)) (a : Auto (m+1)) (fuel : Nat) :=
+  match fuel with
+  | 0 => panic! "out of fuel"
+  | fuel+1 =>
+  match map[x]? with
+  | some (.canon _) =>
+      (x,a)
+  | some (.noncanon x' a') =>
+      chaseInfo map x' (a.trans a') fuel
+  | none =>
+      panic! "missing matrix in map"
+
+def cm (m : Nat) : CanonicalMats m :=
+  match m with
+  | 0 => CanonicalMats.zero
+  | m+1 =>
+    let cm := cm m
+    cm.step
+
 
 end Matrix
