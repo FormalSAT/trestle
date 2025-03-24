@@ -287,13 +287,14 @@ macro "derive_lawfulindextype% " t:term : term => `(term| IndexType.ofEquivLawfu
 def mkIndexType (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmds ← liftTermElabM do
-    let header ← Deriving.mkHeader `IndexType 0 indVal
-    let binders' ← Deriving.mkInstImplicitBinders `Decidable indVal header.argNames
+    let header ← Deriving.mkHeader ``IndexType 0 indVal
+    let lawfulBinders: TSyntaxArray `Lean.Parser.Term.bracketedBinder :=
+      .mk (← Deriving.mkInstImplicitBinders ``LawfulIndexType indVal header.argNames)
     let indexType ← `(command|
-      instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+      instance $header.binders:bracketedBinder* :
           IndexType $header.targetType := derive_indextype% $header.targetType)
     let lawful ← `(command|
-      instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+      instance $header.binders:bracketedBinder* $lawfulBinders:bracketedBinder* :
           LawfulIndexType $header.targetType := derive_lawfulindextype% $header.targetType)
     return #[indexType, lawful]
   trace[Elab.Deriving.indextype] "instance commands:\n{cmds}"
