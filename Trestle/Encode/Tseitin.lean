@@ -145,7 +145,7 @@ def toPropFun_all_conjuncts : (f : NegNormForm ν) → toPropFun (.all (conjunct
   rw [← this]; clear this
   ext τ
   split_ifs with h
-  · rw [Array.size_eq_one] at h
+  · rw [Array.size_eq_one_iff] at h
     rcases h with ⟨a,h⟩
     simp [h, toPropFun]
   · simp [toPropFun]
@@ -173,7 +173,7 @@ def toPropFun_any_disjuncts : (f : NegNormForm ν) → toPropFun (.any (disjunct
   rw [← this]; clear this
   ext τ
   split_ifs with h
-  · rw [Array.size_eq_one] at h
+  · rw [Array.size_eq_one_iff] at h
     rcases h with ⟨a,h⟩
     simp [h, toPropFun]
   · simp [toPropFun]
@@ -429,7 +429,7 @@ end encodeNNF
 -- nospecialize here because otherwise the compiler tries specializing it a ton
 -- and that causes big slowdowns when building up VEncCNFs
 open PropForm in
-@[nospecialize]
+@[noinline,nospecialize]
 def encode [DecidableEq V]
       (f : PropForm V) : VEncCNF V Unit (· ⊨ f) :=
   let nnf : NegNormForm V := NegNormForm.ofPropForm false f

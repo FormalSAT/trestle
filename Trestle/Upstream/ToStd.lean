@@ -89,7 +89,7 @@ theorem Array.foldl_nil (f : β → α → β) (init : β) (start stop : Nat) :
 theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List α) :
     Array.foldl f init { toList := a :: as } 0 (size { toList := a :: as }) =
       Array.foldl f (f init a) { toList := as } 0 (size { toList := as }) := by
-  simp only [size_toArray, List.length_cons, List.foldl_toArray', List.foldl_cons]
+  simp only [List.length_cons, List.foldl_toArray', List.foldl_cons]
 
 /-! List -/
 

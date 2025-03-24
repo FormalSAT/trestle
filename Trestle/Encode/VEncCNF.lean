@@ -143,7 +143,7 @@ protected def pure (a : α) : VEncCNF ν α ⊤ :=
   , by intro s; simp [Pure.pure, StateT.pure]⟩
 
 def addClause (C : Clause (Literal ν)) : VEncCNF ν Unit C :=
-  ⟨EncCNF.addClause C, by
+  ⟨ EncCNF.addClause C, by
     intro s
     generalize he : (EncCNF.addClause C).1 s = e
     rcases e with ⟨_,s'⟩
@@ -226,7 +226,7 @@ def for_all (arr : Array α) {P : α → PropPred ν} (f : (a : α) → VEncCNF 
   ⟨ arr.foldlM (fun () x => f x) (),
     by
     rcases arr with ⟨L⟩
-    simp only [Array.size_toArray, List.foldlM_toArray', Array.mem_toArray]
+    simp only [List.foldlM_toArray', Array.mem_toArray]
     induction L with
     | nil   => simp; apply encodesProp_pure
     | cons hd tl ih =>
