@@ -508,11 +508,14 @@ structure Line (n s) where
 
 def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
-  let true_lits : List (Literal _) :=
-    c.filterMap (fun ⟨v,polarity⟩ =>
-      substs.find? (·.1 = v) |>.map fun (_, ⟨v',pol2⟩) => ⟨v',polarity ^^ pol2⟩
-    ) |>.toList
-  -- we need to calculate a pivot which does not conflict with the `negClauseMapped`
+  let true_lits : List (Literal (AllVars n s)) :=
+    c
+    |> Array.map (fun ⟨v,polarity⟩ =>
+      match substs.find? (·.1 = v) with
+      | none => ⟨v,polarity ^^ true⟩
+      | some (_, ⟨v',pol2⟩) => ⟨v',polarity ^^ pol2⟩)
+    |>.toList
+  -- we need to calculate a pivot which does not conflict with the `true_lits`
   let pivot := c.find? (fun l1 => true_lits.all fun l2 => l1.toVar ≠ l2.toVar)
     |>.getD c[0]
   -- now let's ensure pivot is at the front
@@ -550,7 +553,7 @@ def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal
         for j in Array.finRange n do
           substs := substs.push <| subst <| .z i i' j
 
-  return substs.filter (fun (v,l) => v ≠ LitVar.toVar l) |>.toList
+  return substs.filter (fun (v,l) => v ≠ l.toVar) |>.toList
 
 def reorderSubsts {s} (j j' : Fin n) :=
   substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j j'
@@ -681,18 +684,50 @@ def matSymms : Array (Line n s) := Id.run do
           let subst := substsOfMap <| autoToMap auto (by omega)
           if h'' : clause.size > 0 then
             lines := lines.push <| mkLine clause h'' subst
+          else
+            panic! s!"clause empty??"
 
   return lines
 
-#eval match canonicalMats.get 2 |>.map.toArray[0]!.2 with
-| .canon _ => "canon"
-| .noncanon _ a => s!"{repr a}"
+def boop (s : Nat) (a : SymmBreak.Matrix.Auto m) (prec : Nat) : Std.Format :=
+  match a with
+  | .renumber f =>
+    let vec := Array.ofFn fun j =>
+      Array.ofFn (n := s) fun k =>
+        f j k
+    .join [".renumber ", .line, Repr.reprPrec vec prec]
+  | .reorder p =>
+    let vec := Array.finRange _ |>.map p
+    .join [".reorder ", Repr.reprPrec vec prec]
+  | .trans a1 a2 =>
+    .nestD <| .join [".trans ", .line, boop s a1 prec, .line, boop s a2 prec]
+  | .lift a1 =>
+    .join [".lift ", boop s a1 prec]
+
+#eval
+  IO.println <| autoToMap (n := 6) (s := 6) (
+    .trans (m := 3)
+      (.reorder (Equiv.Perm.setAll [(0,2),(1,0),(2,1)]))
+      (.reorder (Equiv.Perm.setAll [(0,1),(1,0),(2,2)]))
+  ) (by omega) <| .x 4 4 0
+
+#eval match canonicalMats.get 3 |>.map.toArray[1]! with
+| (_, .canon _) =>
+  IO.println "canon"
+| (x, .noncanon _ a) => do
+  let substs : List (AllVars 6 6 × Literal (AllVars 6 6)) := autoToMap a (by omega)
+    |> substsOfMap (n := 6) (s := 6)
+    |>.filter (fun | (.x i j _, _) => 2 ≤ j ∧ j < 5 ∧ i ∈ [4] | _ => false)
+  IO.println x
+  IO.println <| boop 6 a 0
+  IO.println <| a.toFun x
+  IO.println substs
 
 def all (n s) : Array (Line n s) :=
   c3_bounds
-  ++ cX_bounds
-  ++ c3_fixed
   ++ matSymms
+  --++ cX_bounds
+  --++ c3_fixed
 
 end SR
 
