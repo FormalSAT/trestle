@@ -182,7 +182,7 @@ theorem clique_of_satisfies_baseSpec {τ : Model.PropAssignment (Vars n s)} :
       rw [Bool.eq_iff_iff, not_iff] at h
       simp at h
       have : j1 ≠ ⟨j2,hj2⟩ := by
-        rintro rfl; simp [h] at is_ne_j1; omega
+        rintro rfl; simp [h] at is_ne_j1
       simp [this]; left
       cases j1; simp_all; omega
   case eqτ =>
@@ -336,7 +336,8 @@ def hasSGap (i i' : BitVec n) : VEncCNF (Vars n s) Unit
     , addClause (potentialJs |>.map (Literal.pos <| Sum.inr ·)) ]
   )
   |>.mapProp (by
-    ext τ; simp [Clause.satisfies_iff]
+    ext τ
+    simp [Clause.satisfies_iff, -Array.size_finRange]
     constructor
     · rintro ⟨σ, rfl, h_js, j, is_ne_at_j, j_true⟩
       use j, is_ne_at_j

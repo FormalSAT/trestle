@@ -92,8 +92,9 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
     simpa [BitVec.getElem_cons, this] using is_diff_at_j1
   clear this
   -- but since small graph i's are not adjacent, they must be equal everywhere other than j₁
-  simp only [KAdj, Fin.getElem_fin, ne_eq, Vector.getElem_cast, Vector.getElem_take, not_exists,
-    not_and, not_or, Decidable.not_not] at hnotadj
+  simp only [KAdj, Fin.getElem_fin, Vector.take_eq_extract, Nat.add_one_sub_one,
+    Vector.extract_eq_pop, Vector.cast_cast, Vector.cast_rfl, Vector.getElem_pop',
+    not_exists, not_and] at hnotadj
   specialize hnotadj ⟨j₁, hj₁⟩ is_diff_at_j1 ks_same
   -- Therefore, to satisfy `diff_at_j2`, `j₂` must be `n+1`
   by_cases this : j₂ = n+1
@@ -117,11 +118,11 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
   rintro j -
   by_cases eq_j1 : j = j₁
   · -- TODO BitVec.getElem_cons is a bad rewrite rule...
-    simp_all [BitVec.getElem_cons]; simpa [← BitVec.getLsbD_eq_getElem]
+    simp_all [BitVec.getElem_cons]
   · by_cases eq_last : j = n+1
     · simp_all [BitVec.getElem_cons]
     · specialize hnotadj ⟨j, by omega⟩ (by simp; exact Ne.symm eq_j1)
-      simp_all [BitVec.getElem_cons]; exact hnotadj.1
+      simp_all [BitVec.getElem_cons]
 
 /-- The automorphism that reorders any columns `j₁`, `j₂`
 to the first and second column, respectively. -/
@@ -311,4 +312,3 @@ def flipAt (j : Fin (n+2)) (k : Fin (s+2)) (j_ge : j.val ≥ 2) (k_ne_0 : k ≠ 
   (tc.flipAt j k j_ge k_ne_0).kclique = tc.kclique.map (KAuto.flipAt j k) := rfl
 
 end TwoCubes
-

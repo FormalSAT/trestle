@@ -105,7 +105,7 @@ theorem renumberIncr.eq_of_mem.aux (L : List Nat) (Lpre : List Nat) (x : Nat)
   apply eq_of_mem_dedup
   · simp [List.dedup_append, h_not_mem]
     have := List.suffix_union_right Lsuf.reverse (x::Lpre.reverse.dedup)
-    have := List.IsSuffix.getElem this (n := 0) (by simp)
+    have := List.IsSuffix.getElem this (i := 0) (by simp)
     simp at this
     convert this using 2
     omega

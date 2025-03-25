@@ -54,12 +54,16 @@ theorem Matrix.ofVec?.data_toVec (m : Matrix s) : Matrix.ofVec?.data m.toVec m.s
   simp [toVec, data]
   have t00 := t 0 0; have t11 := t 1 1; have t22 := t 2 2
   simp at t00 t11 t22
-  ext r hr c hc
+  ext r hrL hrR c hc
+  · simp
   rcases r with (_|_|_) <;> (
-    simp; simp [Nat.add_one_lt_add_one_iff] at hr
+    simp [Nat.add_one_lt_add_one_iff] at hrR; cases hrR
+    simp
     rcases c with (_|_|_) <;> (
-      simp [Nat.add_one_lt_add_one_iff] at hc
-      simp [*]))
+      simp [Nat.add_one_lt_add_one_iff] at hc; cases hc
+      simp [*]
+    )
+  )
 
 @[simp]
 theorem Matrix.ofVec?_toVec (m : Matrix s) : Matrix.ofVec? m.toVec = some m := by
@@ -117,7 +121,7 @@ instance : IsAntisymm (Matrix s) (· ≤ ·) where
     have := Prod.instIsAntisymmLexOfIsStrictOrder.antisymm _ _ h1 h2
     simp [Matrix.lt.aux, Vector.map] at this
     apply Matrix.toVec_inj; apply Vector.ext'
-    exact this.2
+    simp [this.2]
 
 instance : IsTotal (Matrix s) (· ≤ ·) where
   total := by
