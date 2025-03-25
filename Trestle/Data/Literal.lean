@@ -12,7 +12,7 @@ namespace Trestle
 structure Literal (ν : Type u) : Type u where
   toVar : ν
   polarity : Bool
-deriving Repr
+deriving Repr, DecidableEq, Inhabited
 
 namespace Literal
 

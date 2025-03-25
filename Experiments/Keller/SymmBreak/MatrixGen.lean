@@ -179,7 +179,7 @@ where aux {m1 m2} (h : m1 ≤ m2) (a : Auto m1) (x : Matrix m2) : Matrix m2 :=
 
 def reprPrec (a : Auto m) (prec : Nat) : Std.Format :=
   match a with
-  | .renumber _ => .join [".renumber ", .line, "⋯"]
+  | .renumber f => .join [".renumber ", .line, "⋯"]
   | .reorder p =>
     let vec := Array.finRange _ |>.map p
     .join [".reorder ", Repr.reprPrec vec prec]
@@ -292,12 +292,31 @@ where
   | none =>
       panic! "missing matrix in map"
 
-def cm (m : Nat) : CanonicalMats m :=
+structure CanonicalMatsUpTo (m : Nat) where
+  data : Vector (Σ i, CanonicalMats i) (m+1)
+  idx_eq : ∀ (i : Nat) (h : i ≤ m), data[i].fst = i
+
+def CanonicalMatsUpTo.get (i) (hi : i ≤ m := by get_elem_tactic) (u : CanonicalMatsUpTo m) : CanonicalMats i :=
+  (u.idx_eq i hi) ▸ u.data[i].snd
+
+def matsUpTo (m : Nat) : CanonicalMatsUpTo m :=
   match m with
-  | 0 => CanonicalMats.zero
+  | 0 =>
+    { data := #v[⟨0,CanonicalMats.zero⟩]
+      idx_eq := by simp }
   | m+1 =>
-    let cm := cm m
-    cm.step
+    let u := matsUpTo m
+    let prev := u.get m (Nat.le_refl _)
+    let next := prev.step
+    let {data, idx_eq} := u
+    { data := data.push ⟨m+1,next⟩
+      idx_eq := by
+        intro i h
+        cases h.eq_or_lt
+        · subst i; simp
+        · rw [Vector.getElem_push_lt (by omega)]
+          apply idx_eq
+          omega }
 
 
 end Matrix

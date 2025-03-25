@@ -9,7 +9,6 @@ import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.EquivFin
 import Mathlib.Data.Finset.Pi
-import Batteries.Data.Vector.Lemmas
 
 def Fin.any (n : Nat) (P : Fin n → Bool) : Bool :=
   aux 0

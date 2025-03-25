@@ -508,14 +508,18 @@ structure Line (n s) where
 
 def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
-  -- take the first literal as the pivot
-  let pivot := c[0]
-  let true_lits := c.filterMap (fun ⟨v,polarity⟩ =>
+  let true_lits : List (Literal _) :=
+    c.filterMap (fun ⟨v,polarity⟩ =>
       substs.find? (·.1 = v) |>.map fun (_, ⟨v',pol2⟩) => ⟨v',polarity ^^ pol2⟩
     ) |>.toList
-  -- Any substitutions involving literals from `c` are redundant (and dsr-trim will complain)
+  -- we need to calculate a pivot which does not conflict with the `negClauseMapped`
+  let pivot := c.find? (fun l1 => true_lits.all fun l2 => l1.toVar ≠ l2.toVar)
+    |>.getD c[0]
+  -- now let's ensure pivot is at the front
+  let c := #[pivot] ++ c.filter (· != pivot)
+  -- Any substitutions on literals from `pivot ++ true_lits` are redundant
   let substs := substs.filter fun (v, l) =>
-    !c.any (fun cl => LitVar.toVar cl = v ∨ LitVar.toVar cl = LitVar.toVar l)
+    (pivot :: true_lits).all (fun tl => LitVar.toVar tl ≠ v)
   { c, pivot, true_lits, substs }
 
 /-- Given a mapping, this returns all the substitutions for all "changed" variables -/
@@ -629,25 +633,66 @@ def c3_fixed : Array (Line n s) :=
 
 -/
 
-def canonicalMats := SymmBreak.Matrix.cm 3
+def canonicalMats := SymmBreak.Matrix.matsUpTo 3
+
+def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → AllVars n s :=
+  match a with
+  | .renumber f =>
+      AllVars.renumber fun j k =>
+        if h' : 2 ≤ j.val ∧ j.val < 2+m then
+          let x := f ⟨j-2,by omega⟩ k
+          if h'' : x < s then
+            ⟨x,h''⟩
+          else
+            have : Inhabited (Fin s) := ⟨k⟩
+            panic! "renumber maps outside s"
+        else
+          k
+  | .reorder p =>
+      AllVars.reorder fun j =>
+        if h' : 2 ≤ j.val ∧ j.val < 2+m then
+          ⟨2 + p ⟨j-2,by omega⟩, by omega⟩
+        else j
+  | .trans a1 a2 =>
+      fun x => x |> autoToMap a1 h |> autoToMap a2 h
+  | .lift a1 =>
+      autoToMap a1 (Nat.le_of_lt h)
 
 def matSymms : Array (Line n s) := Id.run do
   let mut lines := #[]
 
-  if h : n ≥ 5 ∧ s ≥ 2 then
-    for (k,v) in canonicalMats.map do
-      match v with
-      | .canon _ => pure ()
-      | .noncanon _ auto =>
-        lines := lines.push <|
-          mkLine sorry sorry sorry
+  if h : n ≥ 5 ∧ s ≥ n then
+    have : NeZero s := ⟨by omega⟩
+    for h' : matSize in [2:4] do
+      have : _ < 4 := h'.upper
+      for (k,v) in (canonicalMats.get matSize).map do
+        match v with
+        | .canon _ => pure ()
+        | .noncanon _ auto =>
+          let clause :=
+            Array.finRange matSize |>.flatMap fun (row : Fin matSize) =>
+              Array.ofFn (n := matSize) fun col =>
+                let idx : BitVec n :=
+                  SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
+                  |>.cast (by omega)
+                let dim : Fin n := ⟨col+2, by omega⟩
+                let color : Fin s := Fin.ofNat' s k.data[row][col]
+                .neg (.x idx dim color)
+          let subst := substsOfMap <| autoToMap auto (by omega)
+          if h'' : clause.size > 0 then
+            lines := lines.push <| mkLine clause h'' subst
 
   return lines
+
+#eval match canonicalMats.get 2 |>.map.toArray[0]!.2 with
+| .canon _ => "canon"
+| .noncanon _ a => s!"{repr a}"
 
 def all (n s) : Array (Line n s) :=
   c3_bounds
   ++ cX_bounds
   ++ c3_fixed
+  ++ matSymms
 
 end SR
 
@@ -656,7 +701,7 @@ namespace Cubes
 open Vars
 
 def matrixCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
-  let matrixList := SR.canonicalMats.canonical.toList
+  let matrixList := (SR.canonicalMats.get 3).canonical.toList
   let idxs := #[7, 11, 19]
   matrixList.map fun m =>
     Array.mk <| List.flatten <|
