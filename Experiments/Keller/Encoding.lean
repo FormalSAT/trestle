@@ -12,7 +12,7 @@ import Trestle.Upstream.IndexTypeInstances
 import Experiments.Keller.KellerGraph
 import Experiments.Keller.SymmBreak.TwoCubes
 import Experiments.Keller.SymmBreak.C3Zeros
-import Experiments.Keller.SymmBreak.Matrix
+import Experiments.Keller.SymmBreak.MatrixGen
 
 namespace Keller.Encoding
 
@@ -584,9 +584,6 @@ def c3_bounds : Array (Line n s) := bound 3 2
 Now we constrain the special indices below `c3`,
 so there are fewer cases to eliminate via matrix symmetries.
 
-Each column `j ≥ 2` can be renumbered into a normal form
-such that it "slowly increases".
-
 -/
 
 def cX_bounds : Array (Line n s) := Id.run do
@@ -595,28 +592,13 @@ def cX_bounds : Array (Line n s) := Id.run do
   for hj : j in [2:n] do
     let j : Fin n := ⟨j,hj.upper⟩
 
-    let mut prevRows : Array (BitVec n) := #[3]
-
     for hi : row in [0:n-2] do
       have : row < n-2 := hi.upper
       let idx : BitVec n :=
         SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
         |>.cast (by omega)
 
-      for hk : k in [2:s] do
-        let k_1 : Fin s := ⟨k-1,by have : k < s := hk.upper; omega⟩
-        let k : Fin s := ⟨k,hk.upper⟩
-
-        -- if all the rows above `idx` are not `k-1`, then
-        -- we can swap `k` with `k-1` in order to disallow `k` at `idx`
-        let clause :=
-          #[.neg (.x idx j k)] ++
-          prevRows.map (.pos <| .x · j k_1)
-        let substs := renumberSubsts j k_1 k
-        lines := lines.push <|
-          mkLine clause (by simp +zetaDelta) substs
-
-      prevRows := prevRows.push idx
+      lines := lines ++ bound idx (row+3)
 
   return lines
 
@@ -633,15 +615,34 @@ def c3_fixed : Array (Line n s) :=
     let two : Fin n := ⟨2,by omega⟩
     let three : Fin n := ⟨3,by omega⟩
     let four : Fin n := ⟨4,by omega⟩
-  #[
-    mkLine #[ .pos <| .x 3 two one ] (substs := [])
-  , mkLine #[ .pos <| .x 3 three one ] (substs := [])
-  , mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (substs := [])
-  , mkLine #[ .neg <| .x 11 two one, .pos <| .x 3 four one ] (substs := [])
-  , mkLine #[ .pos <| .x 3 four one ] (substs := [])
-  ]
+    #[
+      mkLine #[ .pos <| .x 3 two one ] (substs := [])
+    , mkLine #[ .pos <| .x 3 three one ] (substs := [])
+    , mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (substs := [])
+    , mkLine #[ .neg <| .x 11 two one, .pos <| .x 3 four one ] (substs := [])
+    , mkLine #[ .pos <| .x 3 four one ] (substs := [])
+    ]
   else #[]
 
+
+/-! ##### Matrix symmetries
+
+-/
+
+def canonicalMats := SymmBreak.Matrix.cm 3
+
+def matSymms : Array (Line n s) := Id.run do
+  let mut lines := #[]
+
+  if h : n ≥ 5 ∧ s ≥ 2 then
+    for (k,v) in canonicalMats.map do
+      match v with
+      | .canon _ => pure ()
+      | .noncanon _ auto =>
+        lines := lines.push <|
+          mkLine sorry sorry sorry
+
+  return lines
 
 def all (n s) : Array (Line n s) :=
   c3_bounds
@@ -655,12 +656,12 @@ namespace Cubes
 open Vars
 
 def matrixCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
-  let matrixList := SymmBreak.Matrix.canonicalCases.toList
+  let matrixList := SR.canonicalMats.canonical.toList
   let idxs := #[7, 11, 19]
   matrixList.map fun m =>
     Array.mk <| List.flatten <|
       List.ofFn fun r : Fin 3 => List.ofFn fun c : Fin 3 =>
-        let mval : Fin s := m.data[r][c].castLE (by omega)
+        let mval : Fin s := @Fin.ofNat' s (by apply NeZero.mk; omega) m.data[r][c]
         .pos (x idxs[r] ⟨2+c, by omega⟩ mval)
 
 def triangle (L : List α) (n : Nat) : List (Vector α n) :=

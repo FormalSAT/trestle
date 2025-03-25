@@ -87,8 +87,7 @@ theorem extend.lastRows_bounded : ∀ v ∈ lastRows kBound len, ∀ x ∈ v, x 
   replace x_mem_v := Array.mem_def.mp x_mem_v.val
   induction len with
   | zero =>
-    simp [lastRows] at v_mem_lastRows; subst v
-    simp at x_mem_v
+    simp [Vector.mem_iff_getElem] at x_mem_v
   | succ len ih =>
     simp [lastRows, -Array.mem_toList, List.mem_ofFn] at v_mem_lastRows
     rcases v_mem_lastRows with ⟨v_pre,v_pre_mem,y,rfl⟩
