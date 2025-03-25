@@ -17,7 +17,7 @@ open Solver.Dimacs in
 def formatSRLine (c : IClause) (pivot : ILit) (true_lits : List ILit) (substs : List (IVar × ILit)) : String :=
   s!"{c.toList.map formatLit |> String.intercalate " "} " ++
   s!"{formatLit pivot} {true_lits.map formatLit |> String.intercalate " "} " ++
-  s!"{formatLit pivot} {substs.map (fun (v,l) => s!"{formatVar v} {formatLit l}") ++ ["0"] |> String.intercalate " "}"
+  s!"{formatLit pivot}  {substs.map (fun (v,l) => s!"{formatVar v} {formatLit l}") ++ ["0"] |> String.intercalate "  "}"
 
 def cnfCmd := `[Cli|
   "cnf" VIA runCnfCmd;

@@ -479,8 +479,8 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit fullSpec :=
 
 end CNF
 
-def AllVars.reorder (f : Fin n → Fin n) : AllVars n s → AllVars n s :=
-  let iMap : BitVec n → BitVec n := fun i => BitVec.ofFn ( i[f ·] )
+def AllVars.reorder (f : Fin n ≃ Fin n) : AllVars n s → AllVars n s :=
+  let iMap : BitVec n → BitVec n := fun i => BitVec.ofFn ( i[f.symm ·] )
   fun
   | .x i j k => .x (iMap i) (f j) k
   | .y i i' j k =>
@@ -508,22 +508,23 @@ structure Line (n s) where
 
 def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
-  let true_lits : List (Literal (AllVars n s)) :=
-    c
-    |> Array.map (fun ⟨v,polarity⟩ =>
-      match substs.find? (·.1 = v) with
-      | none => ⟨v,polarity ^^ true⟩
-      | some (_, ⟨v',pol2⟩) => ⟨v',polarity ^^ pol2⟩)
-    |>.toList
-  -- we need to calculate a pivot which does not conflict with the `true_lits`
-  let pivot := c.find? (fun l1 => true_lits.all fun l2 => l1.toVar ≠ l2.toVar)
-    |>.getD c[0]
+  have : Inhabited (Literal <| AllVars n s) := ⟨c[0]⟩
+  -- we need to pick a pivot `p ∈ c` such that `substs(p) ∉ c`
+  let pivot := c.find? (fun p =>
+      match substs.find? (·.1 = p.toVar) with
+      | some (_,mapped_p) => c.all (·.toVar ≠ mapped_p.toVar)
+      | none => true
+    ) |>.get!
   -- now let's ensure pivot is at the front
   let c := #[pivot] ++ c.filter (· != pivot)
-  -- Any substitutions on literals from `pivot ++ true_lits` are redundant
-  let substs := substs.filter fun (v, l) =>
-    (pivot :: true_lits).all (fun tl => LitVar.toVar tl ≠ v)
-  { c, pivot, true_lits, substs }
+  -- If pivot is not already mapped in `substs`, map it to itself
+  -- to avoid the default inclusion of the pivot in true_lits
+  let substs :=
+    if substs.any (·.1 = pivot.toVar) then
+      substs
+    else
+      (pivot.toVar, .pos pivot.toVar) :: substs
+  { c, pivot, true_lits := [], substs }
 
 /-- Given a mapping, this returns all the substitutions for all "changed" variables -/
 def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal (AllVars n s)) := Id.run do
@@ -652,10 +653,13 @@ def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → Al
         else
           k
   | .reorder p =>
-      AllVars.reorder fun j =>
-        if h' : 2 ≤ j.val ∧ j.val < 2+m then
-          ⟨2 + p ⟨j-2,by omega⟩, by omega⟩
-        else j
+      AllVars.reorder <|
+        Equiv.Perm.extendDomain (p := fun j => 2 ≤ j.val ∧ j.val < 2+m)
+          p
+          { toFun := (⟨⟨·.val+2,by omega⟩,by simp; omega⟩)
+            invFun := (⟨·.val-2,by omega⟩)
+            left_inv := by intro; simp, right_inv := by rintro ⟨a,b⟩; ext; simp; omega
+          }
   | .trans a1 a2 =>
       fun x => x |> autoToMap a1 h |> autoToMap a2 h
   | .lift a1 =>
@@ -704,28 +708,29 @@ def boop (s : Nat) (a : SymmBreak.Matrix.Auto m) (prec : Nat) : Std.Format :=
   | .lift a1 =>
     .join [".lift ", boop s a1 prec]
 
-#eval
-  IO.println <| autoToMap (n := 6) (s := 6) (
-    .trans (m := 3)
-      (.reorder (Equiv.Perm.setAll [(0,2),(1,0),(2,1)]))
-      (.reorder (Equiv.Perm.setAll [(0,1),(1,0),(2,2)]))
-  ) (by omega) <| .x 4 4 0
-
-#eval match canonicalMats.get 3 |>.map.toArray[1]! with
-| (_, .canon _) =>
-  IO.println "canon"
-| (x, .noncanon _ a) => do
-  let substs : List (AllVars 6 6 × Literal (AllVars 6 6)) := autoToMap a (by omega)
-    |> substsOfMap (n := 6) (s := 6)
-    |>.filter (fun | (.x i j _, _) => 2 ≤ j ∧ j < 5 ∧ i ∈ [4] | _ => false)
-  IO.println x
-  IO.println <| boop 6 a 0
-  IO.println <| a.toFun x
-  IO.println substs
+--#eval
+--  IO.println <| autoToMap (m := 3) (n := 6) (s := 6) (
+--    --.trans
+--      (.reorder (Equiv.Perm.setAll [(0,2),(1,0),(2,1)]))
+--    --  (.reorder (Equiv.Perm.setAll [(0,1),(1,0),(2,2)]))
+--  ) (by omega) <| .x 4 4 0
+--
+--#eval match canonicalMats.get 3 |>.map.toArray[1]! with
+--| (_, .canon _) =>
+--  IO.println "canon"
+--| (x, .noncanon _ a) => do
+--  let substs : List (AllVars 6 6 × Literal (AllVars 6 6)) := autoToMap a (by omega)
+--    |> substsOfMap (n := 6) (s := 6)
+--    |>.filter (fun | (.x i j _, _) => 2 ≤ j ∧ j < 5 ∧ i ∈ [4] | _ => false)
+--  IO.println x
+--  IO.println <| boop 6 a 0
+--  IO.println <| a.toFun x
+--  IO.println substs
 
 def all (n s) : Array (Line n s) :=
   c3_bounds
-  ++ matSymms
+  ++
+  matSymms
   --++ cX_bounds
   --++ c3_fixed
 
