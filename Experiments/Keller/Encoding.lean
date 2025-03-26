@@ -670,8 +670,8 @@ def matSymms : Array (Line n s) := Id.run do
 
   if h : n ≥ 5 ∧ s ≥ n then
     have : NeZero s := ⟨by omega⟩
-    for h' : matSize in [2:4] do
-      have : _ < 4 := h'.upper
+    for h' : matSize in [3,2] do
+      have : matSize < 4 := by simp at h'; omega
       for (k,v) in (canonicalMats.get matSize).map do
         match v with
         | .canon _ => pure ()
@@ -715,24 +715,23 @@ def boop (s : Nat) (a : SymmBreak.Matrix.Auto m) (prec : Nat) : Std.Format :=
 --    --  (.reorder (Equiv.Perm.setAll [(0,1),(1,0),(2,2)]))
 --  ) (by omega) <| .x 4 4 0
 --
---#eval match canonicalMats.get 3 |>.map.toArray[1]! with
---| (_, .canon _) =>
---  IO.println "canon"
---| (x, .noncanon _ a) => do
---  let substs : List (AllVars 6 6 × Literal (AllVars 6 6)) := autoToMap a (by omega)
---    |> substsOfMap (n := 6) (s := 6)
---    |>.filter (fun | (.x i j _, _) => 2 ≤ j ∧ j < 5 ∧ i ∈ [4] | _ => false)
---  IO.println x
---  IO.println <| boop 6 a 0
---  IO.println <| a.toFun x
---  IO.println substs
+#eval match canonicalMats.get 3 |>.map.toArray[36]! with
+| (_, .canon _) =>
+  IO.println "canon"
+| (x, .noncanon _ a) => do
+  let substs : List (AllVars 6 6 × Literal (AllVars 6 6)) := autoToMap a (by omega)
+    |> substsOfMap (n := 6) (s := 6)
+    |>.filter (fun | (.x i j _, _) => 2 ≤ j ∧ j < 5 ∧ i ∈ [7,11,19] | _ => false)
+  IO.println <| x
+  IO.println <| boop 6 a 0
+  IO.println <| a.toFun x
+  IO.println <| substs
 
 def all (n s) : Array (Line n s) :=
   c3_bounds
-  ++
-  matSymms
-  --++ cX_bounds
-  --++ c3_fixed
+  ++ matSymms
+  ++ cX_bounds
+  ++ c3_fixed
 
 end SR
 
