@@ -215,11 +215,17 @@ def renumber (x : Matrix m) :=
     renumberIncr (0 :: 1 :: List.ofFn (n := m) (x.data[·][col]))
   (vec[·] : Fin _ → _)
 
-def extendPerm (e : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (m+1)) := {
-  toFun := fun i => i.lastCases (last := Fin.last _) (cast := (e · |>.castSucc))
-  invFun := fun i => i.lastCases (last := Fin.last _) (cast := (e.symm · |>.castSucc))
-  left_inv := by intro i; induction i using Fin.lastCases <;> simp
-  right_inv := by intro i; induction i using Fin.lastCases <;> simp
+def extendPerm (e : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (m+n)) := {
+  toFun := fun i =>
+    if h : i.val < m then
+      (e ⟨i,h⟩).castAdd _
+    else i
+  invFun := fun i =>
+    if h : i.val < m then
+      (e.symm ⟨i,h⟩).castAdd _
+    else i
+  left_inv := by intro i; simp; split <;> simp_all
+  right_inv := by intro i; simp; split <;> simp_all
 }
 
 def tryReorder (x : Matrix (m+1)) (c : CanonicalMats m): CanonInfo (m+1) := Id.run do

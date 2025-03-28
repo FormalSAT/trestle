@@ -507,24 +507,17 @@ structure Line (n s) where
   substs : List (AllVars n s × Literal (AllVars n s))
 
 def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
+        (true_lits : List (Literal (AllVars n s)))
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
-  have : Inhabited (Literal <| AllVars n s) := ⟨c[0]⟩
-  -- we need to pick a pivot `p ∈ c` such that `substs(p) ∉ c`
-  let pivot := c.find? (fun p =>
-      match substs.find? (·.1 = p.toVar) with
-      | some (_,mapped_p) => c.all (·.toVar ≠ mapped_p.toVar)
-      | none => true
-    ) |>.get!
-  -- now let's ensure pivot is at the front
+  -- let's filter out true_lits from substs
+  let substs := substs.filter (fun (a,b) => !true_lits.any (·.toVar = a))
+  -- we should pick a pivot `p ∈ c` such that `p ∈ true_lits`
+  let pivot := c.find? (true_lits.contains ·) |>.getD c[0]
+  -- now let's ensure pivot is at the front of the clause
   let c := #[pivot] ++ c.filter (· != pivot)
-  -- If pivot is not already mapped in `substs`, map it to itself
-  -- to avoid the default inclusion of the pivot in true_lits
-  let substs :=
-    if substs.any (·.1 = pivot.toVar) then
-      substs
-    else
-      (pivot.toVar, .pos pivot.toVar) :: substs
-  { c, pivot, true_lits := [], substs }
+  -- and then filter it out of true_lits
+  let true_lits := true_lits.filter (· != pivot)
+  { c, pivot, true_lits, substs }
 
 /-- Given a mapping, this returns all the substitutions for all "changed" variables -/
 def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal (AllVars n s)) := Id.run do
@@ -559,41 +552,78 @@ def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal
 def reorderSubsts {s} (j j' : Fin n) :=
   substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j j'
 
-def renumberSubsts (j : Fin n) (k k' : Fin s) := Id.run do
-  substsOfMap <| AllVars.renumber (fun j' => if j' = j then Equiv.swap k k' else Equiv.refl _)
+def renumberSubsts (j : Fin n) (perm : Equiv.Perm (Fin s)) := Id.run do
+  substsOfMap <| AllVars.renumber (fun j' => if j' = j then perm else Equiv.refl _)
 
-/-! #### SR Proof
+/-! ### SR Proof
 
 We can add so many facts!
 -/
 
 def bound (idx : BitVec n) (ltK : Nat) : Array (Line n s) := Id.run do
+  if h : ltK = 0 ∨ ltK > s then
+    panic! s!"bound with s = {s}, ltK = {ltK}"
+  else
+  have : 0 < ltK ∧ ltK ≤ s := by omega
+  let k_canonical : Fin s := ⟨ltK-1, by omega⟩
   let mut lines := #[]
   for hj : j in [2:n] do
     let j : Fin n := ⟨j,hj.upper⟩
-    for hk : k in [ltK:s] do
+    for hk : k_to_block in [ltK:s] do
       have : ltK < s := Nat.lt_of_le_of_lt hk.lower hk.upper
-      let k : Fin s := ⟨k,hk.upper⟩
+      let k_to_block : Fin s := ⟨k_to_block,hk.upper⟩
       lines := lines.push <|
         mkLine
-          (c := #[ Literal.neg <| .x idx j k ])
-          (substs := renumberSubsts j ⟨ltK-1,by omega⟩ k)
+          (c := #[ Literal.neg <| .x idx j k_to_block ])
+          (true_lits := List.finRange s |>.map fun k =>
+            Literal.mk (.x idx j k) (k = k_canonical))
+          (substs := renumberSubsts j <| Equiv.swap k_canonical k_to_block)
   return lines
 
-/-! ##### Renumber c3
+
+/-- #### Renumber c3
 
 for all j in [2:n], assume `c3[j] < 2`
 -/
-
 def c3_bounds : Array (Line n s) := bound 3 2
 
-/-! ##### Renumber cX
 
-Now we constrain the special indices below `c3`,
-so there are fewer cases to eliminate via matrix symmetries.
+/-- #### Fix c3[2:5]
+Now `c3[2] = c3[3] = 1` by unit prop.
+We can also show `c3[4] = 1` with some quick casework.
+We do not know about `c3[5]` and `c3[6]` yet, but can case on them down the road.
+-/
+def c3_fixed : Array (Line n s) :=
+  if h : n ≥ 5 ∧ s ≥ 2 then
+    let one : Fin s := ⟨1,by omega⟩
+    let two : Fin n := ⟨2,by omega⟩
+    let three : Fin n := ⟨3,by omega⟩
+    let four : Fin n := ⟨4,by omega⟩
+    #[
+      mkLine #[ .pos <| .x 3 two one   ] (true_lits := []) (substs := [])
+    , mkLine #[ .pos <| .x 3 three one ] (true_lits := []) (substs := [])
+    , mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (true_lits := []) (substs := [])
+    , mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := []) (substs := [])
+    , mkLine #[ .pos <| .x 3 four one  ] (true_lits := []) (substs := [])
+    ]
+  else #[]
 
+
+/-! #### Matrix symmetries
+
+Now we look at `j = 2..n` and the special `cX` indices
+(for `n=7`, these are `i=7, 11, 19, 35, 67`).
 -/
 
+def cX (row : Nat) (h : n ≥ 2 ∧ row + 2 < n := by omega) : BitVec n :=
+  SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
+  |>.cast (by omega)
+
+/-- ##### Bound `cX`
+
+In every column `j`, the `r`'th special index `cX[r]`
+can be bounded below `3+r`
+-/
 def cX_bounds : Array (Line n s) := Id.run do
   let mut lines := #[]
 
@@ -602,49 +632,151 @@ def cX_bounds : Array (Line n s) := Id.run do
 
     for hi : row in [0:n-2] do
       have : row < n-2 := hi.upper
-      let idx : BitVec n :=
-        SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
-        |>.cast (by omega)
+      let idx : BitVec n := cX row
 
       lines := lines ++ bound idx (row+3)
 
   return lines
 
 
-/-! ##### Fix c3[2:5]
-Now `c3[2] = c3[3] = 1` by unit prop.
-We can also show `c3[4] = 1` with some quick casework.
-We do not know about `c3[5]` and `c3[6]` yet, but can case on them down the road.
+def generateColorVecs (hdLt : Nat) (len : Nat) : List (Vector (Fin s) len) :=
+  match len with
+  | 0 => [#v[]]
+  | len+1 =>
+    let pres := generateColorVecs hdLt len
+    let lasts : List (Fin s) :=
+      List.range (min s (hdLt+len))
+      |>.pmap (⟨·,·⟩) (by simp; omega)
+    pres.flatMap fun pre =>
+      lasts.map fun last =>
+        pre.push last
+
+/-! ##### Increment Sorted Columns
+
+Each column `2 ≤ j` can be constrained to be inc-sorted
+on the `cX`s by renumbering.
+We iterate over all non-inc-sorted colorings of the column,
+blocking each one by mapping to its canonical version.
 -/
 
-def c3_fixed : Array (Line n s) :=
-  if h : n ≥ 5 ∧ s ≥ 2 then
-    let one : Fin s := ⟨1,by omega⟩
-    let two : Fin n := ⟨2,by omega⟩
-    let three : Fin n := ⟨3,by omega⟩
-    let four : Fin n := ⟨4,by omega⟩
-    #[
-      mkLine #[ .pos <| .x 3 two one ] (substs := [])
-    , mkLine #[ .pos <| .x 3 three one ] (substs := [])
-    , mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (substs := [])
-    , mkLine #[ .neg <| .x 11 two one, .pos <| .x 3 four one ] (substs := [])
-    , mkLine #[ .pos <| .x 3 four one ] (substs := [])
-    ]
-  else #[]
+/-- all the ways we can color the cX indices for columns 2/3/4 -/
+def col234_colorings :=
+  let colorings := generateColorVecs (hdLt := 3) (len := 3)
+  colorings.map fun coloring =>
+    let perm := renumberIncr' (s := 5) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
+      (by simp)
+    let renumbered := coloring.map perm
+    if coloring == renumbered then
+      Sum.inl coloring
+    else
+      Sum.inr (coloring, perm, renumbered)
 
+/-- all the ways we can color *c3 and cX* indices for columns 5+ -/
+def col5_colorings (n) :=
+  let colorings := generateColorVecs (hdLt := 2) (len := n-1)
+  colorings.map fun coloring =>
+    let perm := renumberIncr' (s := 5) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
+      (by simp)
+    let renumbered := coloring.map perm
+    if coloring == renumbered then
+      Sum.inl coloring
+    else
+      Sum.inr (coloring, perm, renumbered)
 
-/-! ##### Matrix symmetries
+def col234_incSorted : Array (Line n s) :=
+  if h : n < 5 ∨ s < 5 then #[] else
+  have : n ≥ 5 ∧ s ≥ 5 := by omega
+  Id.run do
+  let mut lines := #[]
 
+  for hj : j in [2:min n 5] do
+    let j : Fin n := ⟨j, by have : _ < min n 5 := hj.upper; omega⟩
+    have : j.val < 5 := by have := hj.upper; simp_all [j]
+
+    for (coloring,perm,renumbered) in
+        col234_colorings.filterMap (·.getRight?) do
+
+      -- The diagonal element is always 1, so skip assns where that doesn't hold
+      if coloring[j.val-2]'(by omega) ≠ 1 then continue
+
+      -- The clause we want to block (negation of `coloring`)
+      let clause : Clause (Literal <| AllVars n s) :=
+        Array.ofFn (n := 3) fun row =>
+          .neg <| .x (cX row) j (coloring[row].castLE (by omega))
+
+      -- Assign all the literals associated with these 3 `(idx,j)` pairs
+      let true_lits :=
+        List.flatten <|
+        List.ofFn (n := 3) fun row =>
+          List.ofFn (n := s) fun k =>
+            Literal.mk (AllVars.x (cX row) j k) (k.val = renumbered[row].val)
+
+      -- substitute everything else via perm
+      let substs := renumberSubsts j (
+        (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
+
+      lines := lines.push (mkLine clause (hc := by simp [clause]) true_lits substs)
+
+  return lines
+
+def col5_incSorted : Array (Line n s) :=
+  if h : n < 5 ∨ s < 5 then #[] else
+  have : n ≥ 5 ∧ s ≥ 5 := by omega
+  Id.run do
+  let mut lines := #[]
+
+  for hj : j in [5:n] do
+    let j : Fin n := ⟨j, hj.upper⟩
+    have : j.val ≥ 5 := by have := hj.lower; simp_all [j]
+
+    for (coloring,perm,renumbered) in
+        (col5_colorings n).filterMap (·.getRight?) do
+
+      -- The s-gap between c3 and cX[j-2] is always in column `j`,
+      -- so skip any colorings where they are unequal
+      if coloring[0].val ≠ coloring[1+j.val-2]'(by omega) then continue
+
+      -- The clause we want to block (negation of `coloring`)
+      let clause : Clause (Literal <| AllVars n s) :=
+        Array.ofFn (n := n-2) fun row =>
+          .neg <| .x (cX row) j (coloring[row].castLE (by omega))
+
+      -- Assign all the literals associated with these 3 `(idx,j)` pairs
+      let true_lits :=
+        List.flatten <|
+        List.ofFn (n := n-2) fun row =>
+          List.ofFn (n := s) fun k =>
+            Literal.mk (AllVars.x (cX row) j k) (k.val = renumbered[row].val)
+
+      -- substitute everything else via perm
+      let substs := renumberSubsts j (
+        (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
+
+      lines := lines.push <|
+        mkLine clause (hc := by simp [clause]; omega) true_lits substs
+
+  return lines
+
+/-! ##### Canonical matrices
+
+Interpreting the cX indices and columns `j ≥ 2` as a matrix,
+we can do column reorderings and renumberings to eliminate many
+potential color assignments within this matrix.
 -/
 
 def canonicalMats := SymmBreak.Matrix.matsUpTo 3
 
+/-- convert a matrix automorphism (from noncanonical to canononical)
+to a mapping (from canonical to noncanonical).
+
+NB the change in direction.
+-/
 def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → AllVars n s :=
   match a with
   | .renumber f =>
       AllVars.renumber fun j k =>
         if h' : 2 ≤ j.val ∧ j.val < 2+m then
-          let x := f ⟨j-2,by omega⟩ k
+          let x := (f ⟨j-2,by omega⟩).symm k
           if h'' : x < s then
             ⟨x,h''⟩
           else
@@ -655,83 +787,69 @@ def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → Al
   | .reorder p =>
       AllVars.reorder <|
         Equiv.Perm.extendDomain (p := fun j => 2 ≤ j.val ∧ j.val < 2+m)
-          p
+          p.symm
           { toFun := (⟨⟨·.val+2,by omega⟩,by simp; omega⟩)
             invFun := (⟨·.val-2,by omega⟩)
             left_inv := by intro; simp, right_inv := by rintro ⟨a,b⟩; ext; simp; omega
           }
   | .trans a1 a2 =>
-      fun x => x |> autoToMap a1 h |> autoToMap a2 h
+      fun x => x |> autoToMap a2 h |> autoToMap a1 h
   | .lift a1 =>
       autoToMap a1 (Nat.le_of_lt h)
 
-def matSymms : Array (Line n s) := Id.run do
+def mat_canonical : Array (Line n s) :=
+  if h : ¬(n ≥ 4 ∧ s ≥ n) then #[] else
+  have := not_not.mp h
+
+  Id.run do
   let mut lines := #[]
 
-  if h : n ≥ 5 ∧ s ≥ n then
-    have : NeZero s := ⟨by omega⟩
-    for h' : matSize in [3,2] do
-      have : matSize < 4 := by simp at h'; omega
-      for (k,v) in (canonicalMats.get matSize).map do
-        match v with
-        | .canon _ => pure ()
-        | .noncanon _ auto =>
-          let clause :=
-            Array.finRange matSize |>.flatMap fun (row : Fin matSize) =>
-              Array.ofFn (n := matSize) fun col =>
-                let idx : BitVec n :=
-                  SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
-                  |>.cast (by omega)
-                let dim : Fin n := ⟨col+2, by omega⟩
-                let color : Fin s := Fin.ofNat' s k.data[row][col]
-                .neg (.x idx dim color)
-          let subst := substsOfMap <| autoToMap auto (by omega)
-          if h'' : clause.size > 0 then
-            lines := lines.push <| mkLine clause h'' subst
-          else
-            panic! s!"clause empty??"
+  have : NeZero s := ⟨by omega⟩
+
+  for h' : matSize in [2:3] do
+    have : matSize ≥ 2 := h'.lower
+    have : matSize < 3 := h'.upper
+
+    for (x,v) in (canonicalMats.get matSize).map do
+      match v with
+      | .canon _ => pure ()
+      | .noncanon canonical auto =>
+
+        -- The clause we want to block (negation of `x`)
+        let clause :=
+          Array.finRange matSize |>.flatMap fun row => Array.ofFn (n := matSize) fun col =>
+            Literal.neg <|
+              AllVars.x (cX row.val) ⟨col+2, by omega⟩ (Fin.ofNat' s x.data[row][col])
+
+        have : clause.size > 0 := by
+          simp [clause, ← Array.sum_eq_sum_toList]; omega
+
+        -- Assign all the literals associated with these rows/cols
+        -- to their value under the canonical case
+        let true_lits :=
+          (List.ofFn (n := matSize) fun row =>
+            List.ofFn (n := matSize) fun col =>
+              List.ofFn (n := s) fun k =>
+                Literal.mk
+                  (AllVars.x (cX row.val) ⟨col+2, by omega⟩ k)
+                  (k.val = canonical.data[row][col])
+          ).flatten.flatten
+
+        -- Permute all the other variables based on the given `auto`
+        let subst := substsOfMap <| autoToMap auto (by omega)
+
+        lines := lines.push <|
+          mkLine clause ‹_› true_lits subst
 
   return lines
 
-def boop (s : Nat) (a : SymmBreak.Matrix.Auto m) (prec : Nat) : Std.Format :=
-  match a with
-  | .renumber f =>
-    let vec := Array.ofFn fun j =>
-      Array.ofFn (n := s) fun k =>
-        f j k
-    .join [".renumber ", .line, Repr.reprPrec vec prec]
-  | .reorder p =>
-    let vec := Array.finRange _ |>.map p
-    .join [".reorder ", Repr.reprPrec vec prec]
-  | .trans a1 a2 =>
-    .nestD <| .join [".trans ", .line, boop s a1 prec, .line, boop s a2 prec]
-  | .lift a1 =>
-    .join [".lift ", boop s a1 prec]
-
---#eval
---  IO.println <| autoToMap (m := 3) (n := 6) (s := 6) (
---    --.trans
---      (.reorder (Equiv.Perm.setAll [(0,2),(1,0),(2,1)]))
---    --  (.reorder (Equiv.Perm.setAll [(0,1),(1,0),(2,2)]))
---  ) (by omega) <| .x 4 4 0
---
-#eval match canonicalMats.get 3 |>.map.toArray[36]! with
-| (_, .canon _) =>
-  IO.println "canon"
-| (x, .noncanon _ a) => do
-  let substs : List (AllVars 6 6 × Literal (AllVars 6 6)) := autoToMap a (by omega)
-    |> substsOfMap (n := 6) (s := 6)
-    |>.filter (fun | (.x i j _, _) => 2 ≤ j ∧ j < 5 ∧ i ∈ [7,11,19] | _ => false)
-  IO.println <| x
-  IO.println <| boop 6 a 0
-  IO.println <| a.toFun x
-  IO.println <| substs
-
 def all (n s) : Array (Line n s) :=
   c3_bounds
-  ++ matSymms
-  ++ cX_bounds
   ++ c3_fixed
+  ++ cX_bounds
+  ++ col234_incSorted
+  ++ col5_incSorted
+  --++ mat_canonical
 
 end SR
 
