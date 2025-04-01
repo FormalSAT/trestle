@@ -798,8 +798,8 @@ def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → Al
   | .lift a1 =>
       autoToMap a1 (Nat.le_of_lt h)
 
-def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize < 3) : Array (Line n s) :=
-  if h : ¬(n ≥ 4 ∧ s ≥ n) then #[] else
+def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : Array (Line n s) :=
+  if h : ¬(2 + matSize ≤ n ∧ s ≥ n) then #[] else
   have := not_not.mp h
 
   Id.run do
@@ -854,8 +854,8 @@ def all (n s) : Array (Line n s) := Id.run do
     else
       lines := lines ++ col5_incSorted j (by omega)
 
-    --if h : j = 2 then
-    --  lines := lines ++ mat_canonical j (by omega)
+    if h : 3 ≤ j ∧ j < 5 then
+      lines := lines ++ mat_canonical (j-1) (by omega)
   return lines
 
 end SR

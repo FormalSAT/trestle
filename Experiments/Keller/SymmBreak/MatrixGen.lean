@@ -168,8 +168,8 @@ where aux {m1 m2} (h : m1 ≤ m2) (a : Auto m1) (x : Matrix m2) : Matrix m2 :=
       ⟩
   | reorder p =>
     ⟨ Vector.ofFn fun row => Vector.ofFn fun col =>
-        let row' := if h' : row.val < m1 then (p ⟨row,h'⟩).castLE h else row
-        let col' := if h' : col.val < m1 then (p ⟨col,h'⟩).castLE h else col
+        let row' := if h' : row.val < m1 then (p.symm ⟨row,h'⟩).castLE h else row
+        let col' := if h' : col.val < m1 then (p.symm ⟨col,h'⟩).castLE h else col
         x.data[row'][col']
       ⟩
   | trans a1 a2 =>
