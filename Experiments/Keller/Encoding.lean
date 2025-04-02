@@ -32,6 +32,9 @@ inductive AllVars (n s : Nat)
 | z (i i' : BitVec n) (j : Fin n)
 deriving DecidableEq
 
+instance [Inhabited (Fin n)] [Inhabited (Fin s)] : Inhabited (AllVars n s) where
+  default := .x 0 default default
+
 instance : ToString (AllVars n s) where
   toString
     | .x i j k    => s!"x{i.toNat},{j},{k}"
@@ -506,13 +509,32 @@ structure Line (n s) where
   true_lits : List (Literal (AllVars n s))
   substs : List (AllVars n s × Literal (AllVars n s))
 
+instance [Inhabited (AllVars n s)] : Inhabited (Line n s) where
+  default := { c := default, pivot := default, true_lits := default, substs := default }
+
 def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
         (true_lits : List (Literal (AllVars n s)))
         (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
+  have : Inhabited (AllVars n s) := ⟨c[0].toVar⟩
+  if true_lits.isEmpty then
+    if !substs.isEmpty then
+      panic! s!"true_lits empty but substs nonempty?! clause: {c}"
+    else
+      { c, pivot := c[0], true_lits := [], substs := [] }
+  else
+  have : Inhabited _ := ⟨c[0]⟩
   -- let's filter out true_lits from substs
   let substs := substs.filter (fun (a,b) => !true_lits.any (·.toVar = a))
   -- we should pick a pivot `p ∈ c` such that `p ∈ true_lits`
-  let pivot := c.find? (true_lits.contains ·) |>.getD c[0]
+  let pivot :=
+    match c.find? (true_lits.contains ·) with
+    | some p => p
+    | none =>
+      panic! s!"mkLine could not select a pivot! clause: {c}\ntrue_lits: {true_lits}"
+  -- sanity check that the negation of the pivot isn't ALSO in true_lits
+  if true_lits.contains (-pivot) then
+    panic! s!"true_lits contains literal {pivot} *and* its negation?\nclause: {c}\ntrue_lits: {true_lits}"
+  else
   -- now let's ensure pivot is at the front of the clause
   let c := #[pivot] ++ c.filter (· != pivot)
   -- and then filter it out of true_lits
@@ -916,8 +938,7 @@ def lastColsCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars 
 def allCubes : List (Clause <| Literal <| Vars n s) :=
   if hn : n ≥ 5 then
     if hs : s ≥ 4 then
-      matrixCubes hn hs ×ˢ lastColsCubes hn hs
-      |>.map (fun (a,b) => a ++ b)
+      matrixCubes hn hs
     else []
   else []
 
