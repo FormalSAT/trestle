@@ -482,6 +482,8 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit fullSpec :=
 
 end CNF
 
+
+
 def AllVars.reorder (f : Fin n ≃ Fin n) : AllVars n s → AllVars n s :=
   let iMap : BitVec n → BitVec n := fun i => BitVec.ofFn ( i[f.symm ·] )
   fun
@@ -699,11 +701,11 @@ def col234_colorings :=
       Sum.inr (coloring, perm, renumbered)
 
 /-- all the ways we can color *c3 and cX* indices for columns 5+ -/
-def col5_colorings (n) :=
+def col5_colorings (n s) (h : s ≥ 2) :=
   let colorings := generateColorVecs (hdLt := 2) (len := n-1)
   colorings.map fun coloring =>
-    let perm := renumberIncr' (s := 5) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
-      (by simp)
+    let perm := renumberIncr' (s := s) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
+      (by simp; omega)
     let renumbered := coloring.map perm
     if coloring == renumbered then
       Sum.inl coloring
@@ -753,7 +755,7 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : Array (Line n s) :=
   have : j.val ≥ 5 := by simp_all [j]
 
   for (coloring,perm,renumbered) in
-      (col5_colorings n).filterMap (·.getRight?) do
+      (col5_colorings n s (by omega)).filterMap (·.getRight?) do
 
     -- The s-gap between c3 and cX[j-2] is always in column `j`,
     -- so skip any colorings where they are unequal
@@ -761,19 +763,20 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : Array (Line n s) :=
 
     -- The clause we want to block (negation of `coloring`)
     let clause : Clause (Literal <| AllVars n s) :=
-      Array.ofFn (n := n-2) fun row =>
-        .neg <| .x (cX row) j (coloring[row].castLE (by omega))
+      Array.ofFn (n := n-1) fun row =>
+        let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
+        .neg <| .x idx j (coloring[row].castLE (by omega))
 
     -- Assign all the literals associated with these 3 `(idx,j)` pairs
     let true_lits :=
       List.flatten <|
-      List.ofFn (n := n-2) fun row =>
+      List.ofFn (n := n-1) fun row =>
+        let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
         List.ofFn (n := s) fun k =>
-          Literal.mk (AllVars.x (cX row) j k) (k.val = renumbered[row].val)
+          Literal.mk (AllVars.x idx j k) (k.val = renumbered[row].val)
 
     -- substitute everything else via perm
-    let substs := renumberSubsts j (
-      (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
+    let substs := renumberSubsts j perm.symm
 
     lines := lines.push <|
       mkLine clause (hc := by simp [clause]; omega) true_lits substs
