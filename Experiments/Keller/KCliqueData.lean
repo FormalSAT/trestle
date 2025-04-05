@@ -22,7 +22,7 @@ instance : ToString (KCliqueData n s) where
   toString := fun kc => toString <| kc.vertices.toArray.map (·.toArray)
 
 def KCliqueData.get (i : BitVec n) (kc : KCliqueData n s): KVertex n s :=
-  { bv := i, colors := kc.vertices[i.toFin] }
+  { idx := i, color := kc.vertices[i.toFin] }
 
 def KCliqueData.getEmbedding (kc : KCliqueData n s) : BitVec n ↪ KVertex n s :=
   ⟨kc.get, by intro a; simp [get]⟩
@@ -46,12 +46,11 @@ def KCliqueData.toKClique (kc : KCliqueData n s) (h : kc.check = true) : KClique
         <;> simp [getEmbedding, BitVec.ofNat]
     · simp⟩
 
-theorem KCliqueData.check_implies_not_conjecture (kc : KCliqueData n s)
+theorem KCliqueData.check_implies_not_conjecture (kc : KCliqueData n s) (h : s ≤ 2^(n-1))
   : kc.check = true → ¬ conjectureIn n := by
-  intro h
+  intro h2
   simp [conjectureIn]
-  use s
-  exact ⟨kc.toKClique h⟩
+  exact ⟨kc.toKClique h2 |>.liftS h⟩
 
 def KCliqueData.fromKClique (k : KClique n s) : KCliqueData n s :=
   ⟨Vector.ofFn fun i => k.get <| BitVec.ofFin i⟩

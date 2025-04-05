@@ -14,15 +14,15 @@ namespace Keller
 
 @[ext]
 structure KVertex (n s : Nat) where
-  bv : BitVec n
-  colors : Vector (Fin s) n
+  idx : BitVec n
+  color : Vector (Fin s) n
 deriving Repr, DecidableEq
 
 def KAdj (v₁ v₂ : KVertex n s) : Prop :=
   ∃ (j₁ : Fin n),
-      v₁.bv[j₁] ≠ v₂.bv[j₁] ∧ v₁.colors[j₁] = v₂.colors[j₁] ∧
+      v₁.idx[j₁] ≠ v₂.idx[j₁] ∧ v₁.color[j₁] = v₂.color[j₁] ∧
     ∃ j₂, j₁ ≠ j₂ ∧
-      (v₁.bv[j₂] ≠ v₂.bv[j₂] ∨ v₁.colors[j₂] ≠ v₂.colors[j₂])
+      (v₁.idx[j₂] ≠ v₂.idx[j₂] ∨ v₁.color[j₂] ≠ v₂.color[j₂])
 
 theorem KAdj.symm : Symmetric (KAdj (n := n) (s := s)) := by
   intro x y h
@@ -46,21 +46,21 @@ def KClique (n s) :=
 
 /-- The Keller conjecture in `n` dimensions. -/
 def conjectureIn (n : Nat) : Prop :=
-  ∀ s, IsEmpty (KClique n s)
+  IsEmpty (KClique n (2^(n-1)))
 
 
 
 
-theorem sameBV_not_adj (v₁ v₂ : KVertex n s)
-  : v₁.bv = v₂.bv → ¬ KAdj v₁ v₂ := by
+theorem sam.idx_not_adj (v₁ v₂ : KVertex n s)
+  : v₁.idx = v₂.idx → ¬ KAdj v₁ v₂ := by
   intro h
   unfold KAdj; simp [h]
 
-theorem KVertex.bv_injOn_clique (isClique : (KGraph n s).IsClique vs) :
-    vs.InjOn KVertex.bv := by
+theorem KVertex.idx_injOn_clique (isClique : (KGraph n s).IsClique vs) :
+    vs.InjOn KVertex.idx := by
   intro v₁ hv₁ v₂ hv₂ h
   by_contra hne
-  have := sameBV_not_adj v₁ v₂ h
+  have := sam.idx_not_adj v₁ v₂ h
   have := isClique hv₁ hv₂ hne
   contradiction
 
@@ -69,7 +69,7 @@ theorem KGraph.nclique_card_le (isNClique : (KGraph n s).IsNClique size vs) :
   rw [← BitVec.card (n := n)]
   apply Finset.card_le_card_of_injOn
   · simp
-  · apply KVertex.bv_injOn_clique isNClique.isClique
+  · apply KVertex.idx_injOn_clique isNClique.isClique
 
 theorem KGraph.cliqueNum_le : (KGraph n s).cliqueNum ≤ 2^n := by
   unfold SimpleGraph.cliqueNum
@@ -86,6 +86,13 @@ theorem KGraph.cliqueNum_le : (KGraph n s).cliqueNum ≤ 2^n := by
   have := isNclique.card_eq
   omega
 
+namespace KVertex
+
+@[simp]
+def liftS {s'} (h : s' ≥ s) (v : KVertex n s) : KVertex n s' :=
+  { idx := v.idx, color := v.color.map (·.castLE h)}
+
+end KVertex
 
 namespace KClique
 
@@ -94,40 +101,40 @@ variable (k : KClique n s)
 def isClique := k.prop.isClique
 def card_eq := k.prop.card_eq
 
-theorem exists_unique (i : BitVec n) : ∃! a, a ∈ k.val ∧ (fun v => v.bv = i) a := by
+theorem exists_unique (i : BitVec n) : ∃! a, a ∈ k.val ∧ (fun v => v.idx = i) a := by
   apply existsUnique_of_exists_of_unique
   · have := Finset.surj_on_of_inj_on_of_card_le
-      (s := k.val) (t := Finset.univ) (f := fun a _ => a.bv)
+      (s := k.val) (t := Finset.univ) (f := fun a _ => a.idx)
       (hf := by simp)
-      (hinj := fun _ _ c d => KVertex.bv_injOn_clique k.isClique c d)
+      (hinj := fun _ _ c d => KVertex.idx_injOn_clique k.isClique c d)
       (hst := by simp [k.card_eq])
       i (by simp)
     rcases this with ⟨v,hv,rfl⟩
     use v, hv
   · rintro x1 x2 ⟨h1,rfl⟩ ⟨h2,hbv⟩
-    apply KVertex.bv_injOn_clique k.isClique h1 h2 hbv.symm
+    apply KVertex.idx_injOn_clique k.isClique h1 h2 hbv.symm
 
 def get (i : BitVec n) : Vector (Fin s) n :=
   k.val.choose _ (k.exists_unique i) |>.2
 
 theorem get_mem (i : BitVec n) : ⟨i, k.get i⟩ ∈ k.val := by
   unfold get
-  generalize hv : Finset.choose (·.bv = i) k.val _ = v
-  have ⟨mem,prop⟩ : v ∈ k.val ∧ v.bv = i := by
+  generalize hv : Finset.choose (·.idx = i) k.val _ = v
+  have ⟨mem,prop⟩ : v ∈ k.val ∧ v.idx = i := by
     rw [← hv]; apply Finset.choose_spec
   convert mem
   exact prop.symm
 
 theorem get_eq_iff_mem (i : BitVec n) : k.get i = cs ↔ ⟨i,cs⟩ ∈ k.val := by
   unfold get
-  generalize hv : Finset.choose (·.bv = i) k.val _ = v
-  have ⟨mem,rfl⟩ : v ∈ k.val ∧ v.bv = i := by
+  generalize hv : Finset.choose (·.idx = i) k.val _ = v
+  have ⟨mem,rfl⟩ : v ∈ k.val ∧ v.idx = i := by
     rw [hv.symm]; apply Finset.choose_spec
   clear hv
   constructor
   · rintro rfl; exact mem
   · intro mem2
-    have := k.exists_unique v.bv |>.unique ⟨mem,rfl⟩ ⟨mem2,rfl⟩
+    have := k.exists_unique v.idx |>.unique ⟨mem,rfl⟩ ⟨mem2,rfl⟩
     rw [this]
 
 instance : GetElem (KClique n s) (BitVec n) (Vector (Fin s) n) ⊤ where
@@ -188,6 +195,18 @@ theorem get_adj_of_xor_eq {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n
     simp [Bool.eq_iff_iff (b := decide _)] at this
     simp [this, Fin.ext_iff, eq_comm]
 
+def liftS {s'} (h : s' ≥ s) (k : KClique n s) : KClique n s' :=
+  ⟨ k.val.map ⟨KVertex.liftS h, by rintro ⟨xi,xc⟩ ⟨yi,yc⟩; simp [Vector.ext_iff]⟩
+  , by
+    constructor
+    · intro x hx y hy ne
+      simp at hx hy; rcases hx with ⟨x,hx,rfl⟩; rcases hy with ⟨y,hy,rfl⟩
+      have ⟨j1,is_ne,cs_eq,j2,h2⟩ := k.property.isClique hx hy (by rintro rfl; simp at ne)
+      clear ne
+      use j1; simp_all
+      use j2
+    · simp [k.property.card_eq] ⟩
+
 end KClique
 
 /-! ##### Computational Utilities -/
@@ -198,7 +217,7 @@ instance : DecidableRel (KAdj (n := n) (s := s)) :=
 namespace KVertex
 
 nonrec def toString (v : KVertex n s) : String :=
-  s!"{v.bv};{v.colors.toList}"
+  s!"{v.idx};{v.color.toList}"
 
 instance : ToString (KVertex n s) where
   toString := KVertex.toString
