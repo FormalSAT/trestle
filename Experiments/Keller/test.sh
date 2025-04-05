@@ -1,23 +1,32 @@
-N=6
-S=32
+N=7
+S=64
 
-DIR="cnfs"
+DIR="$PWD/cnfs"
+
 CNF="$DIR/g${N}_${S}.cnf"
 DSR="$DIR/g${N}_${S}.dsr"
+CUBES="$DIR/g${N}_${S}_cubes.icnf"
+
 LSR="$DIR/g${N}_${S}.lsr"
 SB="$DIR/g${N}_${S}_sb.cnf"
-DRAT="$DIR/g${N}_${S}_sb.drat"
-CUBE="$DIR/g${N}_${S}_cubes.icnf"
 
 
 set -e -x
 
 PATH="/home/james/Projects/sat/dsr-trim/src:/home/james/Projects/sat/drat-trim:$PATH"
+#PATH="/home/james/Projects/dsr-trim/src:/home/james/Projects/drat-trim:$PATH"
 
-(cd ../..; lake exe keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBE)
+(cd ../..; LEAN_ABORT_ON_PANIC=1 lake exe keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBES)
 
-dsr-trim -f $CNF $DSR $LSR --emit-valid-formula-to=$SB
+time dsr-trim -f $CNF $DSR $LSR --emit-valid-formula-to=$SB
+lsr-check $CNF $LSR
 
-cadical -q $SB $DRAT || true
+line_number=0
+while IFS= read -r cube; do
+    TMP="tmp/cube$line_number.cnf"
+    cat <(echo "p inccnf") <(grep -v "^p" $SB) <(echo "$cube") > $TMP
+    cadical $TMP
+    rm $TMP
 
-drat-trim $SB $DRAT -w
+    line_number=$(( $line_number + 1 ))
+done < "$CUBES"
