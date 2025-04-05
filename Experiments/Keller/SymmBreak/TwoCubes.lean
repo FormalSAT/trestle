@@ -38,12 +38,12 @@ structure TwoCubes (n s) where
 
 namespace TwoCubes
 
-theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
+theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (hs : s+1 ≤ 2^n) (h : conjectureIn (n+1))
   : ∃ a ∈ kclique.val, ∃ b ∈ kclique.val,
     ∃ (j₁ j₂ : Fin (n+2)), j₁ ≠ j₂ ∧
       ∀ (j : ℕ) (h : j < n + 2),
-        (j ≠ ↑j₁ ↔ a.bv[j] = b.bv[j]) ∧
-        (j ≠ ↑j₂ ↔ a.colors[j] = b.colors[j])
+        (j ≠ ↑j₁ ↔ a.idx[j] = b.idx[j]) ∧
+        (j ≠ ↑j₂ ↔ a.color[j] = b.color[j])
   := by
   -- construct a K_0 in smaller graph, using vertices with last bit 0 in bigger graph
   let K_0 : Finset (KVertex (n+1) (s+1)) := (Finset.univ (α := BitVec (n+1)))
@@ -56,7 +56,8 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
         simp at heq; exact heq.1⟩
   have K_0_card : K_0.card = (2^(n+1)) := by simp [K_0]
   -- K_0 must not be a clique, because the conjecture holds in that dimension
-  have K_0_not_clique : ¬ _ := (h (s+1)).false ∘ Subtype.mk K_0
+  have K_0_not_clique : ¬ _ := fun hcontra =>
+    h.false <| KClique.liftS hs (Subtype.mk K_0 hcontra)
   -- find the vertices in K_0 which are the not adjacent
   have ⟨⟨i₁,c₁⟩, hv₁, ⟨i₂,c₂⟩, hv₂, hne, hnotadj⟩ :
     ∃ x ∈ K_0, ∃ x_1 ∈ K_0, ¬x = x_1 ∧ ¬KAdj x x_1 := by
@@ -71,7 +72,7 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
   have i_diff : i₁ ≠ i₂ := by
     intro contra; subst hv₁ hv₂; simp [contra] at hne
   clear hne
-  -- name the corresponding colors in bigger graph
+  -- name the corresponding color in bigger graph
   generalize hk₁ : KClique.get _ _ = k₁ at hv₁
   generalize hk₂ : KClique.get _ _ = k₂ at hv₂
   subst hv₁ hv₂
@@ -106,7 +107,7 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
     simp [BitVec.getElem_cons, Nat.ne_of_lt hj₂, hnotadj.2] at diff_at_j2
     apply diff_at_j2 hnotadj.1
   subst this
-  -- and we can sensibly conclude the big graph colors differ at `n+1`
+  -- and we can sensibly conclude the big graph color differ at `n+1`
   replace diff_at_j2 : ¬k₁[n + 1] = k₂[n + 1] := by
     simpa [BitVec.getElem_cons] using diff_at_j2
 
@@ -145,21 +146,21 @@ include h
 end reorder_j1_j2
 
 /-- The automorphism which moves v₁ to ⟨0,[0*]⟩ and v₂ to ⟨1,[0,1,0*]⟩,
-assuming v₁ and v₂ have the same bits at j ≠ 0 and the same colors at j ≠ 1. -/
+assuming v₁ and v₂ have the same bits at j ≠ 0 and the same color at j ≠ 1. -/
 def auto {n s} (v₁ v₂ : KVertex (n+2) (s+2)) : KAuto (n+2) (s+2) :=
-  (KAuto.flip v₁.bv)
+  (KAuto.flip v₁.idx)
   |>.trans (KAuto.permute fun j =>
     if j = 1 then
-      Equiv.Perm.setAll [(v₁.colors[j], 0), (v₂.colors[j], 1)]
+      Equiv.Perm.setAll [(v₁.color[j], 0), (v₂.color[j], 1)]
     else
-      Equiv.Perm.setAll [(v₁.colors[j], 0)]
+      Equiv.Perm.setAll [(v₁.color[j], 0)]
   )
 
 section auto
 variable {v₁ v₂ : KVertex (n+2) (s+2)}
       (h : ∀ j (h : j < n+2),
-          (j ≠ 0 ↔ v₁.bv[j] = v₂.bv[j]) ∧
-          (j ≠ 1 ↔ v₁.colors[j] = v₂.colors[j]))
+          (j ≠ 0 ↔ v₁.idx[j] = v₂.idx[j]) ∧
+          (j ≠ 1 ↔ v₁.color[j] = v₂.color[j]))
 include h
 
 theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, c0_colors⟩ := by
@@ -195,9 +196,9 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
 
 end auto
 
-theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
+theorem ofClique {n s} (k : KClique (n+2) (s+2)) (hs : s+2 ≤ 2^n) (h : conjectureIn (n+1))
   : Nonempty (TwoCubes n s) := by
-  have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k h
+  have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k hs h
   -- apply the reordering automorphism to get vs2, k2, a2, b2
   let k2 := k.map (KAuto.reorder <| reorder_j1_j2 j₁ j₂)
   let a2 := (KAuto.reorder (reorder_j1_j2 j₁ j₂)).toFun a
@@ -205,8 +206,8 @@ theorem ofClique {n s} (k : KClique (n+2) (s+2)) (h : conjectureIn (n+1))
   have a2_mem : a2 ∈ k2.val := by apply Finset.mem_map_of_mem; exact a_mem
   have b2_mem : b2 ∈ k2.val := by apply Finset.mem_map_of_mem; exact b_mem
   replace same_on : ∀ (j : ℕ) (h : j < n + 2),
-      (j ≠ 0 ↔ a2.bv[j] = b2.bv[j]) ∧
-      (j ≠ 1 ↔ a2.colors[j] = b2.colors[j]) := by
+      (j ≠ 0 ↔ a2.idx[j] = b2.idx[j]) ∧
+      (j ≠ 1 ↔ a2.color[j] = b2.color[j]) := by
     intro j hj
     simp [a2, b2, KVertex.bv_reorder, KVertex.colors_reorder]
     constructor
@@ -275,7 +276,7 @@ def reorder (f : Equiv.Perm (Fin (n+2)))
 @[simp] theorem kclique_reorder (tc : TwoCubes n s) :
   (tc.reorder f fixed_0 fixed_1).kclique = tc.kclique.map (KAuto.reorder f) := rfl
 
-/-- We can permute colors without affecting the first two cubes,
+/-- We can permute color without affecting the first two cubes,
 so long as 0 is fixed on all columns and 1 is fixed on column 1. -/
 def permute (f : Fin (n+2) → Equiv.Perm (Fin (s+2)))
       (fixed_0 : ∀ j, (f j) 0 = 0) (fixed_1 : (f 1) 1 = 1)
