@@ -32,10 +32,10 @@ def KClique.map (a : KAuto n s) (k : KClique n s) : KClique n s :=
 namespace KVertex
 
 def flip (mask : BitVec n) (v : KVertex n s) : KVertex n s :=
-  { bv := v.bv ^^^ mask, colors := v.colors }
+  { idx := v.idx ^^^ mask, color := v.color }
 
-theorem bv_flip (mask) {v : KVertex n s} : (flip mask v).bv = v.bv ^^^ mask := rfl
-@[simp] theorem colors_flip (mask) {v : KVertex n s} : (flip mask v).colors = v.colors := rfl
+theorem bv_flip (mask) {v : KVertex n s} : (flip mask v).idx = v.idx ^^^ mask := rfl
+@[simp] theorem colors_flip (mask) {v : KVertex n s} : (flip mask v).color = v.color := rfl
 
 @[simp] theorem flip_flip (mask : BitVec n) {v : KVertex n s} : (v.flip mask).flip mask = v := by
   simp [flip, BitVec.xor_assoc]
@@ -49,20 +49,20 @@ I don't think this is an SR clausal symmetry?
 This would require something stronger, like fully general substitutions.
 -/
 def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
-  if v.colors[j] = k then
-    { bv := v.bv ^^^ BitVec.oneAt j
-    , colors := v.colors }
+  if v.color[j] = k then
+    { idx := v.idx ^^^ BitVec.oneAt j
+    , color := v.color }
   else
     v
 
 theorem bv_flipAt (j k) {v : KVertex n s} :
-    (flipAt j k v).bv =
-      if v.colors[j] = k
-      then v.bv ^^^ BitVec.oneAt j
-      else v.bv := by
+    (flipAt j k v).idx =
+      if v.color[j] = k
+      then v.idx ^^^ BitVec.oneAt j
+      else v.idx := by
   unfold flipAt; split <;> simp
 
-@[simp] theorem colors_flipAt {j k} {v : KVertex n s} : (flipAt j k v).colors = v.colors := by
+@[simp] theorem colors_flipAt {j k} {v : KVertex n s} : (flipAt j k v).color = v.color := by
   unfold flipAt; split <;> rfl
 
 @[simp] theorem flipAt_flipAt {j k} {v : KVertex n s} : (v.flipAt j k).flipAt j k = v := by
@@ -76,15 +76,15 @@ theorem bv_flipAt (j k) {v : KVertex n s} :
   · intro h; simpa using congrArg (flipAt j k) h
   · rintro rfl; rfl
 
-@[simp] theorem bv_flipAt_inj_iff {j k} (h : a.colors[j] = b.colors[j]): (flipAt j k a).bv = (flipAt j k b).bv ↔ a.bv = b.bv := by
+@[simp] theorem bv_flipAt_inj_iff {j k} (h : a.color[j] = b.color[j]): (flipAt j k a).idx = (flipAt j k b).idx ↔ a.idx = b.idx := by
   simp [bv_flipAt, h]
   split
-  · rw [BitVec.xor_comm, BitVec.xor_comm b.bv, BitVec.xor_right_inj]
+  · rw [BitVec.xor_comm, BitVec.xor_comm b.idx, BitVec.xor_right_inj]
   · rfl
 
 @[simp] theorem getElem_bv_flipAt_inj_iff {j : Fin n} {j2 : Nat} {hj2 : j2 < n} {k}
-      (h : a.colors[j2] = b.colors[j2])
-    : (flipAt j k a).bv[j2] = (flipAt j k b).bv[j2] ↔ a.bv[j2] = b.bv[j2] := by
+      (h : a.color[j2] = b.color[j2])
+    : (flipAt j k a).idx[j2] = (flipAt j k b).idx[j2] ↔ a.idx[j2] = b.idx[j2] := by
   if j = j2 then
     subst j2
     simp [bv_flipAt, h]
@@ -97,12 +97,12 @@ theorem bv_flipAt (j k) {v : KVertex n s} :
 
 
 def permute (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
-  { bv := v.bv, colors := Vector.ofFn (fun j => (f j) v.colors[j]) }
+  { idx := v.idx, color := Vector.ofFn (fun j => (f j) v.color[j]) }
 
-@[simp] theorem bv_permute (f) {v : KVertex n s} : (permute f v).bv = v.bv := rfl
+@[simp] theorem bv_permute (f) {v : KVertex n s} : (permute f v).idx = v.idx := rfl
 
 theorem colors_permute (f) (v : KVertex n s) {j h} :
-    (permute f v).colors[j]'h = (f ⟨j,h⟩) v.colors[j] := by
+    (permute f v).color[j]'h = (f ⟨j,h⟩) v.color[j] := by
   simp [permute]
 
 
@@ -118,15 +118,15 @@ theorem permute_permute (f₁ f₂ : Fin n → Fin s → Fin s) {v} :
 
 
 def reorder (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
-  ⟨ BitVec.ofFn (v.bv[f ·])
-  , Vector.ofFn (v.colors[f ·])⟩
+  ⟨ BitVec.ofFn (v.idx[f ·])
+  , Vector.ofFn (v.color[f ·])⟩
 
 theorem bv_reorder (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
-    (v.reorder f).bv[j]'hj = v.bv[f ⟨j,hj⟩] := by
+    (v.reorder f).idx[j]'hj = v.idx[f ⟨j,hj⟩] := by
   simp [reorder]
 
 theorem colors_reorder (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
-    (v.reorder f).colors[j]'hj = v.colors[f ⟨j,hj⟩] := by
+    (v.reorder f).color[j]'hj = v.color[f ⟨j,hj⟩] := by
   simp [reorder]
 
 theorem reorder_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
@@ -171,12 +171,12 @@ def flipAt (j : Fin n) (k : Fin s) : KAuto n s :=
       use j1
       rw [KVertex.getElem_bv_flipAt_inj_iff cs_eq_j1] at bv_ne_j1
       use bv_ne_j1, cs_eq_j1, j2, js_ne
-      by_cases a.colors[j2.val] = b.colors[j2.val] <;> simp_all
+      by_cases a.color[j2.val] = b.color[j2.val] <;> simp_all
     · rintro ⟨j1,bv_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
       use j1
       rw [KVertex.getElem_bv_flipAt_inj_iff cs_eq_j1]
       use bv_ne_j1, cs_eq_j1, j2, js_ne
-      by_cases a.colors[j2.val] = b.colors[j2.val] <;> simp_all
+      by_cases a.color[j2.val] = b.color[j2.val] <;> simp_all
   )
 
 @[simp] theorem toFun_flipAt {x : KVertex _ _ } :
