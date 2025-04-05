@@ -6,6 +6,7 @@ Authors: James Gallicchio
 -/
 
 import Trestle.Encode
+import Trestle.Data.Cube
 import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
 
@@ -701,10 +702,10 @@ def col234_colorings :=
       Sum.inr (coloring, perm, renumbered)
 
 /-- all the ways we can color *c3 and cX* indices for columns 5+ -/
-def col5_colorings (n s) (h : s ≥ 2) :=
-  let colorings := generateColorVecs (hdLt := 2) (len := n-1)
+def col5_colorings (s) (h : s ≥ 2) :=
+  let colorings := generateColorVecs (hdLt := 2) (len := 4)
   colorings.map fun coloring =>
-    let perm := renumberIncr' (s := s) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
+    let perm := renumberIncr' (s := s) (L := 0 :: (coloring.map (·.val) |>.toList))
       (by simp; omega)
     let renumbered := coloring.map perm
     if coloring == renumbered then
@@ -755,22 +756,22 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : Array (Line n s) :=
   have : j.val ≥ 5 := by simp_all [j]
 
   for (coloring,perm,renumbered) in
-      (col5_colorings n s (by omega)).filterMap (·.getRight?) do
+      (col5_colorings s (by omega)).filterMap (·.getRight?) do
 
     -- The s-gap between c3 and cX[j-2] is always in column `j`,
     -- so skip any colorings where they are unequal
-    if coloring[0].val ≠ coloring[1+j.val-2]'(by omega) then continue
+    -- if coloring[0].val ≠ coloring[1+j.val-2]'(by omega) then continue
 
     -- The clause we want to block (negation of `coloring`)
     let clause : Clause (Literal <| AllVars n s) :=
-      Array.ofFn (n := n-1) fun row =>
+      Array.ofFn (n := 4) fun row =>
         let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
         .neg <| .x idx j (coloring[row].castLE (by omega))
 
     -- Assign all the literals associated with these 3 `(idx,j)` pairs
     let true_lits :=
       List.flatten <|
-      List.ofFn (n := n-1) fun row =>
+      List.ofFn (n := 4) fun row =>
         let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
         List.ofFn (n := s) fun k =>
           Literal.mk (AllVars.x idx j k) (k.val = renumbered[row].val)
@@ -779,7 +780,7 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : Array (Line n s) :=
     let substs := renumberSubsts j perm.symm
 
     lines := lines.push <|
-      mkLine clause (hc := by simp [clause]; omega) true_lits substs
+      mkLine clause (hc := by simp [clause]) true_lits substs
 
   return lines
 
@@ -889,60 +890,35 @@ namespace Cubes
 
 open Vars
 
-def matrixCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
-  let matrixList := (SR.canonicalMats.get 3).canonical.toList
-  let idxs := #[7, 11, 19]
-  matrixList.map fun m =>
-    Array.mk <| List.flatten <|
-      List.ofFn fun r : Fin 3 => List.ofFn fun c : Fin 3 =>
-        let mval : Fin s := @Fin.ofNat' s (by apply NeZero.mk; omega) m.data[r][c]
-        .pos (x idxs[r] ⟨2+c, by omega⟩ mval)
+def matrixCubes (n s) : Cubing <| Literal (Vars n s) :=
+  if h : n ≥ 5 ∧ s ≥ 4 then
+    let matrixList := (SR.canonicalMats.get 3).canonical.toList
+    let idxs := #[7, 11, 19]
+    matrixList.map fun m =>
+      Array.mk <| List.flatten <|
+        List.ofFn fun r : Fin 3 => List.ofFn fun c : Fin 3 =>
+          let mval : Fin s := @Fin.ofNat' s (by apply NeZero.mk; omega) m.data[r][c]
+          .pos (x idxs[r] ⟨2+c, by omega⟩ mval)
+  else
+    .unit
 
-def triangle (L : List α) (n : Nat) : List (Vector α n) :=
-  aux L n |>.map (·.reverse)
-where aux (L : List α) (n : Nat) : List (Vector α n) :=
-  match n with
-  | 0 => [⟨#[], by simp⟩]
-  | n+1 =>
-    L.tails.flatMap (fun
-      | []     => []
-      | hd::tl =>
-        aux (hd::tl) n |>.map (·.push hd)
-    )
+def lastColsCubes (n s) : Cubing <| Literal (Vars n s) :=
+  if h : s > 1 then
+    let colorings := SR.col5_colorings s (by omega) |>.filterMap (·.getLeft?)
+    let js := List.finRange n |>.filter (·.val ≥ 5)
+    let cubes : List (Cubing _) := js.map fun j =>
+      colorings.map fun coloring =>
+        Array.ofFn (n := 4) fun idx =>
+          .pos (x #v[3,7,11,19][idx] j coloring[idx])
+    cubes.foldl (·.prod ·) (.unit)
+  else .unit
 
-def canonicalColumn (start : Fin s) (len : Nat) : List (Vector (Fin s) len) :=
-  aux start len |>.map (Vector.reverse)
-where aux (start : Fin s) (len) : List (Vector (Fin s) len) :=
-  have : NeZero s := ⟨fun h => (h ▸ start).elim0⟩
-  match len with
-  | 0 => [⟨#[],by simp⟩]
-  | len+1 => do
-    let tail := aux start len
-    (List.range (start+1)).flatMap (fun hd =>
-      let hd : Fin s := hd
-      tail.map (·.push hd)) ++
-    (aux (start+1) len).map (fun tl =>
-      tl.push (Fin.ofNat' s (start+1)))
+def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=
+  let matCubes := matrixCubes n s
+  let lastColsCubes := lastColsCubes n s
 
-def canonicalColumns (n : Nat) (len : Nat) (hs : s > 0) : List (Vector (Vector (Fin s) len) n) :=
-  let cols := canonicalColumn (s := s) ⟨0,hs⟩ len
-  triangle cols n
+  let allCubes := matCubes.prod lastColsCubes
 
-def lastColsCubes (hn : n ≥ 5) (hs : s ≥ 4) : List (Clause <| Literal (Vars n s)) :=
-  let idxs := #[3, 7, 11, 19]
-  let colsList := canonicalColumns (n-5) idxs.size (by omega)
-  colsList.map fun cols =>
-    let cube := Array.flatten (
-      Array.ofFn fun r => Array.ofFn (n := n-5) fun c =>
-        .pos <| x idxs[r] ⟨c+5, by omega⟩ cols[c][r])
-    cube
-
-
-def allCubes : List (Clause <| Literal <| Vars n s) :=
-  if hn : n ≥ 5 then
-    if hs : s ≥ 4 then
-      matrixCubes hn hs
-    else []
-  else []
+  allCubes.filter (·.size > 0)
 
 end Cubes

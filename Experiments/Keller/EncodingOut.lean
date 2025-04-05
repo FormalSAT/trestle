@@ -89,7 +89,7 @@ where runCnfCmd (p : Parsed) := do
 
   if let some cubeFile := cubeFileArg then
     IO.println s!"calculating cubes..."
-    let cubes := Encoding.Cubes.allCubes |>.map (·.map _ vMap)
+    let cubes := Encoding.Cubes.allCubes n s |>.map (·.map _ vMap)
     IO.println s!"writing cubes to {cubeFile}"
     IO.FS.withFile cubeFile .write <| fun handle => do
       Solver.Dimacs.printCubes handle.putStr cubes
