@@ -196,7 +196,7 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
 
 end auto
 
-theorem ofClique {n s} (k : KClique (n+2) (s+2)) (hs : s+2 ≤ 2^n) (h : conjectureIn (n+1))
+theorem ofClique (k : KClique (n+2) (s+2)) (hs : s+2 ≤ 2^n) (h : conjectureIn (n+1))
   : Nonempty (TwoCubes n s) := by
   have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k hs h
   -- apply the reordering automorphism to get vs2, k2, a2, b2

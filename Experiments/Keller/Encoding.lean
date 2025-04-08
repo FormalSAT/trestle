@@ -607,7 +607,7 @@ def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : Array (Line n s) := Id.run 
   return lines
 
 
-/-- #### Renumber c3
+/-- ##### Renumber c3
 
 for all j in [2:n], assume `c3[j] < 2`
 -/
@@ -621,7 +621,7 @@ def c3_bounds : Array (Line n s) := Id.run do
   return lines
 
 
-/-- #### Fix c3[2:5]
+/-- ##### Fix c3[2:5]
 Now `c3[2] = c3[3] = 1` by unit prop.
 We can also show `c3[4] = 1` with some quick casework.
 We do not know about `c3[5]` and `c3[6]` yet, but can case on them down the road.
@@ -642,9 +642,9 @@ def c3_fixed : Array (Line n s) :=
   else #[]
 
 
-/-! #### Matrix symmetries
+/-! #### cX Constraints
 
-Now we look at `j = 2..n` and the special `cX` indices
+Now we look at the special `cX` indices
 (for `n=7`, these are `i=7, 11, 19, 35, 67`).
 -/
 

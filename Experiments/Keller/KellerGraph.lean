@@ -101,7 +101,7 @@ variable (k : KClique n s)
 def isClique := k.prop.isClique
 def card_eq := k.prop.card_eq
 
-theorem exists_unique (i : BitVec n) : ∃! a, a ∈ k.val ∧ (fun v => v.idx = i) a := by
+theorem exists_unique (i : BitVec n) : ∃! a, a ∈ k.val ∧ a.idx = i := by
   apply existsUnique_of_exists_of_unique
   · have := Finset.surj_on_of_inj_on_of_card_le
       (s := k.val) (t := Finset.univ) (f := fun a _ => a.idx)
