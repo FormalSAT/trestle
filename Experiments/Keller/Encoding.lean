@@ -688,8 +688,10 @@ def col5n_colorings (s) (h : s ≥ 2) :=
   let colorings := col5_colorings s h |>.filterMap (·.getLeft?)
   let vec_colorings : List (Vector (Vector (Fin s) 4) 2) :=
     colorings.flatMap fun a => colorings.map fun b => #v[a,b]
-  vec_colorings.map fun coloring =>
-    if coloring[0] ≤ coloring[1] then
+  vec_colorings.filterMap fun coloring =>
+    if coloring[0][0].val = 0 ∧ coloring[1][0].val = 1 then none
+    else some <|
+    if coloring[0] ≥ coloring[1] then
       Sum.inl coloring
     else
       Sum.inr (coloring, #v[coloring[1],coloring[0]])
@@ -764,7 +766,6 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s :=
       SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
   return lines
-
 def col5n_sorted (n s) : SRGen n s := Id.run do
   let mut lines := dbgTrace s!"  (starting col5n_sorted)" fun () => #[]
 
@@ -772,28 +773,42 @@ def col5n_sorted (n s) : SRGen n s := Id.run do
     -- the substitution is always swapping 5/6
     let substs := reorderSubsts ⟨5,by omega⟩ ⟨6,by omega⟩
 
-    for (coloring, swapped) in col5n_colorings s h.2 |>.filterMap (·.getRight?) do
+    let colColorings := col5_colorings s h.2 |>.filterMap (·.getLeft?)
 
-      -- The clause we want to block (negation of `coloring`)
-      let clause : Clause (Literal <| AllVars n s) :=
-        Array.flatten <| Array.ofFn (n := 2) fun col => Array.ofFn (n := 4) fun row =>
-          let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-          let j : Fin n := ⟨col+5, by omega⟩
-          .neg <| .x idx j (coloring[col][row])
+    for hlen : len in [1:4] do
+      have : len < 4 := hlen.upper
+      let biggers := colColorings
+        |>.map (·.take (len+1) |>.cast (m := len+1) (by omega))
+        |>.dedup
 
-      -- Assign all the literals in question to match `swapped`
-      let true_lits :=
-        Array.flatten <| Array.flatten <|
-          Array.ofFn (n := 2) fun col => Array.ofFn (n := 4) fun row =>
-          let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-          let j : Fin n := ⟨col+5, by omega⟩
-          Array.ofFn (n := s) fun k =>
-            Literal.mk (AllVars.x idx j k) (k.val = swapped[col][row].val)
+      for bigger in biggers do
+        let pref := bigger.take len |>.cast (m := len) (by omega)
+        let lastR := bigger[len]
+
+        for hlastL : lastL in [0:lastR] do
+          let lastL : Fin s := ⟨lastL, have : lastL < lastR := hlastL.upper; by omega⟩
+          -- We want to block the case where both columns 5 and 6 are `pref`,
+          -- and the next element is `k` in 5 and `last` in 6
+          let clause : Clause (Literal <| AllVars n s) :=
+            Array.flatten (Array.ofFn (n := len+1) fun row =>
+              let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
+              let left := .neg <| .x idx ⟨5,by omega⟩ (if h : row.val < len then pref[row] else lastL)
+              let right := .neg <| .x idx ⟨6,by omega⟩ (if h : row.val < len then pref[row] else lastR)
+              #[ left, right ]
+            )
+
+          -- Assign all the literals in question to match `swapped`
+          let true_lits :=
+            Array.flatten <| Array.flatten <| Array.ofFn (n := len+1) fun row =>
+              let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
+              Array.ofFn (n := s) fun k =>
+                #[ Literal.mk (AllVars.x idx ⟨5,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastR)
+                ,  Literal.mk (AllVars.x idx ⟨6,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastL) ]
 
 
-      lines := lines.push <|
-        SR.mkLine clause (hc := by simp [clause, ← Array.sum_eq_sum_toList])
-                true_lits substs
+          lines := lines.push <|
+            SR.mkLine clause (hc := by simp [clause, ← Array.sum_eq_sum_toList])
+                    true_lits substs
 
   return lines
 
@@ -839,7 +854,7 @@ def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → Al
       autoToMap a1 (Nat.le_of_lt h)
 
 def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen n s :=
-  if h : ¬(2 + matSize ≤ n ∧ s ≥ n) then #[] else
+  if h : ¬(2 + matSize ≤ n ∧ s ≥ 2 + matSize) then #[] else
   have := not_not.mp h
 
   Id.run do
