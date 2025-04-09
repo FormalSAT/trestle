@@ -123,6 +123,7 @@ def parseFormula (s : String) : Except String DimacsParseRes := do
     s.splitOn "\n"
     |>.map (·.trim)
     |>.filter (!·.isEmpty)
+    |>.filter (!·.startsWith "c")
     |>.expectNonempty fun () => "Missing p line"
   let (nvars, _) ← parseHeader pLine
   let clauses ← clauseLines.toArray.mapIdxM (fun lineNum line =>

@@ -16,7 +16,7 @@ Cubes are identical in implementation to clauses, but have the opposite semantic
 Where a clause is interpreted as a disjunction, a cube is interpreted as a conjunction.
 -/
 
-abbrev Cube (L : Type u) := Array L
+def Cube (L : Type u) := Array L
 
 namespace Cube
 
@@ -32,8 +32,12 @@ def toPropFun (C : Cube L) : PropFun ν :=
 
 instance : CoeHead (Cube L) (PropFun ν) := ⟨toPropFun⟩
 
+abbrev toArray (c : Cube L) : Array L := c
+
+instance : CoeHead (Cube L) (Array L) := ⟨toArray⟩
+
 theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Cube L)
-  : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
+  : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C.toArray ∧ LitVar.toVar l = x := by
   intro h
   rcases C with ⟨data⟩
   have ⟨τ,hpos,hneg⟩ := (PropFun.mem_semVars _ _).mp h; clear h
@@ -45,12 +49,12 @@ theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Cube L)
 open PropFun
 
 theorem satisfies_iff {τ : PropAssignment ν} {C : Cube L} :
-    τ ⊨ C.toPropFun ↔ ∀ l ∈ C, τ ⊨ LitVar.toPropFun l := by
+    τ ⊨ C.toPropFun ↔ ∀ l ∈ C.toArray, τ ⊨ LitVar.toPropFun l := by
   simp_rw [toPropFun, Array.mem_def]
   simp
 
 theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
-    C.toPropFun = ⊥ ↔ ∃ l₁ ∈ C, ∃ l₂ ∈ C, l₁ = -l₂ := by
+    C.toPropFun = ⊥ ↔ ∃ l₁ ∈ C.toArray, ∃ l₂ ∈ C.toArray, l₁ = -l₂ := by
   constructor
   · intro h
     rcases C with ⟨lits⟩
@@ -82,7 +86,7 @@ theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
     by_cases τ ⊨ LitVar.toPropFun l <;> aesop
 
 def and (c1 c2 : Cube L) : Cube L :=
-  c1 ++ c2
+  c1.toArray ++ c2.toArray
 
 @[simp] theorem toPropFun_and (c1 c2 : Cube L)
   : (c1.and c2).toPropFun = c1.toPropFun ⊓ c2.toPropFun := by
@@ -105,6 +109,8 @@ nonrec def map (L') [LitVar L' ν'] (f : ν → ν') (c : Cube L) : Cube L' :=
   ext τ
   simp [map, satisfies_iff]
 
+def negate (c : Cube L) : Clause L :=
+  Array.map (- ·) c
 
 end Cube
 

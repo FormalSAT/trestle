@@ -7,6 +7,7 @@ Authors: Wojciech Nawrocki
 
 import Trestle.Model.PropFun
 import Trestle.Data.Cnf
+import Trestle.Data.Cube
 import Trestle.Upstream.ToStd
 
 import Mathlib.Data.PNat.Basic
@@ -149,3 +150,5 @@ abbrev ICnf := Cnf ILit
 /-- Find the max variable in the CNF. WARNING: very expensive; result not cached. -/
 def ICnf.maxVar (fml : ICnf) : Nat :=
   fml.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
+
+abbrev ICube := Cube ILit
