@@ -15,6 +15,8 @@ import Experiments.Keller.SymmBreak.TwoCubes
 import Experiments.Keller.SymmBreak.C3Zeros
 import Experiments.Keller.SymmBreak.MatrixGen
 
+import Experiments.Keller.SR
+
 namespace Keller.Encoding
 
 open Trestle Encode
@@ -31,7 +33,7 @@ inductive AllVars (n s : Nat)
 | x (i : BitVec n) (j : Fin n) (k : Fin s)
 | y (i i' : BitVec n) (j : Fin n) (k : Fin s)
 | z (i i' : BitVec n) (j : Fin n)
-deriving DecidableEq
+deriving DecidableEq, Repr
 
 instance [Inhabited (Fin n)] [Inhabited (Fin s)] : Inhabited (AllVars n s) where
   default := .x 0 default default
@@ -506,46 +508,9 @@ def AllVars.renumber (f : Fin n → Fin s → Fin s) : AllVars n s → AllVars n
 
 namespace SR
 
-structure Line (n s) where
-  c : Clause (Literal (AllVars n s))
-  pivot : Literal (AllVars n s)
-  true_lits : List (Literal (AllVars n s))
-  substs : List (AllVars n s × Literal (AllVars n s))
-
-instance [Inhabited (AllVars n s)] : Inhabited (Line n s) where
-  default := { c := default, pivot := default, true_lits := default, substs := default }
-
-def mkLine (c : Clause (Literal (AllVars n s))) (hc : c.size > 0 := by simp)
-        (true_lits : List (Literal (AllVars n s)))
-        (substs : List (AllVars n s × Literal (AllVars n s))) : Line n s :=
-  have : Inhabited (AllVars n s) := ⟨c[0].toVar⟩
-  if true_lits.isEmpty then
-    if !substs.isEmpty then
-      panic! s!"true_lits empty but substs nonempty?! clause: {c}"
-    else
-      { c, pivot := c[0], true_lits := [], substs := [] }
-  else
-  have : Inhabited _ := ⟨c[0]⟩
-  -- let's filter out true_lits from substs
-  let substs := substs.filter (fun (a,b) => !true_lits.any (·.toVar = a))
-  -- we should pick a pivot `p ∈ c` such that `p ∈ true_lits`
-  let pivot :=
-    match c.find? (true_lits.contains ·) with
-    | some p => p
-    | none =>
-      panic! s!"mkLine could not select a pivot! clause: {c}\ntrue_lits: {true_lits}"
-  -- sanity check that the negation of the pivot isn't ALSO in true_lits
-  if true_lits.contains (-pivot) then
-    panic! s!"true_lits contains literal {pivot} *and* its negation?\nclause: {c}\ntrue_lits: {true_lits}"
-  else
-  -- now let's ensure pivot is at the front of the clause
-  let c := #[pivot] ++ c.filter (· != pivot)
-  -- and then filter it out of true_lits
-  let true_lits := true_lits.filter (· != pivot)
-  { c, pivot, true_lits, substs }
 
 /-- Given a mapping, this returns all the substitutions for all "changed" variables -/
-def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal (AllVars n s)) := Id.run do
+def substsOfMap (f : AllVars n s → AllVars n s) : Array (AllVars n s × Literal (AllVars n s)) := Id.run do
   let subst : AllVars n s → _ × _ := fun v => (v, Literal.pos (f v))
 
   let mut substs : Array (AllVars n s × Literal (AllVars n s)) := #[]
@@ -572,7 +537,7 @@ def substsOfMap (f : AllVars n s → AllVars n s) : List (AllVars n s × Literal
         for j in Array.finRange n do
           substs := substs.push <| subst <| .z i i' j
 
-  return substs.filter (fun (v,l) => v ≠ l.toVar) |>.toList
+  return substs.filter (fun (v,l) => v ≠ l.toVar)
 
 def reorderSubsts {s} (j j' : Fin n) :=
   substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j j'
@@ -585,9 +550,11 @@ def renumberSubsts (j : Fin n) (perm : Equiv.Perm (Fin s)) := Id.run do
 We can add so many facts!
 -/
 
-def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : Array (Line n s) := Id.run do
+abbrev SRGen (n s) := Array (SR.Line (Literal (AllVars n s)))
+
+def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : SRGen n s := Id.run do
   if h : ltK = 0 ∨ ltK > s then
-    panic! s!"bound with s = {s}, ltK = {ltK}"
+    #[]
   else
   have : 0 < ltK ∧ ltK ≤ s := by omega
   let k_canonical : Fin s := ⟨ltK-1, by omega⟩
@@ -598,9 +565,9 @@ def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : Array (Line n s) := Id.run 
     have : ltK < s := Nat.lt_of_le_of_lt hk.lower hk.upper
     let k_to_block : Fin s := ⟨k_to_block,hk.upper⟩
     lines := lines.push <|
-      mkLine
+      SR.mkLine
         (c := #[ Literal.neg <| .x idx j k_to_block ])
-        (true_lits := List.finRange s |>.map fun k =>
+        (true_lits := Array.finRange s |>.map fun k =>
           Literal.mk (.x idx j k) (k = k_canonical))
         (substs := renumberSubsts j <| Equiv.swap k_canonical k_to_block)
 
@@ -611,7 +578,7 @@ def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : Array (Line n s) := Id.run 
 
 for all j in [2:n], assume `c3[j] < 2`
 -/
-def c3_bounds : Array (Line n s) := Id.run do
+def c3_bounds : SRGen n s := Id.run do
   let mut lines := #[]
 
   for hj : j in [2:n] do
@@ -626,18 +593,18 @@ Now `c3[2] = c3[3] = 1` by unit prop.
 We can also show `c3[4] = 1` with some quick casework.
 We do not know about `c3[5]` and `c3[6]` yet, but can case on them down the road.
 -/
-def c3_fixed : Array (Line n s) :=
+def c3_fixed : SRGen n s :=
   if h : n ≥ 5 ∧ s ≥ 2 then
     let one : Fin s := ⟨1,by omega⟩
     let two : Fin n := ⟨2,by omega⟩
     let three : Fin n := ⟨3,by omega⟩
     let four : Fin n := ⟨4,by omega⟩
     #[
-      mkLine #[ .pos <| .x 3 two one   ] (true_lits := []) (substs := [])
-    , mkLine #[ .pos <| .x 3 three one ] (true_lits := []) (substs := [])
-    , mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (true_lits := []) (substs := [])
-    , mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := []) (substs := [])
-    , mkLine #[ .pos <| .x 3 four one  ] (true_lits := []) (substs := [])
+      SR.mkLine #[ .pos <| .x 3 two one   ] (true_lits := #[]) (substs := #[])
+    , SR.mkLine #[ .pos <| .x 3 three one ] (true_lits := #[]) (substs := #[])
+    , SR.mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
+    , SR.mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
+    , SR.mkLine #[ .pos <| .x 3 four one  ] (true_lits := #[]) (substs := #[])
     ]
   else #[]
 
@@ -657,11 +624,13 @@ def cX (row : Nat) (h : n ≥ 2 ∧ row + 2 < n := by omega) : BitVec n :=
 In every column `j`, the `r`'th special index `cX[r]`
 can be bounded below `3+r`
 -/
-def cX_bounds (j : Fin n) : Array (Line n s) := Id.run do
+def cX_bounds (j : Fin n) : SRGen n s := Id.run do
   let mut lines := #[]
 
-  for hi : row in [0:n-2] do
-    have : row < n-2 := hi.upper
+  for hi : row in [0:min 3 (n-2)] do
+    have : row < n-2 := by
+      have : _ < min _ _ := hi.upper
+      omega
     let idx : BitVec n := cX row
 
     lines := lines ++ bound idx j (row+3)
@@ -713,7 +682,19 @@ def col5_colorings (s) (h : s ≥ 2) :=
     else
       Sum.inr (coloring, perm, renumbered)
 
-def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : Array (Line n s) :=
+/-- all the ways to color columns 5+,
+but with column permutations. -/
+def col5n_colorings (s) (h : s ≥ 2) :=
+  let colorings := col5_colorings s h |>.filterMap (·.getLeft?)
+  let vec_colorings : List (Vector (Vector (Fin s) 4) 2) :=
+    colorings.flatMap fun a => colorings.map fun b => #v[a,b]
+  vec_colorings.map fun coloring =>
+    if coloring[0] ≤ coloring[1] then
+      Sum.inl coloring
+    else
+      Sum.inr (coloring, #v[coloring[1],coloring[0]])
+
+def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s :=
   if h : n < 5 ∨ s < 5 then #[] else
   Id.run do
   let mut lines := #[]
@@ -734,20 +715,20 @@ def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : Array (Line 
 
     -- Assign all the literals associated with these 3 `(idx,j)` pairs
     let true_lits :=
-      List.flatten <|
-      List.ofFn (n := 3) fun row =>
-        List.ofFn (n := s) fun k =>
+      Array.flatten <|
+      Array.ofFn (n := 3) fun row =>
+        Array.ofFn (n := s) fun k =>
           Literal.mk (AllVars.x (cX row) j k) (k.val = renumbered[row].val)
 
     -- substitute everything else via perm
     let substs := renumberSubsts j (
       (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
 
-    lines := lines.push (mkLine clause (hc := by simp [clause]) true_lits substs)
+    lines := lines.push (SR.mkLine clause (hc := by simp [clause]) true_lits substs)
 
   return lines
 
-def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : Array (Line n s) :=
+def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s :=
   if h : n < 5 ∨ s < 5 then #[] else
   Id.run do
   let mut lines := #[]
@@ -770,19 +751,52 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : Array (Line n s) :=
 
     -- Assign all the literals associated with these 3 `(idx,j)` pairs
     let true_lits :=
-      List.flatten <|
-      List.ofFn (n := 4) fun row =>
+      Array.flatten <|
+      Array.ofFn (n := 4) fun row =>
         let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-        List.ofFn (n := s) fun k =>
+        Array.ofFn (n := s) fun k =>
           Literal.mk (AllVars.x idx j k) (k.val = renumbered[row].val)
 
     -- substitute everything else via perm
     let substs := renumberSubsts j perm.symm
 
     lines := lines.push <|
-      mkLine clause (hc := by simp [clause]) true_lits substs
+      SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
   return lines
+
+def col5n_sorted (n s) : SRGen n s := Id.run do
+  let mut lines := dbgTrace s!"  (starting col5n_sorted)" fun () => #[]
+
+  if h : n = 7 ∧ _ then
+    -- the substitution is always swapping 5/6
+    let substs := reorderSubsts ⟨5,by omega⟩ ⟨6,by omega⟩
+
+    for (coloring, swapped) in col5n_colorings s h.2 |>.filterMap (·.getRight?) do
+
+      -- The clause we want to block (negation of `coloring`)
+      let clause : Clause (Literal <| AllVars n s) :=
+        Array.flatten <| Array.ofFn (n := 2) fun col => Array.ofFn (n := 4) fun row =>
+          let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
+          let j : Fin n := ⟨col+5, by omega⟩
+          .neg <| .x idx j (coloring[col][row])
+
+      -- Assign all the literals in question to match `swapped`
+      let true_lits :=
+        Array.flatten <| Array.flatten <|
+          Array.ofFn (n := 2) fun col => Array.ofFn (n := 4) fun row =>
+          let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
+          let j : Fin n := ⟨col+5, by omega⟩
+          Array.ofFn (n := s) fun k =>
+            Literal.mk (AllVars.x idx j k) (k.val = swapped[col][row].val)
+
+
+      lines := lines.push <|
+        SR.mkLine clause (hc := by simp [clause, ← Array.sum_eq_sum_toList])
+                true_lits substs
+
+  return lines
+
 
 /-! ##### Canonical matrices
 
@@ -824,7 +838,7 @@ def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → Al
   | .lift a1 =>
       autoToMap a1 (Nat.le_of_lt h)
 
-def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : Array (Line n s) :=
+def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen n s :=
   if h : ¬(2 + matSize ≤ n ∧ s ≥ n) then #[] else
   have := not_not.mp h
 
@@ -850,9 +864,9 @@ def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : Array 
       -- Assign all the literals associated with these rows/cols
       -- to their value under the canonical case
       let true_lits :=
-        (List.ofFn (n := matSize) fun row =>
-          List.ofFn (n := matSize) fun col =>
-            List.ofFn (n := s) fun k =>
+        (Array.ofFn (n := matSize) fun row =>
+          Array.ofFn (n := matSize) fun col =>
+            Array.ofFn (n := s) fun k =>
               Literal.mk
                 (AllVars.x (cX row.val) ⟨col+2, by omega⟩ k)
                 (k.val = canonical.data[row][col])
@@ -862,11 +876,11 @@ def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : Array 
       let subst := substsOfMap <| autoToMap auto (by omega)
 
       lines := lines.push <|
-        mkLine clause ‹_› true_lits subst
+        SR.mkLine clause ‹_› true_lits subst
 
   return lines
 
-def all (n s) : Array (Line n s) := Id.run do
+def all (n s) : SRGen n s := Id.run do
   let mut lines := #[]
   lines := lines ++ c3_bounds
   lines := lines ++ c3_fixed
@@ -882,6 +896,8 @@ def all (n s) : Array (Line n s) := Id.run do
 
     if h : 3 ≤ j ∧ j < 5 then
       lines := lines ++ mat_canonical (j-1) (by omega)
+
+  lines := lines ++ col5n_sorted n s
   return lines
 
 end SR
@@ -904,13 +920,20 @@ def matrixCubes (n s) : Cubing <| Literal (Vars n s) :=
 
 def lastColsCubes (n s) : Cubing <| Literal (Vars n s) :=
   if h : s > 1 then
-    let colorings := SR.col5_colorings s (by omega) |>.filterMap (·.getLeft?)
-    let js := List.finRange n |>.filter (·.val ≥ 5)
-    let cubes : List (Cubing _) := js.map fun j =>
+    if h : n = 7 then
+      let colorings := SR.col5n_colorings s (by omega) |>.filterMap (·.getLeft?)
       colorings.map fun coloring =>
-        Array.ofFn (n := 4) fun idx =>
-          .pos (x #v[3,7,11,19][idx] j coloring[idx])
-    cubes.foldl (·.prod ·) (.unit)
+        Array.flatten <| Array.ofFn (n := 2) fun col => Array.ofFn (n := 4) fun row =>
+          .pos (x #v[3,7,11,19][row] (h ▸ #[5,6][col]) coloring[col][row])
+    else if h : n = 6 then
+      let colorings := SR.col5_colorings s (by omega) |>.filterMap (·.getLeft?)
+      let js := List.finRange n |>.filter (·.val ≥ 5)
+      let cubes : List (Cubing _) := js.map fun j =>
+        colorings.map fun coloring =>
+          Array.ofFn (n := 4) fun idx =>
+            .pos (x #v[3,7,11,19][idx] j coloring[idx])
+      cubes.foldl (·.prod ·) (.unit)
+      else .unit
   else .unit
 
 def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=

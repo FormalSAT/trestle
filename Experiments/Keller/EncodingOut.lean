@@ -13,14 +13,6 @@ import Cli
 
 open Keller Trestle Cli
 
-open Solver.Dimacs in
-def formatSRLine (c : IClause) (pivot : ILit) (true_lits : List ILit) (substs : List (IVar × ILit)) : String :=
-  if true_lits.isEmpty ∧ substs.isEmpty then
-    Trestle.Solver.Dimacs.formatClause c
-  else
-    s!"{c.toList.map formatLit |> String.intercalate " "} " ++
-    s!"{formatLit pivot} {true_lits.map formatLit |> String.intercalate " "} " ++
-    s!"{formatLit pivot}  {substs.map (fun (v,l) => s!"{formatVar v} {formatLit l}") ++ ["0"] |> String.intercalate "  "}"
 
 def cnfCmd := `[Cli|
   "cnf" VIA runCnfCmd;
@@ -79,12 +71,12 @@ where runCnfCmd (p : Parsed) := do
     IO.println s!"writing DSR proof to {dsrFile}"
     IO.FS.withFile dsrFile .write <| fun handle => do
       for {c, pivot, true_lits, substs} in sr do
-        let line := formatSRLine
-            (c := c.map _ avMap)
-            (pivot := LitVar.map avMap pivot)
-            (true_lits := true_lits.map (LitVar.map avMap))
-            (substs := substs.map (fun (v,l) => (avMap v, LitVar.map avMap l)))
-        handle.putStrLn line
+        SR.printSRLine
+          handle.putStr
+          (c := c.map _ avMap)
+          (pivot := LitVar.map avMap pivot)
+          (true_lits := true_lits.map (LitVar.map avMap))
+          (substs := substs.map (fun (v,l) => (avMap v, LitVar.map (L' := ILit) avMap l)))
       handle.flush
 
   if let some cubeFile := cubeFileArg then

@@ -278,7 +278,7 @@ def CanonicalMats.step (c : CanonicalMats m) : CanonicalMats (m+1) where
     -- just doublecheck that x' is actually smaller...
     if foundSmaller.toArray.any (fun |(_,.canon _) => .false | (x,.noncanon x' _) => !(x' < x))
     then panic! "x' isn't actually smaller!!! D:" else
-    foundSmaller.map fun x i =>
+    foundSmaller.map fun _x i =>
       match i with
       | .canon eqPerms => .canon eqPerms
       | .noncanon x' a =>
