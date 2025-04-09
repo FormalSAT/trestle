@@ -7,3 +7,5 @@
 *.dsr
 *.lsr
 *.drat
+
+*.envrc
