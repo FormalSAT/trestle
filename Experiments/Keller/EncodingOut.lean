@@ -133,6 +133,45 @@ where run (p : Parsed) := do
 
   return 0
 
+def negateCubesCmd : Cmd := `[Cli|
+  "negate-cubes" VIA run;
+  "Produce a CNF of a base CNF and the negation of all cubes in a DNF."
+
+  FLAGS:
+    cnf : String;    "Filepath to the CNF."
+    cubes : String;  "Filepath to the DNF of cubes."
+    out : String;    "Filepath to the output."
+]
+where run (p : Parsed) := do
+  let cnfFile : System.FilePath :=
+    (← p.flag? "cnf"
+      |> Option.expectSome (fun _ => "flag --cnf missing")
+      |> IO.ofExcept
+    ).as! String
+  let cubeFile : System.FilePath :=
+    (← p.flag? "cubes"
+      |> Option.expectSome (fun _ => "flag --cubes missing")
+      |> IO.ofExcept
+    ).as! String
+  let outFile  : System.FilePath :=
+    (← p.flag? "out"
+      |> Option.expectSome (fun _ => "flag --out missing")
+      |> IO.ofExcept
+    ).as! String
+
+  let {clauses := cnf, vars} ← IO.ofExcept <|
+    Solver.Dimacs.parseFormula (← IO.FS.readFile cnfFile)
+  let cubes ← IO.ofExcept <|
+    Solver.Dimacs.parseCubes vars (← IO.FS.readFile cubeFile)
+
+  let newCnf :=
+    cnf.push (.comment "start of cube negation")
+      ++ Array.mk (cubes.map (.clause ·.negate))
+
+  IO.FS.withFile outFile .write fun handle =>
+    Solver.Dimacs.printRichCnf handle.putStr newCnf
+
+  return 0
 
 def kellerCmd : Cmd := `[Cli|
   keller VIA run; ["0.0.1"]
@@ -140,7 +179,8 @@ def kellerCmd : Cmd := `[Cli|
 
   SUBCOMMANDS:
     cnfCmd;
-    filterCoreCmd
+    filterCoreCmd;
+    negateCubesCmd
 ]
 where run (p) := do
   Parsed.printHelp p
