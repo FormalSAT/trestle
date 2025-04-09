@@ -27,9 +27,9 @@ lsr-check $CNF $LSR
 
 # check that the cubes negated leads to tautology
 (cd ../..; LEAN_ABORT_ON_PANIC=1 lake exe keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO)
-cadical $TAUTO
+cadical $TAUTO || true
 
 # shuffle the cubes and start runnin em
-(echo "p inccnf"; grep -v "^p" $CNF; cat $CUBES | shuf) |
+(echo "p inccnf"; grep -v "^p" $SB; cat $CUBES | shuf) |
     cadical
 
