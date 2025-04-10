@@ -37,8 +37,8 @@ where aux (e' : StateM _ α) :=
 theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
           (e : EncCNF ν α) (P : PropPred ν) (h : encodesProp e P)
   : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
-    (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toRichCnf.toICnf.toPropFun) := by
-  simp [EncCNF.toRichCnf, run, StateT.run]
+    (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toICnf.toPropFun) := by
+  simp [EncCNF.toICnf, run, StateT.run]
   generalize hls : LawfulState.new' _ _ _ = ls
   have := h ls
   generalize hls' : e.1 ls = ls' at this
@@ -115,7 +115,7 @@ namespace VEncCNF
 instance : CoeHead (VEncCNF ν α P) (EncCNF ν α) := ⟨(·.1)⟩
 
 theorem toICnf_equisatisfiable [IndexType ν] [LawfulIndexType ν] (v : VEncCNF ν α P) :
-    (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toRichCnf.toICnf.toPropFun) ↔
+    (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toICnf.toPropFun) ↔
     (∃ τ : PropAssignment ν, open PropPred in τ ⊨ P)
   := by
   rw [v.val.encodesProp_equisatisfiable _ v.property]
