@@ -6,6 +6,7 @@ Authors: James Gallicchio
 -/
 
 import Experiments.Keller.KellerGraph
+import Mathlib.Tactic.Basic
 
 namespace Keller
 
@@ -252,4 +253,89 @@ theorem get_map_reorder {k : KClique n s} {f} {i}
   simp [KVertex.reorder]
   ext; simp [BitVec.getLsbD_eq_getElem, *]
 
+noncomputable def lowerS {s'} (hs' : s' ≥ 2^n) (k : KClique (n+1) s') : KClique (n+1) (2^n) :=
+  let colSets : Fin (n+1) → Finset (Fin s') := fun j =>
+    k.val.image (fun v => v.color[j])
+  let perms : Fin (n+1) → Fin s' ≃ Fin s' := fun j =>
+    Equiv.Perm.setAll <| (colSets j |>.toList).zip (List.finRange s')
+  let renumbered := k.map (KAuto.permute perms)
+  have renumbered_lt : ∀ (i : BitVec (n+1)) (j : Fin (n+1)), (renumbered.get i)[j].val < 2^n := by
+    intro i j
+    have mem_colSets : (k.get i)[j] ∈ colSets j := by
+      simp [colSets]; refine ⟨_, k.get_mem i, ?_⟩
+      rfl
+    rw [← Finset.mem_toList, List.mem_iff_getElem] at mem_colSets
+    rcases mem_colSets with ⟨kIdx,kIdx_lt,kIdx_eq⟩
+
+    replace kIdx_lt_pown : kIdx < 2^n := by
+      simp [colSets] at kIdx_lt
+      calc kIdx < _     := kIdx_lt
+        _ ≤ 2^n         := by simpa using k.colorsInCol_lt j
+    have kIdx_lt_s' : kIdx < s' := by
+      calc kIdx < _     := kIdx_lt_pown
+        _ ≤ s'          := hs'
+
+    simp [renumbered, get_map_permute]; unfold perms
+    rw [Equiv.Perm.setAll_eq_of_mem (o := ⟨kIdx,kIdx_lt_s'⟩)]
+    exact kIdx_lt_pown
+
+    case is_distinct =>
+      rw [List.pairwise_iff_get]
+      intro x y x_lt_y
+      simp; rw [List.Nodup.getElem_inj_iff]; omega
+      case h =>
+      apply Finset.nodup_toList
+    case os_distinct =>
+      rw [List.pairwise_iff_get]
+      intro x y x_lt_y
+      simp; omega
+    case pair_mem =>
+      rw [List.mem_iff_getElem]
+      simpa [*] using kIdx_lt
+
+  ⟨renumbered.val.image (fun v => {idx := v.idx, color := v.color.map (Fin.ofNat' _ ·.val)})
+  , by
+  clear_value renumbered
+  clear perms colSets k
+  have renumbered_cast_eq : ∀ i (j) (hj : j < (n+1)),
+        (renumbered.get i)[j].val % (2^n) =
+          (renumbered.get i)[j].val := by
+    intro i j hj; apply Nat.mod_eq_of_lt; simpa using renumbered_lt i ⟨j,hj⟩
+  simp only at renumbered_cast_eq
+
+  constructor
+  · intro a a_mem b b_mem ne
+    simp at a_mem b_mem
+    rcases a_mem with ⟨⟨ai,ac⟩,a_mem,rfl⟩; rcases b_mem with ⟨⟨bi,bc⟩,b_mem,rfl⟩
+    dsimp at ne ⊢
+    simp [← KClique.get_eq_iff_mem] at a_mem b_mem
+    subst ac bc
+    replace ne : ai ≠ bi := by
+      rintro rfl; simp at ne
+    have := renumbered.isClique (KClique.get_mem _ ai) (KClique.get_mem _ bi) (by simp [ne])
+    simpa [KAdj, Fin.ext_iff, renumbered_cast_eq] using this
+  · rw [Finset.card_image_of_injOn ?H]; apply renumbered.card_eq
+    case H =>
+    rintro ⟨ai,ac⟩ a_mem ⟨bi,bc⟩ b_mem
+    simp [← KClique.get_eq_iff_mem] at a_mem b_mem
+    subst ac bc
+    simp +contextual
+    ⟩
+
 end KClique
+
+theorem conjectureIn_iff_forall_isEmpty (n : Nat) : conjectureIn n ↔ ∀ s, IsEmpty (KClique n s) := by
+  unfold conjectureIn
+  constructor
+  · intro h s
+    constructor; intro contra; apply h.false
+    if s ≤ 2^(n-1) then
+      exact contra.liftS ‹_›
+    else
+      match n with
+      | 0 =>
+        have := contra.card_eq
+        sorry
+      | n+1 =>
+        simp_all; apply contra.lowerS; omega
+  · intro h; apply h
