@@ -38,7 +38,7 @@ structure TwoCubes (n s) where
 
 namespace TwoCubes
 
-theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (hs : s+1 ≤ 2^n) (h : conjectureIn (n+1))
+theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (h : conjectureIn (n+1))
   : ∃ a ∈ kclique.val, ∃ b ∈ kclique.val,
     ∃ (j₁ j₂ : Fin (n+2)), j₁ ≠ j₂ ∧
       ∀ (j : ℕ) (h : j < n + 2),
@@ -56,8 +56,9 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (hs : s+1 ≤ 2^n) (h : 
         simp at heq; exact heq.1⟩
   have K_0_card : K_0.card = (2^(n+1)) := by simp [K_0]
   -- K_0 must not be a clique, because the conjecture holds in that dimension
-  have K_0_not_clique : ¬ _ := fun hcontra =>
-    h.false <| KClique.liftS hs (Subtype.mk K_0 hcontra)
+  have K_0_not_clique : ¬ (KGraph (n+1) (s+1)).IsNClique (2^(n+1)) K_0 := by
+    intro hcontra; rw [conjectureIn_iff_forall_isEmpty] at h
+    exact (h _).false (Subtype.mk K_0 hcontra)
   -- find the vertices in K_0 which are the not adjacent
   have ⟨⟨i₁,c₁⟩, hv₁, ⟨i₂,c₂⟩, hv₂, hne, hnotadj⟩ :
     ∃ x ∈ K_0, ∃ x_1 ∈ K_0, ¬x = x_1 ∧ ¬KAdj x x_1 := by
@@ -196,9 +197,9 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
 
 end auto
 
-theorem ofClique (h : conjectureIn (n+1)) (hs : s+2 ≤ 2^n) (k : KClique (n+2) (s+2))
+theorem ofClique (h : conjectureIn (n+1)) (k : KClique (n+2) (s+2))
   : Nonempty (TwoCubes n s) := by
-  have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k hs h
+  have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k h
   -- apply the permColumns automorphism to get vs2, k2, a2, b2
   let k2 := k.map (KAuto.permColumns <| permColumns_j1_j2 j₁ j₂)
   let a2 := (KAuto.permColumns (permColumns_j1_j2 j₁ j₂)).toFun a

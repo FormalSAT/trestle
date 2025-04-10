@@ -293,6 +293,6 @@ termination_by n - numNz
 theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3Zeros n s) :=
   of_hasNumNz tc (hasNumNz_zero _)
 
-def ofClique {n s} := fun h hs c =>
-  TwoCubes.ofClique (n := n) (s := s) h hs c
+def ofClique {n s} := fun h c =>
+  TwoCubes.ofClique (n := n) (s := s) h c
   |>.elim ofTwoCubes

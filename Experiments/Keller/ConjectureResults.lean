@@ -12,19 +12,23 @@ import Experiments.Solver.Builtin
 
 namespace Keller
 
-theorem conjectureIn_of_cnf_unsat {n : Nat} (h : conjectureIn (n+2)) :
-  (Encoding.fullEncoding (n+3) (2^(n+2))).val.toICnf.Unsat → conjectureIn (n+3) := by
+theorem conjectureIn_of_cnf_unsat {n : Nat} (h : conjectureIn (n+1)) :
+  (Encoding.fullEncoding (n+2) (2^(n+1))).val.toICnf.Unsat → conjectureIn (n+2) := by
   intro unsat
   unfold conjectureIn
   by_contra ex
   simp at ex
   rcases ex with ⟨c⟩
-  have : 2 ≤ 2^(n+2) := Nat.le_self_pow (by simp) _
-  have ⟨tc⟩ := SymmBreak.C3Zeros.ofClique (s := 2^(n+1)-2) h (by omega) (cast (by congr; omega) c)
-  have := Encoding.cliqueToAssn_satisfies_fullSpec
-  unfold Trestle.ICnf.Unsat Trestle.ICnf.Sat Trestle.Model.PropFun.satisfiable
-  rw [Trestle.Encode.EncCNF.encodesProp_equisatisfiable]
-  sorry
+  generalize s_def : 2^(n+1) = s at c unsat
+  have : 2 ≤ s := by subst s; apply Nat.le_self_pow; simp
+  match s, this with
+  | s+2, _ =>
+  have ⟨tc⟩ := SymmBreak.C3Zeros.ofClique h c
+  have sat := Encoding.cliqueToAssn_satisfies_fullSpec tc
+  apply unsat; clear unsat
+  unfold Trestle.ICnf.Sat Trestle.Model.PropFun.satisfiable
+  rw [Trestle.Encode.VEncCNF.toICnf_equisatisfiable]
+  refine ⟨_, sat⟩
 
 /-! ## Positive Results -/
 

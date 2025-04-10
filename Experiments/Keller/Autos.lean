@@ -335,8 +335,9 @@ theorem conjectureIn_iff_forall_isEmpty (n : Nat) : conjectureIn n ↔ ∀ s, Is
     else
       match n with
       | 0 =>
-        have := contra.card_eq
-        sorry
+        use {⟨0,#v[]⟩}
+        simp
       | n+1 =>
-        simp_all; apply contra.lowerS; omega
+        apply contra.lowerS
+        simp_all; omega
   · intro h; apply h
