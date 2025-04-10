@@ -97,45 +97,46 @@ theorem bv_flipAt (j k) {v : KVertex n s} :
     split <;> split <;> simp [*]
 
 
-def permute (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
-  { idx := v.idx, color := Vector.ofFn (fun j => (f j) v.color[j]) }
+def permColors (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
+  { idx := v.idx
+  , color := Vector.ofFn (fun j => (f j) v.color[j]) }
 
-@[simp] theorem bv_permute (f) {v : KVertex n s} : (permute f v).idx = v.idx := rfl
+@[simp] theorem bv_permColors (f) {v : KVertex n s} : (permColors f v).idx = v.idx := rfl
 
-theorem colors_permute (f) (v : KVertex n s) {j h} :
-    (permute f v).color[j]'h = (f ⟨j,h⟩) v.color[j] := by
-  simp [permute]
+theorem colors_permColors (f) (v : KVertex n s) {j h} :
+    (permColors f v).color[j]'h = (f ⟨j,h⟩) v.color[j] := by
+  simp [permColors]
 
 
-theorem permute_permute (f₁ f₂ : Fin n → Fin s → Fin s) {v} :
-    permute f₁ (permute f₂ v) = permute (fun j => f₁ j ∘ f₂ j) v := by
-  simp [permute]
+theorem permColors_permColors (f₁ f₂ : Fin n → Fin s → Fin s) {v} :
+    permColors f₁ (permColors f₂ v) = permColors (fun j => f₁ j ∘ f₂ j) v := by
+  simp [permColors]
 
-@[simp] theorem permute_id {v : KVertex n s} : permute (fun _ => id) v = v := by
-  simp [permute]
+@[simp] theorem permColors_id {v : KVertex n s} : permColors (fun _ => id) v = v := by
+  simp [permColors]
   congr
   ext i hi
   simp
 
 
-def reorder (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
-  ⟨ BitVec.ofFn (v.idx[f ·])
-  , Vector.ofFn (v.color[f ·])⟩
+def permColumns (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
+  { idx := BitVec.ofFn (v.idx[f ·])
+  , color := Vector.ofFn (v.color[f ·]) }
 
-theorem bv_reorder (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
-    (v.reorder f).idx[j]'hj = v.idx[f ⟨j,hj⟩] := by
-  simp [reorder]
+theorem bv_permColumns (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
+    (v.permColumns f).idx[j]'hj = v.idx[f ⟨j,hj⟩] := by
+  simp [permColumns]
 
-theorem colors_reorder (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
-    (v.reorder f).color[j]'hj = v.color[f ⟨j,hj⟩] := by
-  simp [reorder]
+theorem colors_permColumns (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
+    (v.permColumns f).color[j]'hj = v.color[f ⟨j,hj⟩] := by
+  simp [permColumns]
 
-theorem reorder_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
-    : reorder f₁ (reorder f₂ v) = reorder (f₂ ∘ f₁) v := by
-  simp [reorder]
+theorem permColumns_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
+    : permColumns f₁ (permColumns f₂ v) = permColumns (f₂ ∘ f₁) v := by
+  simp [permColumns]
 
-@[simp] theorem reorder_id (v : KVertex n s) : reorder id v = v := by
-  ext <;> simp [reorder, BitVec.getLsbD_eq_getElem, *]
+@[simp] theorem permColumns_id (v : KVertex n s) : permColumns id v = v := by
+  ext <;> simp [permColumns, BitVec.getLsbD_eq_getElem, *]
 
 end KVertex
 
@@ -185,29 +186,29 @@ def flipAt (j : Fin n) (k : Fin s) : KAuto n s :=
     (flipAt (n := n) (s := s) j k) x = KVertex.flipAt j k x := rfl
 
 
-def permute (f : Fin n → Fin s ≃ Fin s) : KAuto n s :=
+def permColors (f : Fin n → Fin s ≃ Fin s) : KAuto n s :=
   RelIso.mk ({
-    toFun := KVertex.permute (fun j => f j)
-    invFun := KVertex.permute (fun j => (f j).symm)
-    left_inv  := by intro; simp [KVertex.permute_permute]
-    right_inv := by intro; simp [KVertex.permute_permute]
+    toFun := KVertex.permColors (fun j => f j)
+    invFun := KVertex.permColors (fun j => (f j).symm)
+    left_inv  := by intro; simp [KVertex.permColors_permColors]
+    right_inv := by intro; simp [KVertex.permColors_permColors]
   }) (by
     intro v₁ v₂
-    simp [KAdj, KVertex.colors_permute])
+    simp [KAdj, KVertex.colors_permColors])
 
-@[simp] theorem toFun_permute {x : KVertex _ _ } :
+@[simp] theorem toFun_permColors {x : KVertex _ _ } :
   DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
-    (permute (n := n) (s := s) f) x = KVertex.permute (fun j => f j) x := rfl
+    (permColors (n := n) (s := s) f) x = KVertex.permColors (fun j => f j) x := rfl
 
-def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
+def permColumns (f : Fin n ≃ Fin n) : KAuto n s :=
   RelIso.mk {
-    toFun := KVertex.reorder f
-    invFun := KVertex.reorder f.invFun
-    left_inv := by intro; simp [KVertex.reorder_comp]
-    right_inv := by intro; simp [KVertex.reorder_comp]
+    toFun := KVertex.permColumns f
+    invFun := KVertex.permColumns f.invFun
+    left_inv := by intro; simp [KVertex.permColumns_comp]
+    right_inv := by intro; simp [KVertex.permColumns_comp]
   } (by
     intro a b
-    simp [KAdj, KVertex.reorder]
+    simp [KAdj, KVertex.permColumns]
     constructor
     · rintro ⟨j₁,hbv₁,hc1,j₂,hne,h⟩
       use f j₁, hbv₁, hc1, f j₂
@@ -220,9 +221,9 @@ def reorder (f : Fin n ≃ Fin n) : KAuto n s :=
       simp [hne, h]
   )
 
-@[simp] theorem toFun_reorder {x : KVertex _ _ } :
+@[simp] theorem toFun_permColumns {x : KVertex _ _ } :
   DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
-    (reorder (n := n) (s := s) f) x = KVertex.reorder (fun j => f j) x := rfl
+    (permColumns (n := n) (s := s) f) x = KVertex.permColumns (fun j => f j) x := rfl
 
 end KAuto
 
@@ -240,17 +241,17 @@ theorem get_map_flipAt {klique : KClique n s} {j k i}
     simp [KVertex.flipAt, BitVec.xor_assoc, *]
   · simp [KVertex.flipAt, *]
 
-theorem get_map_permute {k : KClique n s} {f} {i}
-  : (k.map (KAuto.permute f)).get i = Vector.ofFn fun j => (f j) (k.get i)[j] := by
+theorem get_map_permColors {k : KClique n s} {f} {i}
+  : (k.map (KAuto.permColors f)).get i = Vector.ofFn fun j => (f j) (k.get i)[j] := by
   simp [get_eq_iff_mem, map]
   refine ⟨⟨i,_⟩, k.get_mem _, ?_⟩
-  simp [KVertex.permute]
+  simp [KVertex.permColors]
 
-theorem get_map_reorder {k : KClique n s} {f} {i}
-  : (k.map (KAuto.reorder f)).get i = Vector.ofFn fun j => (k.get (BitVec.ofFn fun j => i[f.symm j]))[f j] := by
+theorem get_map_permColumns {k : KClique n s} {f} {i}
+  : (k.map (KAuto.permColumns f)).get i = Vector.ofFn fun j => (k.get (BitVec.ofFn fun j => i[f.symm j]))[f j] := by
   simp [get_eq_iff_mem, map]
   refine ⟨_, k.get_mem (BitVec.ofFn fun j => i[f.symm j]), ?_⟩
-  simp [KVertex.reorder]
+  simp [KVertex.permColumns]
   ext; simp [BitVec.getLsbD_eq_getElem, *]
 
 noncomputable def lowerS {s'} (hs' : s' ≥ 2^n) (k : KClique (n+1) s') : KClique (n+1) (2^n) :=
@@ -258,7 +259,7 @@ noncomputable def lowerS {s'} (hs' : s' ≥ 2^n) (k : KClique (n+1) s') : KCliqu
     k.val.image (fun v => v.color[j])
   let perms : Fin (n+1) → Fin s' ≃ Fin s' := fun j =>
     Equiv.Perm.setAll <| (colSets j |>.toList).zip (List.finRange s')
-  let renumbered := k.map (KAuto.permute perms)
+  let renumbered := k.map (KAuto.permColors perms)
   have renumbered_lt : ∀ (i : BitVec (n+1)) (j : Fin (n+1)), (renumbered.get i)[j].val < 2^n := by
     intro i j
     have mem_colSets : (k.get i)[j] ∈ colSets j := by
@@ -275,7 +276,7 @@ noncomputable def lowerS {s'} (hs' : s' ≥ 2^n) (k : KClique (n+1) s') : KCliqu
       calc kIdx < _     := kIdx_lt_pown
         _ ≤ s'          := hs'
 
-    simp [renumbered, get_map_permute]; unfold perms
+    simp [renumbered, get_map_permColors]; unfold perms
     rw [Equiv.Perm.setAll_eq_of_mem (o := ⟨kIdx,kIdx_lt_s'⟩)]
     exact kIdx_lt_pown
 

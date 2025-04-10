@@ -127,29 +127,29 @@ theorem pick_pair {n s} (kclique : KClique (n+2) (s+1)) (hs : s+1 ≤ 2^n) (h : 
 
 /-- The automorphism that reorders any columns `j₁`, `j₂`
 to the first and second column, respectively. -/
-def reorder_j1_j2 (j₁ j₂ : Fin (n+2)) := Equiv.Perm.setAll [(0,j₁), (1,j₂)]
+def permColumns_j1_j2 (j₁ j₂ : Fin (n+2)) := Equiv.Perm.setAll [(0,j₁), (1,j₂)]
 
-namespace reorder_j1_j2
+namespace permColumns_j1_j2
 variable {j1 j2 : Fin (n+2)} (h : j1 ≠ j2)
 include h
 
-@[simp] theorem app_0 : reorder_j1_j2 j1 j2 0 = j1 := by
-  unfold reorder_j1_j2; apply Equiv.setAll_eq_of_mem <;> simp [h]
-@[simp] theorem eq_j1 : reorder_j1_j2 j1 j2 j = j1 ↔ j = 0 := by
-  rw [← (reorder_j1_j2 j1 j2).apply_eq_iff_eq (x := j), app_0 h]
+@[simp] theorem app_0 : permColumns_j1_j2 j1 j2 0 = j1 := by
+  unfold permColumns_j1_j2; apply Equiv.setAll_eq_of_mem <;> simp [h]
+@[simp] theorem eq_j1 : permColumns_j1_j2 j1 j2 j = j1 ↔ j = 0 := by
+  rw [← (permColumns_j1_j2 j1 j2).apply_eq_iff_eq (x := j), app_0 h]
 
-@[simp] theorem app_1  : reorder_j1_j2 j1 j2 1 = j2 := by
-  unfold reorder_j1_j2; apply Equiv.setAll_eq_of_mem <;> simp [h]
-@[simp] theorem eq_j2 : reorder_j1_j2 j1 j2 j = j2 ↔ j = 1 := by
-  rw [← (reorder_j1_j2 j1 j2).apply_eq_iff_eq (x := j), app_1 h]
+@[simp] theorem app_1  : permColumns_j1_j2 j1 j2 1 = j2 := by
+  unfold permColumns_j1_j2; apply Equiv.setAll_eq_of_mem <;> simp [h]
+@[simp] theorem eq_j2 : permColumns_j1_j2 j1 j2 j = j2 ↔ j = 1 := by
+  rw [← (permColumns_j1_j2 j1 j2).apply_eq_iff_eq (x := j), app_1 h]
 
-end reorder_j1_j2
+end permColumns_j1_j2
 
 /-- The automorphism which moves v₁ to ⟨0,[0*]⟩ and v₂ to ⟨1,[0,1,0*]⟩,
 assuming v₁ and v₂ have the same bits at j ≠ 0 and the same color at j ≠ 1. -/
 def auto {n s} (v₁ v₂ : KVertex (n+2) (s+2)) : KAuto (n+2) (s+2) :=
   (KAuto.flip v₁.idx)
-  |>.trans (KAuto.permute fun j =>
+  |>.trans (KAuto.permColors fun j =>
     if j = 1 then
       Equiv.Perm.setAll [(v₁.color[j], 0), (v₂.color[j], 1)]
     else
@@ -168,7 +168,7 @@ theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, c0_colors⟩ := by
   · unfold auto; simp [KVertex.bv_flip]
   · ext1 j hj
     specialize h j hj
-    simp [auto, KVertex.colors_permute]
+    simp [auto, KVertex.colors_permColors]
     split <;> (apply Equiv.Perm.setAll_eq_of_mem <;> simp_all [Fin.ext_iff])
 
 theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
@@ -182,7 +182,7 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
   · ext1 j hj
     specialize h j hj
     replace h := h.2
-    unfold auto; simp [KVertex.colors_permute, Vector.mkVector]
+    unfold auto; simp [KVertex.colors_permColors, Vector.mkVector]
     if hj : j = 1 then
       simp [hj, Array.getElem_append]
       apply Equiv.setAll_eq_of_mem
@@ -199,23 +199,23 @@ end auto
 theorem ofClique (h : conjectureIn (n+1)) (hs : s+2 ≤ 2^n) (k : KClique (n+2) (s+2))
   : Nonempty (TwoCubes n s) := by
   have ⟨a, a_mem, b, b_mem, j₁, j₂, hne, same_on⟩ := pick_pair k hs h
-  -- apply the reordering automorphism to get vs2, k2, a2, b2
-  let k2 := k.map (KAuto.reorder <| reorder_j1_j2 j₁ j₂)
-  let a2 := (KAuto.reorder (reorder_j1_j2 j₁ j₂)).toFun a
-  let b2 := (KAuto.reorder (reorder_j1_j2 j₁ j₂)).toFun b
+  -- apply the permColumns automorphism to get vs2, k2, a2, b2
+  let k2 := k.map (KAuto.permColumns <| permColumns_j1_j2 j₁ j₂)
+  let a2 := (KAuto.permColumns (permColumns_j1_j2 j₁ j₂)).toFun a
+  let b2 := (KAuto.permColumns (permColumns_j1_j2 j₁ j₂)).toFun b
   have a2_mem : a2 ∈ k2.val := by apply Finset.mem_map_of_mem; exact a_mem
   have b2_mem : b2 ∈ k2.val := by apply Finset.mem_map_of_mem; exact b_mem
   replace same_on : ∀ (j : ℕ) (h : j < n + 2),
       (j ≠ 0 ↔ a2.idx[j] = b2.idx[j]) ∧
       (j ≠ 1 ↔ a2.color[j] = b2.color[j]) := by
     intro j hj
-    simp [a2, b2, KVertex.bv_reorder, KVertex.colors_reorder]
+    simp [a2, b2, KVertex.bv_permColumns, KVertex.colors_permColumns]
     constructor
     · rw [← (same_on _ _).1, not_iff_not, Fin.val_eq_val,
-        reorder_j1_j2.eq_j1 hne, ← Fin.val_eq_val]
+        permColumns_j1_j2.eq_j1 hne, ← Fin.val_eq_val]
       rfl
     · rw [← (same_on _ _).2, not_iff_not, Fin.val_eq_val,
-        reorder_j1_j2.eq_j2 hne, ← Fin.val_eq_val]
+        permColumns_j1_j2.eq_j2 hne, ← Fin.val_eq_val]
       rfl
 
   -- apply the "move to all 0s" automorphism to get vs3, k3
@@ -245,14 +245,14 @@ theorem ofClique (h : conjectureIn (n+1)) (hs : s+2 ≤ 2^n) (k : KClique (n+2) 
 
 /-- We can reorder columns without affecting the first two cubes,
 so long as 0 and 1 aren't reordered. -/
-def reorder (f : Equiv.Perm (Fin (n+2)))
+def permColumns (f : Equiv.Perm (Fin (n+2)))
       (fixed_0 : f 0 = 0) (fixed_1 : f 1 = 1)
       (tc : TwoCubes n s) : TwoCubes n s where
-  kclique := tc.kclique.map (KAuto.reorder f)
+  kclique := tc.kclique.map (KAuto.permColumns f)
   c0 := by
     -- this one is true for any reordering regardless of fixed_0/fixed_1
     ext1 j hj
-    simp [KClique.get_map_reorder]
+    simp [KClique.get_map_permColumns]
     convert tc.c0_j (j := f ⟨j,hj⟩) (hj := Fin.isLt _)
     apply BitVec.eq_of_getElem_eq; simp
   c1 := by
@@ -266,36 +266,36 @@ def reorder (f : Equiv.Perm (Fin (n+2)))
       simp only [Nat.zero_lt_succ, Fin.val_ofNat_of_lt]
     -- therefore...
     ext1 j hj
-    simp only [KClique.get_map_reorder, BitVec.ofNat_eq_ofNat, Fin.getElem_fin, Vector.getElem_ofFn]
+    simp only [KClique.get_map_permColumns, BitVec.ofNat_eq_ofNat, Fin.getElem_fin, Vector.getElem_ofFn]
     conv => enter [1,1,2]; rw [this]
     simp only [tc.c1_j, c1_colors_j]
     congr 1
     conv => lhs; rhs; rw [show 1 = Fin.val (n := n+2) (f 1) by simp [fixed_1]]
     rw [← Fin.ext_iff, Equiv.apply_eq_iff_eq]; simp [Fin.ext_iff]
 
-@[simp] theorem kclique_reorder (tc : TwoCubes n s) :
-  (tc.reorder f fixed_0 fixed_1).kclique = tc.kclique.map (KAuto.reorder f) := rfl
+@[simp] theorem kclique_permColumns (tc : TwoCubes n s) :
+  (tc.permColumns f fixed_0 fixed_1).kclique = tc.kclique.map (KAuto.permColumns f) := rfl
 
 /-- We can permute color without affecting the first two cubes,
 so long as 0 is fixed on all columns and 1 is fixed on column 1. -/
-def permute (f : Fin (n+2) → Equiv.Perm (Fin (s+2)))
+def permColors (f : Fin (n+2) → Equiv.Perm (Fin (s+2)))
       (fixed_0 : ∀ j, (f j) 0 = 0) (fixed_1 : (f 1) 1 = 1)
       (tc : TwoCubes n s) : TwoCubes n s where
-  kclique := tc.kclique.map (KAuto.permute f)
+  kclique := tc.kclique.map (KAuto.permColors f)
   c0 := by
     ext1 j hj
-    simp [KClique.get_map_permute]
+    simp [KClique.get_map_permColors]
     apply fixed_0
   c1 := by
     ext j hj
-    simp [KClique.get_map_permute]
+    simp [KClique.get_map_permColors]
     if h : j = 1 then
       simp [h, fixed_1]
     else
       simp [h, fixed_0]
 
-@[simp] theorem kclique_permute (tc : TwoCubes n s) :
-  (tc.permute f fixed_0 fixed_1).kclique = tc.kclique.map (KAuto.permute f) := rfl
+@[simp] theorem kclique_permColors (tc : TwoCubes n s) :
+  (tc.permColors f fixed_0 fixed_1).kclique = tc.kclique.map (KAuto.permColors f) := rfl
 
 /-- We can swap two neighboring indices without affecting the first two cubes,
 so long as the swap is in column > 2 and the color is not 0. -/

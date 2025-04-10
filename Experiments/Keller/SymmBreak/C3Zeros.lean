@@ -164,12 +164,12 @@ theorem hasNumNz_succ_of_c3_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
       : ∃ tc : TwoCubes n s, hasNumNz tc (numNz+1) numNz_lt := by
   rcases exists_nonzero with ⟨j, range, j_nonzero⟩
 
-  use tc.reorder (Equiv.swap ⟨j,by omega⟩ ⟨2+numNz,by omega⟩) ?fix0 ?fix1
+  use tc.permColumns (Equiv.swap ⟨j,by omega⟩ ⟨2+numNz,by omega⟩) ?fix0 ?fix1
   case fix0 | fix1 =>
     apply Equiv.swap_apply_of_ne_of_ne <;> simp [Fin.ext_iff] <;> omega
 
   intro j' range'
-  rw [TwoCubes.kclique_reorder, KClique.get_map_reorder, Vector.getElem_ofFn]
+  rw [TwoCubes.kclique_permColumns, KClique.get_map_permColumns, Vector.getElem_ofFn]
 
   -- rewrite the bitvec to be 3 again (it's just 3)
   suffices (tc.kclique.get 3)[(Equiv.swap (α := Fin (n+2)) ⟨j, _⟩ ⟨2 + numNz, by omega⟩) ⟨j', by omega⟩] ≠ 0 by
