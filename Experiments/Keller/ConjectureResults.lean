@@ -37,14 +37,35 @@ theorem conjectureIn_2 : conjectureIn 2 := by
   rw [← KCliqueData.checkAll_iff_isempty_kclique]
   native_decide
 
-#print axioms conjectureIn_2
-
 theorem conjectureIn_3 : conjectureIn 3 := by
+  apply conjectureIn_of_cnf_unsat conjectureIn_2
+  trestle_unsat
 
+theorem conjectureIn_4 : conjectureIn 4 := by
+  apply conjectureIn_of_cnf_unsat conjectureIn_3
+  trestle_unsat
+
+theorem conjectureIn_5 : conjectureIn 5 := by
+  apply conjectureIn_of_cnf_unsat conjectureIn_4
+  trestle_unsat
+
+/--
+info: 'Keller.conjectureIn_5' depends on axioms: [propext, Classical.choice, Lean.ofReduceBool, Quot.sound]
+-/
+#guard_msgs in
+#print axioms conjectureIn_5
+
+theorem conjectureIn_6 : conjectureIn 6 := by
+  apply conjectureIn_of_cnf_unsat conjectureIn_5
   sorry
-theorem conjectureIn_4 : conjectureIn 4 := sorry
-theorem conjectureIn_5 : conjectureIn 5 := sorry
-theorem conjectureIn_6 : conjectureIn 6 := sorry
+  --trestle_unsat
+
+/--
+info: 'Keller.conjectureIn_6' depends on axioms: [propext, sorryAx, Classical.choice, Lean.ofReduceBool, Quot.sound]
+-/
+#guard_msgs in
+#print axioms conjectureIn_6
+
 theorem conjectureIn_7 : conjectureIn 7 := sorry
 
 theorem not_conjectureIn_8 : ¬ conjectureIn 8 := by

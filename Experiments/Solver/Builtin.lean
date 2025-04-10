@@ -33,6 +33,42 @@ theorem unsat_of_icnf_to_cnf_unsat (f : ICnf) :
   simp [LitVar.satisfies_iff] at l_sat
   contradiction
 
+initialize registerTraceClass `Trestle.Solver.Builtin
+
+open Lean Meta Elab.Tactic.BVDecide.Frontend in
+/-- this is modified from BVDecide.Frontend mkReflectionProof -/
+def mkReflectionProof (cert : LratCert) (cfg : TacticContext)
+    (reflectedExpr : Expr)
+    (verifier : Name) (unsat_of_verifier_eq_true : Name) : MetaM Expr := do
+
+  let certType := toTypeExpr LratCert
+
+  withTraceNode `Trestle.Solver.Builtin (fun _ => return "Compiling proof certificate term") do
+    mkAuxDecl cfg.certDef (toExpr cert) certType
+
+  let certExpr := mkConst cfg.certDef
+
+  withTraceNode `Trestle.Solver.Builtin (fun _ => return "Compiling reflection proof term") do
+    let auxValue := mkApp2 (mkConst verifier) reflectedExpr certExpr
+    mkAuxDecl cfg.reflectionDef auxValue (mkConst ``Bool)
+
+  let auxType ← mkEq (mkConst cfg.reflectionDef) (toExpr true)
+  let auxProof :=
+    mkApp3
+      (mkConst ``Lean.ofReduceBool)
+      (mkConst cfg.reflectionDef)
+      (toExpr true)
+      (← mkEqRefl (toExpr true))
+  try
+    let auxLemma ←
+      -- disable async TC so we can catch its exceptions
+      withOptions (Elab.async.set · false) do
+        withTraceNode `Trestle.Solver.Builtin (fun _ => return "Verifying LRAT certificate") do
+          mkAuxLemma [] auxType auxProof
+    return mkApp3 (mkConst unsat_of_verifier_eq_true) reflectedExpr certExpr (mkConst auxLemma)
+  catch e =>
+    throwError m!"Failed to check the LRAT certificate in the kernel:\n{e.toMessageData}"
+
 open Lean Elab.Tactic Parser.Tactic in
 elab "trestle_unsat" cfg:optConfig : tactic => unsafe do
   withMainContext do
@@ -43,6 +79,7 @@ elab "trestle_unsat" cfg:optConfig : tactic => unsafe do
       | throwError f!"expected goal to look like: Trestle.ICnf.Unsat _; got: {goalType}"
 
     let icnf ← Meta.evalExpr ICnf q(ICnf) f
+    trace[Trestle.Solver.Builtin] m!"Running solver on CNF with {icnf.size} clauses"
     let cnf := icnf_to_cnf icnf
 
     let cfg ← BVDecide.Frontend.elabBVDecideConfig cfg
@@ -52,13 +89,23 @@ elab "trestle_unsat" cfg:optConfig : tactic => unsafe do
       let .ok cert ← BVDecide.Frontend.runExternal cnf cfg.solver cfg.lratPath cfg.config.trimProofs cfg.config.timeout cfg.config.binaryProofs
         | throwError f!"Call to SAT solver failed to return unsat"
 
-      let pf ← Lean.Elab.Tactic.BVDecide.Frontend.LratCert.toReflectionProof cert cfg cnf
+      trace[Trestle.Solver.Builtin] m!"Solver found UNSAT proof of length {String.length cert} bytes"
+
+      let pf ← mkReflectionProof cert cfg q(icnf_to_cnf $f)
         ``Std.Tactic.BVDecide.Reflect.verifyCert ``Std.Tactic.BVDecide.Reflect.verifyCert_correct
 
       goal.assign (mkApp2 (mkConst ``unsat_of_icnf_to_cnf_unsat) f pf)
 
-
-def testCnf : ICnf := #[ #[1,2,3], #[-1], #[-2], #[-3, 1] ]
+def testCnf : ICnf :=
+  let allOfEm := List.range 10000 |>.map Nat.succPNat
+  allOfEm.toArray.map (#[LitVar.mkNeg ·])
+  |>.push (allOfEm.toArray.map (LitVar.mkPos ·))
 
 theorem test : testCnf.Unsat := by
   trestle_unsat
+
+/--
+info: 'Trestle.Solver.Builtin.test' depends on axioms: [propext, Classical.choice, Lean.ofReduceBool, Quot.sound]
+-/
+#guard_msgs in
+#print axioms test
