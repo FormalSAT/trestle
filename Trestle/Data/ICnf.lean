@@ -151,4 +151,7 @@ abbrev ICnf := Cnf ILit
 def ICnf.maxVar (fml : ICnf) : Nat :=
   fml.maxBy (·.maxBy (LitVar.toVar · |>.val) |>.getD 0) |>.getD 0
 
+def ICnf.Sat (f : ICnf) : Prop := f.toPropFun.satisfiable
+abbrev ICnf.Unsat (f : ICnf) : Prop := ¬f.Sat
+
 abbrev ICube := Cube ILit
