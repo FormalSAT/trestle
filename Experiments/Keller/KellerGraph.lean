@@ -9,6 +9,7 @@ import Experiments.Keller.Upstream
 
 import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Combinatorics.SimpleGraph.Clique
+import Mathlib.Data.Finset.Card
 
 namespace Keller
 
@@ -206,6 +207,69 @@ def liftS {s'} (h : s' ≥ s) (k : KClique n s) : KClique n s' :=
       use j1; simp_all
       use j2
     · simp [k.property.card_eq] ⟩
+
+private theorem bv_oneBit_fixed_card (j : Fin (n+1)) :
+    (Finset.univ |>.filter (α := BitVec (n+1)) (·[j])).card = 2^n := by
+  let trues := Finset.filter (α := BitVec (n+1)) (fun x => x[j] = true) Finset.univ
+  let falses := Finset.filter (α := BitVec (n+1)) (fun x => x[j] = false) Finset.univ
+  refold_let trues
+
+  have : trues.card = falses.card := by
+    apply Finset.card_bijective (e := (· ^^^ .oneAt j))
+    case he =>
+      apply Function.Involutive.bijective
+      intro x; simp [BitVec.xor_assoc]
+    case hst =>
+      simp +zetaDelta
+
+  have : trues.card + falses.card = 2^(n+1) := by
+    have disj : Disjoint trues falses := by
+      rw [Finset.disjoint_iff_ne]; intro a a_mem b b_mem
+      simp +zetaDelta at a_mem b_mem
+      rintro rfl; simp_all
+    have : trues.disjUnion falses disj = Finset.univ := by
+      ext v; simp +zetaDelta
+    rw [← Finset.card_disjUnion, this]; simp
+
+  omega
+
+def colorsInCol_lt (c : KClique (n+1) s) (j : Fin (n+1)) :
+    (c.val.image (fun v => v.color[j])).card ≤ 2^n := by
+  let S :=
+    c.val.filter (α := KVertex _ _) (·.idx[j])
+    |>.image (·.color[j])
+  calc
+    _ = S.card := by
+      congr 1
+      ext k
+      simp [S]
+      constructor
+      · rintro ⟨⟨i,cs⟩,v_mem,rfl⟩
+        rw [← c.get_eq_iff_mem] at v_mem; subst v_mem
+        if h : i[j] then
+          use ⟨i,c.get i⟩
+          simp_all [c.get_mem i]
+        else
+          let i' := i ^^^ .oneAt j
+          have : i'[j] := by unfold i'; simp_all
+          have := c.get_adj_of_eq_xor (i₁ := i) (i₂ := i') j rfl |>.1
+          use ⟨i', c.get i'⟩
+          simp_all [c.get_mem i']
+      · rintro ⟨a,⟨a_mem,_⟩,h⟩
+        exact ⟨a,a_mem,h⟩
+    _ ≤ (Finset.filter _ c.val).card :=
+      Finset.card_image_le
+    _ = (Finset.filter (fun x => x[j] = true) Finset.univ).card := by
+      rw [eq_comm]
+      apply Finset.card_nbij (i := fun i => ⟨i,c.get i⟩)
+      case hi =>
+        simp [c.get_mem]
+      case i_inj =>
+        simp +contextual [Set.InjOn]
+      case i_surj =>
+        rintro ⟨i,v⟩
+        simp +contextual [c.get_eq_iff_mem]
+    _ = 2^n := bv_oneBit_fixed_card j
 
 end KClique
 
