@@ -6,7 +6,6 @@ Authors: James Gallicchio
 -/
 
 import Trestle.Encode
-import Trestle.Data.Cube
 import Trestle.Solver.Dimacs
 import Trestle.Upstream.IndexTypeInstances
 
@@ -306,8 +305,7 @@ where
         · ext v; simp
         · aesop
         · use Literal.pos (.inr (j',k))
-          simp
-          use j', j'_ne, k
+          simp [j'_ne]
       )
   xNeAt (i i' j' k) : VEncCNF (Vars n s ⊕ _ × _) Unit
         (fun τ => τ (.inr (j',k)) → τ (.inl <| x i j' k) ≠ τ (.inl <| x i' j' k)) :=
