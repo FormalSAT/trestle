@@ -31,7 +31,7 @@ because otherwise we need to prove everywhere that clauses are "within range"
 -/
 @[ext]
 structure State (ν : Type u) where
-  nextVar : PNat
+  nextVar : IVar
   cnf : RichCnf
   vMap : ν → IVar
   vNames : Batteries.RBMap IVar String compare
@@ -43,8 +43,8 @@ def toPropFun (s : State ν) : PropFun IVar := s.cnf.toICnf.toPropFun
 
 -- extract_closed off because otherwise the empty array becomes a shared object...
 set_option compiler.extract_closed false in
-def new (vars : PNat) (f : ν → IVar) (vNames : List (ν × String)) : State ν := {
-  nextVar := vars
+def new (nextVar : IVar) (f : ν → IVar) (vNames : List (ν × String)) : State ν := {
+  nextVar,
   cnf := #[]
   vMap := f
   vNames := vNames.foldl (init := .empty) (fun acc (v,n) => acc.insert (f v) n)
@@ -114,9 +114,9 @@ existentially quantified away.
 noncomputable def interp (s : LawfulState ν) : PropAssignment ν → Prop :=
   fun τ => ∃ σ, τ = PropAssignment.map s.vMap σ ∧ σ ⊨ s.toPropFun
 
-def new (vars : PNat) (f : ν ↪ IVar) (h : ∀ v, f v < vars) (names : List (ν × String))
+def new (nextVar : IVar) (f : ν ↪ IVar) (h : ∀ v, f v < nextVar) (names : List (ν × String))
     : LawfulState ν := {
-  State.new vars f names with
+  State.new nextVar f names with
   cnfVarsLt := by intro c hc _ _; simp [State.new, RichCnf.toICnf] at hc
   vMapLt := h
   vMapInj := f.injective
@@ -133,25 +133,12 @@ theorem interp_new (vars) (f : ν ↪ IVar) (h) (names)
 theorem toState_new (vars) (f : ν ↪ IVar) (h) (names)
   : (new vars f h names).toState = State.new vars f names := rfl
 
-def new' (vars : Nat) (f : ν ↪ Fin vars) (names : List (ν × String)) : LawfulState ν :=
-  new (Nat.succPNat vars)
-    ⟨ fun v => Nat.succPNat (f v)
-    , by intro x y; simp [State.new, ← PNat.val_eq_val, Fin.val_inj]⟩
-    (by
-      intro v; simp [State.new, Nat.succPNat]
-      rw [PNat.mk_lt_mk, Nat.succ_lt_succ_iff]
-      exact (f v).isLt)
-    names
-
-@[simp]
-theorem interp_new' (vars) (f : ν ↪ Fin vars) (names)
-  : interp (new' vars f names) = fun _ => True := by simp [new']
 
 def addClause (C : Clause (Literal ν)) : LawfulState ν → LawfulState ν
 | {toState, vMapLt, vMapInj, cnfVarsLt} => {
   toState := toState.addClause C
-  vMapLt := vMapLt
-  vMapInj := vMapInj
+  vMapLt,
+  vMapInj,
   cnfVarsLt := by
     intro c hc v hv
     simp [State.addClause, Cnf.addClause, Clause.or, LitVar.map] at hc
@@ -175,8 +162,8 @@ open PropFun in
 def addComment (comm : String) : LawfulState ν → LawfulState ν
 | {toState, vMapLt, vMapInj, cnfVarsLt} => {
   toState := toState.addComment comm
-  vMapLt := vMapLt
-  vMapInj := vMapInj
+  vMapLt
+  vMapInj
   cnfVarsLt := by
     intro c hc v hv
     simp [State.addComment] at hc ⊢
@@ -200,7 +187,7 @@ end EncCNF
 
 This requires quite a few invariants to be held.
 It receives and produces lawful states, and
-never decreases the `nextVar`.
+`nextVar` is nondecreasing.
 -/
 def EncCNF (ν) (α) :=
   { sa : StateM (EncCNF.LawfulState ν) α //
@@ -217,9 +204,9 @@ instance : Monad (EncCNF ν) where
     simp [bind, StateT.bind]
     split
     next a s' hs' =>
-    apply Nat.le_trans (m := s'.nextVar)
+    apply Nat.le_trans (m := s'.nextVar.val)
     · have := h s
-      rw [hs'] at this
+      rw [hs', IVar.le_def] at this
       exact this
     · exact (f a).2 s'
     ⟩
@@ -243,12 +230,16 @@ instance : LawfulMonad (EncCNF ν) where
     intros; simp [bind]; rfl
 
 def run [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) (names : List (ν × String) := []) : α × LawfulState ν :=
-  e.1.run <| LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding) names
+  e.1.run <| LawfulState.new
+    (nextVar := .ofIndex (IndexType.card ν))
+    (f := .trans IndexType.toEquiv.toEmbedding <|
+          .trans Fin.valEmbedding
+          ⟨IVar.ofIndex,by intro a b; simp [IVar.ofIndex_inj]⟩ )
+    (h := by intro v; simp)
+    (names := names)
 
 def runUnit [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν Unit) (names : List (ν × String) := []) : LawfulState ν :=
-  LawfulState.new' (IndexType.card ν) (IndexType.toEquiv.toEmbedding) names
-  |> e.1.run
-  |>.2
+  run e names |>.2
 
 def toRichCnf [IndexType ν] [LawfulIndexType ν] (e : EncCNF ν α) : RichCnf :=
   (run e).2.cnf
@@ -284,7 +275,7 @@ def addAssn [BEq ν] [Hashable ν] (a : HashAssn (Literal ν)) : EncCNF ν Unit 
 
 def State.withTemps [IndexType ι] (s : State ν) (names : Option (ι → String)) : State (ν ⊕ ι) where
   cnf := s.cnf
-  nextVar := ⟨s.nextVar + IndexType.card ι, by simp⟩
+  nextVar := s.nextVar + IndexType.card ι
   vMap := vMap s.vMap s.nextVar
   vNames :=
     match names with
@@ -300,7 +291,7 @@ def State.withTemps [IndexType ι] (s : State ν) (names : Option (ι → String
 where vMap (vMap nextVar x):=
   match x with
   | Sum.inl v => vMap v
-  | Sum.inr i => ⟨nextVar + IndexType.toFin i, by simp⟩
+  | Sum.inr i => nextVar + (IndexType.toFin i).val
 
 @[simp] theorem State.cnf_withTemps [IndexType ι] (s : State ν) :
     (State.withTemps s (ι := ι) names).cnf = s.cnf
@@ -312,29 +303,24 @@ def LawfulState.withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState �
   cnfVarsLt := by
     simp [State.withTemps]
     intro c hc l hl
-    apply Nat.lt_of_lt_of_le
+    apply Nat.le_trans
     · exact s.cnfVarsLt c hc l hl
-    · simp; apply Nat.le_add_right
+    · simp
   vMapLt := by
-    simp [State.withTemps]
-    constructor
-    · intro v; apply Nat.lt_of_lt_of_le
-      · apply s.vMapLt
-      · simp; apply Nat.le_add_right
-    · intro a; apply (PNat.mk_lt_mk ..).mpr; simp
+    simp [State.withTemps, State.withTemps.vMap]
+    intro v; apply Nat.le_trans
+    · apply s.vMapLt
+    · simp
   vMapInj := by
     intro v1 v2
     simp [State.withTemps]
-    cases v1 <;> cases v2 <;> simp
+    rcases v1 with (v1|i1) <;> rcases v2 with (v2|i2) <;> simp [State.withTemps.vMap]
     · apply s.vMapInj
-    · intro h; simp [State.withTemps.vMap] at h; have := h ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
-    · intro h; simp [State.withTemps.vMap] at h; have := h.symm ▸ s.vMapLt _; simp [← PNat.coe_lt_coe] at this
-    · simp [State.withTemps.vMap]; rw [Subtype.mk_eq_mk]
-      intro h
-      replace h := Nat.add_left_cancel h
-      replace h := Fin.eq_of_val_eq h
-      rw [IndexType.toFin_eq_iff] at h
-      exact h
+    · have := s.vMapLt v1; rw [IVar.lt_def] at this; rw [Subtype.ext_iff, IVar.val_addNat]; omega
+    · have := s.vMapLt v2; rw [IVar.lt_def] at this; rw [Subtype.ext_iff, IVar.val_addNat]; omega
+    · rw [Subtype.ext_iff]; simp [IVar.val_addNat]
+      rw [Fin.val_eq_val, IndexType.toFin_eq_iff]
+      exact id
 
 @[simp] theorem LawfulState.vMap_withTemps [IndexType ι] [LawfulIndexType ι] (s : LawfulState ν) :
     (s.withTemps (ι := ι) names).vMap = State.withTemps.vMap s.vMap s.nextVar
@@ -365,9 +351,8 @@ theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : La
         rw [PropAssignment.setMany_not_mem]
         simp; intro x
         have := s.vMapLt v
-        rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
-        simp; apply Nat.ne_of_gt
-        exact Nat.lt_add_right _ this
+        rw [←Subtype.val_inj]; rw [IVar.lt_def] at this
+        simp; omega
       · simp [State.withTemps.vMap]
     · apply (Model.PropFun.agreeOn_semVars _).mpr h2
       intro v hv
@@ -376,9 +361,8 @@ theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : La
       rw [PropAssignment.setMany_not_mem]
       simp [State.withTemps.vMap]
       intro v'
-      rw [←Subtype.val_inj]; rw [← PNat.coe_lt_coe] at this
-      simp; apply Nat.ne_of_gt
-      exact Nat.lt_add_right _ this
+      rw [←Subtype.val_inj]; rw [IVar.lt_def] at this
+      simp; omega
 
 
 def State.withoutTemps (vMap : ν → IVar) (s : State (ν ⊕ ι)) : State ν where
@@ -398,7 +382,7 @@ def LawfulState.withoutTemps (s : LawfulState (ν ⊕ ι))
   cnfVarsLt := by
     simp [State.withoutTemps]
     intro c hc l hl
-    apply Nat.lt_of_lt_of_le
+    apply Nat.le_trans
     · exact s.cnfVarsLt c hc l hl
     · simp
   vMapLt := by
@@ -439,16 +423,17 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] (e : EncCNF (ν ⊕ ι) �
     match h : e.1 tempify with
     | (a,s') =>
     (a, s'.withoutTemps vMap (by
-        intro v; apply Nat.lt_of_lt_of_le (m := s.nextVar)
+        intro v; rw [IVar.lt_def]
+        apply Nat.lt_of_lt_of_le (m := s.nextVar.val)
         · apply s.vMapLt
-        · have := e.nextVar_mono_of_eq h
-          apply Nat.le_trans (m := s.nextVar + IndexType.card ι)
-          · simp
-          · exact (PNat.coe_le_coe ..).mp this
+        · apply Nat.le_trans (m := tempify.nextVar.val)
+          · simp [tempify, LawfulState.withTemps, State.withTemps]
+          · rw [← IVar.le_def]
+            exact e.nextVar_mono_of_eq h
       ) vMapInj)
   , by simp [LawfulState.withoutTemps, State.withoutTemps]
        intro s; split; simp; have := e.nextVar_mono_of_eq ‹_›
        simp [LawfulState.withTemps, State.withTemps] at this
-       apply Nat.le_trans (m := s.nextVar + IndexType.card ι)
+       apply Nat.le_trans (m := (s.nextVar + IndexType.card ι).val)
        · apply Nat.le_add_right
        · exact (PNat.coe_le_coe ..).mp this⟩

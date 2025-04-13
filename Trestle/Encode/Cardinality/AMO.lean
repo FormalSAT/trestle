@@ -9,23 +9,15 @@ import Trestle.Encode.Cardinality.Defs
 
 namespace Trestle.Encode.Cardinality
 
-open VEncCNF Model PropFun
-
-@[inline] def atLeastOne (lits : Array (Literal ν)) :
-    VEncCNF ν Unit (atLeast 1 (Multiset.ofList lits.toList)) :=
-  addClause lits
-  |>.mapProp (by
-    ext τ
-    simp [Clause.satisfies_iff, card]
-  )
-
-/-!
+/-
 
 # At-most one encodings
 
 TODO: When we accumulate more encodings, split into separate files.
 
 -/
+
+open VEncCNF Model PropFun
 
 /--
   The pairwise at-most-one encoding.
@@ -136,6 +128,5 @@ termination_by lits.size
 -- CC: Run it if you want
 --#eval (amoSeqCounter #[LitVar.mkPos 0, LitVar.mkPos 1, LitVar.mkPos 2, LitVar.mkPos 3])
 --  |>.val.toICnf
-
 
 end Trestle.Encode.Cardinality

@@ -1,11 +1,11 @@
 /-
 Copyright (c) 2024 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
-
-Authors: James Gallicchio
 -/
 
-import Trestle.Data.Cnf
+import Trestle.Data.LitVar.Defs
+
+-- Included by `Trestle.Data.Cnf`
 
 namespace Trestle
 
@@ -24,13 +24,17 @@ instance : LitVar (Literal ν) ν where
   polarity := polarity
 
 instance : LawfulLitVar (Literal ν) ν where
-  toVar_negate := by aesop
-  toVar_mkPos := by aesop
-  toVar_mkNeg := by aesop
-  polarity_negate := by aesop
-  polarity_mkPos := by aesop
-  polarity_mkNeg := by aesop
-  ext := by intro l1 l2; cases l1; cases l2; aesop
+  toVar_negate := by intro _; simp only [Neg.neg, LitVar.negate, LitVar.toVar]
+  toVar_mkPos := by simp [LitVar.mkPos, LitVar.toVar]
+  toVar_mkNeg := by simp [LitVar.mkNeg, LitVar.toVar]
+  polarity_negate := by intro _; simp only [Neg.neg, LitVar.negate, LitVar.polarity]
+  polarity_mkPos := by simp [LitVar.mkPos, LitVar.polarity]
+  polarity_mkNeg := by simp [LitVar.mkNeg, LitVar.polarity]
+  ext := by
+    intro l1 l2; cases l1; cases l2;
+    simp [LitVar.toVar, LitVar.polarity]
+    rintro rfl rfl
+    exact ⟨rfl, rfl⟩
 
 @[simp] abbrev pos : ν → Literal ν := LitVar.mkPos
 @[simp] abbrev neg : ν → Literal ν := LitVar.mkNeg

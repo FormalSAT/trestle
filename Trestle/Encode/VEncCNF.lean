@@ -39,14 +39,13 @@ theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
   : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
     (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toICnf.toPropFun) := by
   simp [EncCNF.toICnf, run, StateT.run]
-  generalize hls : LawfulState.new' _ _ _ = ls
+  generalize hls : LawfulState.new _ _ _ _ = ls
   have := h ls
   generalize hls' : e.1 ls = ls' at this
   rcases ls' with ⟨a,ls'⟩
   simp only at this ⊢
   rcases this with ⟨-,h3⟩
-  rw [←hls] at h3
-  simp [LawfulState.new', State.new, Clause.toPropFun] at h3
+  rw [←hls] at h3; simp at h3
   clear hls' hls
   simp_rw [← h3]
   simp [LawfulState.interp]

@@ -8,6 +8,26 @@ Authors: James Gallicchio, Cayden Codel
 import Std
 import Batteries
 
+@[simp] theorem Bool.bnot_eq_bnot (a b : Bool) :
+  ((!a) = !b) ↔ (a = b) := by cases a <;> cases b <;> decide
+@[simp] theorem Bool.eq_true_iff_eq_true (a b : Bool) :
+  (a = true ↔ b = true) ↔ (a = b) := by cases a <;> cases b <;> decide
+@[simp] theorem Bool.eq_false_iff_eq_false (a b : Bool) :
+  (a = false ↔ b = false) ↔ (a = b) := by cases a <;> cases b <;> decide
+
+theorem Bool.bnot_eq (a b : Bool) :
+  ((!a) = b) ↔ ¬(a = b) := by cases a <;> cases b <;> decide
+theorem Bool.eq_bnot (a b : Bool) :
+  (a = (!b)) ↔ ¬(a = b) := by cases a <;> cases b <;> decide
+
+/-! Int -/
+
+theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 := by
+  intro h
+  by_cases hLt : 0 < i
+  . have := h.mpr hLt; omega
+  . have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); omega
+
 def List.enum' (L : List α) : List (Fin L.length × α) :=
   let rec go (rest : List α) (i : Nat)
               (h : i + rest.length = L.length) :=

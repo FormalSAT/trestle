@@ -9,6 +9,7 @@ import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite.Lattice
 import Mathlib.Tactic.ByContra
 
+import Trestle.Upstream.ToStd
 import Trestle.Model.PropFun
 
 namespace Trestle.Model

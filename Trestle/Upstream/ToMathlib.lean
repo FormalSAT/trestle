@@ -12,20 +12,6 @@ import Mathlib.Data.Setoid.Basic
 
 /-! Stuff that seems like it should be in std or mathlib. -/
 
-/-! Std.Logic or Std.Bool? -/
-
-@[simp] theorem Bool.bnot_eq_bnot (a b : Bool) :
-  ((!a) = !b) ↔ (a = b) := by cases a <;> cases b <;> decide
-@[simp] theorem Bool.eq_true_iff_eq_true (a b : Bool) :
-  (a = true ↔ b = true) ↔ (a = b) := by cases a <;> cases b <;> decide
-@[simp] theorem Bool.eq_false_iff_eq_false (a b : Bool) :
-  (a = false ↔ b = false) ↔ (a = b) := by cases a <;> cases b <;> decide
-
-theorem Bool.bnot_eq (a b : Bool) :
-  ((!a) = b) ↔ ¬(a = b) := by cases a <;> cases b <;> decide
-theorem Bool.eq_bnot (a b : Bool) :
-  (a = (!b)) ↔ ¬(a = b) := by cases a <;> cases b <;> decide
-
 /-- Add bi-implication notation for Lattices. See `Mathlib.Order.Notation`. -/
 infixr:60 " ⇔ " => fun φ₁ φ₂ => (φ₁ ⇨ φ₂) ⊓ (φ₂ ⇨ φ₁)
 
@@ -47,14 +33,6 @@ theorem Nat.eq_or_lt_of_lt_succ {m n : Nat} : m < n + 1 → m = n ∨ m < n := b
   rcases eq_or_lt_of_le (Nat.le_of_lt_succ h) with (rfl | h)
   · exact Or.inl rfl
   · exact Or.inr h
-
-/-! Int -/
-
-theorem Int.eq_zero_of_lt_neg_iff_lt (i : Int) : (0 < -i ↔ 0 < i) → i = 0 := by
-  intro h
-  by_cases hLt : 0 < i
-  . have := h.mpr hLt; linarith
-  . have : ¬ 0 < -i := fun h₂ => hLt (h.mp h₂); linarith
 
 instance : HAdd PNat Nat PNat where
   hAdd | ⟨a,h⟩, b => ⟨a+b, Nat.add_pos_left h _⟩

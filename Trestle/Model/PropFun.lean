@@ -476,36 +476,52 @@ theorem satisfies_any {a : Multiset (PropFun ν)} {τ : PropAssignment ν}
   | empty => simp [any]
   | cons => simp_all [any]
 
-/-! # satisfiable and eqsat -/
+@[simp]
+theorem any_zero : any (0 : Multiset (PropFun ν)) = ⊥ := by
+  simp only [any, Multiset.sup_zero]
 
-def satisfiable (φ : PropFun ν) : Prop :=
+@[simp]
+theorem any_empty : any (∅ : Multiset (PropFun ν)) = ⊥ := by
+  simp only [Multiset.empty_eq_zero, any_zero]
+
+@[simp]
+theorem all_zero : all (0 : Multiset (PropFun ν)) = ⊤ := by
+  simp only [all, Multiset.inf_zero]
+
+@[simp]
+theorem all_empty : all (∅ : Multiset (PropFun ν)) = ⊤ := by
+  simp only [Multiset.empty_eq_zero, all_zero]
+
+/-! # Satisfiable and Equisatisfiable -/
+
+def Sat (φ : PropFun ν) : Prop :=
   ∃ (τ : PropAssignment ν), τ ⊨ φ
 
-def eqsat (φ₁ φ₂ : PropFun ν) : Prop :=
-  satisfiable φ₁ ↔ satisfiable φ₂
+def EquiSat (φ₁ φ₂ : PropFun ν) : Prop :=
+  Sat φ₁ ↔ Sat φ₂
 
 @[symm]
-def eqsat.symm {φ₁ φ₂ : PropFun ν} : eqsat φ₁ φ₂ ↔ eqsat φ₂ φ₁ :=
+def EquiSat.symm {φ₁ φ₂ : PropFun ν} : EquiSat φ₁ φ₂ ↔ EquiSat φ₂ φ₁ :=
   ⟨fun h => ⟨h.2, h.1⟩, fun h => ⟨h.2, h.1⟩⟩
 
 @[trans]
-def eqsat.trans {φ₁ φ₂ φ₃ : PropFun ν} : eqsat φ₁ φ₂ → eqsat φ₂ φ₃ → eqsat φ₁ φ₃ :=
+def EquiSat.trans {φ₁ φ₂ φ₃ : PropFun ν} : EquiSat φ₁ φ₂ → EquiSat φ₂ φ₃ → EquiSat φ₁ φ₃ :=
   fun h₁ h₂ => ⟨fun h => h₂.1 (h₁.1 h), fun h => h₁.2 (h₂.2 h)⟩
 
 @[simp]
-theorem top_satisfiable : satisfiable (⊤ : PropFun ν) := by
+theorem top_sat : Sat (⊤ : PropFun ν) := by
   use (fun _ => ⊤)
   simp only [top_eq_true, satisfies_tr]
 
 @[simp]
-theorem bot_not_satisfiable : ¬satisfiable (⊥ : PropFun ν) := by
+theorem bot_not_sat : ¬Sat (⊥ : PropFun ν) := by
   intro h
   rcases h with ⟨τ, h⟩
   exact nomatch h
 
 @[simp]
-theorem not_satisfiable_iff_eq_bot {F : PropFun ν} : ¬satisfiable F ↔ F = ⊥ := by
-  simp [satisfiable]
+theorem not_sat_iff_eq_bot {F : PropFun ν} : ¬Sat F ↔ F = ⊥ := by
+  simp [Sat]
   constructor
   · intro hF
     ext τ
@@ -518,15 +534,15 @@ theorem not_satisfiable_iff_eq_bot {F : PropFun ν} : ¬satisfiable F ↔ F = �
   · rintro rfl
     simp only [not_satisfies_fls, not_false_eq_true, implies_true]
 
-theorem eq_bot_of_eqsat {F C : PropFun ν} : eqsat F (F ⊓ C) → (F ⊓ C) = ⊥ → F = ⊥ := by
+theorem eq_bot_of_equisat {F C : PropFun ν} : EquiSat F (F ⊓ C) → (F ⊓ C) = ⊥ → F = ⊥ := by
   rintro ⟨h₁, _⟩ hFC
   rw [hFC] at h₁
-  have := mt h₁ bot_not_satisfiable
-  exact not_satisfiable_iff_eq_bot.mp (mt h₁ bot_not_satisfiable)
+  have := mt h₁ bot_not_sat
+  exact not_sat_iff_eq_bot.mp (mt h₁ bot_not_sat)
 
-theorem eqsat_of_entails {F C : PropFun ν} : F ≤ C → eqsat F (F ⊓ C) := by
+theorem equisat_of_entails {F C : PropFun ν} : F ≤ C → EquiSat F (F ⊓ C) := by
   intro h_entails
-  simp only [eqsat, satisfiable, ge_iff_le, satisfies_conj]
+  simp only [EquiSat, Sat, ge_iff_le, satisfies_conj]
   exact ⟨fun ⟨τ, hτ⟩ => ⟨τ, hτ, h_entails τ hτ⟩, fun ⟨τ, hτ, _⟩ => ⟨τ, hτ⟩⟩
 
 namespace Notation
