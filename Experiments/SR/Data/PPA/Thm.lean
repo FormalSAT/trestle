@@ -6,7 +6,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 import Trestle.Data.Cnf
 import Trestle.Data.ICnf
 
-import Trestle.Data.PPA.Defs
+import Experiments.SR.Data.PPA.Defs
 
 /-
   Persistent partial assignments (PPA).

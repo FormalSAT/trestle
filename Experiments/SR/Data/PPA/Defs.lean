@@ -6,8 +6,9 @@ Authors: Cayden Codel, Wojciech Nawrocki, James Gallicchio
 -/
 
 import Trestle.Data.ICnf.Defs
-import Trestle.Upstream.SetF
 import Trestle.Upstream.ToStd
+
+import Experiments.SR.SetF
 
 
 -- CC: The only thing contained in the commented-out file in `trestle-code` is the following `Nat` proof

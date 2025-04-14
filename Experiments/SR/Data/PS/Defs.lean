@@ -6,7 +6,7 @@ Authors: Cayden Codel
 -/
 
 import Trestle.Data.ICnf
-import Trestle.Upstream.SetF
+import Experiments.SR.SetF
 
 /-!
 

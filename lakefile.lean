@@ -21,5 +21,9 @@ lean_exe keller {
   --moreLeancArgs := #["-UNDEBUG", "-Og", "-ggdb", "-g3", "-fno-omit-frame-pointer"]
 }
 
+lean_exe srcheck {
+  root := `Experiments.SR.SRCheckerExe
+}
+
 require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.18.0"
 require Cli from git "https://github.com/leanprover/lean4-cli" @ "v4.18.0"
