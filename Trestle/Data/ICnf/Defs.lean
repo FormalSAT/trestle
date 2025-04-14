@@ -129,6 +129,7 @@ def toNegILit : IVar → ILit
 instance instCoeIVar : Coe IVar ILit where
   coe v := toPosILit v
 
+instance instOfNat : OfNat IVar (n+1) := ⟨n+1, by omega⟩
 
 end IVar
 
