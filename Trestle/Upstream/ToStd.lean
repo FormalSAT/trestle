@@ -66,6 +66,48 @@ def Fin.succ? : {n : Nat} → Fin n → Option (Fin n)
   then some ⟨i+1, Nat.succ_le_succ h⟩
   else none
 
+theorem Fin.foldl_induction (n) (f : α → Fin n → α) (init : α) (P : α → Fin (n+1) → Prop)
+    (hInit : P init 0)
+    (hSucc : ∀ a (i : Fin n), P a ⟨i.val, Nat.lt_succ_of_lt i.is_lt⟩ → P (f a i) ⟨i.val+1, Nat.succ_lt_succ i.is_lt⟩) :
+    P (Fin.foldl n f init) ⟨n, Nat.lt_succ_self n⟩ :=
+  loop init 0 hInit
+where
+  loop (x : α) (i : Fin (n+1)) (h : P x i) : P (Fin.foldl.loop n f x i.val) ⟨n, Nat.lt_succ_self n⟩ := by
+    unfold foldl.loop
+    split
+    next h =>
+      have := loop (f x ⟨i.val, h⟩) ⟨i.val+1, Nat.succ_lt_succ h⟩
+      apply this
+      apply hSucc
+      assumption
+    next h =>
+      have : i.val = n := Nat.eq_of_le_of_lt_succ (by omega) i.is_lt
+      conv => enter [2,1]; rw [← this]
+      assumption
+  termination_by n - i
+
+theorem Fin.foldl_induction' (n) (f : α → Fin n → α) (init : α) (P : α → Prop)
+    (hInit : P init)
+    (hSucc : ∀ a i, P a → P (f a i)) :
+    P (Fin.foldl n f init) :=
+  Fin.foldl_induction n f init (fun a _ => P a) hInit hSucc
+
+theorem Fin.foldl_of_comm (n) (f : α → Fin n → α) (init : α) (i : Fin n)
+    (H : ∀ (acc : α) (i₁ i₂ : Fin n), f (f acc i₁) i₂ = f (f acc i₂) i₁) :
+    ∃ (acc : α), Fin.foldl n f init = f acc i :=
+  i.is_lt |> Fin.foldl_induction n f init (fun res j => i.val < j.val → ∃ (acc : α), res = f acc i)
+    (nomatch ·)
+    (by
+      intro a j ih h
+      cases Nat.lt_or_eq_of_le (Nat.lt_succ.mp h)
+      next h =>
+        have ⟨acc, hAcc⟩ := ih h
+        refine ⟨f acc j,?_⟩
+        rw [hAcc, H]
+      · have : i = j := by ext; assumption
+        refine ⟨a,?_⟩
+        rw [this])
+
 def Function.iterate (f : α → α) : Nat → (α → α)
 | 0 => id
 | n+1 => iterate f n ∘ f
