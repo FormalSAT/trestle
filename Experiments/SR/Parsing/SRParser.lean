@@ -22,8 +22,26 @@ open Parsing
 
 variable {CNF : Type _} [Formula CNF] [Inhabited CNF]
 
+partial def consumeCommentLines (arr : ByteArray') (iter : USize) : Except Unit USize :=
+  let c := ByteArray.peekc arr iter
+  if c = UInt8.EOF then .error () else
+  if c = 'c'.toUInt8 then
+    let rec loop (iter : USize) : Except Unit USize :=
+      let c := ByteArray.peekc arr iter
+      if c = UInt8.EOF then .error () else
+      if c = '\n'.toUInt8 then
+        .ok (iter+1)
+      else
+        loop (iter+1)
+    do
+      let iter ← loop iter
+      consumeCommentLines arr iter
+  else
+    .ok iter
+
+
 @[specialize]
-def parseClause (maxVar : Nat) (F : CNF) (arr : ByteArray') (iter : USize) : Except Unit (CNF × USize) :=
+def parseClause (maxVar : Nat) (F : CNF) (arr : ByteArray') (iter : USize) : Except Unit (CNF × USize) := do
   let size := arr.val.size.toUSize
   let rec loop (F : CNF) (iter : USize) : Except Unit (CNF × USize) :=
     if hi : iter < size then
@@ -69,7 +87,9 @@ partial def parseClauses (nvars ncls : Nat) (F : CNF) (arr : ByteArray') (iter :
   | .error str => throw str
 
 --@[inline]
-def parseHeader (arr : ByteArray') (iter : USize) : Except String (Nat × Nat × USize) :=
+def parseHeader (arr : ByteArray') (iter : USize) : Except String (Nat × Nat × USize) := do
+  let iter ← consumeCommentLines arr iter |>.mapError fun () => "Empty file?"
+
   -- Assumes that the first two non-whitespace tokens are "p" and "cnf"
   let iter := ByteArray.skip arr iter
   let iter := ByteArray.skip arr iter
@@ -88,8 +108,11 @@ def parseFormula (arr : ByteArray') (F : CNF) : Except String (CNF × Nat) :=
   match parseHeader arr 0 with
   | .error str => throw str
   | .ok (nvars, ncls, iter) =>
+    dbgTrace s!"Parsing formula with {nvars} variables, {ncls} clauses" fun () =>
     match parseClauses nvars ncls F arr iter with
-    | .ok F => .ok (F, nvars)
+    | .ok F =>
+      dbgTrace s!"Parsed formula" fun () =>
+        .ok (F, nvars)
     | .error str => throw str
 
 -- CC: Because the parse line is called at top-level, it's okay for this to be Except.
@@ -136,4 +159,3 @@ partial def parseDeletionLine (arr : ByteArray') (iter : USize) : Except String 
       throw "Line ended early"
 
   loop #[] iter
-
