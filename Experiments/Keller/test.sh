@@ -1,5 +1,5 @@
-N=7
-S=64
+N=5
+S=16
 
 DIR="$PWD/cnfs"
 
@@ -16,14 +16,19 @@ TMPDIR="tmp"
 
 set -e -x
 
+(cd ../..; LEAN_ABORT_ON_PANIC=1 lake build keller srcheck)
+
+PATH="$PWD/../../.lake/build/bin:$PATH"
+
 PATH="/home/james/Projects/sat/dsr-trim/src:/home/james/Projects/sat/drat-trim:$PATH"
 #PATH="/home/james/Projects/dsr-trim/src:/home/james/Projects/drat-trim:$PATH"
 
-(cd ../..; LEAN_ABORT_ON_PANIC=1 lake exe keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBES)
+(../../.lake/build/bin/keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBES)
 
 # check the SR proof
 time dsr-trim -f $CNF $DSR $LSR --emit-valid-formula-to=$SB
 lsr-check $CNF $LSR
+srcheck $CNF $LSR
 
 # check that the cubes negated leads to tautology
 (cd ../..; LEAN_ABORT_ON_PANIC=1 lake exe keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO)
