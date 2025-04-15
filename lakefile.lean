@@ -22,7 +22,7 @@ lean_exe keller {
 }
 
 lean_exe srcheck {
-  root := `Experiments.SR.SRCheckerExe
+  root := `Experiments.SR.Checker.Main
 }
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.18.0"

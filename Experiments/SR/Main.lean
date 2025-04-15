@@ -1,4 +1,4 @@
-import Experiments.SR.SRChecker
+import Experiments.SR.Checker.SRChecker
 import Experiments.SR.Parsing.SRParser
 
 open Trestle Parsing SRParser
