@@ -18,17 +18,18 @@ the Keller conjecture for the previous dimension.
 
 
 def TwoCubes.c0_colors : Vector (Fin (s+2)) (n+2) :=
-  ⟨Array.mkArray (n+2) 0, by simp⟩
+  Vector.mkVector (n+2) 0
 
 @[simp] theorem TwoCubes.c0_colors_j (j : Nat) (hj : j < (n+2)) : (c0_colors (s := s))[j] = 0 := by
   simp [c0_colors]
 
 def TwoCubes.c1_colors : Vector (Fin (s+2)) (n+2) :=
-  ⟨#[0,1] ++ Array.mkArray n 0, by simp; omega⟩
+  #v[0,1].append (Vector.mkVector n 0)
+  |>.cast (by omega)
 
 @[simp] theorem TwoCubes.c1_colors_j (j : Nat) (hj : j < (n+2)) :
     (c1_colors (s := s))[j] = if j = 1 then 1 else 0 := by
-  simp [c1_colors, Array.getElem_append]
+  simp [c1_colors, Vector.append, Array.getElem_append]
   rcases j with ⟨(_|_|_),h⟩ <;> simp [Nat.succ_lt_succ_iff, Fin.ext_iff]
 
 structure TwoCubes (n s) where

@@ -74,7 +74,7 @@ theorem KCliqueData.checkAll_iff_isempty_kclique (n s : Nat) :
   rw [← not_iff_not, isEmpty_iff]; simp [checkAll]
   constructor
   · rintro ⟨x,h⟩
-    use x.toKClique h
-  · rintro ⟨x,⟨⟩⟩
+    exact ⟨x.toKClique h⟩
+  · rintro ⟨x⟩
     use fromKClique x
     apply check_fromKClique

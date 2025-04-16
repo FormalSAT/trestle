@@ -65,6 +65,17 @@ theorem ofIndex_inj (n m : Nat) : ofIndex n = ofIndex m ↔ n = m := by
   · rintro ⟨⟩; rfl
   · rintro rfl; rfl
 
+@[simp] theorem ofIndex_index (v : IVar) : ofIndex v.index = v := by
+  apply Subtype.ext
+  unfold ofIndex index
+  dsimp
+  have := v.property
+  omega
+
+@[simp] theorem index_ofIndex (i : Nat) : index (ofIndex i) = i := by
+  unfold ofIndex index
+  dsimp
+
 instance instInhabited : Inhabited IVar := ⟨⟨1, by decide⟩⟩
 
 def toString : IVar → String
@@ -247,9 +258,13 @@ instance instLawfulLitVar : LawfulLitVar ILit IVar where
 @[inline, always_inline]
 def index (l : ILit) : Nat := l.val.natAbs - 1
 
+@[simp] theorem index_def (l : ILit) : l.index = l.toIVar.index := rfl
+
 /-- Converts a 0-indexed `Nat` into an `ILit`. -/
 @[inline, always_inline]
 def ofIndex (n : Nat) : ILit := ⟨n + 1, by omega⟩
+
+@[simp] theorem ofIndex_def (n : Nat) : ofIndex n = ofIVar (.ofIndex n) := rfl
 
 end ILit
 

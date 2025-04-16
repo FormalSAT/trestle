@@ -13,7 +13,7 @@ import Experiments.Solver.Builtin
 namespace Keller
 
 theorem conjectureIn_of_cnf_unsat {n : Nat} (h : conjectureIn (n+1)) :
-  (Encoding.fullEncoding (n+2) (2^(n+1))).val.toICnf.Unsat → conjectureIn (n+2) := by
+  ¬(Encoding.fullEncoding (n+2) (2^(n+1))).val.toICnf.Sat → conjectureIn (n+2) := by
   intro unsat
   unfold conjectureIn
   by_contra ex
@@ -26,7 +26,7 @@ theorem conjectureIn_of_cnf_unsat {n : Nat} (h : conjectureIn (n+1)) :
   have ⟨tc⟩ := SymmBreak.C3Zeros.ofClique h c
   have sat := Encoding.cliqueToAssn_satisfies_fullSpec tc
   apply unsat; clear unsat
-  unfold Trestle.ICnf.Sat Trestle.Model.PropFun.satisfiable
+  unfold Trestle.Cnf.Sat Trestle.Model.PropFun.Sat
   rw [Trestle.Encode.VEncCNF.toICnf_equisatisfiable]
   refine ⟨_, sat⟩
 

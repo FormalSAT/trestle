@@ -11,18 +11,18 @@ namespace Trestle.Solver.Builtin
 def icnf_to_cnf (f : ICnf) : Std.Sat.CNF Nat :=
   f.map (fun clause =>
     clause
-    |> Array.map (fun l => ⟨(LitVar.toVar l).natPred, LitVar.polarity l⟩)
+    |> Array.map (fun l => ⟨IVar.index (LitVar.toVar l), LitVar.polarity l⟩)
     |>.toList)
   |>.toList
 
 theorem unsat_of_icnf_to_cnf_unsat (f : ICnf) :
-  (icnf_to_cnf f).Unsat → f.Unsat := by
+  (icnf_to_cnf f).Unsat → ¬f.Sat := by
   intro h
   unfold icnf_to_cnf Std.Sat.CNF.Unsat at h
-  unfold Trestle.ICnf.Unsat Trestle.ICnf.Sat Model.PropFun.satisfiable
+  unfold Trestle.Cnf.Sat Model.PropFun.Sat
   rintro ⟨τ,f_sat⟩
-  specialize h (fun i => τ (IVar.fromIndex i))
-  simp [IVar.fromIndex, Std.Sat.CNF.eval, Std.Sat.CNF.Clause.eval] at h
+  specialize h (fun i => τ (IVar.ofIndex i))
+  simp [Std.Sat.CNF.eval, Std.Sat.CNF.Clause.eval] at h
   rcases h with ⟨i,i_range,h⟩
   rw [Cnf.satisfies_iff] at f_sat
   specialize f_sat f[i] (by simp)
@@ -75,8 +75,8 @@ elab "trestle_unsat" cfg:optConfig : tactic => unsafe do
     let goal ← getMainGoal
     let goalDecl ← goal.getDecl
     let goalType := goalDecl.type
-    let ⟨Level.succ Level.zero, ~q(Prop), ~q(Trestle.ICnf.Unsat $f)⟩ ← inferTypeQ goalType
-      | throwError f!"expected goal to look like: Trestle.ICnf.Unsat _; got: {goalType}"
+    let ⟨Level.succ Level.zero, ~q(Prop), ~q(¬@Trestle.Cnf.Sat ILit IVar inferInstance $f)⟩ ← inferTypeQ goalType
+      | throwError f!"expected goal to look like: Trestle.Cnf.Sat _; got: {goalType}"
 
     let icnf ← Meta.evalExpr ICnf q(ICnf) f
     trace[Trestle.Solver.Builtin] m!"Running solver on CNF with {icnf.size} clauses"
@@ -101,7 +101,7 @@ def testCnf : ICnf :=
   allOfEm.toArray.map (#[LitVar.mkNeg ·])
   |>.push (allOfEm.toArray.map (LitVar.mkPos ·))
 
-theorem test : testCnf.Unsat := by
+theorem test : ¬testCnf.Sat := by
   trestle_unsat
 
 /--

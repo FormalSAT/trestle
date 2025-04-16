@@ -54,17 +54,23 @@ end IVar
 
 namespace ILit
 
+@[simp]
+theorem toIVar_negate (l : ILit) : (-l).toIVar = l.toIVar := by
+  simp [toIVar]; rfl
+
+@[simp]
+theorem toIVar_mkPos (v : IVar) : ILit.toIVar (mkPos v) = v := by
+  simp [toIVar, mkPos]
+
+@[simp]
+theorem toIVar_mkNeg (v : IVar) : ILit.toIVar (mkNeg v) = v := by
+  simp [toIVar, mkNeg]
+
 @[simp] abbrev toPropFun (l : ILit) := LitVar.toPropFun l
 instance instCoeILit : Coe ILit (PropFun IVar) := ⟨LitVar.toPropFun⟩
 
 theorem exists_succ_toVar (l : ILit) : ∃ n, (toVar l).val = n + 1 := by
   exact Nat.exists_eq_add_of_le' (toVar l).property
-
-@[simp]
-theorem index_toVar (l : ILit) : IVar.index (toVar l) = l.index := by
-  rcases exists_mkPos_or_mkNeg l with ⟨v, (rfl | rfl)⟩
-  <;> cases v
-  <;> simp [index, mkPos, mkNeg, IVar.index, toVar]
 
 @[simp]
 theorem index_mkPos (v : IVar) : ILit.index (mkPos v) = v.index := by
@@ -76,22 +82,19 @@ theorem index_mkNeg (v : IVar) : ILit.index (mkNeg v) = v.index := by
 
 @[simp]
 theorem index_negate (l : ILit) : ILit.index (-l) = l.index := by
-  rcases exists_mkPos_or_mkNeg l with ⟨v, (rfl | rfl)⟩
-  <;> simp
+  simp
 
-@[simp]
-theorem index_eq_iff {l₁ l₂ : ILit} : l₁.index = l₂.index ↔ (toVar l₁) = (toVar l₂) := by
+theorem index_eq_iff_toVar_eq {l₁ l₂ : ILit} : l₁.index = l₂.index ↔ (toVar l₁) = (toVar l₂) := by
   rcases exists_mkPos_or_mkNeg l₁ with ⟨v₁, (rfl | rfl)⟩
   <;> rcases exists_mkPos_or_mkNeg l₂ with ⟨v₂, (rfl | rfl)⟩
   <;> simp
 
 theorem index_ne_of_var_ne {l₁ l₂ : ILit} : (toVar l₁) ≠ (toVar l₂) → l₁.index ≠ l₂.index := by
   intro h_ne h_con
-  exact absurd (index_eq_iff.mp h_con) h_ne
+  exact absurd (index_eq_iff_toVar_eq.mp h_con) h_ne
 
-@[simp]
 theorem index_eq_iff_eq_or_negate_eq {l₁ l₂ : ILit} : l₁.index = l₂.index ↔ l₁ = l₂ ∨ -l₁ = l₂ := by
-  rw [index_eq_iff]
+  rw [index_eq_iff_toVar_eq]
   exact toVar_eq_iff'
 
 end ILit
