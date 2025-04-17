@@ -185,6 +185,12 @@ theorem get_adj_of_eq_xor {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n
   · simp
   · intro j hj; by_contra contra; simp [← Fin.ext_iff, Ne.symm contra] at hj
 
+theorem get_xor_oneAt (k : KClique n s) (j : Fin n) (j') (h : j.val = j' := by simp)
+    : (k.get (i ^^^ BitVec.oneAt j))[j'] = (k.get i)[j'] := by
+  subst j'
+  have := get_adj_of_eq_xor (i₁ := i) k j rfl
+  exact this.1.symm
+
 theorem get_adj_of_xor_eq {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
     : i₁ ^^^ i₂ = BitVec.oneAt j₁ →
       (k.get i₁)[j₁] = (k.get i₂)[j₁] ∧ ∃ j₂ ≠ j₁, (k.get i₁)[j₂] ≠ (k.get i₂)[j₂] := by

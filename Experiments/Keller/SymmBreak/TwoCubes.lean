@@ -300,7 +300,7 @@ def permColors (f : Fin (n+2) → Equiv.Perm (Fin (s+2)))
   (tc.permColors f fixed_0 fixed_1).kclique = tc.kclique.map (KAuto.permColors f) := rfl
 
 /-- We can swap two neighboring indices without affecting the first two cubes,
-so long as the swap is in column > 2 and the color is not 0. -/
+so long as the swap is in column ≥ 2 and the color is not 0. -/
 def flipAt (j : Fin (n+2)) (k : Fin (s+2)) (j_ge : j.val ≥ 2) (k_ne_0 : k ≠ 0)
       (tc : TwoCubes n s) : TwoCubes n s where
   kclique := tc.kclique.map (KAuto.flipAt j k)
@@ -313,5 +313,17 @@ def flipAt (j : Fin (n+2)) (k : Fin (s+2)) (j_ge : j.val ≥ 2) (k_ne_0 : k ≠ 
 
 @[simp] theorem kclique_flipAt (tc : TwoCubes n s) :
   (tc.flipAt j k j_ge k_ne_0).kclique = tc.kclique.map (KAuto.flipAt j k) := rfl
+
+/-- We can flip bits in column 0, though it requires swapping colors 0/1 in column 1. -/
+def flip0 (tc : TwoCubes n s) : TwoCubes n s where
+  kclique := tc.kclique.map (KAuto.flip 1#_ |>.trans (KAuto.permColors (if ·.val = 1 then .swap 0 1 else .refl _)))
+  c0 := by
+    ext j hj
+    simp [KClique.get_map_permColors, KClique.get_map_flip]
+    split <;> simp
+  c1 := by
+    ext j hj
+    simp [KClique.get_map_permColors, KClique.get_map_flip]
+    split <;> simp
 
 end TwoCubes

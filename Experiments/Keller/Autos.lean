@@ -229,6 +229,16 @@ end KAuto
 
 namespace KClique
 
+@[simp] theorem get_map_trans {klique : KClique n s} {a b}
+  : klique.map (RelIso.trans a b) = (klique.map a).map b := by
+  apply Subtype.ext; simp [map, Finset.map]
+
+theorem get_map_flip {klique : KClique n s} (mask : BitVec n)
+  : (klique.map (KAuto.flip mask)).get i = klique.get (i ^^^ mask) := by
+  simp [map, get_eq_iff_mem, KVertex.flip]
+  refine ⟨_, klique.get_mem (i ^^^ mask), ?_⟩
+  simp [BitVec.xor_assoc]
+
 theorem get_map_flipAt {klique : KClique n s} {j k i}
   : ((klique.map (KAuto.flipAt j k)).get i) = klique.get (if (klique.get i)[j.val] = k then i ^^^ BitVec.oneAt j else i) := by
   simp [map, get_eq_iff_mem]
