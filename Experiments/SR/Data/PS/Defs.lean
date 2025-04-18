@@ -42,6 +42,8 @@ structure PS where
 
 namespace PS
 
+open LitVar
+
 abbrev size (σ : PS) : Nat := σ.gens.size
 
 /-! # map -/
@@ -57,7 +59,7 @@ def IVarToMappedNat (v : IVar) : Nat :=
 -/
 @[inline, always_inline]
 def ILitToMappedNat (l : ILit) : Nat :=
-  if l.polarity then
+  if polarity l then
     (Int.natAbs l.val) * 2
   else
     (Int.natAbs l.val) * 2 + 1
@@ -73,7 +75,7 @@ def ILitFromMappedNat : Nat → ILit
       ⟨-(n / 2 + 1), by omega⟩
 
 @[inline, always_inline]
-def negatedMappedNat (n : Nat) : Nat :=
+def negateMappedNat (n : Nat) : Nat :=
   if n % 2 = 0 then
     n + 1
   else
@@ -91,7 +93,7 @@ def negate : PSV → PSV
   | Sum.inl l => Sum.inl (-l)
   | Sum.inr b => Sum.inr !b
 
-instance instCoeIVar : Coe IVar PSV := ⟨Sum.inl ∘ IVar.toPosILit⟩
+instance instCoeIVar : Coe IVar PSV := ⟨Sum.inl ∘ mkPos⟩
 instance instCoeILit : Coe ILit PSV := ⟨Sum.inl⟩
 instance instCoeBool : Coe Bool PSV := ⟨Sum.inr⟩
 
@@ -106,9 +108,9 @@ def fromMappedNat (n : Nat) : PSV :=
   | 1 => Sum.inr false
   | n + 2 =>
     if n % 2 = 0 then
-      Sum.inl <| IVar.toPosILit ⟨n / 2 + 1, Nat.succ_pos _⟩
+      Sum.inl <| mkPos ⟨n / 2 + 1, Nat.succ_pos _⟩
     else
-      Sum.inl <| IVar.toNegILit ⟨n / 2 + 1, Nat.succ_pos _⟩
+      Sum.inl <| mkNeg ⟨n / 2 + 1, Nat.succ_pos _⟩
 
 instance instToMappedNat : Coe PSV Nat := ⟨toMappedNat⟩
 instance instFromMappedNat : Coe Nat PSV := ⟨fromMappedNat⟩
@@ -164,13 +166,13 @@ def varValue (σ : PS) (v : IVar) : PSV :=
 
 --@[inline, always_inline]
 def litValue_Nat (σ : PS) (l : ILit) : Nat :=
-  if l.polarity then
-    varValue_Nat σ l.toIVar
+  if polarity l then
+    varValue_Nat σ (toVar l)
   else
-    negatedMappedNat <| varValue_Nat σ l.toIVar
+    negateMappedNat <| varValue_Nat σ (toVar l)
 
 --@[inline, always_inline]
-def litValue (σ : PS) (l : ILit) : ILit ⊕ Bool :=
+def litValue (σ : PS) (l : ILit) : PSV :=
   PSV.fromMappedNat <| litValue_Nat σ l
 
 /-! # new, reset, bump -/
@@ -214,7 +216,7 @@ theorem setVar_le_maxGen (σ : PS) (i : Nat) (gen : Nat) :
 
 /-- Sets the given literal to `true` for the current generation in the PS. -/
 def setLit (σ : PS) (l : ILit) : PS :=
-  let val : Nat := if l.polarity then MAPPED_TRUE else MAPPED_FALSE
+  let val : Nat := if polarity l then MAPPED_TRUE else MAPPED_FALSE
   let index := l.index
   let gen := σ.generation
   { σ with
@@ -251,7 +253,7 @@ def setVars' (σ : PS) (A : Array ILit) : PS :=
       have : Array.size A - (i + 2) < Array.size A - i := Nat.sub_add_lt_sub hi (Nat.le.step Nat.le.refl)
       let v := A[i]'(Nat.lt_of_succ_lt hi)
       let l := A[i + 1]'hi
-      loop (i + 2) (σ.setVarToLit (ILit.toIVar v) l)
+      loop (i + 2) (σ.setVarToLit (toVar v) l)
     else
       σ
   loop 0 σ

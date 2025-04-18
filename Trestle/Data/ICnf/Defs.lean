@@ -258,8 +258,6 @@ instance instLawfulLitVar : LawfulLitVar ILit IVar where
 @[inline, always_inline]
 def index (l : ILit) : Nat := l.val.natAbs - 1
 
-@[simp] theorem index_def (l : ILit) : l.index = l.toIVar.index := rfl
-
 /-- Converts a 0-indexed `Nat` into an `ILit`. -/
 @[inline, always_inline]
 def ofIndex (n : Nat) : ILit := ⟨n + 1, by omega⟩

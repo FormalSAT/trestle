@@ -48,6 +48,19 @@ theorem index_eq_iff {v₁ v₂ : IVar} : v₁.index = v₂.index ↔ v₁ = v�
     subst_vars
     rfl
 
+@[simp]
+theorem toPosILit_negate (v : IVar) : -(v.toPosILit) = v.toNegILit :=
+  rfl
+
+@[simp]
+theorem toNegILit_negate (v : IVar) : -(v.toNegILit) = v.toPosILit := by
+  have ⟨n, hn⟩ := v
+  simp [toNegILit, toPosILit]
+  simp only [Neg.neg, ILit.instNeg, Int.neg, negate, Int.negOfNat]
+  split
+  · contradiction
+  · simp
+
 end IVar
 
 --------------------------------------------------------------------------------
@@ -73,6 +86,10 @@ theorem exists_succ_toVar (l : ILit) : ∃ n, (toVar l).val = n + 1 := by
   exact Nat.exists_eq_add_of_le' (toVar l).property
 
 @[simp]
+theorem toVar_index (l : ILit) : (toVar l).index = l.index := by
+  rfl
+
+@[simp]
 theorem index_mkPos (v : IVar) : ILit.index (mkPos v) = v.index := by
   simp [index, mkPos, IVar.index]
 
@@ -82,7 +99,8 @@ theorem index_mkNeg (v : IVar) : ILit.index (mkNeg v) = v.index := by
 
 @[simp]
 theorem index_negate (l : ILit) : ILit.index (-l) = l.index := by
-  simp
+  conv => lhs; rw [← toVar_index]
+  simp only [LawfulLitVar.toVar_negate, toVar_index]
 
 theorem index_eq_iff_toVar_eq {l₁ l₂ : ILit} : l₁.index = l₂.index ↔ (toVar l₁) = (toVar l₂) := by
   rcases exists_mkPos_or_mkNeg l₁ with ⟨v₁, (rfl | rfl)⟩

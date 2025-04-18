@@ -155,6 +155,14 @@ theorem ext_iff (l1 l2 : L) : l1 = l2 ↔ toVar l1 = toVar l2 ∧ polarity l1 = 
 @[simp] theorem neg_mkNeg (x : ν) : - (mkNeg (L := L) x) = mkPos x := by
   rw [ext_iff]; simp
 
+theorem neg_eq_iff_eq_neg {x y : L} : -x = y ↔ x = -y := by
+  constructor
+  all_goals
+  ( intro h
+    have := congrArg (-·) h
+    simp only [neg_neg] at this
+    exact this )
+
 -- CC: Have a simp attribute here?
 theorem toVar_eq_iff {l₁ l₂ : L} : toVar l₁ = toVar l₂ ↔ (l₁ = l₂ ∨ l₁ = -l₂) := by
   rcases exists_mkPos_or_mkNeg l₁ with ⟨v₁, (rfl | rfl)⟩
