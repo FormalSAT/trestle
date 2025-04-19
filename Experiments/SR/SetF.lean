@@ -112,13 +112,25 @@ theorem getElem_setF_lt (A : Array α) (i : Nat) (v default : α)
   by_cases hij : i = j
   · simp [hij]
   · rcases Nat.lt_trichotomy i A.size with (hi | rfl | hi)
-    · simp [setF_lt hi]
-      rw [getElem_set]
+    · simp [setF_lt hi, getElem_set]
     · simp [setF_eq, getElem_push, hj, hij]
     · simp [setF_gt hi, hij, getElem_append, getElem_push]
       split
       · simp [getElem_append, hj]
       · omega
+
+set_option linter.unusedVariables false in
+theorem getElem_setF_ge_lt (A : Array α) (i : Nat) (hi : i ≥ A.size) (v default : α)
+    : ∀ (j : Nat) (hj₁ : j ≥ A.size) (hj₂ : j < i + 1),
+      (A.setF i v default)[j]'(by rw [size_setF]; omega) =
+        if i = j then v else default := by
+  intro j hj₁ hj₂
+  by_cases hij : i = j
+  · simp [hij]
+  · rcases Nat.lt_or_eq_of_le hi with (hi | rfl)
+    · simp [setF_gt hi, getElem_append, getElem_push, Nat.not_lt_of_ge hj₁, hij]
+      omega
+    · omega
 
 @[simp]
 theorem getElem?_setF_self (A : Array α) (i : Nat) (v default : α) :
@@ -170,4 +182,3 @@ theorem getElem?_setF (A : Array α) (i j : Nat) (v default : α) :
       have : A.size + (i - A.size) = i := by omega
       rw [setF_gt hi, getElem?_append_right (by simp; omega)]
       simp; omega
-

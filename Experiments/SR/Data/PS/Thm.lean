@@ -83,6 +83,28 @@ instance : ToString PS where
     (σ.mappings.foldl (init := []) (fun acc a => s!"{PSV.fromMappedNat a}" :: acc))
 
 @[simp]
+theorem fromMappedNat_MAPPED_TRUE : PSV.fromMappedNat MAPPED_TRUE = .inr true :=
+  rfl
+
+@[simp]
+theorem fromMappedNat_MAPPED_FALSE : PSV.fromMappedNat MAPPED_FALSE = .inr false :=
+  rfl
+
+@[simp]
+theorem toMappedNat_fromMappedNat (n : ℕ)
+    : PSV.toMappedNat (PSV.fromMappedNat n) = n := by
+  simp [PSV.fromMappedNat, PSV.toMappedNat]
+  match n with
+  | 0 => simp [MAPPED_TRUE]
+  | 1 => simp [MAPPED_FALSE]
+  | (n + 2) =>
+    simp only
+    by_cases hn : n % 2 = 0
+    <;> simp [hn, ILitToMappedNat, mkPos, mkNeg, polarity]
+    <;> split
+    <;> omega  -- I ♥ omega
+
+@[simp]
 theorem fromMappedNat_IVarToMappedNat (v : IVar)
     : PSV.fromMappedNat (IVarToMappedNat v) = v := by
   have ⟨v, hv⟩ := v
@@ -289,7 +311,8 @@ theorem varValue_eq {σ : PS} {v : IVar}
     split
     <;> rename_i h
     <;> simp [h, PSV.toPropFun]
-  · simp [varValue_eq_of_ge h_ge, toSubst_eq_of_ge h_ge, PSV.toPropFun]
+  · simp only [PSV.toPropFun, varValue_eq_of_ge h_ge, toPropFun_mkPos,
+      substL_distrib, toSubst_eq_of_ge h_ge, mk_var]
 
 @[simp]
 theorem varValue_false_iff {σ : PS} {v : IVar}
@@ -307,7 +330,8 @@ theorem varValue_true_iff {σ : PS} {v : IVar}
     split
     <;> rename_i hv
     <;> simp [hv]
-  · simp [varValue_eq_of_ge h_ge, toSubst_eq_of_ge h_ge]
+  · simp only [varValue_eq_of_ge h_ge, reduceCtorEq, substL_distrib,
+      toSubst_eq_of_ge h_ge, mk_var, var_ne_top]
 
 @[simp]
 theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit}
@@ -318,7 +342,8 @@ theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit}
     split
     <;> rename_i hv
     <;> simp [hv]
-  · simp [varValue_eq_of_ge h_ge, toSubst_eq_of_ge h_ge]
+  · simp only [varValue_eq_of_ge h_ge, Sum.inl.injEq, substL_distrib,
+      toSubst_eq_of_ge h_ge, mk_var, var_eq_toPropFun_iff]
     exact eq_comm
 
 @[simp]
@@ -346,165 +371,48 @@ theorem litValue_lit_iff {σ : PS} {l₁ l₂ : ILit} :
 
 /-! # setLit -/
 
--- Cayden TODO: How to make setF more efficient when the value needs to be a cell?
--- Can an efficient implementation do this linearly? Ow will run out of memory?
--- One idea is to use a .setF' that takes a function : (Option α → α) instead of value v : α
--- That way, if the cell exists, its value can be mapped
-
--- This is a more efficient version
-/-
-def setLit (τ : PS) (l : ILit) : PS := { τ with
-  assignment :=
-    if hidx : l.index < τ.size then
-      τ.assignment.set ⟨l.index, hidx⟩ ((τ.get ⟨l.index, hidx⟩).setLit l τ.generation)
-    else
-      τ.assignment.setF l.index (PSCell.mkEmptyCell.setLit l τ.generation) PSCell.mkEmptyCell
-  maxGen := max τ.maxGen τ.generation
-}
--/
-
-theorem setVar_le_maxGen (τ : PS) (i : Nat) (c : PSCell) :
-    ∀ cell ∈ (τ.assignment.setF i c PSCell.mkEmptyCell).data, cell.generation ≤ max τ.maxGen c.generation := by
-  sorry
-  done
-
--- This is a more functional version
-/-- Set the given literal to `true` for the current generation in the PS. -/
-def setLit (τ : PS) (l : ILit) : PS := { τ with
-  assignment := τ.assignment.setF l.index (PSCell.mkEmptyCell.setLit l τ.generation) PSCell.mkEmptyCell
-  maxGen := max τ.maxGen τ.generation
-  le_maxGen := by
-    have := setVar_le_maxGen τ l.index (PSCell.mkEmptyCell.setLit l τ.generation)
-    rwa [PSCell.setLit_generation PSCell.mkEmptyCell l ↑τ.generation] at this
-}
-
-/-- Set the given literal to `true` for all generations until `gen`. -/
-def setLitUntil (τ : PS) (l : ILit) (gen : Nat) : PS := { τ with
-  assignment := τ.assignment.setF l.index (PSCell.mkEmptyCell.setLit l gen) PSCell.mkEmptyCell
-  maxGen := max τ.maxGen gen
-  le_maxGen := by
-    have := setVar_le_maxGen τ l.index (PSCell.mkEmptyCell.setLit l gen)
-    rwa [PSCell.setLit_generation PSCell.mkEmptyCell l gen] at this
-}
-
-def setVarToLit (τ : PS) (v : IVar) (l : ILit) : PS := { τ with
-  assignment := τ.assignment.setF v.index (PSCell.mkEmptyCell.setLit l τ.generation) PSCell.mkEmptyCell
-  maxGen := max τ.maxGen τ.generation
-  le_maxGen := by
-    have := setVar_le_maxGen τ v.index (PSCell.mkEmptyCell.setLit l τ.generation)
-    rwa [PSCell.setLit_generation PSCell.mkEmptyCell l τ.generation] at this
-}
-
-def setVarToLitUntil (τ : PS) (v : IVar) (l : ILit) (gen : Nat) : PS := { τ with
-  assignment := τ.assignment.setF v.index (PSCell.mkEmptyCell.setLit l gen) PSCell.mkEmptyCell
-  maxGen := max τ.maxGen gen
-  le_maxGen := by
-    have := setVar_le_maxGen τ v.index (PSCell.mkEmptyCell.setLit l gen)
-    rwa [PSCell.setLit_generation PSCell.mkEmptyCell l gen] at this
-}
-
-@[simp, inline] def setLitToLit (τ : PS) (l l_target : ILit) : PS :=
-  if polarity l then
-    τ.setVarToLit (toVar l) l_target
-  else
-    τ.setVarToLit (toVar l) (-l_target)
-
-@[simp, inline] def setLitToLitUntil (τ : PS) (l l_target : ILit) (gen : Nat) : PS :=
-  if polarity l then
-    τ.setVarToLitUntil (toVar l) l_target gen
-  else
-    τ.setVarToLitUntil (toVar l) (-l_target) gen
-
-def setVars (σ : PS) (L : List (IVar × ILit)) : PS :=
-  L.foldl (init := σ) (fun σ ⟨v, l⟩ => σ.setVarToLit v l)
-
-def setVars' (σ : PS) (A : Array (IVar × ILit)) : PS :=
-  A.foldl (init := σ) (fun σ ⟨v, l⟩ => σ.setVarToLit v l)
-
-def setVarsUntil (σ : PS) (L : List (IVar × ILit)) (gen : Nat) : PS :=
-  L.foldl (init := σ) (fun σ ⟨v, l⟩ => σ.setVarToLitUntil v l gen)
-
-def setVarsUntil' (σ : PS) (A : Array (IVar × ILit)) (gen : Nat) : PS :=
-  A.foldl (init := σ) (fun σ ⟨v, l⟩ => σ.setVarToLitUntil v l gen)
-
-theorem setVars_eq_setVars' {L : List (IVar × ILit)} {A : Array (IVar × ILit)} :
-  L = A.data → ∀ (σ : PS), σ.setVars L = σ.setVars' A := by sorry
-
-/- Lemmas -/
-
-@[simp] theorem setLit_size (τ : PS) (l : ILit) : (τ.setLit l).size = max τ.size (l.index + 1) := by
+@[simp]
+theorem setLit_size (σ : PS) (l : ILit)
+    : (σ.setLit l).size = max σ.size (l.index + 1) := by
   simp [setLit, size]
 
--- Cayden TODO: Figure out which things are @[simp] in def vs. @[simp] theorems.
-theorem litValue_setLit_pos (τ : PS) (l : ILit) : (τ.setLit l).litValue l = .tr := by
-  by_cases hpol : polarity l
-  <;> by_cases hl : l.index < τ.size
-  <;> simp [litValue, varValue, size, setLit, PSCell.setLit, PSCell.setToTrue, PSCell.setToFalse,
-        hpol, hl, PSCell.varValue?, PSVal.negate, Array.getElem_setF]
+@[simp]
+theorem litValue_setLit_self (σ : PS) (l : ILit) : (σ.setLit l).litValue l = .inr true := by
+  simp [setLit, litValue, litValue_Nat, varValue_Nat]
+  by_cases hl : l.index < σ.size
+  <;> by_cases hpol : polarity l
+  <;> simp [hpol]
 
-theorem litValue_setLit_neg (τ : PS) {l₁ l₂ : ILit} :
-    l₁ ≠ l₂ → (τ.setLit l₁).litValue l₂ = τ.litValue l₂ := by
-  intro hne
-  by_cases hpol₁ : polarity l₁
-  · by_cases hpol₂ : polarity l₂
-    · simp [hpol₁, hpol₂, litValue]
-      sorry
-    sorry
-  /-by_cases hpol : polarity l₂
-  · simp [litValue, hpol, setLit, Array.size_setF, -Array.get_eq_getElem]
-    by_cases hl₂ : l₂.index < τ.size
-    · rw [size] at hl₂
-      have : l₂.index < τ.assignment.size ∨ l₂.index < l₁.index + 1 := Or.inl hl₂
-      simp [hl₂, this, -Array.get_eq_getElem]
-      by_cases hpol₁ : polarity l₁
-      · rw [Array.getElem_setF' τ.assignment l₁.index ⟨τ.generation, PSVal.tr⟩ PSCell.mkEmptyCell]
-
-      done
-    done
-  --by_cases hpol : polarity l₂
-  --<;> by_cases hl₂ : l₂.index < τ.size
-  --<;> simp [litValue, setLit, hpol,
-  --    hl₂, Or.inl hl₂, Array.size_setF, PSCell.varValue?, PSVal.negate] -/
-  sorry
-  done
-
-/-! # New -/
-
---ofFn (fun (idx : Fin maxVar) => PSCell.mkCell idx 0)
-
-/-- Initialize to an empty partial assignment,
-supporting variables in the range `[1, maxVar]`.
-
-The assignment will resize dynamically if it's used with
-a variable above the initial `maxVar`. -/
-
-def new (n : Nat) : PS where
-  assignment := Array.mkArray n PSCell.mkEmptyCell
-  generation := ⟨1, Nat.one_pos⟩
-  maxGen := 0
-  le_maxGen := by simp_all [List.mem_replicate]
-
-/-
-theorem new_WF (n : Nat) : (new n).WF := by
-  simp [new]
-  constructor
-  · intro i
-    sorry
-  · simp only [gt_iff_lt, zero_lt_one] -/
-
-/-! # Reset -/
-
-/-- Reset the assignment to an empty one. -/
-def reset (τ : PS) : PS :=
-  { τ with
-    generation := ⟨τ.maxGen + 1, Nat.succ_pos _⟩ }
-
-/-! # Bump -/
-
-/-- Clear all temporary assignments at the current generation. -/
-def bump (τ : PS) : PS :=
-  { τ with generation := τ.generation + 1 }
-
+@[simp]
+theorem litValue_setLit_of_ne {l₁ l₂ : ILit} (h_ne : toVar l₁ ≠ toVar l₂) (σ : PS) :
+    (σ.setLit l₁).litValue l₂ = σ.litValue l₂ := by
+  simp [setLit, litValue, litValue_Nat, varValue_Nat]
+  congr 1
+  congr 1
+  · by_cases hl₂ : l₂.index < σ.size
+    <;> simp [hl₂]
+    · have hl₂' : l₂.index < σ.mappings.size := by
+        rw [← σ.sizes_eq]; exact hl₂
+      simp [index_ne_of_var_ne h_ne,
+        Array.getElem_setF_lt _ l₁.index _ _ _ hl₂,
+        Array.getElem_setF_lt _ l₁.index _ _ _ hl₂']
+    · intro hl₂'
+      have hi : σ.size ≤ l₁.index := by omega
+      simp [Array.getElem_setF_ge_lt _ _ hi _ _ _ (Nat.ge_of_not_lt hl₂) hl₂',
+        index_ne_of_var_ne h_ne]
+  · congr 1
+    -- CC: Duplicate proof after this point
+    by_cases hl₂ : l₂.index < σ.size
+    <;> simp [hl₂]
+    · have hl₂' : l₂.index < σ.mappings.size := by
+        rw [← σ.sizes_eq]; exact hl₂
+      simp [index_ne_of_var_ne h_ne,
+        Array.getElem_setF_lt _ l₁.index _ _ _ hl₂,
+        Array.getElem_setF_lt _ l₁.index _ _ _ hl₂']
+    · intro hl₂'
+      have hi : σ.size ≤ l₁.index := by omega
+      simp [Array.getElem_setF_ge_lt _ _ hi _ _ _ (Nat.ge_of_not_lt hl₂) hl₂',
+        index_ne_of_var_ne h_ne]
 
 section monadic
 
