@@ -41,6 +41,22 @@ theorem satisfies_iff {τ : PropAssignment ν} {l : L} :
 -- Some theorems can be proven on `LitVar`s, without the `Lawful` laws.
 
 @[simp]
+theorem toPropFun_lit_ne_bot (l : L) : toPropFun l ≠ ⊥ := by
+  cases hpol : polarity l <;> simp [hpol, toPropFun]
+
+@[simp]
+theorem bot_ne_toPropFun_lit (l : L) : ⊥ ≠ toPropFun l :=
+  Ne.symm (toPropFun_lit_ne_bot l)
+
+@[simp]
+theorem toPropFun_lit_ne_top (l : L) : toPropFun l ≠ ⊤ := by
+  cases hpol : polarity l <;> simp [hpol, toPropFun]
+
+@[simp]
+theorem top_ne_toPropFun_lit (l : L) : ⊤ ≠ toPropFun l :=
+  Ne.symm (toPropFun_lit_ne_top l)
+
+@[simp]
 theorem mk_toPropForm (l : L) : ⟦toPropForm l⟧ = toPropFun l := by
   dsimp [toPropForm, toPropFun]
   cases polarity l <;> simp
@@ -209,16 +225,37 @@ theorem toPropFun.inj [DecidableEq ν] : (toPropFun (L := L)).Injective := by
   intro l₁ l₂ h; simp [toPropFun] at h
   split_ifs at h
   · rename_i h₁ h₂
-    rw [var_eq_var] at h
+    rw [var_eq_var_iff] at h
     apply LawfulLitVar.ext _ _ h
     rw [h₁, h₂]
   · simp only [var_ne_var_compl] at h
   · simp only [var_compl_ne_var] at h
   · rename_i h₁ h₂
     simp only [Bool.not_eq_true] at h₁ h₂
-    simp only [compl_inj_iff, var_eq_var] at h
+    simp only [compl_inj_iff, var_eq_var_iff] at h
     apply LawfulLitVar.ext _ _ h
     rw [h₁, h₂]
+
+@[simp]
+theorem toPropFun_lit_eq_lit_iff [DecidableEq ν] {l₁ l₂ : L}
+    : toPropFun l₁ = toPropFun l₂ ↔ l₁ = l₂ := by
+  rcases exists_mkPos_or_mkNeg l₁ with ⟨v₁, (rfl | rfl)⟩
+  <;> rcases exists_mkPos_or_mkNeg l₂ with ⟨v₂, (rfl | rfl)⟩
+  <;> simp [toPropFun]
+
+@[simp]
+theorem toPropFun_lit_eq_var_iff [DecidableEq ν] (l : L) (v : ν)
+    : toPropFun l = var v ↔ l = mkPos v := by
+  simp [toPropFun]
+  rcases exists_mkPos_or_mkNeg l with ⟨v', (rfl | rfl)⟩ <;> simp
+
+@[simp]
+theorem var_eq_toPropFun_iff [DecidableEq ν] (l : L) (v : ν)
+    : var v = toPropFun l ↔ l = mkPos v := by
+  simp [toPropFun]
+  rcases exists_mkPos_or_mkNeg l with ⟨v', (rfl | rfl)⟩ <;> simp
+  exact eq_comm
+
 
 /-! #### map -/
 

@@ -363,6 +363,29 @@ theorem eq_top_iff {φ : PropFun ν} : φ = ⊤ ↔ ∀ (τ : PropAssignment ν)
 theorem eq_bot_iff {φ : PropFun ν} : φ = ⊥ ↔ ∀ (τ : PropAssignment ν), τ ⊭ φ :=
   ⟨fun h => by simp [h], fun h => by ext; simp [h]⟩
 
+-- CC: I feel like there's a simpler proof here
+@[simp]
+theorem var_ne_bot (v : ν) : var v ≠ ⊥ := by
+  intro h_con
+  simp only [eq_bot_iff, satisfies_var, Bool.not_eq_true] at h_con
+  have := h_con (fun _ => true)
+  contradiction
+
+@[simp]
+theorem var_ne_top (v : ν) : var v ≠ ⊤ := by
+  intro h_con
+  simp only [eq_top_iff, satisfies_var, Bool.not_eq_false] at h_con
+  have := h_con (fun _ => false)
+  contradiction
+
+@[simp]
+theorem bot_ne_var (v : ν) : ⊥ ≠ var v :=
+  Ne.symm (var_ne_bot v)
+
+@[simp]
+theorem top_ne_var (v : ν) : ⊤ ≠ var v :=
+  Ne.symm (var_ne_top v)
+
 @[simp]
 theorem biImpl_top_left (φ : PropFun ν) : ⊤ ⇔ φ = φ := by
   simp only [top_himp, himp_top, le_top, inf_of_le_left]
@@ -408,7 +431,7 @@ theorem var.inj [DecidableEq ν] : (var (ν := ν)).Injective := by
   exact this
 
 @[simp]
-theorem var_eq_var [DecidableEq ν] (v v' : ν) : var v = var v' ↔ v = v' := by
+theorem var_eq_var_iff [DecidableEq ν] (v v' : ν) : var v = var v' ↔ v = v' := by
   constructor
   · intro; apply var.inj; assumption
   · rintro rfl; rfl
@@ -429,6 +452,14 @@ theorem var_compl_ne_var [DecidableEq ν] (v1 v2 : ν) : (var v1)ᶜ ≠ (var v2
   rw [PropFun.ext_iff] at h
   have := h (fun v => v = v1 || v = v2)
   simp at this
+
+theorem compl_eq_iff_eq_compl {φ₁ φ₂ : PropFun ν} : φ₁ᶜ = φ₂ ↔ φ₁ = φ₂ᶜ := by
+  constructor
+  <;> rintro rfl
+  <;> simp only [compl_compl]
+
+theorem eq_compl_iff_compl_eq {φ₁ φ₂ : PropFun ν} : φ₁ = φ₂ᶜ ↔ φ₁ᶜ = φ₂ :=
+  Iff.symm (@compl_eq_iff_eq_compl _ φ₁ φ₂)
 
 /-! Lemmas to push `Quotient.mk` inwards. -/
 

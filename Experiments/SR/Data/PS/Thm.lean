@@ -12,26 +12,47 @@ open Trestle Model Nat
 open LitVar ILit IVar LawfulLitVar
 open PropFun
 
+-- CC: Maybe make the type `IVar → PropFun IVar`?
 abbrev PSubst := (IVar → PropForm IVar)
 
-def toSubst_fun (σ : PS) : PSubst → Fin σ.size → PSV → PSubst :=
-  fun σ idx cell => (fun v =>
+-- CC: Defined here because we don't want to include `PropFun` in `Defs.lean`.
+def PSV.toPropForm : PSV → PropForm IVar
+  | Sum.inl l => LitVar.toPropForm l
+  | Sum.inr true => .tr
+  | Sum.inr false => .fls
+
+-- CC: Defined here because we don't want to include `PropFun` in `Defs.lean`.
+def PSV.toPropFun : PSV → PropFun IVar
+  | Sum.inl l => LitVar.toPropFun l
+  | Sum.inr true => ⊤
+  | Sum.inr false => ⊥
+
+@[simp]
+theorem PSV.toPropForm_eq_toPropFun (p : PSV)
+    : ⟦PSV.toPropForm p⟧ = PSV.toPropFun p := by
+  match p with | .inl l | .inr true | .inr false => simp [PSV.toPropForm, PSV.toPropFun]
+
+@[simp]
+theorem PSV.negate_toPropFun (p : PSV)
+    : PSV.toPropFun (PSV.negate p) = (PSV.toPropFun p)ᶜ := by
+  match p with | .inl l | .inr true | .inr false => simp [PSV.negate, PSV.toPropFun]
+
+def toSubst_fun (σ : PS) : PSubst → Fin σ.size → PSubst :=
+  fun σ' idx => (fun v =>
     if v.index = idx.val then
-      match PSV.varValue? cell v with
-      | none => σ v
-      | some .tr => PropForm.tr
-      | some .fls => PropForm.fls
-      | some (.lit l) => if polarity l then .var (toVar l)
-                         else .neg (.var (toVar l))
-    else σ v)
+      match σ.varValue v with
+      | .inl l => toPropForm l
+      | .inr true => PropForm.tr
+      | .inr false => PropForm.fls
+    else σ' v)
 
 def toSubst (σ : PS) : PSubst :=
-  τ.assignment.foldlIdx (init := .var) (toSubst_fun τ)
+  Fin.foldl σ.size (init := .var) (toSubst_fun σ)
 
-theorem toSubst_fun_comm (τ : PS) :
-  ∀ (σ : PSubst) (idx₁ idx₂ : Fin τ.size),
-    (toSubst_fun τ) ((toSubst_fun τ) σ idx₁ (τ.get idx₁)) idx₂ (τ.get idx₂) =
-    (toSubst_fun τ) ((toSubst_fun τ) σ idx₂ (τ.get idx₂)) idx₁ (τ.get idx₁) := by
+theorem toSubst_fun_comm (σ : PS) :
+  ∀ (σ' : PSubst) (idx₁ idx₂ : Fin σ.size),
+    (toSubst_fun σ) ((toSubst_fun σ) σ' idx₁) idx₂ =
+    (toSubst_fun σ) ((toSubst_fun σ) σ' idx₂) idx₁ := by
   intro σ idx₁ idx₂
   unfold toSubst_fun
   apply funext
@@ -40,19 +61,26 @@ theorem toSubst_fun_comm (τ : PS) :
   <;> by_cases hv₁ : v.index = idx₁.val
   <;> by_cases hv₂ : v.index = idx₂.val
   <;> try simp [hv₁, hv₂, hidx]
-  <;> try simp [hv₁, hv₂, hidx, Ne.symm hidx]
 
-theorem toSubst_of_comm (τ : PS) {v : IVar} (hv : v.index < τ.size) :
-    ∃ σ, τ.toSubst = (toSubst_fun τ) σ ⟨v.index, hv⟩ (τ.get ⟨v.index, hv⟩) :=
-  Array.foldlIdx_of_comm τ.assignment (toSubst_fun τ) .var (toSubst_fun_comm τ) ⟨v.index, hv⟩
+theorem toSubst_of_comm (σ : PS) {v : IVar} (hv : v.index < σ.size) :
+    ∃ σ', σ.toSubst = (toSubst_fun σ) σ' ⟨v.index, hv⟩ :=
+  Fin.foldl_of_comm σ.size (toSubst_fun σ) .var ⟨v.index, hv⟩ (toSubst_fun_comm σ)
+
+theorem toSubst_eq_of_ge {σ : PS} {v : IVar} :
+    v.index ≥ σ.size → σ.toSubst v = v := by
+  intro hv
+  unfold toSubst
+  apply Fin.foldl_induction' σ.size σ.toSubst_fun PropForm.var (· v = PropForm.var v) rfl
+  intro σ' ⟨i, hi⟩ hv'
+  rw [toSubst_fun]
+  split
+  <;> rename_i h_idx
+  · omega
+  · rw [hv']
 
 instance : ToString PS where
-  toString τ := String.intercalate " ∧ "
-    (τ.assignment.foldl (init := []) (f := fun acc a =>
-      match a.val with
-        | .tr => s!"{a.generation}" :: acc
-        | .fls => s!"-{a.generation}" :: acc
-        | .lit l => s!"<{l}>" :: acc))
+  toString σ := String.intercalate " ∧ "
+    (σ.mappings.foldl (init := []) (fun acc a => s!"{PSV.fromMappedNat a}" :: acc))
 
 @[simp]
 theorem fromMappedNat_IVarToMappedNat (v : IVar)
@@ -143,8 +171,7 @@ theorem PSV.negate_mkNeg (v : IVar)
   simp only [negate, neg_mkNeg]
 
 @[simp]
-theorem PSV.negate_neg (l : ILit)
-    : PSV.negate (.inl l) = .inl (-l) := by
+theorem PSV.negate_neg (l : ILit) : PSV.negate (.inl l) = .inl (-l) :=
   rfl
 
 @[simp]
@@ -192,21 +219,39 @@ theorem litValue_eq_varValue_neg {l : ILit} :
   simp only [litValue, litValue_Nat, hl, Bool.false_eq_true, ↓reduceIte,
     fromMappedNat_negateMappedNat, varValue, implies_true]
 
-theorem litValue_eq_varValue_neg' {l : ILit} :
-    polarity l = false → ∀ (σ : PS), σ.litValue (-l) = σ.varValue (toVar l) := by
+theorem litValue_eq_varValue_neg' {l : ILit}
+    : polarity l = false → ∀ (σ : PS), σ.litValue (-l) = σ.varValue (toVar l) := by
   intro hl
   simp only [litValue, litValue_Nat, polarity_negate, hl, Bool.not_false,
     ↓reduceIte, toVar_negate, varValue, implies_true]
 
-theorem lt_size_of_varValue_of_not_id {σ : PS} {v : IVar} :
-    σ.varValue v ≠ (.inl (mkPos v)) → v.index < σ.size := by
+@[simp]
+theorem litValue_mkPos (σ : PS) (v : IVar)
+    : σ.litValue (mkPos v) = σ.varValue v := by
+  apply litValue_eq_varValue_pos (by simp)
+
+@[simp]
+theorem litValue_mkNeg (σ : PS) (v : IVar)
+    : σ.litValue (mkNeg v) = PSV.negate (σ.varValue v) := by
+  have := litValue_eq_varValue_neg (l := mkNeg v)
+  simp at this
+  exact this σ
+
+theorem lt_size_of_varValue_of_not_id {σ : PS} {v : IVar}
+    : σ.varValue v ≠ .inl (mkPos v) → v.index < σ.size := by
   intro hv
   by_contra
   rename (¬v.index < σ.size) => h_con
   simp [varValue, varValue_Nat, h_con] at hv
 
+theorem varValue_eq_of_ge {σ : PS} {v : IVar}
+    : v.index ≥ σ.size → σ.varValue v = .inl (mkPos v) := by
+  contrapose
+  simp only [ge_iff_le, not_le]
+  exact lt_size_of_varValue_of_not_id
+
 theorem lt_size_of_litValue_of_not_id {σ : PS} {l : ILit} :
-    σ.litValue l ≠ (.inl l) → l.index < σ.size := by
+    σ.litValue l ≠ .inl l → l.index < σ.size := by
   intro h
   rw [← ILit.toVar_index]
   apply lt_size_of_varValue_of_not_id
@@ -219,35 +264,85 @@ theorem lt_size_of_litValue_of_not_id {σ : PS} {l : ILit} :
     rw [litValue_eq_varValue_neg hpol σ, hl] at h
     simp [h_con] at h
 
-theorem varValue_fls_iff {σ : PS} {v : IVar} :
-    (σ.varValue v = .fls) ↔ (PropFun.bind σ.toSubst ⟦v⟧) = ⊥ := by
-  sorry
-  done
+theorem litValue_eq_of_ge {σ : PS} {l : ILit}
+    : l.index ≥ σ.size → σ.litValue l = .inl l := by
+  contrapose
+  simp only [ge_iff_le, not_le]
+  exact lt_size_of_litValue_of_not_id
 
-theorem varValue_tr_iff {σ : PS} {v : IVar} :
-    (σ.varValue v = .tr) ↔ (PropFun.bind σ.toSubst ⟦v⟧) = ⊤ := by
-  sorry
-  done
+@[simp]
+theorem varValue_eq_toSubst (σ : PS) (v : IVar)
+    : PSV.toPropForm (σ.varValue v) = σ.toSubst v := by
+  by_cases hv : v.index < σ.size
+  · have ⟨σ', hσ'⟩ := toSubst_of_comm σ hv
+    simp only [PSV.toPropForm, hσ', toSubst_fun, ↓reduceIte]
+  · rw [not_lt] at hv
+    simp only [PSV.toPropForm, varValue_eq_of_ge hv,
+      toPropForm_mkPos, toSubst_eq_of_ge hv]
 
-theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit} :
-    (σ.varValue v = .lit l) ↔ (PropFun.bind σ.toSubst ⟦v⟧) = (PropFun.bind σ.toSubst l) := by
-  sorry
-  done
+@[simp]
+theorem varValue_eq {σ : PS} {v : IVar}
+    : PSV.toPropFun (σ.varValue v) = PropFun.substL (.var v) σ.toSubst := by
+  rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
+  · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
+    simp [hσ', toSubst_fun]
+    split
+    <;> rename_i h
+    <;> simp [h, PSV.toPropFun]
+  · simp [varValue_eq_of_ge h_ge, toSubst_eq_of_ge h_ge, PSV.toPropFun]
 
-theorem litValue_fls_iff {σ : PS} {l : ILit} :
-    (σ.litValue l = .fls) ↔ (PropFun.bind σ.toSubst l) = ⊥ := by
-  sorry
-  done
+@[simp]
+theorem varValue_false_iff {σ : PS} {v : IVar}
+    : σ.varValue v = .inr false ↔ PropFun.substL (.var v) σ.toSubst = ⊥ := by
+  simp only [← varValue_eq, PSV.toPropFun]
+  split <;> simp_all
 
-theorem litValue_tr_iff {σ : PS} {l : ILit} :
-    (σ.litValue l = .tr) ↔ (PropFun.bind σ.toSubst l) = ⊤ := by
-  sorry
-  done
+-- CC: Similar proofs here. Dunno why I can't use `varValue_eq`...
+@[simp]
+theorem varValue_true_iff {σ : PS} {v : IVar}
+    : σ.varValue v = .inr true ↔ PropFun.substL (.var v) σ.toSubst = ⊤ := by
+  rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
+  · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
+    simp [hσ', toSubst_fun, h_lt]
+    split
+    <;> rename_i hv
+    <;> simp [hv]
+  · simp [varValue_eq_of_ge h_ge, toSubst_eq_of_ge h_ge]
+
+@[simp]
+theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit}
+    : σ.varValue v = .inl l ↔ PropFun.substL (.var v) σ.toSubst = l := by
+  rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
+  · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
+    simp [hσ', toSubst_fun, h_lt]
+    split
+    <;> rename_i hv
+    <;> simp [hv]
+  · simp [varValue_eq_of_ge h_ge, toSubst_eq_of_ge h_ge]
+    exact eq_comm
+
+@[simp]
+theorem litValue_eq {σ : PS} {l : ILit}
+    : PSV.toPropFun (σ.litValue l) = PropFun.substL l σ.toSubst := by
+  rcases exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> simp
+
+@[simp]
+theorem litValue_false_iff {σ : PS} {l : ILit} :
+    (σ.litValue l = .inr false) ↔ PropFun.substL l σ.toSubst = ⊥ := by
+  rcases exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> simp [PSV.negate_eq_iff_eq_negate]
+
+theorem litValue_true_iff {σ : PS} {l : ILit} :
+    (σ.litValue l = .inr true) ↔ PropFun.substL l σ.toSubst = ⊤ := by
+  rcases exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> simp [PSV.negate_eq_iff_eq_negate]
 
 theorem litValue_lit_iff {σ : PS} {l₁ l₂ : ILit} :
-    (σ.litValue l₁ = .lit l₂) ↔ (PropFun.bind σ.toSubst l₁) = l₂ := by
-  sorry
-  done
+    (σ.litValue l₁ = .inl l₂) ↔ PropFun.substL l₁ σ.toSubst = l₂ := by
+  rcases exists_mkPos_or_mkNeg l₁ with ⟨v, rfl | rfl⟩
+  <;> simp [PSV.negate_eq_iff_eq_negate, eq_compl_iff_compl_eq]
+
 
 /-! # setLit -/
 

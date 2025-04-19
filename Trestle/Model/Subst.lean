@@ -168,7 +168,7 @@ section substL
 
 variable (f : ν₁ → PropForm ν₂) (φ₁ φ₂ : PropFun ν₁) (v : ν₁)
 
-@[simp] theorem substL_distrib : substL ⟦v⟧ f = ⟦f v⟧ := rfl
+@[simp] theorem substL_distrib : substL (.var v) f = ⟦f v⟧ := rfl
 @[simp] theorem substL_bot : substL ⊥ f = ⊥ := rfl
 @[simp] theorem substL_top : substL ⊤ f = ⊤ := rfl
 
@@ -186,6 +186,11 @@ theorem substL_conj : substL (φ₁ ⊓ φ₂) f = substL φ₁ f ⊓ substL φ�
 
 @[simp]
 theorem substL_neg : substL (neg φ) f = neg (substL φ f) := by
+  have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
+  rfl
+
+@[simp]
+theorem substL_compl : substL φᶜ f = (substL φ f)ᶜ := by
   have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
   rfl
 
@@ -250,6 +255,10 @@ theorem satisfies_subst {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
   rfl
 
 @[simp] theorem subst_neg : subst (neg φ) f = neg (subst φ f) := by
+  have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
+  rfl
+
+@[simp] theorem subst_compl : subst φᶜ f = (subst φ f)ᶜ := by
   have ⟨φ, hφ⟩ := φ.exists_rep; cases hφ
   rfl
 
