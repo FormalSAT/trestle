@@ -152,6 +152,12 @@ theorem fromMappedNat_ILitToMappedNat (l : ILit)
       simp only [polarity, decide_eq_true_eq, not_lt] at hpol
       omega
 
+@[simp]
+theorem fromMappedNat_toMappedNat (p : PSV)
+    : PSV.fromMappedNat (PSV.toMappedNat p) = p := by
+  match p with
+  | .inl l | .inr true | .inr false => simp [PSV.toMappedNat]
+
 /-! # negate -/
 
 -- CC: This is probably too much machinery/abstraction, but the ability to
@@ -374,11 +380,14 @@ theorem litValue_lit_iff {σ : PS} {l₁ l₂ : ILit} :
 @[simp]
 theorem setLit_size (σ : PS) (l : ILit)
     : (σ.setLit l).size = max σ.size (l.index + 1) := by
-  simp [setLit, size]
+  simp only [size, setLit, Array.size_setF]
 
 @[simp]
 theorem litValue_setLit_self (σ : PS) (l : ILit) : (σ.setLit l).litValue l = .inr true := by
-  simp [setLit, litValue, litValue_Nat, varValue_Nat]
+  simp only [litValue, litValue_Nat, varValue_Nat, toVar_index, setLit,
+    Array.length_toList, Array.size_setF, lt_sup_iff, lt_add_iff_pos_right,
+    lt_one_iff, pos_of_gt, or_true, ↓reduceDIte, Array.getElem_setF_self,
+    ge_iff_le, _root_.le_refl, ↓reduceIte, toMappedNat_fromMappedNat]
   by_cases hl : l.index < σ.size
   <;> by_cases hpol : polarity l
   <;> simp [hpol]
@@ -413,6 +422,42 @@ theorem litValue_setLit_of_ne {l₁ l₂ : ILit} (h_ne : toVar l₁ ≠ toVar l�
       have hi : σ.size ≤ l₁.index := by omega
       simp [Array.getElem_setF_ge_lt _ _ hi _ _ _ (Nat.ge_of_not_lt hl₂) hl₂',
         index_ne_of_var_ne h_ne]
+
+/-! # setVarToLit -/
+
+@[simp]
+theorem setVarToLit_size (σ : PS) (v : IVar) (l : ILit)
+    : (σ.setVarToLit v l).size = max σ.size (v.index + 1) := by
+  simp only [size, setVarToLit, Array.size_setF]
+
+@[simp]
+theorem varValue_setVarToLit_self (σ : PS) (v : IVar) (l : ILit)
+    : (σ.setVarToLit v l).varValue v = .inl l := by
+  simp only [varValue, varValue_Nat, setVarToLit, Array.length_toList,
+    Array.size_setF, lt_sup_iff, lt_add_iff_pos_right, lt_one_iff, pos_of_gt,
+    or_true, ↓reduceDIte, Array.getElem_setF_self, ge_iff_le, _root_.le_refl,
+    ↓reduceIte, fromMappedNat_toMappedNat]
+
+-- CC: Somewhat duplicated proof from `litValue_setLit_of_ne`
+@[simp]
+theorem varValue_setVarToLit_ne (σ : PS) {v₁ v₂ : IVar} (h : v₁ ≠ v₂) (l : ILit)
+    : (σ.setVarToLit v₁ l).varValue v₂ = σ.varValue v₂ := by
+  simp [setVarToLit, varValue, varValue_Nat]
+  congr 1
+  by_cases hv₂ : v₂.index < σ.size
+  <;> simp [hv₂]
+  · simp [h, Array.getElem_setF_lt _ v₁.index _ _ _ hv₂]
+    congr 1
+    have hv₂' : v₂.index < σ.mappings.size := by
+      rw [← σ.sizes_eq]; exact hv₂
+    simp only [Array.getElem_setF_lt _ v₁.index _ _ _ hv₂',
+      index_eq_iff, h, ↓reduceIte]
+  · intro hv₂'
+    have hi : σ.size ≤ v₁.index := by omega
+    simp [Array.getElem_setF_ge_lt _ _ hi _ _ _ (Nat.ge_of_not_lt hv₂) hv₂',
+      index_eq_iff, h, ↓reduceIte]
+
+#exit
 
 section monadic
 

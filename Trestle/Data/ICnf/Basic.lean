@@ -49,6 +49,10 @@ theorem index_eq_iff {v₁ v₂ : IVar} : v₁.index = v₂.index ↔ v₁ = v�
     rfl
 
 @[simp]
+theorem index_ne_iff {v₁ v₂ : IVar} : v₁.index ≠ v₂.index ↔ v₁ ≠ v₂ := by
+  simp only [ne_eq, index_eq_iff]
+
+@[simp]
 theorem toPosILit_negate (v : IVar) : -(v.toPosILit) = v.toNegILit :=
   rfl
 
