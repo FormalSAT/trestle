@@ -26,7 +26,7 @@ structure C3MinZero (n s) extends TwoCubes n s where
     ∀ (i : BitVec (n+2)),
       i[1] = true →
       (∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (kclique.get i)[j] ≠ 0) →
-      count (kclique.get 3) ≤ count (kclique.get i)
+      count (kclique.get 3#_) ≤ count (kclique.get i)
 
 
 namespace C3MinZero
@@ -161,26 +161,108 @@ structure C3MinZeroSorted (n s) extends C3MinZero n s where
 
 namespace C3MinZeroSorted
 
+section
+variable (j₁) (j₁_range : 2 ≤ j₁ ∧ j₁ < n+2) (j₂) (j₂_range : 2 ≤ j₂ ∧ j₂ < n+2)
+
+def swap : Equiv.Perm (Fin (n+2)) :=
+  Equiv.swap ⟨j₁,by omega⟩ ⟨j₂,by omega⟩
+
+theorem swap_lt_2 (j) : (swap j₁ j₁_range j₂ j₂_range j).val < 2 ↔ j.val < 2 := by
+  simp [swap, Equiv.swap_apply_def]
+  split
+  · subst j; simp; omega
+  · split
+    · subst j; simp; omega
+    · rfl
+
+theorem swap_ge_2 (j) : 2 ≤ (swap j₁ j₁_range j₂ j₂_range j).val ↔ 2 ≤ j.val := by
+  rw [← not_iff_not]; simp; exact swap_lt_2 ..
+
+def idxMap : BitVec (n+2) → BitVec (n+2) :=
+  fun idx => BitVec.ofFn fun j => idx[(swap j₁ j₁_range j₂ j₂_range).symm j]
+
+theorem idxMap_three : idxMap j₁ j₁_range j₂ j₂_range (3#(n+2)) = 3#(n+2) := by
+  unfold idxMap swap
+  ext j₂ range
+  simp [bv_toNat, range]
+  rw [Bool.eq_iff_iff, Nat.testBit_three]
+  conv => rhs; rw [Nat.testBit_three j₂]
+  apply swap_lt_2 <;> assumption
+
+theorem idxMap_get_1 : (idxMap j₁ j₁_range j₂ j₂_range i)[1] = i[1] := by
+  unfold idxMap swap
+  simp; congr; rw [Equiv.swap_apply_of_ne_of_ne] <;> simp <;> omega
+
+theorem kclique_map_get_eq_get_idxMap (kc : KClique _ s) {i} {j} (j_range)
+  : (kc.map (KAuto.permColumns (swap j₁ j₁_range j₂ j₂_range)) |>.get i)[j]'j_range =
+    (kc.get (idxMap j₁ j₁_range j₂ j₂_range i))[(swap j₁ j₁_range j₂ j₂_range) ⟨j,by omega⟩] := by
+  rw [KClique.get_map_permColumns]
+  unfold idxMap
+  simp
+
+theorem kclique_map_swap_get (kc : KClique _ s) {i}
+  : (kc.map (KAuto.permColumns (swap j₁ j₁_range j₂ j₂_range))).get i =
+    Vector.ofFn fun j => (kc.get (idxMap j₁ j₁_range j₂ j₂_range i))[(swap j₁ j₁_range j₂ j₂_range) j] := by
+  ext j j_range
+  simp [kclique_map_get_eq_get_idxMap]
+
+end
+
+theorem count_perm_eq (p : Equiv.Perm (Fin (n+2))) (h : ∀ j, (p.symm j).val < 2 ↔ j.val < 2)
+    (v : Vector (Fin (s+1)) _)
+  : C3MinZero.count (Vector.ofFn fun j => v[p j]) = C3MinZero.count v := by
+  unfold C3MinZero.count
+  simp
+  rw [← Finset.card_map (f := p.toEmbedding), Finset.map_filter]
+  simp
+  congr; ext j; simp; rintro -
+  rw [← not_iff_not]
+  simpa using h j
+
+-- start from c3[j'] = 0 for j' > j and reduce `j` inductively until c3 is sorted
 theorem reorderZero (tc : C3MinZero n s) (j) (j_range : j < n+2)
-    (h_zeros : ∀ j' (h : j < j' ∧ j' < n+2), (tc.kclique.get 3)[j'] = 0)
+    (h_zeros : ∀ j' (h : j < j' ∧ j' < n+2), (tc.kclique.get 3#_)[j'] = 0)
   : Nonempty (C3MinZeroSorted n s) := by
-  if h_nonzeros : ∀ j' (h : 2 ≤ j' ∧ j' < j), (tc.kclique.get 3)[j'] ≠ 0 then
+  induction j using Nat.strong_induction_on generalizing tc
+  next j₁ ih =>
+  if h_nonzeros : ∀ j' (h : 2 ≤ j' ∧ j' < j₁), (tc.kclique.get 3)[j'] ≠ 0 then
     refine ⟨{toC3MinZero := tc, c3_sorted := ?_}⟩
     rintro j' j'_range j'_is_zero
-    have : j' ≥ j := by by_contra; apply h_nonzeros _ _ j'_is_zero; omega
+    have : j' ≥ j₁ := by by_contra; apply h_nonzeros _ _ j'_is_zero; omega
     apply h_zeros; omega
   else
     push_neg at h_nonzeros
-    rcases h_nonzeros with ⟨j',j'_range,j'_zero⟩
-    let tc' := tc.permColumns (.swap ⟨j',by omega⟩ ⟨j,by omega⟩) ?fix0 ?fix1
+    rcases h_nonzeros with ⟨j₂,hj₂,j₂_zero⟩
+    let tc' := tc.permColumns (swap j₁ (by omega) j₂ (by omega)) ?fix0 ?fix1
     case fix0 | fix1 =>
       apply Equiv.swap_apply_of_ne_of_ne <;> (simp; omega)
-    let min' : C3MinZero n s := { tc' with
-      c3_min_zero := by
-        sorry
-    }
-    apply reorderZero min' (j-1) (by omega)
-    sorry
+    let min' : C3MinZero n s := { tc' with c3_min_zero := ?c3_min_zero }
+    case c3_min_zero =>
+      intro i i1_true high_bits_nz
+      simp [tc']
+      convert tc.c3_min_zero (idxMap j₁ (by omega) j₂ (by omega) i) ?_ ?_ using 1
+      case convert_1 =>
+        simp [idxMap_get_1, i1_true]
+      case convert_2 =>
+        intro j j_range ij_true
+        simp [idxMap] at ij_true
+        specialize high_bits_nz _ ?_ ij_true
+        · simp; rw [← swap_ge_2, Equiv.apply_symm_apply]; simp; omega
+        simpa [tc', kclique_map_get_eq_get_idxMap] using high_bits_nz
+      · rw [kclique_map_swap_get, idxMap_three, count_perm_eq]
+        · intro j; rw [← swap_lt_2, Equiv.apply_symm_apply]
+      · rw [kclique_map_swap_get, count_perm_eq]
+        · intro j; rw [← swap_lt_2, Equiv.apply_symm_apply]
+    apply ih (j₁-1) (by omega) min' (by omega)
+    intro j j_range
+    simp [min', tc']
+    rw [kclique_map_get_eq_get_idxMap, idxMap_three]
+    if j = j₁ then
+      subst j; simp [swap]; exact j₂_zero
+    else
+      have : j > j₁ := by omega
+      have : j ≠ j₂ := by omega
+      simp [swap, Equiv.swap_apply_of_ne_of_ne, *]
 
 theorem ofC3MinZero (tc : C3MinZero n s) : Nonempty (C3MinZeroSorted n s) := by
   apply reorderZero tc (n+1) (by omega) (by omega)
