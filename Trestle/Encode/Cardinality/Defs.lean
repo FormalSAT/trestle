@@ -37,6 +37,8 @@ abbrev atLeast (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· ≥
 
 abbrev exactly (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· = k)
 
+abbrev lessThan (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· < k)
+
 theorem ofList_eq_map_get (L : List α)
   : Multiset.ofList L = (Finset.univ.val.map fun i => L.get i) := by
   conv => lhs; rw [← List.finRange_map_get (l := L)]
