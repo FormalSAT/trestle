@@ -185,6 +185,12 @@ theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (
   rw [Nat.mod_eq_of_lt]
   exact Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)
 
+theorem Nat.testBit_three (x : Nat) : Nat.testBit 3 x ↔ x < 2 := by
+  match x with
+  | 0 => simp
+  | 1 => simp; decide
+  | x+2 => simp [testBit_succ]
+
 theorem Nat.xor_mod_pow_2 (x y n : Nat) : x % 2^n ^^^ y % 2^n = (x ^^^ y) % 2^n := by
   apply Nat.eq_of_testBit_eq
   intro i
