@@ -5,17 +5,17 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: Cayden Codel, Wojciech Nawrocki, James Gallicchio
 -/
 
-import Trestle.Data.ICnf
-import Experiments.SR.Data.PPA.Thm
+import Trestle.Data.ICnf.Defs
+import Experiments.SR.Data.PPA.Defs
 import Experiments.SR.Data.PS.Defs
-import Experiments.SR.Data.RangeArray
+import Experiments.SR.Data.RangeArray.Defs
 import Experiments.SR.Parsing
 
 /-!
 
-An LSR proof checker.
+  An LSR proof checker.
 
-Uses `RangeArray`s to efficiently implement CNF formulas with deletion.
+  Uses `RangeArray`s to efficiently implement CNF formulas with deletion.
 
 -/
 
@@ -25,9 +25,9 @@ namespace RangeArray
 
 /-
 
-We now add API-breaking versions of unit propagation, reduction,
-and assumption functions (see `PPA` and `PS`) on `RangeArray`s
-so the code goes fast.
+  We now add API-breaking versions of unit propagation, reduction,
+  and assumption functions (see `PPA` and `PS`) on `RangeArray`s
+  so the code goes fast.
 
 -/
 
@@ -37,7 +37,6 @@ so the code goes fast.
   Returns an error if the clause is a tautology.
   Returns the updated `PPA` otherwise.
 -/
---@[inline, always_inline]
 def assumeNegatedCandidateFor (F : RangeArray ILit) (τ : PPA) (bumps : Nat) : Except PPA PPA :=
   let e := F.data.size
   let s := F.dsize
@@ -51,7 +50,7 @@ def assumeNegatedCandidateFor (F : RangeArray ILit) (τ : PPA) (bumps : Nat) : E
         loop (i + 1) τ
        else -- lv = PPA.TRUE
         .error τ
-    else  -- i ≥ sto
+    else  -- i ≥ e
       .ok τ
   termination_by F.data.size - i
   loop s τ
@@ -63,11 +62,11 @@ def assumeNegatedCandidateFor (F : RangeArray ILit) (τ : PPA) (bumps : Nat) : E
 
   Returns an error if `C` is satisfied by either `σ`, or `τ` under `σ`.
 -/
-def assumeRATClause (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) (σ : PS) (τ : PPA) : Except PPA PPA :=
+def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ : PS) (τ : PPA) : Except PPA PPA :=
   /- Instead of using `rsize` and substracting off `index i`,
      we calculate it directly. For whatever reason, this is faster.
      The performance improvement is about 8%. -/
-  let s := F.index idx hidx
+  let s := F.index idx h_idx
   let e :=
     if h_index : idx + 1 < F.size then
       F.index (idx + 1) h_index
@@ -109,7 +108,7 @@ def assumeRATClause (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) (σ 
 
   loop s τ
 
---@[inline, always_inline]
+
 def unitProp (τ : PPA) (F : RangeArray ILit) (hint : Nat) (h_hint : hint < F.size) : PPA.UPResult :=
   /- Instead of using `rsize` and substracting off `index idx`,
      we calculate it directly. For whatever reason, this is faster.
