@@ -310,7 +310,7 @@ theorem varValue_eq_toSubst (σ : PS) (v : IVar)
 
 @[simp]
 theorem varValue_eq {σ : PS} {v : IVar}
-    : PSV.toPropFun (σ.varValue v) = PropFun.substL (.var v) σ.toSubst := by
+    : PSV.toPropFun (σ.varValue v) = substL (.var v) σ.toSubst := by
   rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
   · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
     simp [hσ', toSubst_fun]
@@ -322,14 +322,14 @@ theorem varValue_eq {σ : PS} {v : IVar}
 
 @[simp]
 theorem varValue_false_iff {σ : PS} {v : IVar}
-    : σ.varValue v = .inr false ↔ PropFun.substL (.var v) σ.toSubst = ⊥ := by
+    : σ.varValue v = .inr false ↔ substL (.var v) σ.toSubst = ⊥ := by
   simp only [← varValue_eq, PSV.toPropFun]
   split <;> simp_all
 
 -- CC: Similar proofs here. Dunno why I can't use `varValue_eq`...
 @[simp]
 theorem varValue_true_iff {σ : PS} {v : IVar}
-    : σ.varValue v = .inr true ↔ PropFun.substL (.var v) σ.toSubst = ⊤ := by
+    : σ.varValue v = .inr true ↔ substL (.var v) σ.toSubst = ⊤ := by
   rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
   · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
     simp [hσ', toSubst_fun, h_lt]
@@ -341,7 +341,7 @@ theorem varValue_true_iff {σ : PS} {v : IVar}
 
 @[simp]
 theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit}
-    : σ.varValue v = .inl l ↔ PropFun.substL (.var v) σ.toSubst = l := by
+    : σ.varValue v = .inl l ↔ substL (.var v) σ.toSubst = l := by
   rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
   · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
     simp [hσ', toSubst_fun, h_lt]
@@ -354,23 +354,23 @@ theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit}
 
 @[simp]
 theorem litValue_eq {σ : PS} {l : ILit}
-    : PSV.toPropFun (σ.litValue l) = PropFun.substL l σ.toSubst := by
+    : PSV.toPropFun (σ.litValue l) = substL l σ.toSubst := by
   rcases exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
   <;> simp
 
 @[simp]
 theorem litValue_false_iff {σ : PS} {l : ILit} :
-    (σ.litValue l = .inr false) ↔ PropFun.substL l σ.toSubst = ⊥ := by
+    (σ.litValue l = .inr false) ↔ substL l σ.toSubst = ⊥ := by
   rcases exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
   <;> simp [PSV.negate_eq_iff_eq_negate]
 
 theorem litValue_true_iff {σ : PS} {l : ILit} :
-    (σ.litValue l = .inr true) ↔ PropFun.substL l σ.toSubst = ⊤ := by
+    (σ.litValue l = .inr true) ↔ substL l σ.toSubst = ⊤ := by
   rcases exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
   <;> simp [PSV.negate_eq_iff_eq_negate]
 
 theorem litValue_lit_iff {σ : PS} {l₁ l₂ : ILit} :
-    (σ.litValue l₁ = .inl l₂) ↔ PropFun.substL l₁ σ.toSubst = l₂ := by
+    (σ.litValue l₁ = .inl l₂) ↔ substL l₁ σ.toSubst = l₂ := by
   rcases exists_mkPos_or_mkNeg l₁ with ⟨v, rfl | rfl⟩
   <;> simp [PSV.negate_eq_iff_eq_negate, eq_compl_iff_compl_eq]
 
@@ -577,9 +577,9 @@ theorem reduce_eq_reduceM (σ : PS) (C : IClause) :
 
 /-! ### reduction correctness wrt `PropFun` -/
 
-theorem reduceM.aux_true {σ : PS} {C : List ILit} {b : Bool}
+theorem reduceM.aux_false {σ : PS} {C : List ILit} {b : Bool}
     : reduceM.aux σ { toList := C } b = .ok false
-        → PropFun.substL (Clause.toPropFun { toList := C}) σ.toSubst = (Clause.toPropFun { toList := C }) := by
+        → substL (Clause.toPropFun { toList := C }) σ.toSubst = (Clause.toPropFun { toList := C }) := by
   intro h_aux
   induction C with
   | nil => simp
@@ -593,309 +593,24 @@ theorem reduceM.aux_true {σ : PS} {C : List ILit} {b : Bool}
       by_cases h_lit : l = lit
       <;> simp [h_lit] at h_aux
       subst h_lit
-      have := litValue_lit_iff.mp hl
-      simp [ih h_aux, this]
+      simp [ih h_aux, litValue_lit_iff.mp hl]
 
-#exit
--- TODO: It is possible only the forward directions are needed
-@[simp]
-theorem reduce_satisfied_iff {σ : PS} {C : IClause} :
-    σ.reduce C = .satisfied ↔ PropFun.substL C.toPropFun σ.toSubst = ⊤ := by
-  have ⟨C⟩ := C
-  induction C with
-  | nil => simp
-  done
-
-theorem reduce_falsified_iff {σ : PS} {C : IClause} :
-    σ.reduce C = .falsified ↔ (C.toPropFun).bind σ.toSubst ≤ ⊥ := by
-  sorry
-  done
-
-theorem reduce_notReduced_iff {σ : PS} {C : IClause} :
-    σ.reduce C = .notReduced ↔ (C.toPropFun).bind σ.toSubst = ↑C := by
-  sorry
-  done
-
-theorem reduce_reduced {σ : PS} {C : IClause} :
-    σ.reduce C = .reduced ↔
-      ((C.toPropFun).bind σ.toSubst ≠ ⊤ ∧ (C.toPropFun).bind σ.toSubst ≠ ⊥) := by
-  sorry
-  done
-
-inductive UPResult where
-  | falsified
-  | satisfied
-  | unit (l : ILit) (τ : PS) -- Updated substitution and unit literal l
-  | multipleUnassignedLiterals
-
-inductive UPDone where
-  | satisfied
-  | multipleUnassignedLiterals
-
-abbrev UPBox := ResultT UPDone (Option ILit)
-
-open ResultT UPResult UPDone PPA
-
-def sevalUP (σ : PS) (unit? : Option ILit) (l : ILit) : UPBox :=
-  match σ.litValue l with
-  | .tr => done .satisfied
-  | .fls => ok unit?
-  | .lit lit =>
-    match unit? with
-    | none => ok lit
-    | some u =>
-      if u = lit then ok unit?
-      -- Since σ is a substitution, tautology could occur
-      else if u = -lit then done .satisfied
-      else done .multipleUnassignedLiterals
-
-def foldUP (σ : PS) (C : IClause) := C.foldlM (sevalUP σ) none
-
-def unitProp (σ : PS) (C : IClause) : UPResult :=
-  match foldUP σ C with
-  | ok none => .falsified
-  | ok (some lit) => .unit lit (σ.setLit lit)
-  | done .satisfied => .satisfied
-  | done .multipleUnassignedLiterals => .multipleUnassignedLiterals
-
-def UP_motive_fn (σ : PS) (C : IClause) : ℕ → Option ILit → Prop
-  | idx, none => ∀ ⦃i : Fin C.size⦄, i < idx → σ.litValue C[i] = .fls
-  | idx, some lit => ∃ (i : Fin C.size), i < idx ∧ σ.litValue C[i] = .lit lit ∧
-      (∀ ⦃j : Fin C.size⦄, j < idx → j ≠ i → (σ.litValue C[j] = .fls ∨ σ.litValue C[j] = .lit lit))
-
-theorem SatisfiesM_UP (σ : PS) (C : IClause) :
-    SatisfiesM (fun
-      | none => ∀ l ∈ C.data, σ.litValue l = .fls
-      | some lit => ∃ (l : ILit), l ∈ C.data ∧ σ.litValue l = .lit lit ∧
-          (∀ l' ∈ C.data, l' ≠ l → (σ.litValue l' = .fls ∨ σ.litValue l' = .lit lit))) (foldUP σ C) := by
-  have := C.SatisfiesM_foldlM (init := (none : Option ILit)) (f := sevalUP σ)
-    (motive := UP_motive_fn σ C)
-    (h0 := by simp [UP_motive_fn])
-    (hf := by
-      unfold UP_motive_fn
-      simp only [SatisfiesM_ResultT_eq, getElem_fin]
-      -- Cayden question: is the proof more compact if I use pattern-matching with intro?
-      intro i box ih
-      intro
-      | none, hbox =>
-        intro j hj
-        unfold sevalUP at hbox
-        match hσ : σ.litValue C[i.val] with
-        | .tr => simp_rw [hσ] at hbox
-        | .fls =>
-          simp_rw [hσ, ok.injEq] at hbox; subst hbox
-          rcases Order.lt_succ_iff_eq_or_lt.mp hj with (hj | hj)
-          · rw [Fin.ext hj]; exact hσ
-          · exact ih hj
-        | .lit lit =>
-          simp [hσ] at hbox
-          match box with
-          | none => simp at hbox
-          | some u =>
-            rcases eq_trichotomy u lit with (rfl | rfl | hvar)
-            · simp at hbox
-            · simp at hbox
-            · simp [ne_of_var_ne hvar, ne_of_var_ne ((toVar_negate lit).symm ▸ hvar)] at hbox
-      | some u, hbox =>
-        rename ILit => lit
-        unfold sevalUP at hbox
-        match hσ : σ.litValue C[i.val] with
-        | .tr => simp_rw [hσ] at hbox
-        | .fls =>
-          simp_rw [hσ, ok.injEq] at hbox; subst hbox
-          rcases ih with ⟨idx, hidx_lt, hidxσ, hidx_fls⟩
-          use idx, lt_succ_of_lt hidx_lt, hidxσ
-          intro j hj
-          rcases lt_or_eq_of_le (le_of_lt_succ hj) with (h | h)
-          · exact hidx_fls h
-          · replace h := Fin.ext h; subst h; intro _; exact Or.inl hσ
-        | .lit lit' =>
-          simp [hσ] at hbox
-          match box with
-          | none =>
-            simp at hbox; subst hbox
-            have : C[i.val] ∈ C.data := Array.getElem_mem_data C i.isLt
-            use i, lt_succ_self _, hσ
-            intro j hj
-            rcases lt_or_eq_of_le (le_of_lt_succ hj) with (h | h)
-            · intro _; exact Or.inl (ih h)
-            · replace h := Fin.ext h; subst h; intro hcon; contradiction
-          | some u =>
-            rcases eq_trichotomy u lit' with (rfl | rfl | hvar)
-            · simp at hbox; subst hbox
-              rcases ih with ⟨idx, hidx_lt, hidxσ, hidx_fls⟩
-              use idx, lt_succ_of_lt hidx_lt, hidxσ
-              intro j hj
-              rcases lt_or_eq_of_le (le_of_lt_succ hj) with (h | h)
-              · exact hidx_fls h
-              · replace h := Fin.ext h; subst h; intro _; exact Or.inr hσ
-            · simp at hbox
-            · simp [ne_of_var_ne hvar, ne_of_var_ne ((toVar_negate lit').symm ▸ hvar)] at hbox)
-  apply SatisfiesM.imp this
-  intro
-  | none =>
-    intro h l hl
-    rcases Array.mem_data_iff.mp hl with ⟨i, rfl⟩
-    exact h i.isLt
-  | some lit =>
-    simp [UP_motive_fn]
-    intro i hi ih
-    use C[i.val], Array.getElem_mem_data C i.isLt, hi
-    intro l hl₁ hl₂
-    rcases Array.mem_data_iff.mp hl₁ with ⟨j, rfl⟩
-    apply ih
-    exact ne_of_apply_ne (C[·]) hl₂
-
-theorem contradiction_of_UP_falsified {σ : PS} {C : IClause} :
-    σ.unitProp C = .falsified → (C.toPropFun).bind σ.toSubst ≤ ⊥ := by
-  unfold unitProp
-  intro h_falsified
-  split at h_falsified <;> try simp at h_falsified
-  clear h_falsified
-  rename (foldUP σ C = ok none) => h
-  refine entails_ext.mpr fun τ hτ => ?_
-  rw [satisfies_bind] at hτ
-  have ⟨lit, hlit, hτlit⟩ := Clause.satisfies_iff.mp hτ
-  have := SatisfiesM_ResultT_eq.mp (SatisfiesM_UP σ C) none h lit hlit
-  clear h hτ
-  replace hτlit := satisfies_iff.mp hτlit
-  cases hpol : polarity lit
-  <;> simp [hpol, PropAssignment.preimage] at hτlit
-  · rw [litValue_eq_varValue_neg hpol, PSVal.negate_rhs_eq_lhs_negate, PSVal.negate,
-          varValue_tr_iff, bind_distrib] at this
-    rw [this] at hτlit
-    contradiction
-  · rw [litValue_eq_varValue_pos hpol, varValue_fls_iff, bind_distrib] at this
-    rw [this] at hτlit
-    exact hτlit
-
-theorem extended_of_UP_unit {σ σ' : PS} {C : IClause} {l : ILit} :
-    σ.unitProp C = .unit l σ' →
-      (C.toPropFun).bind σ.toSubst ≤ l.toPropFun ∧
-      (∃ lit ∈ C.data, σ.litValue lit = .lit l ∧ σ'.litValue l = .tr) := by
-      -- Cayden question: how to express this in an abstract way? Perhaps with a bind (l.bind σ) or as a (. ∘ .) of two subs
-  unfold unitProp
-  intro h_unit
-  split at h_unit <;> try simp at h_unit
-  --clear h_unit
-  rename ILit => lit
-  rename (foldUP σ C = ok (some lit)) => h
-  rcases h_unit with ⟨rfl, rfl⟩
-  have hlv := SatisfiesM_ResultT_eq.mp (SatisfiesM_UP σ C) (some lit) h
-  clear h
-  rcases hlv with ⟨l, hl_mem, hσl, ih⟩
-  constructor
-  · refine entails_ext.mpr fun τ hτ => ?_
-    rw [satisfies_bind] at hτ
-    by_cases heq : l = lit
-    · subst heq
-      rw [Clause.satisfies_iff] at hτ; rcases hτ with ⟨l', hl'_mem, hl'⟩
-      rw [← satisfies_bind] at hl'
-      sorry -- Proof got stuck here. And we may not need unit propagaion after all
-      done
-    · sorry
-      done
-    done
-  · exact ⟨l, hl_mem, hσl, litValue_setLit_pos _ _⟩
-  done
-
--- We have to carry along a PPA to store the unset literals and check for tautologies (Cayden later comment: why??)
-
-/-! # Reduction -/
-
--- We do something very similar to "unit propagation", except we don't modify σ
-
-inductive ReductionResult where
-  | falsified
-  | satisfied
-  | reduced
-  | notReduced
-
-abbrev RedBox := ResultT PPA (PPA × Bool × Bool)
-
-open ResultT ReductionResult
-
-def sevalRed (σ : PS) (p : PPA × Bool × Bool) (l : ILit) : RedBox :=
-  let ⟨τ, reduced?, unassigned?⟩ := p
-  match σ.litValue l with
-  | .tr => done τ
-  | .fls => ok ⟨τ, true, unassigned?⟩
-  | .lit lit =>
-    match τ.litValue? lit with
-    | none => ok ⟨τ.setLit lit, reduced? || (l != lit), true⟩
-    | some true => ok ⟨τ, reduced? || (l != lit), true⟩
-    | some false => done τ
-
-def foldRed (σ : PS) (τ : PPA) (C : IClause) := C.foldlM (sevalRed σ) ⟨τ.reset, false, false⟩
-
-def reduced? (σ : PS) (τ : PPA) (C : IClause) : ReductionResult × PPA :=
-  match foldRed σ τ C with
-  | ok ⟨τ, true, false⟩  => (.falsified, τ)
-  | ok ⟨τ, true, true⟩   => (.reduced, τ)
-  | ok ⟨τ, false, true⟩  => (.notReduced, τ)
-  | ok ⟨τ, false, false⟩ => (.notReduced, τ) -- Shouldn't get this case, except if C is empty
-  | done τ => (.satisfied, τ)
-
-theorem reduced?_satisfied_iff {σ : PS} {τ τ' : PPA} {C : IClause} :
-    σ.reduced? τ C = (.satisfied, τ') ↔ (C.toPropFun).bind σ.toSubst = ⊤ := by
-  sorry
-  done
-
-theorem reduced?_falsified_iff {σ : PS} {τ τ' : PPA} {C : IClause} :
-    σ.reduced? τ C = (.falsified, τ') ↔ (C.toPropFun).bind σ.toSubst ≤ ⊥ := by
-  sorry
-  done
-
-theorem reduced?_notReduced_iff {σ : PS} {τ τ' : PPA} {C : IClause} :
-    σ.reduced? τ C = (.notReduced, τ') ↔ (C.toPropFun).bind σ.toSubst = ↑C := by
-  sorry
-  done
-
-theorem reduced?_reduced {σ : PS} {τ τ' : PPA} {C : IClause} :
-    σ.reduced? τ C = (.reduced, τ') →
-      ((C.toPropFun).bind σ.toSubst ≠ ⊤ ∧ (C.toPropFun).bind σ.toSubst ≠ ⊥) := by
-  sorry
-  done
-
-/- Reduction without tautology checking -/
-
-def seval (σ : PS) (p : Bool × Bool) (l : ILit) : ResultT Unit (Bool × Bool) :=
-  -- Has there been a non-id map, and has there been an literal that's unassigned
-  let ⟨reduced?, unassigned?⟩ := p
-  match σ.litValue l with
-  | .tr => done ()
-  | .fls => ok (true, unassigned?)
-  | .lit lit => ok (reduced? || (l != lit), true)
-
-def reduce (σ : PS) (C : IClause) : ReductionResult :=
-  match C.foldlM (seval σ) (false, false) with
-  | ok (true, true) => .reduced
-  | ok (true, false) => .falsified
-  | ok (false, true) => .notReduced
-  | ok (false, false) => .notReduced -- Shouldn't get this, unless if C is empty
-  | done () => .satisfied
-
--- TODO: It is possible only the forward directions are needed
-theorem reduce_satisfied_iff {σ : PS} {C : IClause} :
-    σ.reduce C = .satisfied ↔ (C.toPropFun).bind σ.toSubst = ⊤ := by
-  sorry
-  done
-
-theorem reduce_falsified_iff {σ : PS} {C : IClause} :
-    σ.reduce C = .falsified ↔ (C.toPropFun).bind σ.toSubst ≤ ⊥ := by
-  sorry
-  done
-
-theorem reduce_notReduced_iff {σ : PS} {C : IClause} :
-    σ.reduce C = .notReduced ↔ (C.toPropFun).bind σ.toSubst = ↑C := by
-  sorry
-  done
-
-theorem reduce_reduced {σ : PS} {C : IClause} :
-    σ.reduce C = .reduced ↔
-      ((C.toPropFun).bind σ.toSubst ≠ ⊤ ∧ (C.toPropFun).bind σ.toSubst ≠ ⊥) := by
-  sorry
-  done
+theorem reduceM.aux_error {σ : PS} {C : List ILit} {b : Bool}
+    : reduceM.aux σ { toList := C } b = .error ()
+        → substL (Clause.toPropFun { toList := C}) σ.toSubst = ⊤ := by
+  intro h_aux
+  induction C generalizing b with
+  | nil => simp at h_aux
+  | cons l ls ih =>
+    simp only [aux_cons] at h_aux
+    simp only [Clause.toPropFun_cons, substL_disj]
+    match hl : σ.litValue l with
+    | .inr true =>
+      simp only [litValue_true_iff.mp hl, le_top, sup_of_le_left]
+    | .inr false
+    | .inl lit =>
+      simp only [hl] at h_aux
+      simp only [ih h_aux, le_top, sup_of_le_right]
 
 end PS
 

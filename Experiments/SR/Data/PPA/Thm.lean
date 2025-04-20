@@ -828,7 +828,7 @@ theorem unitPropM.aux_some_toPropFun (τ : PPA) (C : List ILit) (u : ILit)
   induction C with
   | nil => simp
   | cons l ls ih =>
-    simp [unitPropM.aux_cons] at h
+    simp only [unitPropM.aux_cons] at h
     match hl : τ.litValue? l with
     | some true => simp [hl] at h
     | some false =>
