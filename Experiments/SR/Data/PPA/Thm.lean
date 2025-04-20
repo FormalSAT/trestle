@@ -740,9 +740,9 @@ theorem unitProp.loop_nil (τ : PPA) (unit? : Option ILit) :
   unfold unitProp.loop; simp; rfl
 
 theorem unitProp.loop_cons_succ (τ : PPA) (l : ILit) (ls : List ILit) (n : Nat) (unit? : Option ILit) :
-  ∀ {m : Nat}, m = ls.length - n →
-    unitProp.loop τ { toList := l :: ls } (n + 1) unit? =
-      unitProp.loop τ { toList := ls } n unit? := by
+    ∀ {m : Nat}, m = ls.length - n →
+      unitProp.loop τ { toList := l :: ls } (n + 1) unit? =
+        unitProp.loop τ { toList := ls } n unit? := by
   intro m hm
   induction m generalizing n unit? with
   | zero =>
@@ -782,12 +782,11 @@ theorem unitProp.loop_eq_unitPropM.aux (τ : PPA) (ls : List ILit) (n : Nat) (hn
     rw [List.drop_eq_getElem_cons hn, unitPropM.aux_cons]
     match h : τ.litValue? ls[n] with
     | none =>
-      simp only
       match h_unit : unit? with
       | none =>
         rcases Nat.eq_or_lt_of_le (Nat.succ_le_of_lt hn) with (h | h)
         · have := Nat.le_of_eq h.symm
-          rw [unitProp.loop_of_ge_length τ ls (n + 1) _ this]
+          simp only [unitProp.loop_of_ge_length τ ls (n + 1) _ this]
           rw [List.drop_of_length_le this]
           simp [unitPropM_Except]
         · exact ih _ h (some ls[n]) hm'

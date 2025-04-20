@@ -457,27 +457,170 @@ theorem varValue_setVarToLit_ne (σ : PS) {v₁ v₂ : IVar} (h : v₁ ≠ v₂)
     simp [Array.getElem_setF_ge_lt _ _ hi _ _ _ (Nat.ge_of_not_lt hv₂) hv₂',
       index_eq_iff, h, ↓reduceIte]
 
+/-! # reduction -/
+
+@[simp]
+theorem reduceM.aux_nil (σ : PS) (b : Bool)
+    : reduceM.aux σ { toList := [] } b = .ok b := by
+  simp [reduceM.aux, pure, Except.pure]
+
+@[simp]
+theorem reduceM.aux_cons (σ : PS) (l : ILit) (ls : List ILit) (b : Bool)
+    : reduceM.aux σ { toList := l :: ls } b =
+        match σ.litValue l with
+        | .inr true => .error ()
+        | .inr false => reduceM.aux σ { toList := ls } true
+        | .inl lit => reduceM.aux σ { toList := ls } (if l ≠ lit then true else b) := by
+  unfold reduceM.aux sevalM
+  simp only [ne_eq, ite_not, List.size_toArray, List.length_cons, Nat.add_left_inj,
+      List.foldlM_toArray', List.foldlM_cons, Bool.if_true_right]
+  match hl : σ.litValue l with
+  | .inr true => rfl
+  | .inr false => rfl
+  | .inl lit =>
+    by_cases h : l = lit
+    <;> simp [h, hl, bind, Except.bind]
+
+@[simp]
+theorem reduceM.aux_true_ne_false (σ : PS) (ls : List ILit)
+    : reduceM.aux σ { toList := ls } true ≠ .ok false := by
+  induction ls with
+  | nil => simp
+  | cons l ls ih =>
+    simp only [aux_cons, ne_eq, ite_self]
+    match hl : σ.litValue l with
+    | .inr true
+    | .inr false
+    | .inl lit => simp [ih]
+
+@[simp]
+theorem reduce.loop_nil (σ : PS) (b : Bool)
+    : reduce.loop σ { toList := [] } 0 b =
+        if b then .reduced else .notReduced := by
+  simp only [loop, List.size_toArray, List.length_nil, lt_self_iff_false, ↓reduceDIte]
+
+-- CC: LOL same exact proof(s) as `PPA.unitProp.loop_cons_succ`
+theorem reduce.loop_cons_succ (σ : PS) (l : ILit) (ls : List ILit) (n : Nat) (b : Bool)
+    : ∀ {m : Nat}, m = ls.length - n →
+        reduce.loop σ { toList := l :: ls } (n + 1) b
+          = reduce.loop σ { toList := ls } n b := by
+  intro m hm
+  induction m generalizing n b with
+  | zero =>
+    unfold loop
+    have : n ≥ ls.length := by exact Nat.le_of_sub_eq_zero (id (Eq.symm hm))
+    simp [Nat.not_lt_of_ge this]
+  | succ m ih =>
+    unfold loop
+    have hm' : m = ls.length - (n + 1) := by omega
+    have hn : n < ls.length := by omega
+    simp [hn, ih _ _ hm']
+
+theorem reduce.loop_of_ge_length (σ : PS) (ls : List ILit) (n : Nat) (b : Bool)
+    : n ≥ ls.length → reduce.loop σ { toList := ls } n b
+                        = if b then .reduced else .notReduced := by
+  intro hn
+  unfold loop
+  simp only [List.size_toArray, Nat.not_lt_of_le hn, ↓reduceDIte]
+
+-- CC: A lot of repeat branches in this one
+theorem reduce.loop_eq_reduceM.aux (σ : PS) (ls : List ILit)
+      (n : Nat) (hn : n < ls.length) (b : Bool)
+    : ∀ (m : Nat), m = ls.length - n →
+        reduce.loop σ { toList := ls } n b = reduceM_Except (reduceM.aux σ { toList := ls.drop n } b) := by
+  intro m hm
+  induction m generalizing n b with
+  | zero =>
+    unfold loop
+    have : n = ls.length := by omega
+    simp [this, reduceM, reduceM_Except, pure, Except.pure]
+    cases b <;> rfl
+  | succ m ih =>
+    unfold loop
+    have hm' : m = ls.length - (n + 1) := by omega
+    simp [hn]
+    rw [List.drop_eq_getElem_cons hn, reduceM.aux_cons, seval]
+    match h : σ.litValue ls[n] with
+    | .inr true => simp [reduceM_Except]
+    | .inr false =>
+      rcases Nat.eq_or_lt_of_le (Nat.succ_le_of_lt hn) with (h | h)
+      · have := Nat.le_of_eq h.symm
+        simp only [reduce.loop_of_ge_length σ ls (n + 1) _ this]
+        rw [List.drop_of_length_le this]
+        cases b <;> simp [reduceM_Except]
+      · exact ih _ h true hm'
+    | .inl lit =>
+      simp only
+      by_cases h_lit : ls[n] = lit
+      <;> simp [h_lit]
+      · rcases Nat.eq_or_lt_of_le (Nat.succ_le_of_lt hn) with (h | h)
+        · have := Nat.le_of_eq h.symm
+          simp only [reduce.loop_of_ge_length σ ls (n + 1) _ this]
+          rw [List.drop_of_length_le this]
+          cases b <;> simp [reduceM_Except]
+        · exact ih _ h b hm'
+      · rcases Nat.eq_or_lt_of_le (Nat.succ_le_of_lt hn) with (h | h)
+        · have := Nat.le_of_eq h.symm
+          simp only [reduce.loop_of_ge_length σ ls (n + 1) _ this]
+          rw [List.drop_of_length_le this]
+          cases b <;> simp [reduceM_Except]
+        · exact ih _ h true hm'
+
+theorem reduce_eq_reduceM (σ : PS) (C : IClause) :
+    σ.reduce C = σ.reduceM C := by
+  have ⟨C⟩ := C
+  unfold reduce reduceM
+  match C with
+  | [] => simp [reduceM_Except]
+  | l :: ls =>
+    exact reduce.loop_eq_reduceM.aux σ (l :: ls) 0 (by simp [List.length]) _ (l :: ls).length rfl
+
+/-! ### reduction correctness wrt `PropFun` -/
+
+theorem reduceM.aux_true {σ : PS} {C : List ILit} {b : Bool}
+    : reduceM.aux σ { toList := C } b = .ok false
+        → PropFun.substL (Clause.toPropFun { toList := C}) σ.toSubst = (Clause.toPropFun { toList := C }) := by
+  intro h_aux
+  induction C with
+  | nil => simp
+  | cons l ls ih =>
+    simp only [aux_cons] at h_aux
+    match hl : σ.litValue l with
+    | .inr true => simp only [hl, reduceCtorEq] at h_aux
+    | .inr false => simp only [hl, aux_true_ne_false] at h_aux
+    | .inl lit =>
+      simp only [hl, ne_eq, ite_not, Bool.if_true_right] at h_aux
+      by_cases h_lit : l = lit
+      <;> simp [h_lit] at h_aux
+      subst h_lit
+      have := litValue_lit_iff.mp hl
+      simp [ih h_aux, this]
+
 #exit
+-- TODO: It is possible only the forward directions are needed
+@[simp]
+theorem reduce_satisfied_iff {σ : PS} {C : IClause} :
+    σ.reduce C = .satisfied ↔ PropFun.substL C.toPropFun σ.toSubst = ⊤ := by
+  have ⟨C⟩ := C
+  induction C with
+  | nil => simp
+  done
 
-section monadic
+theorem reduce_falsified_iff {σ : PS} {C : IClause} :
+    σ.reduce C = .falsified ↔ (C.toPropFun).bind σ.toSubst ≤ ⊥ := by
+  sorry
+  done
 
-/-! # Unit propagation -/
+theorem reduce_notReduced_iff {σ : PS} {C : IClause} :
+    σ.reduce C = .notReduced ↔ (C.toPropFun).bind σ.toSubst = ↑C := by
+  sorry
+  done
 
-/-
-
-Cayden note 1/8: In SR checking, the substitution witness σ is provided in the proof line,
-  and then never modified. Instead, a partial assignment α is produced and modified.
-
-To save memory and time, the substitution and partial assignments use the "generation bumping" strategy
-to clear out their computations after each proof line/group of hints.
-
-Since unit propagation is never done/evaluated against a substitution, proving its correctness is moot.
-But! We do need to compute a clause's reduction under a substitution, and so we need a theory for that.
-We also need to think about an efficient way to either compute a reduction OR make reduction and evaluation
-against a partial assignment happen in the same step (possibly using another "PPA" structure off to the side
-to record which literals have been seen in the reduction, so a tautology can be detected)
-
--/
+theorem reduce_reduced {σ : PS} {C : IClause} :
+    σ.reduce C = .reduced ↔
+      ((C.toPropFun).bind σ.toSubst ≠ ⊤ ∧ (C.toPropFun).bind σ.toSubst ≠ ⊥) := by
+  sorry
+  done
 
 inductive UPResult where
   | falsified
@@ -754,6 +897,6 @@ theorem reduce_reduced {σ : PS} {C : IClause} :
   sorry
   done
 
-end monadic /- section -/
+end PS
 
-end Trestle.PS
+end Trestle

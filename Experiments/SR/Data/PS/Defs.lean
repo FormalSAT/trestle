@@ -274,26 +274,29 @@ open ReductionResult
 @[inline, always_inline]
 def seval (σ : PS) (l : ILit) : ReductionResult :=
   match σ.litValue l with
-  | Sum.inr true => satisfied
-  | Sum.inr false => reduced
-  | Sum.inl lit => if (l != lit) then reduced else notReduced
+  | .inr true => .satisfied
+  | .inr false => .reduced
+  | .inl lit => if l ≠ lit then .reduced else .notReduced
 
 @[inline, always_inline]
 def sevalM (σ : PS) (reduced? : Bool) (l : ILit) : Except Unit Bool :=
   match σ.litValue l with
-  | Sum.inr true => .error ()
-  | Sum.inr false => .ok true
-  | Sum.inl lit => if (l != lit) then .ok true else .ok reduced?
+  | .inr true => .error ()
+  | .inr false => .ok true
+  | .inl lit => if l ≠ lit then .ok true else .ok reduced?
 
 @[inline, always_inline]
 def reduceM_Except : Except Unit Bool → ReductionResult
-  | .ok true => reduced
-  | .ok false => notReduced
-  | .error _ => satisfied
+  | .ok true => .reduced
+  | .ok false => .notReduced
+  | .error _ => .satisfied
+
+def reduceM.aux (σ : PS) (C : IClause) (reduced? : Bool) : Except Unit Bool :=
+  C.foldlM (sevalM σ) reduced?
 
 /-- Reduces a clause under the substitution, with a monadic fold. -/
 def reduceM (σ : PS) (C : IClause) : ReductionResult :=
-  reduceM_Except <| C.foldlM (init := false) (sevalM σ)
+  reduceM_Except <| reduceM.aux σ C false
 
 /-- Reduces a clause under the substitution. -/
 def reduce (σ : PS) (C : IClause) : ReductionResult :=
@@ -301,11 +304,11 @@ def reduce (σ : PS) (C : IClause) : ReductionResult :=
     if hi : i < C.size then
       let lit := C[i]'hi
       match seval σ lit with
-      | satisfied => satisfied
+      | satisfied => .satisfied
       | notReduced => loop (i + 1) reduced?
       | reduced => loop (i + 1) true
     else
-      if reduced? then reduced else notReduced
+      if reduced? then .reduced else .notReduced
   loop 0 false
 
 end PS
