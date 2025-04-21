@@ -415,18 +415,17 @@ def uget! [Inhabited α] (i : Nat) : α :=
   if it agrees with the data at all indexes, and if the two agree on
   deleted indexes.
 -/
-structure models (R : RangeArray α) (Ls : List (Option (List α))) (L : List α) : Prop where
-  (h_size₁ : R.size = Ls.length)
-  (h_size₂ : R.usize = L.length)
-  (h_some : ∀ ⦃i : Nat⦄ (hi : i < Ls.length),
-    (R.isDeleted! i = false) ↔ (∃ (C : List α), Ls.get ⟨i, hi⟩ = some C))
-  (h_sizes : ∀ ⦃i : Nat⦄ (hi : i < Ls.length) {sL : List α},
-    Ls.get ⟨i, hi⟩ = some sL → R.rsize i (h_size₁ ▸ hi) = sL.length)
-  (h_agree : ∀ ⦃i : Nat⦄ (hi : i < Ls.length) {sL : List α} (hsL : Ls.get ⟨i, hi⟩ = some sL),
-        (∀ ⦃j : Nat⦄ (hj : j < sL.length),
-          R.oget i (h_size₁ ▸ hi) j ((h_sizes hi hsL) ▸ hj) = sL.get ⟨j, hj⟩))
-  (h_uncommitted : ∀ ⦃i : Nat⦄ (hi : i < L.length),
-      R.uget i (h_size₂ ▸ hi) = L.get ⟨i, hi⟩)
+structure models (A : RangeArray α) (Ls : List (Option (List α))) (L : List α) : Prop where
+  (h_size₁ : A.size = Ls.length)
+  (h_size₂ : A.usize = L.length)
+  (h_some : ∀ ⦃i⦄ (hi : i < Ls.length),
+    (A.isDeleted i (h_size₁ ▸ hi) = false) ↔ (∃ (C : List α), Ls[i] = some C))
+  (h_sizes : ∀ ⦃i⦄ (hi : i < Ls.length) {sL : List α},
+    Ls[i] = some sL → A.rsize i (h_size₁ ▸ hi) = sL.length)
+  (h_agree : ∀ ⦃i⦄ (hi : i < Ls.length)
+        {sL : List α} (hsL : Ls[i] = some sL) ⦃j⦄ (hj : j < sL.length),
+          A.oget i (h_size₁ ▸ hi) j ((h_sizes hi hsL) ▸ hj) = sL[j])
+  (h_uncommitted : ∀ ⦃i⦄ (hi : i < L.length), A.uget i (h_size₂ ▸ hi) = L[i])
 
 end RangeArray
 
