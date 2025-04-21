@@ -227,14 +227,6 @@ def index! (i : Nat) : Nat :=
     index A i hi
   else 0
 
-theorem index_eq_index! {A : RangeArray α} {i : Nat} (hi : i < A.size) : A.index i hi = A.index! i := by
-  simp only [index!, hi, reduceDIte]
-
-theorem index!_le_dataSize (i : Nat) : A.index! i ≤ A.dsize := by
-  by_cases hi : i < A.size
-  <;> simp only [index!, hi, reduceDIte, zero_le]
-  exact A.h_indexes hi
-
 /-- Checks whether the ith container is deleted. -/
 --@[inline, always_inline]
 def isDeleted (i : Nat) (hi : i < A.size) : Bool :=
@@ -394,11 +386,11 @@ theorem index_add_offset_lt_size {A : RangeArray α}
   have := index_add_rsize_le_size hi
   apply Nat.lt_of_lt_of_le (by omega) this
 
---@[inline, always_inline, specialize]
+@[inline, specialize]
 def oget (A : RangeArray α) (i : Nat) (hi : i < A.size) (offset : Nat) (h_offset : offset < A.rsize i hi) : α :=
   A.get (A.index i hi + offset) (index_add_offset_lt_size hi h_offset)
 
---@[inline, always_inline, specialize]
+@[inline, specialize]
 def oget! [Inhabited α] (i offset : Nat) : α :=
   if hi : i < A.size then
     if ho : offset < A.rsize i hi then
@@ -406,11 +398,11 @@ def oget! [Inhabited α] (i offset : Nat) : α :=
     else default
   else default
 
---@[inline, always_inline, specialize]
+@[inline, specialize]
 def uget (A : RangeArray α) (i : Nat) (hi : i < A.usize) : α :=
   A.get (A.dsize + i) (Nat.add_lt_of_lt_sub' hi)
 
---@[inline, always_inline, specialize]
+@[inline, specialize]
 def uget! [Inhabited α] (i : Nat) : α :=
   if hi : i < A.usize then
     A.uget i hi
