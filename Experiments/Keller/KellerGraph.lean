@@ -202,6 +202,13 @@ theorem get_adj_of_xor_eq {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n
     simp [Bool.eq_iff_iff (b := decide _)] at this
     simp [this, Fin.ext_iff, eq_comm]
 
+theorem get_eq_get_not_eq_xor {i₁ i₂ : BitVec n} (k : KClique n s) (j₁ : Fin n)
+  : k.get i₁ = k.get i₂ → i₂ = i₁ ^^^ BitVec.oneAt j₁ → False := by
+  intro colors_eq i2_def
+  have := k.get_adj_of_eq_xor (i₁ := i₁) (i₂ := i₂) j₁ i2_def
+  rw [colors_eq] at this
+  simp only [ne_eq, not_true_eq_false, and_false, exists_false] at this
+
 def liftS {s'} (h : s' ≥ s) (k : KClique n s) : KClique n s' :=
   ⟨ k.val.map ⟨KVertex.liftS h, by rintro ⟨xi,xc⟩ ⟨yi,yc⟩; simp [Vector.ext_iff]⟩
   , by

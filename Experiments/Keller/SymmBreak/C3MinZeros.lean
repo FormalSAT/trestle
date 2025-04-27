@@ -9,13 +9,73 @@ import Experiments.Keller.SymmBreak.TwoCubes
 
 namespace Keller.SymmBreak
 
-def C3MinZero.count (v : Vector (Fin (s+1)) (n+2)) : Nat :=
-  Finset.univ (α := Fin (n+2)) |>.filter (fun j => j.val ≥ 2 ∧ v[j] = 0) |>.card
-
 /-! ## Minimal Zeros in c3
 
 With `c0` and `c1` fixed, the `j ≥ 2` columns are still mostly unconstrained
 -/
+
+namespace C3MinZero
+
+def count (v : Vector (Fin (s+1)) (n+2)) : Nat :=
+  Finset.univ (α := Fin (n+2)) |>.filter (fun j => 2 ≤ j.val ∧ v[j.val] = 0) |>.card
+
+theorem count_le_of_nz_prefix (v : Vector (Fin (s+1)) (n+2)) (nzCt : Nat) (nzCt_le : nzCt ≤ n)
+  : (∀ j (_: 2 ≤ j ∧ j < nzCt + 2), v[j] ≠ 0) →
+    count v ≤ n - nzCt := by
+  intro h
+  unfold count
+  have cards_eq := Finset.filter_card_add_filter_neg_card_eq_card
+    (α := Fin (n+2)) (s := {j | j.val ≥ 2}) (p := (v[·] = 0))
+  simp [Finset.filter_filter] at cards_eq
+
+  have card_n : Finset.card {j : Fin (n+2) | 2 ≤ j.val} = n := by
+    apply Finset.card_eq_of_bijective (f := fun i h => ⟨i+2,by omega⟩)
+      <;> simp [Fin.forall_iff]
+    intro i h1 h2; use i-2; omega
+
+  have card_le : Finset.card {j : Fin (n+2) | 2 ≤ j.val ∧ ¬v[j.val] = 0} ≥
+            Finset.card {j : Fin (n+2) | 2 ≤ j.val ∧ j.val < nzCt + 2 } := by
+    apply Finset.card_le_card
+    intro j hj
+    specialize h j.val
+    simp_all
+
+  have card_nzCt : Finset.card {j : Fin (n+2) | 2 ≤ j.val ∧ j.val < nzCt + 2 } = nzCt := by
+    apply Finset.card_eq_of_bijective (f := fun i h => ⟨i+2,by omega⟩)
+      <;> simp [Fin.forall_iff]
+    intro i h1 h2 h3; use i-2; omega
+
+  omega
+
+theorem count_ge_of_z_suffix (v : Vector (Fin (s+1)) (n+2)) (nzCt : Nat) (nzCt_le : nzCt ≤ n)
+  : (∀ j (_: nzCt + 2 ≤ j ∧ j < n + 2), v[j] = 0) →
+    count v ≥ n-nzCt := by
+  intro h
+  unfold count
+  have cards_eq := Finset.filter_card_add_filter_neg_card_eq_card
+    (α := Fin (n+2)) (s := {j | 2 ≤ j.val}) (p := (v[·] = 0))
+  simp [Finset.filter_filter] at cards_eq
+
+  have card_n : Finset.card {j : Fin (n+2) | 2 ≤ j.val} = n := by
+    apply Finset.card_eq_of_bijective (f := fun i h => ⟨i+2,by omega⟩)
+      <;> simp [Fin.forall_iff]
+    intro i h1 h2; use i-2; omega
+
+  have card_le : Finset.card {j : Fin (n+2) | 2 ≤ j.val ∧ v[j.val] = 0} ≥
+            Finset.card {j : Fin (n+2) | nzCt + 2 ≤ j.val ∧ j.val < n + 2 } := by
+    apply Finset.card_le_card
+    intro j hj
+    specialize h j.val
+    simp_all; omega
+
+  have card_nzCt : Finset.card {j : Fin (n+2) | nzCt + 2 ≤ j.val ∧ j.val < n + 2 } = n - nzCt := by
+    apply Finset.card_eq_of_bijective (f := fun i h => ⟨i + nzCt + 2,by omega⟩)
+      <;> simp [Fin.forall_iff]
+    intro i h1 h2; use i-(nzCt+2); omega
+
+  omega
+
+end C3MinZero
 
 open C3MinZero in
 structure C3MinZero (n s) extends TwoCubes n s where
@@ -266,3 +326,24 @@ theorem reorderZero (tc : C3MinZero n s) (j) (j_range : j < n+2)
 
 theorem ofC3MinZero (tc : C3MinZero n s) : Nonempty (C3MinZeroSorted n s) := by
   apply reorderZero tc (n+1) (by omega) (by omega)
+
+
+
+theorem c3_zeroSuffix (tc : C3MinZeroSorted n s) (j) (hj : 2 ≤ j ∧ j < n+2) :
+  (tc.kclique.get 3#_)[j] = 0 → ∀ j' (_: j ≤ j' ∧ j' < n+2), (tc.kclique.get 3#_)[j'] = 0 := by
+  intro zeroAtJ j' j'_range
+  induction j' using Nat.strongRecOn
+  next j' ih =>
+  if j = j' then
+    subst j'; exact zeroAtJ
+  else
+    specialize ih (j'-1) (by omega) (by omega)
+    have := tc.c3_sorted _ (by omega) ih
+    convert this; omega
+
+theorem c3_nzPrefix (tc : C3MinZeroSorted n s) (j) (hj : 2 ≤ j ∧ j < n+2) :
+  (tc.kclique.get 3#_)[j] ≠ 0 → ∀ j' (_: 2 ≤ j' ∧ j' ≤ j), (tc.kclique.get 3#_)[j'] ≠ 0 := by
+  intro nzAtJ j' j'_range
+  intro contra
+  have := c3_zeroSuffix _ _ (by omega) contra j (by omega)
+  contradiction
