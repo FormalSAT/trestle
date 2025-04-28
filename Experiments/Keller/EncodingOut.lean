@@ -125,6 +125,54 @@ where run (p : Parsed) := do
 
   return 0
 
+def appendSRClausesCmd : Cmd := `[Cli|
+  "append-sr-clauses" VIA run;
+  "Produce a CNF of a base CNF and all clauses from a DSR proof file
+  (without checking the validity of that proof)."
+
+  FLAGS:
+    cnf : String;    "Filepath to the CNF."
+    sr : String;     "Filepath to the SR proof."
+    out : String;    "Filepath to the output."
+]
+where run (p : Parsed) := do
+  let cnfFile : System.FilePath :=
+    (← p.flag? "cnf"
+      |> Option.expectSome (fun _ => "flag --cnf missing")
+      |> IO.ofExcept
+    ).as! String
+  let srFile : System.FilePath :=
+    (← p.flag? "sr"
+      |> Option.expectSome (fun _ => "flag --sr missing")
+      |> IO.ofExcept
+    ).as! String
+  let outFile  : System.FilePath :=
+    (← p.flag? "out"
+      |> Option.expectSome (fun _ => "flag --out missing")
+      |> IO.ofExcept
+    ).as! String
+
+  let {clauses := cnf, vars} ← IO.ofExcept <|
+    Solver.Dimacs.parseFormula (← IO.FS.readFile cnfFile)
+  let srClauses ← do
+    let string ← IO.FS.readFile srFile
+    let lines := string.splitOn "\n" |>.toArray.filterMap (·.trim |> Option.guard (! ·.isEmpty) )
+    let clauses ← IO.ofExcept <| lines.mapM (Solver.Dimacs.parseClause vars)
+    pure <| clauses.filterMap fun c =>
+      if h : c.size > 0 then some <|
+        let pivot := c[0]
+        Array.takeWhile.go (· ≠ pivot) c 1 #[pivot]
+      else none
+
+  let newCnf :=
+    cnf.push (.comment "start of SR clauses")
+      ++ srClauses.map (.clause ·)
+
+  IO.FS.withFile outFile .write fun handle =>
+    Solver.Dimacs.printRichCnf handle.putStr newCnf
+
+  return 0
+
 def negateCubesCmd : Cmd := `[Cli|
   "negate-cubes" VIA run;
   "Produce a CNF of a base CNF and the negation of all cubes in a DNF."
@@ -172,6 +220,7 @@ def kellerCmd : Cmd := `[Cli|
   SUBCOMMANDS:
     cnfCmd;
     filterCoreCmd;
+    appendSRClausesCmd;
     negateCubesCmd
 ]
 where run (p) := do
