@@ -12,6 +12,7 @@ import Trestle.Upstream.IndexTypeInstances
 import Experiments.Keller.KellerGraph
 import Experiments.Keller.SymmBreak.TwoCubes
 import Experiments.Keller.SymmBreak.C3Zeros
+import Experiments.Keller.SymmBreak.C3MinZeros
 import Experiments.Keller.SymmBreak.MatrixGen
 
 import Experiments.Keller.SR
@@ -83,12 +84,23 @@ def c3_more_nonzero_spec : Model.PropPred (Vars (n+2) (s+2)) :=
       → (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
         τ (x (SymmBreak.C3Zeros.X col (by omega)) ⟨_j,by omega⟩ 0))
 
+open Model PropPred in
+def c3_min_zero_spec : PropPred (Vars (n+2) (s+2)) :=
+  fun τ =>
+    ∀ j (j_bounds : 5 ≤ j ∧ j < n+2),
+      ¬(τ (.x 3 ⟨j-1,by omega⟩ 0)) → (τ (.x 3 ⟨j,by omega⟩ 0)) →
+    ∀ (i : BitVec (n+2)) (i1 : i[1] = true),
+      (∀ j (hj : 2 ≤ j ∧ j < n+2), i[j] = true → ¬ τ (.x i ⟨j,by omega⟩ 0)) →
+      τ ⊨ Cardinality.atLeast (n+2-j) (zeroLits i)
+where
+  zeroLits (i : BitVec (n+2)) : List (Literal <| Vars (n+2) (s+2)) :=
+    List.ofFn (n := n) fun j => .pos (.x i ⟨2+j, by omega⟩ 0)
 
 def fullSpec : Model.PropPred (Vars n s) :=
   fun τ =>
     baseSpec τ ∧
     (match n,s with
-    | _+2, _+2 => c0_c1_spec τ ∧ c3_sorted_spec τ ∧ c3_more_nonzero_spec τ
+    | _+2, _+2 => c0_c1_spec τ ∧ c3_sorted_spec τ ∧ c3_more_nonzero_spec τ ∧ c3_min_zero_spec τ
     | _,_ => True)
 
 
@@ -116,22 +128,59 @@ theorem cliqueToAssn_satisfies_baseSpec (c : KClique n s) :
     simpa using cs_eq_j1
 
 open Model.PropPred in
-/-- `fullSpec` is satisfied by a `C3Zeros` instance -/
-theorem cliqueToAssn_satisfies_fullSpec (c : SymmBreak.C3Zeros n s) :
+/-- `fullSpec` is satisfied by a `C3MinZeroSorted` instance -/
+theorem cliqueToAssn_satisfies_fullSpec (c : SymmBreak.C3MinZeroSorted n s) :
     cliqueToAssn c.kclique ⊨ fullSpec := by
   unfold fullSpec
   simp
-  refine ⟨cliqueToAssn_satisfies_baseSpec _, ?_, ?_, ?_⟩
+  refine ⟨cliqueToAssn_satisfies_baseSpec _, ?_, ?_, ?_, ?_⟩
   · simp [c0_c1_spec, cliqueToAssn]
   · simp [c3_sorted_spec, cliqueToAssn]
-    intros; apply c.c3_zeros_sorted
+    intros; apply c.c3_sorted
     · assumption
     · omega
   · simp only [
       c3_more_nonzero_spec, add_lt_add_iff_right, cliqueToAssn,
       decide_eq_true_eq]
     rintro j jrange col crange c3_nz_z
-    apply c.c3_more_nonzero j (by omega) c3_nz_z col crange
+    apply (SymmBreak.C3Zeros.ofC3MinZeros c).c3_more_nonzero j (by omega) c3_nz_z col crange
+  · simp only [c3_min_zero_spec, cliqueToAssn, decide_eq_true_eq, decide_eq_false_iff_not]
+    intro j j_bounds x3_nz x3_zero i i1_true high_bits_nz
+    simp only [satisfies_def, Cardinality.satisfies_cardPred, ge_iff_le]
+    have := c.c3_min_zero i i1_true high_bits_nz
+    clear i1_true high_bits_nz
+    convert this <;> clear this
+    · rw [eq_comm, show n+2-j = n-(j-2) by omega]
+      apply Nat.le_antisymm
+      · apply SymmBreak.C3MinZero.count_le_of_nz_prefix (nzCt_le := by omega)
+        intro j' j'_bounds
+        apply c.c3_nzPrefix (j-1) (by omega) x3_nz; omega
+      · apply SymmBreak.C3MinZero.count_ge_of_z_suffix (nzCt_le := by omega)
+        intro j' j'_bounds
+        apply c.c3_zeroSuffix j (by omega) x3_zero; omega
+    · simp [Cardinality.card, c3_min_zero_spec.zeroLits, SymmBreak.C3MinZero.count]
+      rw [List.countP_eq_length_filter,
+          ← List.toFinset_card_of_nodup ?nodup,
+          List.ofFn_eq_map, List.filter_map,
+          List.toFinset_map _ _ ?inj,
+          Finset.card_map, List.toFinset_filter, List.toFinset_finRange]
+      case nodup =>
+        apply List.Nodup.filter
+        rw [List.nodup_iff_injective_getElem]
+        intro a b; simp [Fin.ext_iff]
+      case inj =>
+        intro a b; simp [Fin.ext_iff]
+      simp [LitVar.satisfies_iff, cliqueToAssn, LitVar.mkPos, LitVar.polarity]
+      apply Finset.card_eq_of_equiv
+      exact {
+        toFun := by rintro ⟨j,j_mem⟩; use ⟨2+j,by omega⟩; simpa using j_mem
+        invFun := by rintro ⟨j,j_mem⟩; use ⟨j-2,by omega⟩; simp at j_mem ⊢
+                     convert j_mem.2; omega
+        left_inv := by intro; simp
+        right_inv := by
+          rintro ⟨j,j_mem⟩; simp [Subtype.ext_iff] at j_mem ⊢
+          simp [Fin.ext_iff]; omega
+      }
 
 /-- This direction is more complicated, and also we don't need it,
     but we prove it as an interesting aside. -/
@@ -458,6 +507,55 @@ where
         convert hyps ⟨j'-2,by omega⟩
         dsimp; omega)
 
+def c3_min_zeros.aux (j) (hj : 5 ≤ j ∧ j < n+2) (i) : VEncCNF (Vars (n+2) (s+2)) Unit (fun τ =>
+      ¬τ (x 3 ⟨j-1,by omega⟩ 0) → τ (x 3 ⟨j,by omega⟩ 0) →
+      (∀ j' (hj : 2 ≤ j' ∧ j' < n+2), i[j'] = true → ¬τ (x i ⟨j',by omega⟩ 0)) →
+        Cardinality.atLeast (n+2-j) (Multiset.ofList <| c3_min_zero_spec.zeroLits i) τ
+    ) :=
+  (Cardinality.naiveAtLeastK.cond
+    (cond := #[.pos (x 3 ⟨j - 1, by omega⟩ 0), .neg (x 3 ⟨j, by omega⟩ 0)]
+              ++ (Array.finRange _ |>.filter (fun j => 2 ≤ j.val ∧ i[j] = true)).map (fun j => .pos (x i j 0)))
+    (n+2-j)
+    (c3_min_zero_spec.zeroLits i).toArray
+  ).mapProp (by
+    ext τ
+    conv => lhs; simp only [
+      Pi.himp_apply, Pi.compl_apply, compl_iff_not, himp_iff_imp,
+      Clause.satisfies_iff, LitVar.toPropFun_mkPos, LitVar.toPropFun_mkNeg,
+      PropFun.satisfies_neg, PropFun.satisfies_var,
+      Fin.forall_iff, Fin.getElem_fin,
+      forall_and, forall_eq, not_exists,
+      true_imp_iff, false_imp_iff, imp_true_iff, not_and, and_true, and_imp, or_imp, not_not,
+      decide_eq_true_iff,
+      Array.mem_append, Array.mem_toArray, List.mem_cons, List.not_mem_nil,
+      Array.forall_mem_map, Array.forall_mem_filter, Array.mem_finRange
+      ]
+    apply imp_congr_right; rintro -
+    apply imp_congr_right; rintro -
+    apply imp_congr_left
+    aesop)
+
+def c3_min_zeros (n s) : VEncCNF (Vars (n+2) (s+2)) Unit c3_min_zero_spec :=
+  ( for_all (Array.finRange (n+2)) fun j =>
+    VEncCNF.guard (5 ≤ j.val) fun h =>
+      for_all (allBitVecs (n+2)) fun i =>
+      VEncCNF.guard (i[1] = true) fun h =>
+        c3_min_zeros.aux j (by omega) i
+  ).mapProp (by
+    ext τ
+    simp only [Array.mem_finRange, mem_allBitVecs,
+      Pi.himp_apply, Pi.compl_apply, compl_iff_not,
+      himp_iff_imp, forall_const, and_imp]
+    unfold c3_min_zero_spec
+    simp only [Fin.forall_iff]
+    constructor
+    · rintro h j j_bounds c3_nz c3_z i i1_true high_bits
+      exact h j j_bounds.2 j_bounds.1 i i1_true c3_nz c3_z high_bits
+    · rintro h j j_upper j_lower i i1_true c3_nz c3_z high_bits
+      exact h j ⟨j_lower, j_upper⟩ c3_nz c3_z i i1_true high_bits
+  )
+
+
 def fullEncoding (n s) : VEncCNF (Vars n s) Unit fullSpec :=
   seq[
     baseEncoding n s
@@ -466,6 +564,7 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit fullSpec :=
         c0_c1 (n-2) (s-2)
       , c3_sorted (n-2) (s-2)
       , c3_more_nonzero (n-2) (s-2)
+      , c3_min_zeros (n-2) (s-2)
       ]
       |>.castVar (by congr <;> simp [h])
   ]

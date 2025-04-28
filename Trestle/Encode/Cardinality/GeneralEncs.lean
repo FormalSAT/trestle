@@ -56,13 +56,14 @@ def naiveLtK (k : Nat) (lits : Array (Literal ν)) :
   naiveLtK.cond #[] k lits
   |>.mapProp (by ext τ; simp)
 
-/-- Naive at-least-k encoding -/
-def naiveAtLeastK (k : Nat) (lits : Array (Literal ν)) :
-  VEncCNF ν Unit (atLeast k (Multiset.ofList lits.toList)) :=
-  naiveLtK (lits.size + 1 - k) (lits.map (LitVar.negate))
+/-- Conditional, naive at-least-k encoding -/
+def naiveAtLeastK.cond (cond : Clause (Literal ν)) (k : Nat) (lits : Array (Literal ν)) :
+  VEncCNF ν Unit (condᶜ ⇨ atLeast k (Multiset.ofList lits.toList)) :=
+  naiveLtK.cond cond (lits.size + 1 - k) (lits.map (LitVar.negate))
   |>.mapProp (by
     ext τ
     simp [atMost, atLeast, card]
+    apply imp_congr_right; rintro -
     conv => enter [1,1,1]; (calc _ = (fun l => !(τ ⊨ LitVar.toPropFun l)) := by ext l; simp)
     have := Array.size_eq_countP_add_countP (τ ⊨ LitVar.toPropFun ·) lits
     simp at this
@@ -70,6 +71,12 @@ def naiveAtLeastK (k : Nat) (lits : Array (Literal ν)) :
     generalize Array.countP _ _ = Fs at this ⊢
     omega
   )
+
+/-- Conditional, naive at-least-k encoding -/
+def naiveAtLeastK (k : Nat) (lits : Array (Literal ν)) :
+  VEncCNF ν Unit (atLeast k (Multiset.ofList lits.toList)) :=
+  naiveAtLeastK.cond #[] k lits
+  |>.mapProp (by ext τ; simp)
 
 /-- Trivial at least one encoding (just a single clause) -/
 @[inline] def atLeastOne (lits : Array (Literal ν)) :

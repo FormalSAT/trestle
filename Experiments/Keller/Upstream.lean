@@ -77,6 +77,10 @@ theorem Multiset.countP_eq_succ [DecidableEq α] (p) [DecidablePred p] (xs : Mul
     apply and_congr_right; intro ha
     simp [countP_eq_zero, erase_cons_tail_of_mem ha, p_hd]
 
+theorem List.toFinset_map [DecidableEq α] [DecidableEq β] (f : α → β) (L : List α)
+    (hf : f.Injective) :
+    (L.map f).toFinset = L.toFinset.map ⟨f,hf⟩ := by
+  ext b; simp
 
 @[simp] theorem Array.mem_finRange (x : Fin n) : x ∈ Array.finRange n := by
   simp [Array.finRange, mem_def, List.mem_ofFn]
