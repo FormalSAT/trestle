@@ -100,7 +100,10 @@ def fullSpec : Model.PropPred (Vars n s) :=
   fun τ =>
     baseSpec τ ∧
     (match n,s with
-    | _+2, _+2 => c0_c1_spec τ ∧ c3_sorted_spec τ ∧ c3_more_nonzero_spec τ ∧ c3_min_zero_spec τ
+    | _+2, _+2 =>
+      c0_c1_spec τ
+      ∧ c3_sorted_spec τ
+      ∧ c3_more_nonzero_spec τ
     | _,_ => True)
 
 
@@ -128,59 +131,65 @@ theorem cliqueToAssn_satisfies_baseSpec (c : KClique n s) :
     simpa using cs_eq_j1
 
 open Model.PropPred in
+theorem cliqueToAssn_satisfies_c3_min_spec (c : SymmBreak.C3MinZeroSorted n s) :
+    cliqueToAssn c.kclique ⊨ c3_min_zero_spec := by
+  simp
+  simp only [c3_min_zero_spec, cliqueToAssn, decide_eq_true_eq, decide_eq_false_iff_not]
+  intro j j_bounds x3_nz x3_zero i i1_true high_bits_nz
+  simp only [satisfies_def, Cardinality.satisfies_cardPred, ge_iff_le]
+  have := c.c3_min_zero i i1_true high_bits_nz
+  clear i1_true high_bits_nz
+  convert this <;> clear this
+  · rw [eq_comm, show n+2-j = n-(j-2) by omega]
+    apply Nat.le_antisymm
+    · apply SymmBreak.C3MinZero.count_le_of_nz_prefix (nzCt_le := by omega)
+      intro j' j'_bounds
+      apply c.c3_nzPrefix (j-1) (by omega) x3_nz; omega
+    · apply SymmBreak.C3MinZero.count_ge_of_z_suffix (nzCt_le := by omega)
+      intro j' j'_bounds
+      apply c.c3_zeroSuffix j (by omega) x3_zero; omega
+  · simp [Cardinality.card, c3_min_zero_spec.zeroLits, SymmBreak.C3MinZero.count]
+    rw [List.countP_eq_length_filter,
+        ← List.toFinset_card_of_nodup ?nodup,
+        List.ofFn_eq_map, List.filter_map,
+        List.toFinset_map _ _ ?inj,
+        Finset.card_map, List.toFinset_filter, List.toFinset_finRange]
+    case nodup =>
+      apply List.Nodup.filter
+      rw [List.nodup_iff_injective_getElem]
+      intro a b; simp [Fin.ext_iff]
+    case inj =>
+      intro a b; simp [Fin.ext_iff]
+    simp [LitVar.satisfies_iff, cliqueToAssn, LitVar.mkPos, LitVar.polarity]
+    apply Finset.card_eq_of_equiv
+    exact {
+      toFun := by rintro ⟨j,j_mem⟩; use ⟨2+j,by omega⟩; simpa using j_mem
+      invFun := by rintro ⟨j,j_mem⟩; use ⟨j-2,by omega⟩; simp at j_mem ⊢
+                   convert j_mem.2; omega
+      left_inv := by intro; simp
+      right_inv := by
+        rintro ⟨j,j_mem⟩; simp [Subtype.ext_iff] at j_mem ⊢
+        simp [Fin.ext_iff]; omega
+    }
+
+
+open Model.PropPred in
 /-- `fullSpec` is satisfied by a `C3MinZeroSorted` instance -/
-theorem cliqueToAssn_satisfies_fullSpec (c : SymmBreak.C3MinZeroSorted n s) :
+theorem cliqueToAssn_satisfies_fullSpec (c : SymmBreak.C3Zeros n s) :
     cliqueToAssn c.kclique ⊨ fullSpec := by
   unfold fullSpec
   simp
-  refine ⟨cliqueToAssn_satisfies_baseSpec _, ?_, ?_, ?_, ?_⟩
+  refine ⟨cliqueToAssn_satisfies_baseSpec _, ?_, ?_, ?_⟩
   · simp [c0_c1_spec, cliqueToAssn]
   · simp [c3_sorted_spec, cliqueToAssn]
-    intros; apply c.c3_sorted
+    intros; apply c.c3_zeros_sorted
     · assumption
     · omega
   · simp only [
       c3_more_nonzero_spec, add_lt_add_iff_right, cliqueToAssn,
       decide_eq_true_eq]
     rintro j jrange col crange c3_nz_z
-    apply (SymmBreak.C3Zeros.ofC3MinZeros c).c3_more_nonzero j (by omega) c3_nz_z col crange
-  · simp only [c3_min_zero_spec, cliqueToAssn, decide_eq_true_eq, decide_eq_false_iff_not]
-    intro j j_bounds x3_nz x3_zero i i1_true high_bits_nz
-    simp only [satisfies_def, Cardinality.satisfies_cardPred, ge_iff_le]
-    have := c.c3_min_zero i i1_true high_bits_nz
-    clear i1_true high_bits_nz
-    convert this <;> clear this
-    · rw [eq_comm, show n+2-j = n-(j-2) by omega]
-      apply Nat.le_antisymm
-      · apply SymmBreak.C3MinZero.count_le_of_nz_prefix (nzCt_le := by omega)
-        intro j' j'_bounds
-        apply c.c3_nzPrefix (j-1) (by omega) x3_nz; omega
-      · apply SymmBreak.C3MinZero.count_ge_of_z_suffix (nzCt_le := by omega)
-        intro j' j'_bounds
-        apply c.c3_zeroSuffix j (by omega) x3_zero; omega
-    · simp [Cardinality.card, c3_min_zero_spec.zeroLits, SymmBreak.C3MinZero.count]
-      rw [List.countP_eq_length_filter,
-          ← List.toFinset_card_of_nodup ?nodup,
-          List.ofFn_eq_map, List.filter_map,
-          List.toFinset_map _ _ ?inj,
-          Finset.card_map, List.toFinset_filter, List.toFinset_finRange]
-      case nodup =>
-        apply List.Nodup.filter
-        rw [List.nodup_iff_injective_getElem]
-        intro a b; simp [Fin.ext_iff]
-      case inj =>
-        intro a b; simp [Fin.ext_iff]
-      simp [LitVar.satisfies_iff, cliqueToAssn, LitVar.mkPos, LitVar.polarity]
-      apply Finset.card_eq_of_equiv
-      exact {
-        toFun := by rintro ⟨j,j_mem⟩; use ⟨2+j,by omega⟩; simpa using j_mem
-        invFun := by rintro ⟨j,j_mem⟩; use ⟨j-2,by omega⟩; simp at j_mem ⊢
-                     convert j_mem.2; omega
-        left_inv := by intro; simp
-        right_inv := by
-          rintro ⟨j,j_mem⟩; simp [Subtype.ext_iff] at j_mem ⊢
-          simp [Fin.ext_iff]; omega
-      }
+    apply c.c3_more_nonzero j (by omega) c3_nz_z col crange
 
 /-- This direction is more complicated, and also we don't need it,
     but we prove it as an interesting aside. -/
@@ -564,7 +573,6 @@ def fullEncoding (n s) : VEncCNF (Vars n s) Unit fullSpec :=
         c0_c1 (n-2) (s-2)
       , c3_sorted (n-2) (s-2)
       , c3_more_nonzero (n-2) (s-2)
-      , c3_min_zeros (n-2) (s-2)
       ]
       |>.castVar (by congr <;> simp [h])
   ]
