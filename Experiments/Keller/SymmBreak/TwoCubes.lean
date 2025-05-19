@@ -167,7 +167,7 @@ include h
 
 theorem auto_v₁ : (auto v₁ v₂).toFun v₁ = ⟨0, c0_colors⟩ := by
   ext1
-  · unfold auto; simp [KVertex.bv_flip]
+  · unfold auto; simp [KVertex.idx_flip]
   · ext1 j hj
     specialize h j hj
     simp [auto, KVertex.colors_permColors]
@@ -179,7 +179,7 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
     intro j hj
     specialize h j hj
     replace h := h.1
-    unfold auto; simp [KVertex.bv_flip]
+    unfold auto; simp [KVertex.idx_flip]
     by_cases j = 0 <;> aesop
   · ext1 j hj
     specialize h j hj
@@ -211,7 +211,7 @@ theorem ofClique (h : conjectureIn (n+1)) (k : KClique (n+2) (s+2))
       (j ≠ 0 ↔ a2.idx[j] = b2.idx[j]) ∧
       (j ≠ 1 ↔ a2.color[j] = b2.color[j]) := by
     intro j hj
-    simp [a2, b2, KVertex.bv_permColumns, KVertex.colors_permColumns]
+    simp [a2, b2, KVertex.idx_permColumns, KVertex.colors_permColumns]
     constructor
     · rw [← (same_on _ _).1, not_iff_not, Fin.val_eq_val,
         permColumns_j1_j2.eq_j1 hne, ← Fin.val_eq_val]

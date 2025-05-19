@@ -35,7 +35,7 @@ namespace KVertex
 def flip (mask : BitVec n) (v : KVertex n s) : KVertex n s :=
   { idx := v.idx ^^^ mask, color := v.color }
 
-theorem bv_flip (mask) {v : KVertex n s} : (flip mask v).idx = v.idx ^^^ mask := rfl
+theorem idx_flip (mask) {v : KVertex n s} : (flip mask v).idx = v.idx ^^^ mask := rfl
 @[simp] theorem colors_flip (mask) {v : KVertex n s} : (flip mask v).color = v.color := rfl
 
 @[simp] theorem flip_flip (mask : BitVec n) {v : KVertex n s} : (v.flip mask).flip mask = v := by
@@ -56,52 +56,56 @@ def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
   else
     v
 
-theorem bv_flipAt (j k) {v : KVertex n s} :
-    (flipAt j k v).idx =
-      if v.color[j] = k
-      then v.idx ^^^ BitVec.oneAt j
-      else v.idx := by
-  unfold flipAt; split <;> simp
+@[simp] theorem idx_flipAt_of_eq {j k} {v : KVertex n s} (h : v.color[j] = k) :
+    (flipAt j k v).idx = v.idx ^^^ BitVec.oneAt j := by
+  unfold flipAt; simp only [h, ↓reduceIte]
+
+@[simp] theorem idx_flipAt_of_ne {j k} {v : KVertex n s} (h : v.color[j] ≠ k) :
+    (flipAt j k v).idx = v.idx := by
+  unfold flipAt; simp only [h, ↓reduceIte]
+
+@[simp] theorem getElem_idx_flipAt_eq_of {j k} {v : KVertex n s} {j2} {h : j2 < n} :
+    (j.val = j2 → v.color[j] ≠ k) → (flipAt j k v).idx[j2] = v.idx[j2] := by
+  unfold flipAt; split <;> simp_all
+
 
 @[simp] theorem colors_flipAt {j k} {v : KVertex n s} : (flipAt j k v).color = v.color := by
   unfold flipAt; split <;> rfl
 
 @[simp] theorem flipAt_flipAt {j k} {v : KVertex n s} : (v.flipAt j k).flipAt j k = v := by
-  unfold flipAt
-  split
-  · ext <;> simp
-  · rfl
+  by_cases h : v.color[j] = k
+  · ext1
+    · simp [h, BitVec.xor_assoc]
+    · simp
+  · have : (v.flipAt j k) = v := by
+      ext1; {apply idx_flipAt_of_ne h}; {simp}
+    rw [this, this]
 
-@[simp] theorem flipAt_inj {j k} : flipAt j k a = flipAt j k b ↔ a = b := by
+@[simp] theorem flipAt_inj_iff {j k} : flipAt j k a = flipAt j k b ↔ a = b := by
   constructor
   · intro h; simpa using congrArg (flipAt j k) h
   · rintro rfl; rfl
 
-@[simp] theorem bv_flipAt_inj_iff {j k} (h : a.color[j] = b.color[j]): (flipAt j k a).idx = (flipAt j k b).idx ↔ a.idx = b.idx := by
-  simp [bv_flipAt, h]
-  split
-  · rw [BitVec.xor_comm, BitVec.xor_comm b.idx, BitVec.xor_right_inj]
-  · rfl
-
-@[simp] theorem getElem_bv_flipAt_inj_iff {j : Fin n} {j2 : Nat} {hj2 : j2 < n} {k}
+@[simp] theorem idx_flipAt_eq_iff_idx_eq {j : Fin n} {j2 : Nat} {hj2 : j2 < n} {k}
       (h : a.color[j2] = b.color[j2])
     : (flipAt j k a).idx[j2] = (flipAt j k b).idx[j2] ↔ a.idx[j2] = b.idx[j2] := by
-  if j = j2 then
-    subst j2
-    simp [bv_flipAt, h]
-    split
-    · simp
-    · rfl
+  -- the only case that is interesting
+  if h2 : j.val = j2 ∧ a.color[j.val] = k then
+    rcases h2 with ⟨rfl,rfl⟩
+    unfold flipAt
+    simp [h]
   else
-    simp [bv_flipAt]
-    split <;> split <;> simp [*]
-
+    push_neg at h2
+    apply iff_of_eq; congr 1 <;> (
+      apply getElem_idx_flipAt_eq_of
+      simp_all
+    )
 
 def permColors (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
   { idx := v.idx
   , color := Vector.ofFn (fun j => (f j) v.color[j]) }
 
-@[simp] theorem bv_permColors (f) {v : KVertex n s} : (permColors f v).idx = v.idx := rfl
+@[simp] theorem idx_permColors (f) {v : KVertex n s} : (permColors f v).idx = v.idx := rfl
 
 theorem colors_permColors (f) (v : KVertex n s) {j h} :
     (permColors f v).color[j]'h = (f ⟨j,h⟩) v.color[j] := by
@@ -123,7 +127,7 @@ def permColumns (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
   { idx := BitVec.ofFn (v.idx[f ·])
   , color := Vector.ofFn (v.color[f ·]) }
 
-theorem bv_permColumns (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
+theorem idx_permColumns (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
     (v.permColumns f).idx[j]'hj = v.idx[f ⟨j,hj⟩] := by
   simp [permColumns]
 
@@ -152,7 +156,7 @@ def flip (mask : BitVec n) : KAuto n s :=
     left_inv  := by intro; simp
     right_inv := by intro; simp
   }) (by
-    simp [KAdj, KVertex.bv_flip]
+    simp [KAdj, KVertex.idx_flip]
   )
 
 @[simp] theorem toFun_flip {x : KVertex _ _ } :
@@ -169,15 +173,15 @@ def flipAt (j : Fin n) (k : Fin s) : KAuto n s :=
     intro a b
     simp [KAdj]
     constructor
-    · rintro ⟨j1,bv_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
+    · rintro ⟨j1,idx_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
       use j1
-      rw [KVertex.getElem_bv_flipAt_inj_iff cs_eq_j1] at bv_ne_j1
-      use bv_ne_j1, cs_eq_j1, j2, js_ne
+      rw [KVertex.idx_flipAt_eq_iff_idx_eq cs_eq_j1] at idx_ne_j1
+      use idx_ne_j1, cs_eq_j1, j2, js_ne
       by_cases a.color[j2.val] = b.color[j2.val] <;> simp_all
-    · rintro ⟨j1,bv_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
+    · rintro ⟨j1,idx_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
       use j1
-      rw [KVertex.getElem_bv_flipAt_inj_iff cs_eq_j1]
-      use bv_ne_j1, cs_eq_j1, j2, js_ne
+      rw [KVertex.idx_flipAt_eq_iff_idx_eq cs_eq_j1]
+      use idx_ne_j1, cs_eq_j1, j2, js_ne
       by_cases a.color[j2.val] = b.color[j2.val] <;> simp_all
   )
 

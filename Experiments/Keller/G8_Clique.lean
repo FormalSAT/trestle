@@ -12,7 +12,7 @@ namespace Keller
 
 set_option maxRecDepth 800 in
 def G8_clique: KCliqueData 8 2 :=
-  KCliqueData.mk <| Vector.mk #[
+  KCliqueData.mk <| #v[
   v 0 0 0 0 0 0 0 0, v 0 0 1 0 0 0 0 0, v 1 0 1 0 1 1 0 1, v 1 0 1 0 1 0 1 1,
   v 0 0 0 1 1 0 1 1, v 0 1 1 1 1 1 0 1, v 0 0 1 0 0 0 0 0, v 0 1 1 0 0 0 0 0,
   v 0 1 0 0 0 0 0 0, v 0 1 1 0 0 0 0 0, v 1 1 0 0 1 0 1 1, v 1 1 0 0 1 1 0 1,
@@ -77,6 +77,6 @@ def G8_clique: KCliqueData 8 2 :=
   v 0 0 0 1 1 0 0 1, v 0 1 1 1 1 1 1 1, v 0 0 1 0 0 1 0 0, v 0 1 1 0 0 1 0 0,
   v 0 1 0 0 0 1 0 0, v 0 1 1 0 0 1 0 0, v 1 1 0 0 1 0 0 1, v 1 1 0 0 1 1 1 1,
   v 0 0 0 1 1 1 1 1, v 0 1 1 1 1 0 0 1, v 0 0 0 0 0 1 0 0, v 0 1 0 0 0 1 0 0
-] (by simp)
+]
 where v (a b c d e f g h) : Vector (Fin 2) 8 :=
-  Vector.mk #[a,b,c,d,e,f,g,h] (by simp)
+  #v[a,b,c,d,e,f,g,h]

@@ -22,7 +22,7 @@ theorem unsat_of_icnf_to_cnf_unsat (f : ICnf) :
   unfold Trestle.Cnf.Sat Model.PropFun.Sat
   rintro ⟨τ,f_sat⟩
   specialize h (fun i => τ (IVar.ofIndex i))
-  simp [Std.Sat.CNF.eval, Std.Sat.CNF.Clause.eval] at h
+  simp [Std.Sat.CNF.eval, Std.Sat.CNF.Clause.eval, ILit.index_def] at h
   rcases h with ⟨i,i_range,h⟩
   rw [Cnf.satisfies_iff] at f_sat
   specialize f_sat f[i] (by simp)

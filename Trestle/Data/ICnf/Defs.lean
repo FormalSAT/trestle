@@ -262,6 +262,7 @@ def index (l : ILit) : Nat := l.val.natAbs - 1
 @[inline, always_inline]
 def ofIndex (n : Nat) : ILit := ⟨n + 1, by omega⟩
 
+theorem index_def (l : ILit) : l.index = l.toIVar.index := rfl
 @[simp] theorem ofIndex_def (n : Nat) : ofIndex n = ofIVar (.ofIndex n) := rfl
 
 end ILit
