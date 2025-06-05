@@ -2,7 +2,7 @@ import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Nat.Basic
 
-import Mathlib.Analysis.InnerProductSpace.PiL2
+import Experiments.Keller.Euclidean.Upstream
 
 namespace Keller.Euclidean
 
@@ -43,24 +43,6 @@ def conjectureIn (d : ℕ) : Prop := ¬ ∃ T : Tiling d, T.FaceshareFree
 
 abbrev unitVec [DecidableEq ι] [RCLike 𝕜] (i : ι) := EuclideanSpace.single (𝕜 := 𝕜) i 1
 
-@[simp] theorem EuclideanSpace.single_zero [DecidableEq ι] [RCLike 𝕜] (i : ι) :
-  EuclideanSpace.single (𝕜 := 𝕜) i 0 = 0 := by ext; simp
-
-theorem EuclideanSpace.single_neg [DecidableEq ι] [RCLike 𝕜] (i : ι) (k : 𝕜):
-    EuclideanSpace.single i (-k) = -EuclideanSpace.single i k := by
-  ext i'; by_cases i' = i <;> simp_all
-
-theorem EuclideanSpace.single_inj [DecidableEq ι] [RCLike 𝕜] (i : ι) (k₁ k₂ : 𝕜)
-    : EuclideanSpace.single i k₁ = EuclideanSpace.single i k₂ → k₁ = k₂ := by
-  intro h
-  replace h := congrFun h i
-  simpa using h
-
-@[simp] theorem EuclideanSpace.single_inj_iff [DecidableEq ι] [RCLike 𝕜] (i : ι) (k₁ k₂ : 𝕜) :
-    EuclideanSpace.single i k₁ = EuclideanSpace.single i k₂ ↔ k₁ = k₂ := by
-  constructor
-  · apply single_inj
-  · rintro rfl; rfl
 
 noncomputable def Point.ofFn (f : Fin d → ℝ) : Point d := (EuclideanSpace.equiv _ _).symm f
 @[simp] theorem Point.app_ofFn (x) (f : Fin d → ℝ) : (Point.ofFn f) x = f x := rfl
@@ -220,4 +202,3 @@ theorem Tiling.index_get (i : IntPoint d) (T : Tiling d) :
     Cube.index (T.get i) = i := by
   have : i.toPoint ∈ Cube (T.get i) := Tiling.mem_get ..
   rw [eq_comm]; apply Cube.index_unique this
-

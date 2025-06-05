@@ -307,6 +307,7 @@ theorem start_coords_eq_Z ⦃a : ℝ⦄ (a_mem : a ∈ P.start_coords) :
 
 end Line.UnitPartition
 
+
 /-- The `T_i(x)` operation in Brakensiek. -/
 def ILattice.inter_line (corners : Set (Point d)) (j : Fin d) (x : Point d) :=
   { corner ∈ corners | Cube corner ∩ Line j x ≠ ∅}
@@ -315,7 +316,7 @@ def ILattice.inter_line (corners : Set (Point d)) (j : Fin d) (x : Point d) :=
 def ILattice.integral_spaced (corners : Set (Point d)) (j : Fin d) :=
   ∃ a : ℝ, ∀ z:ℤ, ∃! c ∈ corners, c j = a + z
 
-theorem ILattice.integral_spaced.exists_unique (is : ILattice.integral_spaced corners j) :
+theorem ILattice.integral_spaced.exists_unique_range (is : ILattice.integral_spaced corners j) :
     ∀ a : ℝ, ∃! c ∈ corners, c j ≤ a ∧ a < c j + 1 := by
   rcases is with ⟨off,h⟩
   intro a
@@ -408,6 +409,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
     -- we need to prove there's a unique cube corresponding to `T.get x j + z`
     -- the line partition starting coords are integral-spaced
     have := line_partition_start_coords j x T ▸ line_part.start_coords_eq_Z
+    specialize @this z; simp at this
     apply this; clear this starts_eq line_part
     simp [inter_line]
     refine ⟨_,⟨T.get_mem x,?_⟩,rfl⟩
