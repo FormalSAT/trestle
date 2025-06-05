@@ -18,15 +18,15 @@ set -e -x
 
 PATH="$PWD/../../.lake/build/bin:$PATH"
 
-PATH="/home/james/Projects/sat/dsr-trim/src:/home/james/Projects/sat/drat-trim:$PATH"
-#PATH="/home/james/Projects/dsr-trim/src:/home/james/Projects/drat-trim:$PATH"
+PATH="/home/james/Projects/sat/dsr-trim/bin:/home/james/Projects/sat/drat-trim:$PATH"
+#PATH="/home/james/Projects/dsr-trim/bin:/home/james/Projects/drat-trim:$PATH"
 
 keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBES
 
 # check the SR proof
 time dsr-trim -f $CNF $DSR $LSR
 lsr-check $CNF $LSR
-srcheck $CNF $LSR
+#srcheck $CNF $LSR
 
 # make the CNF with SB clauses
 keller append-sr-clauses --cnf $CNF --sr $DSR --out $SB
