@@ -19,6 +19,42 @@ TODO: When we accumulate more encodings, split into separate files.
 
 open VEncCNF Model PropFun
 
+open List in
+theorem amo_iff (lits : Array (Literal ν)) (τ) :
+  (atMost 1 (Multiset.ofList lits.toList)) τ ↔
+    ∀ i (_: i < lits.size) j (_: j < lits.size),
+      τ ⊨ LitVar.toPropFun lits[i] → τ ⊨ LitVar.toPropFun lits[j] → i = j := by
+  have := Classical.decEq ν
+  rcases lits with ⟨lits⟩
+  simp [card]
+  constructor
+  · intro h i i_range j j_range i_sat j_sat
+    by_contra ne
+    wlog lt : i < j generalizing i j
+    · apply this j j_range i i_range j_sat i_sat (Ne.symm ne) (by omega)
+    clear ne
+    have : [Fin.mk i i_range,⟨j,j_range⟩].map (lits[·]) <+ lits := by
+      apply List.map_getElem_sublist
+      simp [lt]
+    replace this := List.Sublist.countP_le (τ ⊨ LitVar.toPropFun ·) this
+    simp [*] at this
+    omega
+  · intro h
+    rw [countP_eq_length_filter]
+    generalize hL : filter _ lits = L
+    have L_sublist : L <+ lits := hL ▸ filter_sublist ..
+    have L_sat : ∀ x ∈ L, τ ⊨ LitVar.toPropFun x := by rw [← hL]; simp
+    clear hL
+    have ⟨is,h2,is_lt⟩ := List.sublist_eq_map_getElem L_sublist; clear L_sublist
+    subst h2
+    match is with
+    | [] | [_] => simp_all
+    | i::j::rest =>
+      exfalso
+      simp at L_sat
+      specialize h i i.isLt j j.isLt L_sat.1 L_sat.2.1
+      rw [Fin.val_eq_val] at h; subst j; simp at is_lt
+
 /--
   The pairwise at-most-one encoding.
 
@@ -39,30 +75,23 @@ def amoPairwise (lits : Array (Literal ν)) :
     fun (i : Fin lits.size) => by with_reducible
       exact addClause #[-lits[i], -lits[j]]
   ).mapProp (by
-    rcases lits with ⟨list⟩
-    ext τ
-    simp [Clause.toPropFun, any, Array.mem_def, ← not_and_or, not_and]
-    rw [ofList_eq_map_get, card, Multiset.countP_map,
-      ← Finset.filter_val, ← Finset.card_def, Finset.card_le_one]
-    simp only [List.get_eq_getElem, Finset.mem_filter, Finset.mem_univ, true_and]
+    ext τ; rw [amo_iff]
+    simp [Fin.forall_iff]
     constructor
-    · intro h ⟨i, hi⟩ hτi ⟨j, hj⟩ hτj
-      rcases lt_trichotomy i j with (h_lt | rfl | h_gt)
-      · have := h ⟨j, hj⟩ ⟨i, h_lt⟩ hτi hτj
-        contradiction
-      · rfl
-      · have := h ⟨i, hi⟩ ⟨j, h_gt⟩ hτj hτi
-        contradiction
-    · rintro r ⟨j, hj⟩ ⟨i, hi⟩ hτi hτj
-      specialize r _ hτj ⟨i, Nat.lt_trans hi hj⟩ hτi
-      simp only [Fin.mk.injEq] at r
-      subst r
-      simp only [lt_self_iff_false] at hi
+    · intro h i i_range j j_range i_sat j_sat
+      wlog le : i ≤ j generalizing i j
+      · rw [eq_comm]; apply this j j_range i i_range j_sat i_sat (by omega)
+      specialize h j j_range i i_range i
+      simp [i_sat, j_sat] at h
+      apply Nat.le_antisymm le h
+    · rintro h j j_range _ i_range i i_lt_j rfl
+      specialize h i i_range j j_range
+      simpa [Nat.ne_of_lt i_lt_j, imp_iff_not_or] using h
   )
 
 
 /--
-  The sequential counter at-most-one encoding.
+  The cut4 at-most-one encoding.
 
   An O(n) encoding constructed by repeatedly taking the first `k` literals
   from the list `l` such that
@@ -73,7 +102,7 @@ def amoPairwise (lits : Array (Literal ν)) :
   in `a` is true. This forces the remaining literals in `b` to be false,
   if the overall AMO constraint is to be satisfied.
 -/
-def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by decide)
+def amoCut4 (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by decide)
     : VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) :=
   (VEncCNF.ite (lits.size ≤ k)
     (fun _ => amoPairwise lits)
@@ -84,7 +113,7 @@ def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by
       withTemps Unit (
         seq[
           amoPairwise <| first_k_lits.push <| LitVar.mkPos tmp
-        , amoSeqCounter (k := k) (hk := hk) <| #[LitVar.mkNeg tmp] ++ rest
+        , amoCut4 (k := k) (hk := hk) <| #[LitVar.mkNeg tmp] ++ rest
         ]
       )
     )
@@ -125,8 +154,74 @@ def amoSeqCounter (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by
   )
 termination_by lits.size
 
--- CC: Run it if you want
---#eval (amoSeqCounter #[LitVar.mkPos 0, LitVar.mkPos 1, LitVar.mkPos 2, LitVar.mkPos 3])
---  |>.val.toICnf
+def amoSeqCounter (lits : Array (Literal ν))
+    : VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) :=
+  (VEncCNF.withTemps (Fin (lits.size - 1)) <|
+    VEncCNF.for_all (Array.finRange (lits.size-1)) fun i =>
+      seq[
+        VEncCNF.addClause #[-LitVar.map Sum.inl lits[i]      ,  Literal.pos (Sum.inr i)]
+      , VEncCNF.addClause #[-LitVar.map Sum.inl lits[i.val+1], -Literal.pos (Sum.inr i)]
+      , VEncCNF.guard (i.val + 1 < lits.size-1) fun hi =>
+          VEncCNF.addClause #[Literal.neg (Sum.inr i), Literal.pos (Sum.inr ⟨i+1,hi⟩)]
+      ]
+  ).mapProp (by
+    ext τ
+    rw [amo_iff]
+    simp [Array.mem_def, Fin.forall_iff]
+    constructor
+    · rintro ⟨σ,rfl,h⟩ i i_range j j_range i_sat j_sat
+      by_contra ne
+      wlog lt : i < j generalizing i j
+      · apply this j j_range i i_range j_sat i_sat
+          <;> omega
+      clear ne; revert j_sat
+      have temp_i_true : σ (Sum.inr ⟨i,by omega⟩) = true := by
+        have := h i (by omega) |>.1; simpa [i_sat] using this
+      clear i_sat
+      have temp_jsub1_true : σ (Sum.inr ⟨j-1,by omega⟩) = true := by
+        induction j, lt using Nat.le_induction
+        case base => simpa
+        case succ j le ih =>
+          specialize ih (by omega) temp_i_true
+          have := h (j-1) (by omega) |>.2.2 (by omega)
+          simp [ih] at this
+          convert this using 4; omega
+      have := h (j-1) (by omega) |>.2.1
+      simp [temp_jsub1_true] at this
+      convert this; omega
+    · rintro h
+      use fun | .inl v => τ v | .inr t => decide (∃ i ≤ t, τ ⊨ LitVar.toPropFun lits[i])
+      constructor
+      · ext v; simp
+      intro i i_range
+      refine ⟨?_,?_,?_⟩
+      · rw [or_iff_not_imp_left]
+        intro i_sat
+        replace i_sat : τ ⊨ LitVar.toPropFun lits[i] := by
+          simpa [LitVar.satisfies_iff] using i_sat
+        dsimp; rw [decide_eq_true_iff]
+        use ⟨i,i_range⟩
+
+      · rw [or_iff_not_imp_right]
+        intro t_sat
+        simp at t_sat
+        rcases t_sat with ⟨⟨j,j_range⟩,j_le_i,j_sat⟩
+        intro i_sat
+        replace i_sat : τ ⊨ LitVar.toPropFun lits[i+1] := by
+          simpa [LitVar.satisfies_iff] using i_sat
+        specialize h j _ (i+1) _ j_sat i_sat
+        subst j; simp at j_le_i
+
+      · intro i_range_tighter
+        rw [or_iff_not_imp_left]
+        intro t_sat
+        simp at t_sat
+        rcases t_sat with ⟨⟨j,j_range⟩,j_le_i,j_sat⟩
+        dsimp; rw [decide_eq_true_iff]
+        use ⟨j,j_range⟩
+        simp_all; omega
+
+    )
+
 
 end Trestle.Encode.Cardinality
