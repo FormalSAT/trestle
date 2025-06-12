@@ -28,11 +28,15 @@ lsr-check $CNF $LSR
 # make the CNF with SB clauses
 keller append-sr-clauses --cnf $CNF --sr $DSR --out $SB
 
-# check that the cubes negated leads to tautology
-keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO
-cadical $TAUTO || true
+USE_CUBES=true
+if $USE_CUBES; then
+  # check that the cubes negated leads to tautology
+  keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO
+  cadical $TAUTO || true
 
-# shuffle the cubes and start runnin em
-(echo "p inccnf"; grep -v "^p" $SB; cat $CUBES | shuf) |
-    cadical
-
+  # shuffle the cubes and start runnin em
+  (echo "p inccnf"; grep -v "^p" $SB; cat $CUBES | shuf) |
+      cadical
+else
+  cadical $SB
+fi
