@@ -1000,6 +1000,25 @@ def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen 
 
   return lines
 
+def extra_renumber_bounds (j : Fin n) : SRGen n s :=
+  if h : ¬(s > 6) then #[] else
+  have := not_not.mp h
+  Id.run do
+  let mut lines := #[]
+
+  let mut ltK : Fin s := ⟨6,this⟩
+  for idx in allBitVecs n do
+    if idx ∈ [0,1,3,7,11,19] then
+      continue
+
+    if idx[1]! = true then
+      lines := lines ++ bound idx j ltK
+      match ltK.succ? with
+      | some next => ltK := next
+      | none => break
+
+  return lines
+
 def all (n s) : SRGen n s := Id.run do
   let mut lines := #[]
   lines := lines ++ c3_bounds
@@ -1016,6 +1035,10 @@ def all (n s) : SRGen n s := Id.run do
 
     if h : 3 ≤ j ∧ j < 5 then
       lines := lines ++ mat_canonical (j-1) (by omega)
+
+  --for hj : j in [2:n] do
+  --  have : 2 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
+  --  lines := lines ++ extra_renumber_bounds ⟨j,hj.upper⟩
 
   lines := lines ++ col5n_sorted n s
   return lines
