@@ -9,6 +9,7 @@ CUBES="$DIR/g${N}_${S}_cubes.icnf"
 
 LSR="$DIR/g${N}_${S}.lsr"
 SB="$DIR/g${N}_${S}_sb.cnf"
+DRAT="$DIR/g${N}_${S}_sb_proof.drat"
 
 TAUTO="$DIR/g${N}_${S}_tauto.cnf"
 
@@ -28,7 +29,7 @@ lsr-check $CNF $LSR
 # make the CNF with SB clauses
 keller append-sr-clauses --cnf $CNF --sr $DSR --out $SB
 
-USE_CUBES=true
+USE_CUBES=false
 if $USE_CUBES; then
   # check that the cubes negated leads to tautology
   keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO
@@ -38,5 +39,5 @@ if $USE_CUBES; then
   (echo "p inccnf"; grep -v "^p" $SB; cat $CUBES | shuf) |
       cadical
 else
-  cadical $SB
+  cadical $SB $DRAT
 fi
