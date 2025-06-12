@@ -18,9 +18,6 @@ set -e -x
 
 PATH="$PWD/../../.lake/build/bin:$PATH"
 
-PATH="/home/james/Projects/sat/dsr-trim/bin:/home/james/Projects/sat/drat-trim:$PATH"
-#PATH="/home/james/Projects/dsr-trim/bin:/home/james/Projects/drat-trim:$PATH"
-
 keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBES
 
 # check the SR proof

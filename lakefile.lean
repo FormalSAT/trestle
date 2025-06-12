@@ -17,7 +17,7 @@ lean_lib Experiments {
 }
 
 lean_exe keller {
-  root := `Experiments.Keller.EncodingOut
+  root := `Experiments.Keller.Main
   --moreLeancArgs := #["-UNDEBUG", "-Og", "-ggdb", "-g3", "-fno-omit-frame-pointer"]
 }
 
