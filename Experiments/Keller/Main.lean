@@ -5,7 +5,9 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Experiments.Keller.Encoding
+import Experiments.Keller.Encoding.CNF
+import Experiments.Keller.Encoding.SR
+import Experiments.Keller.Encoding.Cubes
 
 import Trestle.Solver.IncCNF
 
@@ -44,7 +46,7 @@ where runCnfCmd (p : Parsed) := do
 
   IO.println s!"encoding G_{n}_{s}"
   let {cnf, vMap, vNames, nextVar, ..} :=
-    Encode.EncCNF.runUnit (Encoding.fullEncoding n s)
+    Encode.EncCNF.runUnit (Encoding.CNF.fullEncoding n s)
     (names := List.flatten <| List.flatten <|
       .ofFn fun (i : Fin (2^n)) => .ofFn fun (j : Fin n) => .ofFn fun (k : Fin s) =>
       (Encoding.Vars.x i j k, s!"x{i},{j},{k}"))
