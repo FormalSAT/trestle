@@ -85,7 +85,7 @@ structure C3Zeros (n s) extends TwoCubes n s where
   c3_zeros_sorted : ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n+2),
       (kclique.get 3)[j] = 0 → (kclique.get 3)[j+1] = 0
   /-- if `c3` is nonzero up to `j`, then for the `cX` up to `j`,
-      either there is a nonzero element at or before `j`,
+      either there is a zero element at or before `j`,
       or *all* the elements after `j` are zero. -/
   c3_more_nonzero :
     ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n + 2),
