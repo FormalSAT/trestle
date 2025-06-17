@@ -78,42 +78,37 @@ def renumberSubsts (j : Fin n) (perm : Equiv.Perm (Fin s)) := Id.run do
 We can add so many facts!
 -/
 
-abbrev SRGen (n s) := Array (SR.Line (Literal (AllVars n s)))
+abbrev SRGen (n s) := ReaderT (SR.Line (Literal (AllVars n s)) → IO Unit) IO
+def SRGen.write (L : SR.Line (Literal (AllVars n s))) : SRGen n s Unit := do
+  let printer ← read
+  printer L
 
-def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : SRGen n s := Id.run do
+def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : SRGen n s Unit := do
   if h : ltK = 0 ∨ ltK > s then
-    #[]
+    return
   else
   have : 0 < ltK ∧ ltK ≤ s := by omega
   let k_canonical : Fin s := ⟨ltK-1, by omega⟩
 
-  let mut lines := #[]
-
   for hk : k_to_block in [ltK:s] do
     have : ltK < s := Nat.lt_of_le_of_lt hk.lower hk.upper
     let k_to_block : Fin s := ⟨k_to_block,hk.upper⟩
-    lines := lines.push <|
+    SRGen.write <|
       SR.mkLine
         (c := #[ Literal.neg <| .x idx j k_to_block ])
         (true_lits := Array.finRange s |>.map fun k =>
           Literal.mk (.x idx j k) (k = k_canonical))
         (substs := renumberSubsts j <| Equiv.swap k_canonical k_to_block)
 
-  return lines
-
 
 /-- ##### Renumber c3
 
 for all j in [2:n], assume `c3[j] < 2`
 -/
-def c3_bounds : SRGen n s := Id.run do
-  let mut lines := #[]
-
+def c3_bounds : SRGen n s Unit := do
   for hj : j in [2:n] do
     let j : Fin n := ⟨j,hj.upper⟩
-    lines := lines ++ bound 3 j 2
-
-  return lines
+    bound 3 j 2
 
 
 /-- ##### Fix c3[2:5]
@@ -121,20 +116,18 @@ Now `c3[2] = c3[3] = 1` by unit prop.
 We can also show `c3[4] = 1` with some quick casework.
 We do not know about `c3[5]` and `c3[6]` yet, but can case on them down the road.
 -/
-def c3_fixed : SRGen n s :=
+def c3_fixed : SRGen n s Unit := do
   if h : n ≥ 5 ∧ s ≥ 2 then
     let one : Fin s := ⟨1,by omega⟩
     let two : Fin n := ⟨2,by omega⟩
     let three : Fin n := ⟨3,by omega⟩
     let four : Fin n := ⟨4,by omega⟩
-    #[
-      SR.mkLine #[ .pos <| .x 3 two one   ] (true_lits := #[]) (substs := #[])
-    , SR.mkLine #[ .pos <| .x 3 three one ] (true_lits := #[]) (substs := #[])
-    , SR.mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
-    , SR.mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
-    , SR.mkLine #[ .pos <| .x 3 four one  ] (true_lits := #[]) (substs := #[])
-    ]
-  else #[]
+    SRGen.write <| SR.mkLine #[ .pos <| .x 3 two one   ] (true_lits := #[]) (substs := #[])
+    SRGen.write <| SR.mkLine #[ .pos <| .x 3 three one ] (true_lits := #[]) (substs := #[])
+    SRGen.write <| SR.mkLine #[ .neg <| .x 7 three one, .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
+    SRGen.write <| SR.mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
+    SRGen.write <| SR.mkLine #[ .pos <| .x 3 four one  ] (true_lits := #[]) (substs := #[])
+
 
 
 /-! #### cX Constraints
@@ -152,18 +145,14 @@ def cX (row : Nat) (h : n ≥ 2 ∧ row + 2 < n := by omega) : BitVec n :=
 In every column `j`, the `r`'th special index `cX[r]`
 can be bounded below `3+r`
 -/
-def cX_bounds (j : Fin n) : SRGen n s := Id.run do
-  let mut lines := #[]
-
+def cX_bounds (j : Fin n) : SRGen n s Unit := do
   for hi : row in [0:min 3 (n-2)] do
     have : row < n-2 := by
       have : _ < min _ _ := hi.upper
       omega
     let idx : BitVec n := cX row
 
-    lines := lines ++ bound idx j (row+3)
-
-  return lines
+    bound idx j (row+3)
 
 
 /-! ##### Increment Sorted Columns
@@ -224,10 +213,8 @@ def col5n_colorings (s) (h : s ≥ 2) :=
     else
       Sum.inr (coloring, #v[coloring[1],coloring[0]])
 
-def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s :=
-  if h : n < 5 ∨ s < 5 then #[] else
-  Id.run do
-  let mut lines := #[]
+def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Unit := do
+  if h : n < 5 ∨ s < 5 then return else
 
   let j : Fin n := ⟨j, by omega⟩
   have : j.val < 5 := by simp_all [j]
@@ -254,14 +241,10 @@ def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s :=
     let substs := renumberSubsts j (
       (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
 
-    lines := lines.push (SR.mkLine clause (hc := by simp [clause]) true_lits substs)
+    SRGen.write <| SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
-  return lines
-
-def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s :=
-  if h : n < 5 ∨ s < 5 then #[] else
-  Id.run do
-  let mut lines := #[]
+def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
+  if h : n < 5 ∨ s < 5 then return else
 
   let j : Fin n := ⟨j, by omega⟩
   have : j.val ≥ 5 := by simp_all [j]
@@ -290,12 +273,11 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s :=
     -- substitute everything else via perm
     let substs := renumberSubsts j perm.symm
 
-    lines := lines.push <|
+    SRGen.write <|
       SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
-  return lines
-def col5n_sorted (n s) : SRGen n s := Id.run do
-  let mut lines := dbgTrace s!"  (starting col5n_sorted)" fun () => #[]
+def col5n_sorted (n s) : SRGen n s Unit := do
+  IO.println s!"  (starting col5n_sorted)"
 
   if h : n = 7 ∧ _ then
     -- the substitution is always swapping 5/6
@@ -334,11 +316,10 @@ def col5n_sorted (n s) : SRGen n s := Id.run do
                 ,  Literal.mk (AllVars.x idx ⟨6,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastL) ]
 
 
-          lines := lines.push <|
+          SRGen.write <|
             SR.mkLine clause (hc := by simp [clause, ← Array.sum_eq_sum_toList])
                     true_lits substs
 
-  return lines
 
 
 /-! ##### Canonical matrices
@@ -381,12 +362,9 @@ def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → Al
   | .lift a1 =>
       autoToMap a1 (Nat.le_of_lt h)
 
-def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen n s :=
-  if h : ¬(2 + matSize ≤ n ∧ s ≥ 2 + matSize) then #[] else
+def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen n s Unit := do
+  if h : ¬(2 + matSize ≤ n ∧ s ≥ 2 + matSize) then return else
   have := not_not.mp h
-
-  Id.run do
-  let mut lines := #[]
 
   have : NeZero s := ⟨by omega⟩
 
@@ -418,16 +396,12 @@ def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen 
       -- Permute all the other variables based on the given `auto`
       let subst := substsOfMap <| autoToMap auto (by omega)
 
-      lines := lines.push <|
+      SRGen.write <|
         SR.mkLine clause ‹_› true_lits subst
 
-  return lines
-
-def extra_renumber_bounds (j : Fin n) : SRGen n s :=
-  if h : ¬(s > 6) then #[] else
+def extra_renumber_bounds (j : Fin n) : SRGen n s Unit := do
+  if h : ¬(s > 6) then return else
   have := not_not.mp h
-  Id.run do
-  let mut lines := #[]
 
   let mut ltK : Fin s := ⟨6,this⟩
   for idx in allBitVecs n do
@@ -435,33 +409,29 @@ def extra_renumber_bounds (j : Fin n) : SRGen n s :=
       continue
 
     if idx[1]! = true then
-      lines := lines ++ bound idx j ltK
+      bound idx j ltK
       match ltK.succ? with
       | some next => ltK := next
       | none => break
 
-  return lines
-
-def all (n s) : SRGen n s := Id.run do
-  let mut lines := #[]
-  lines := lines ++ c3_bounds
-  lines := lines ++ c3_fixed
+def all (n s) : SRGen n s Unit := do
+  c3_bounds
+  c3_fixed
 
   for hj : j in [2:n] do
     have : 2 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
-    lines := lines ++ cX_bounds ⟨j,hj.upper⟩
+    cX_bounds ⟨j,hj.upper⟩
 
     if h : j < 5 then
-      lines := lines ++ col234_incSorted j (by omega)
+      col234_incSorted j (by omega)
     else
-      lines := lines ++ col5_incSorted j (by omega)
+      col5_incSorted j (by omega)
 
     if h : 3 ≤ j ∧ j < 5 then
-      lines := lines ++ mat_canonical (j-1) (by omega)
+      mat_canonical (j-1) (by omega)
 
   --for hj : j in [2:n] do
   --  have : 2 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
-  --  lines := lines ++ extra_renumber_bounds ⟨j,hj.upper⟩
+  --  extra_renumber_bounds ⟨j,hj.upper⟩
 
-  lines := lines ++ col5n_sorted n s
-  return lines
+  col5n_sorted n s

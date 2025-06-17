@@ -72,13 +72,19 @@ where runCnfCmd (p : Parsed) := do
     let sr := Encoding.SR.all n s
     IO.println s!"writing DSR proof to {dsrFile}"
     IO.FS.withFile dsrFile .write <| fun handle => do
-      for {c, pivot, true_lits, substs} in sr do
+      let lineCt ← IO.mkRef 0
+      sr <| fun {c, pivot, true_lits, substs} => do
+        lineCt.modify (· + 1)
+        IO.print s!"writing line {← lineCt.get}"
+        (← IO.getStdout).flush
         SR.printSRLine
           handle.putStr
           (c := c.map _ avMap)
           (pivot := LitVar.map avMap pivot)
           (true_lits := true_lits.map (LitVar.map avMap))
           (substs := substs.map (fun (v,l) => (avMap v, LitVar.map (L' := ILit) avMap l)))
+        IO.print "\r"
+      IO.println "done writing DSR proof"
       handle.flush
 
   if let some cubeFile := cubeFileArg then
