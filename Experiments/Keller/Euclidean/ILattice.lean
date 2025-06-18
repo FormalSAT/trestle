@@ -7,7 +7,7 @@ namespace Keller.Euclidean
 def Line (j : Fin d) (x : Point d) : Set (Point d) :=
   { x.update j α | (α : ℝ) }
 
-theorem Line.mem_iff (j : Fin d) (x y) :
+theorem Line.mem_iff_all_eq (j : Fin d) (x y) :
       x ∈ Line j y ↔ ∀ j', j' ≠ j → x j' = y j' := by
   constructor
   · rintro ⟨α,rfl⟩ j' j'_ne
@@ -25,14 +25,14 @@ theorem Line.mem_iff (j : Fin d) (x y) :
 
 theorem Line.mem_comm (j : Fin d) {x y : Point d} :
       x ∈ Line j y ↔ y ∈ Line j x := by
-  rw [Line.mem_iff, Line.mem_iff]
+  rw [Line.mem_iff_all_eq, Line.mem_iff_all_eq]
   apply forall_congr'; intro j'
   simp [eq_comm]
 
 theorem Line.mem_trans (j : Fin d) {x y z : Point d} :
       x ∈ Line j y → y ∈ Line j z → x ∈ Line j z := by
   intro h1 h2
-  rw [Line.mem_iff] at h1 h2 ⊢
+  rw [Line.mem_iff_all_eq] at h1 h2 ⊢
   intro j' j'_ne
   rw [h1 j' j'_ne, h2 j' j'_ne]
 
@@ -68,7 +68,10 @@ theorem UnitInterval.end_not_mem (j : Fin d) (x) :
 @[simp] theorem UnitInterval.Nonempty (j : Fin d) (x) : (UnitInterval j x).Nonempty := by
   use x; apply start_mem
 
-theorem UnitInterval.inj_iff {j : Fin d} (x y : Point d) :
+@[simp] theorem UnitInterval.ne_empty (j : Fin d) (x) : (UnitInterval j x) = ∅ ↔ False := by
+  simp; apply Set.Nonempty.ne_empty; simp
+
+@[simp] theorem UnitInterval.inj_iff {j : Fin d} (x y : Point d) :
     UnitInterval j x = UnitInterval j y ↔ x = y := by
   constructor
   · intro h
@@ -117,66 +120,96 @@ theorem UnitInterval.inter_nonempty_of_mem_line {j : Fin d} {x y : Point d}
     rw [abs_sub_comm] at close
     rw [Set.inter_comm]
     apply this ‹_› ‹_›; linarith
-  rw [Line.mem_iff] at in_line
+  rcases in_line with ⟨x,rfl⟩
   rw [abs_of_nonpos (by linarith)] at close
-  simp at close
+  simp at close h_le
   use y; constructor
   · simp [UnitInterval]
-    use y j - x j
-    simp [h_le, close]; clear h_le close
-    ext j'
-    if j' = j then
-      subst j'; simp
-    else
-      simp [*]
+    use y j - x
+    simp [h_le, close]
   · apply UnitInterval.start_mem
 
-theorem Line.inter_cube (t : Point d) (j x) :
-    Cube t ∩ Line j x ≠ ∅ →
+theorem Line.inter_cube_eq {t : Point d} {j x} :
+    Cube t ∩ Line j x = Cube t ∩ UnitInterval j (x.update j (t j))
+  := by
+  ext y; simp only [Set.mem_inter_iff, and_congr_right_iff]
+  intro y_mem
+  simp [UnitInterval]
+  constructor
+  · rintro ⟨y,rfl⟩
+    use y - t j
+    constructor
+    · have := (Cube.mem_iff _ _).mp y_mem j
+      simp at this
+      constructor <;> linarith
+    · ext j'
+      by_cases j' = j <;> simp [*]
+  · rw [Line.mem_iff_all_eq]
+    rintro ⟨α,α_range,rfl⟩ j' j'_ne
+    simp [j'_ne]
+
+theorem UnitInterval.inter_cube_empty_of_not_mem {t : Point d} {j} {x : Point d} :
+    ¬ x.update j (t j) ∈ Cube t → Cube t ∩ UnitInterval j (x.update j (t j)) = ∅ := by
+  -- the hypothesis says there's some j' where x is out of range
+  intro not_mem
+  rw [Cube.mem_iff] at not_mem
+  set_option push_neg.use_distrib true in
+  push_neg at not_mem
+  rcases not_mem with ⟨j',t_j'_range⟩
+  -- this j' cannot be j because it is in range on j
+  have j'_ne : j' ≠ j := by rintro rfl; simp at t_j'_range; linarith
+  -- thus we're really talking about x being out of range
+  simp [j'_ne] at t_j'_range
+  -- if something is in both the cube and interval, x must be in range! contradiction
+  ext y; simp; intro y_mem_cube y_mem_interval
+  replace y_mem_cube := (Cube.mem_iff _ _).mp y_mem_cube j'
+  replace y_mem_interval := UnitInterval.app_eq_of_ne_of_mem j'_ne y_mem_interval
+  simp [j'_ne] at y_mem_interval
+  cases t_j'_range <;> linarith
+
+theorem UnitInterval.inter_cube_eq_self_of_mem {t : Point d} {j} {x : Point d} :
+    x.update j (t j) ∈ Cube t → Cube t ∩ UnitInterval j (x.update j (t j)) = UnitInterval j (x.update j (t j)) := by
+  intro mem
+  -- proving the interval subsets the cube
+  rw [Set.inter_eq_right]
+  rintro y ⟨α,α_range,rfl⟩
+  -- which means proving in range for every dimension j'
+  rw [Point.update_add_single]
+  rw [Cube.mem_iff] at mem ⊢
+  intro j'; specialize mem j'
+  if j'_ne : j' = j then
+    subst j'; simp [α_range]
+  else
+  simpa [j'_ne] using mem
+
+theorem Line.inter_cube_eq_interval {t : Point d} {j x} :
+    (Cube t ∩ Line j x).Nonempty →
     Cube t ∩ Line j x = UnitInterval j (x.update j (t j))
   := by
   intro inter_nonempty
-  -- prove each direction of inclusion separately
-  ext y
+  rw [inter_cube_eq] at inter_nonempty ⊢
+  apply UnitInterval.inter_cube_eq_self_of_mem
+  rcases inter_nonempty with ⟨y,y_mem_cube,⟨α,α_range,rfl⟩⟩
+  simp at y_mem_cube
+  rw [Cube.mem_iff] at y_mem_cube ⊢
+  intro j'; specialize y_mem_cube j'
+  if j' = j then
+    subst j'; simp
+  else
+    simp_all
+
+theorem Line.inter_cube_nonempty_iff_start_mem (t : Point d) (j x) :
+    (Cube t ∩ Line j x).Nonempty ↔ (x.update j (t j)) ∈ Cube t
+  := by
   constructor
-  · -- if `y` is in the intersection, it is in the interval
-    rintro ⟨mem_cube,mem_line⟩
-    simp only [UnitInterval, Point.update_add_single, exists_prop, Set.mem_setOf_eq]
-    -- `α` is just the diff between `y` and `t` in dim j
-    use y j - t j
-    constructor
-    · -- `α` is in range [0,1) because `y` is in `Cube t`
-      rw [Cube.mem_iff] at mem_cube
-      specialize mem_cube j
-      constructor <;> linarith
-    · -- interval start + e_j * `α` = y
-      ext j'
-      if js_ne : j' = j then
-        subst j'
-        simp
-      else
-        rcases mem_line with ⟨y,rfl⟩
-        simp [*]
-  · -- if `y` is in the interval, it is in the intersection
-    rintro ⟨α,α_range,rfl⟩
-    constructor
-    · simp [Cube.mem_iff]
-      intro j'
-      simp [Point.update]
-      if js_ne : j' = j then
-        subst j'
-        simp [α_range]
-      else
-        simp [js_ne]
-        -- in every direction other than `j`, we can bound `x j'`
-        -- because of `inter_nonempty`
-        rw [← Set.nonempty_iff_ne_empty] at inter_nonempty
-        rcases inter_nonempty with ⟨z,z_mem_cube,z_mem_line⟩
-        rw [Cube.mem_iff] at z_mem_cube; specialize z_mem_cube j'
-        rcases z_mem_line with ⟨z,rfl⟩
-        simpa [js_ne] using z_mem_cube
-    · -- adding in the direction j is still in the Line
-      simp [Line]
+  · intro h
+    have := Line.inter_cube_eq_interval h
+    have := congrArg (x.update j (t j) ∈ ·) this
+    simp at this
+    exact this.1
+  · intro h
+    refine ⟨_, h, ?_⟩
+    use t j
 
 structure Line.UnitPartition (j : Fin d) (x) where
   partition : Partition (Line j x)
@@ -194,7 +227,7 @@ theorem exists_start_coord (a_mem : a ∈ P.partition.parts) :
   rcases P.unit_intervals a a_mem with ⟨start,rfl⟩
   use start j
   have start_mem := P.partition.le_of_mem a_mem (UnitInterval.start_mem ..)
-  rw [Line.mem_iff] at start_mem
+  rcases start_mem with ⟨start,rfl⟩
   rw [UnitInterval.inj_iff]
   ext j'
   if j'_ne : j' = j then subst j'; simp else
@@ -310,32 +343,39 @@ end Line.UnitPartition
 
 /-- The `T_i(x)` operation in Brakensiek. -/
 def ILattice.inter_line (corners : Set (Point d)) (j : Fin d) (x : Point d) :=
-  { corner ∈ corners | Cube corner ∩ Line j x ≠ ∅}
+  { corner ∈ corners | (Cube corner ∩ Line j x).Nonempty }
 
 /-- i-lattice defn from Brakensiek (approximately) -/
-def ILattice.integral_spaced (corners : Set (Point d)) (j : Fin d) :=
-  ∃ a : ℝ, ∀ z:ℤ, ∃! c ∈ corners, c j = a + z
+-- TODO(JG): `structure` automatically generates projections, can I just turn that off?
+inductive ILattice.integral_spaced (corners : Set (Point d)) (j : Fin d) : Prop
+| intro
+    (offset : ℝ)
+    (corner_to_Z : ∀ c ∈ corners, ∃ z:ℤ, c j = offset + z)
+    (Z_to_corner : ∀ z:ℤ, ∃! c ∈ corners, c j = offset + z)
 
-theorem ILattice.integral_spaced.exists_unique_range (is : ILattice.integral_spaced corners j) :
+theorem ILattice.integral_spaced.exists_unique_range {j : Fin d} (is : ILattice.integral_spaced corners j) :
     ∀ a : ℝ, ∃! c ∈ corners, c j ≤ a ∧ a < c j + 1 := by
-  rcases is with ⟨off,h⟩
+  rcases is with ⟨off,c2Z,Z2c⟩
   intro a
-  -- off + ⌊a-off⌋ is in the RHS set, so there must be a corresponding cube corner
-  have mem_corner := congrArg (off + ⌊a - off⌋ ∈ ·) h; simp at mem_corner
-  rcases mem_corner with ⟨c,corner,c_j⟩
+  -- ⌊a-off⌋ has a corresponding cube corner
+  specialize Z2c ⌊a - off⌋
+  rcases Z2c with ⟨c,⟨c_is_corner,c_j⟩,corner_unique⟩
   -- this cube corner fulfills the condition
   use c; constructor
-  · simp [corner, c_j]
+  · simp [c_is_corner,c_j]
     constructor
     · rw [add_comm, ← le_sub_iff_add_le]; apply Int.floor_le
     · rw [add_assoc,add_comm,← sub_lt_iff_lt_add]; apply Int.lt_floor_add_one
   -- and it is unique
-  · rintro c' ⟨c'_corner,c'_j⟩
-    -- .. because any other corner must also be in the RHS set
-    have c'_int := congrArg (c' j ∈ ·) h; simp at c'_int
-    replace c'_int := c'_int.mp ⟨c',c'_corner,rfl⟩
-    rcases c'_int with ⟨z,h2⟩
-    done
+  · rintro c' ⟨c'_corner,c'_j_range⟩
+    apply corner_unique; clear corner_unique
+    refine ⟨c'_corner,?_⟩
+    specialize c2Z c' c'_corner
+    rcases c2Z with ⟨z,c'_j⟩
+    rw [c'_j] at c'_j_range ⊢; clear c'_j
+    simp
+    rw [eq_comm, Int.floor_eq_iff]
+    constructor <;> linarith
 
 structure ILattice (d : ℕ) (j : Fin d) where
   corners : Set (Point d)
@@ -370,7 +410,7 @@ def ILattice.line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) :
     intro i i_mem
     simp at i_mem
     rcases i_mem with ⟨⟨corner,corner_mem,rfl⟩,not_empty⟩
-    have := Line.inter_cube corner j x not_empty
+    have := Line.inter_cube_eq_interval <| Set.nonempty_iff_ne_empty.mpr not_empty
     refine ⟨_,this⟩
 
 
@@ -385,14 +425,14 @@ theorem ILattice.line_partition_start_coords (j : Fin d) (x T) :
   rw [Set.setOf_inj]; funext a; simp
   constructor
   · rintro ⟨y,⟨z,z_corner,h⟩,rfl⟩
-    have := Line.inter_cube z j x (by rw [h]; apply (UnitInterval.Nonempty j y).ne_empty)
+    have := Line.inter_cube_eq_interval (by rw [h]; apply UnitInterval.Nonempty j y)
     use z
     simp [z_corner, h, (UnitInterval.Nonempty j y).ne_empty ]
     rw [this, UnitInterval.inj_iff] at h
     have := congrFun h j
     simpa using this
   · rintro ⟨y,⟨y_corner,inter_nonempty⟩,rfl⟩
-    have := Line.inter_cube y j x inter_nonempty
+    have := Line.inter_cube_eq_interval inter_nonempty
     refine ⟨_,⟨y,y_corner,this⟩,?_⟩
     simp
 
@@ -403,18 +443,67 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
     intro x
     -- get the line partition `T_i(x)`
     let line_part := line_partition_of_tiling j x T
+
     -- The cube `T.get x` must contain x, so it is a natural choice of starting point
+
+    -- we're gonna need to know the start coords are integer spaced
+    have start_coords_eq := line_part.start_coords_eq_Z
+    specialize @start_coords_eq (T.get x j) (by
+      use x.update j (T.get x j)
+      simp [line_part, line_partition_of_tiling,
+        Line.UnitPartition.starts, Line.UnitPartition.partition,
+        -SetLike.mem_coe, -Partition.coe_parts]
+      use T.get x
+      constructor
+      · apply T.get_mem
+      · rw [Line.inter_cube_eq_interval]
+        use x; simp [T.mem_get]
+    )
+
     use T.get x j
-    intro z
-    -- we need to prove there's a unique cube corresponding to `T.get x j + z`
-    -- the line partition starting coords are integral-spaced
-    have := line_partition_start_coords j x T ▸ line_part.start_coords_eq_Z
-    specialize @this z; simp at this
-    apply this; clear this starts_eq line_part
-    simp [inter_line]
-    refine ⟨_,⟨T.get_mem x,?_⟩,rfl⟩
-    apply Set.Nonempty.ne_empty; use x
-    simp [T.mem_get]
+    -- first gotta prove each line cube is at an integer offset
+    · intro c c_mem
+      have : c j ∈ line_part.start_coords := by
+        use x.update j (c j)
+        simp [line_part, line_partition_of_tiling,
+          Line.UnitPartition.starts, Line.UnitPartition.partition,
+          -SetLike.mem_coe, -Partition.coe_parts]
+        use c
+        simp [inter_line] at c_mem
+        refine ⟨c_mem.1, ?_⟩
+        rw [Line.inter_cube_eq_interval]
+        exact c_mem.2
+      rw [start_coords_eq] at this
+      rcases this with ⟨z,h⟩
+      use z, h.symm
+
+    -- then that each integer offset is a unique cube
+    · intro z
+      have : T.get x j + z ∈ line_part.start_coords := by
+        rw [start_coords_eq]; simp
+      rcases this with ⟨w,w_mem_starts,w_j⟩
+      simp [line_part, line_partition_of_tiling,
+          Line.UnitPartition.starts, Line.UnitPartition.partition,
+          -SetLike.mem_coe, -Partition.coe_parts] at w_mem_starts
+      rcases w_mem_starts with ⟨c,c_is_corner,c_inter⟩
+      have w_mem_c : w ∈ Cube c := by
+        have := UnitInterval.start_mem j w; rw [← c_inter] at this
+        exact this.1
+      have : w = x.update j (c j) := by
+        rw [Line.inter_cube_eq_interval ?ne, UnitInterval.inj_iff] at c_inter
+        rw [c_inter]
+        case ne => rw [c_inter]; simp
+      subst w
+      simp at w_j
+      use c; constructor
+      · simp [inter_line, c_is_corner, c_inter, w_j]
+      · clear c_inter
+        rintro c' ⟨⟨c'_corner,c'_inter_ne⟩,c'_j⟩
+        refine T.covers_unique _ ⟨c'_corner, ?_⟩ ⟨c_is_corner,w_mem_c⟩
+        rw [w_j, ← c'_j]
+        rw [Line.inter_cube_nonempty_iff_start_mem] at c'_inter_ne
+        exact c'_inter_ne
+
 
 /-- Get the corners whose cube contains `x` -/
 noncomputable def ILattice.getSet (x : Point d) (L : ILattice d j) : Set (Point d) :=

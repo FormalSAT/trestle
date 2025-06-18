@@ -202,3 +202,6 @@ theorem Tiling.index_get (i : IntPoint d) (T : Tiling d) :
     Cube.index (T.get i) = i := by
   have : i.toPoint ∈ Cube (T.get i) := Tiling.mem_get ..
   rw [eq_comm]; apply Cube.index_unique this
+
+def Tiling.covers_unique (T : Tiling d) (x) :=
+  @(T.covers x).unique
