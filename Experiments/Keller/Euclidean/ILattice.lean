@@ -506,39 +506,48 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
 
 
 /-- Get the corners whose cube contains `x` -/
-noncomputable def ILattice.getSet (x : Point d) (L : ILattice d j) : Set (Point d) :=
-  { t ∈ L.corners | x ∈ Cube t }
-
-theorem ILattice.getSet_singleton (x : Point d) (L : ILattice d j) :
-    ∃ t, L.getSet x = {t} := by
-  have ⟨off,h⟩ := L.inter_line_integral_spaced x
-  let a := off + Int.floor (x j - off)
-  have h2 := congrArg (a ∈ ·) h
-  simp [a] at h2
-  rcases h2 with ⟨t,⟨t_corner,nonempty⟩,t_j⟩
+noncomputable def ILattice.covers (L : ILattice d j) (x : Point d) :
+    ∃! t ∈ L.corners, x ∈ Cube t := by
+  have ⟨off,corner_to_Z,Z_to_corner⟩ := L.inter_line_integral_spaced x
+  let a := Int.floor (x j - off)
+  specialize Z_to_corner a
+  simp [inter_line] at Z_to_corner
+  convert Z_to_corner using 1
+  ext t; simp [and_assoc]; intro t_mem
+  constructor
+  · intro x_mem
+    have inter_ne : (Cube t ∩ Line j x).Nonempty := ⟨x,x_mem,Line.start_mem _ _⟩
+    refine ⟨inter_ne,?_⟩
+    specialize corner_to_Z t ⟨t_mem,inter_ne⟩
+    rcases corner_to_Z with ⟨a₀,h⟩
+    rw [h]; simp
+    have : a ≤ x j - off := Int.floor_le _
+    have : x j - off < (a + 1 : ℤ) := Int.lt_succ_floor _
+    have := (Cube.mem_iff x t).mp x_mem j
+    rw [h] at this
+    linarith
+    done
+  · intro h
+    rw [Line.inter_cube_eq] at h
+    have := (not_imp_not.mpr UnitInterval.inter_cube_empty_of_not_mem) h.1.ne_empty
+    rw [h.2] at this
+    simp [a] at this
+    done
 
 def ILattice.toTiling (L : ILattice d j) : Tiling d where
   corners := L.corners
-  covers := by
-    intro p
-    have := L.inter_line_integral_spaced p
-    simp [integral_spaced,inter_line] at this
-    rcases this with ⟨off,h⟩
-    let a := off + Int.floor (p j - off)
-    have a_mem : a ∈ {off + ↑z|z:ℤ} := by simp [a]
-    rw [← h] at a_mem; simp at a_mem
-    rcases a_mem with ⟨c,⟨c_corner,inter_nonempty⟩,eq⟩
-    sorry
+  covers := L.covers
 
 def ILattice.replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
   corners :=
-    { corner | ∃ t ∈ L.corners, t L.j ≡ a [PMOD 1] ∧ corner = t + EuclideanSpace.single L.j b }
-    ∪ { t | t ∈ L.corners ∧ ¬ (t L.j ≡ a [PMOD 1])}
-  j := L.j
-  condition := by
+    { (t + EuclideanSpace.single j b) | (t ∈ L.corners) (_ : ∃ z, t j = a + z) }
+    ∪ { (t) | (t ∈ L.corners) (_ : ∀ z, t j ≠ a + z)}
+  inter_line_integral_spaced := by
+    intro x
     sorry
 
 def Tiling.replace (j : Fin d) (a b : ℝ) (T : Tiling d) : Tiling d :=
   ILattice.fromTiling T j |>.replace a b |>.toTiling
 
-theorem Tiling.replace
+theorem Tiling.corners_replace {j : Fin d} {a b : ℝ} (T : Tiling d) :
+    T.replace j a b |>.corners =
