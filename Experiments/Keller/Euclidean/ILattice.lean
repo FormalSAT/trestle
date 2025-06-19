@@ -7,7 +7,9 @@ namespace Keller.Euclidean
 def Line (j : Fin d) (x : Point d) : Set (Point d) :=
   { x.update j α | (α : ℝ) }
 
-theorem Line.mem_iff_all_eq (j : Fin d) (x y) :
+namespace Line
+
+theorem mem_iff_all_eq (j : Fin d) (x y) :
       x ∈ Line j y ↔ ∀ j', j' ≠ j → x j' = y j' := by
   constructor
   · rintro ⟨α,rfl⟩ j' j'_ne
@@ -20,58 +22,63 @@ theorem Line.mem_iff_all_eq (j : Fin d) (x y) :
     else
       simp [*]
 
-@[simp] theorem Line.start_mem (j : Fin d) (x) : x ∈ Line j x := by
+@[simp] theorem start_mem (j : Fin d) (x) : x ∈ Line j x := by
   use x j; ext j'; simp [Point.update]
 
-theorem Line.mem_comm (j : Fin d) {x y : Point d} :
+theorem mem_comm (j : Fin d) {x y : Point d} :
       x ∈ Line j y ↔ y ∈ Line j x := by
   rw [Line.mem_iff_all_eq, Line.mem_iff_all_eq]
   apply forall_congr'; intro j'
   simp [eq_comm]
 
-theorem Line.mem_trans (j : Fin d) {x y z : Point d} :
+theorem mem_trans (j : Fin d) {x y z : Point d} :
       x ∈ Line j y → y ∈ Line j z → x ∈ Line j z := by
   intro h1 h2
   rw [Line.mem_iff_all_eq] at h1 h2 ⊢
   intro j' j'_ne
   rw [h1 j' j'_ne, h2 j' j'_ne]
 
-
-theorem Line.add_single_mem_iff {j : Fin d} {x y α} :
-    y + EuclideanSpace.single j α ∈ Line j x ↔ y ∈ Line j x := by
-  simp [Line, Point.add_single_eq_update]
+theorem update_mem_iff {j : Fin d} {x y z} :
+    y.update j z ∈ Line j x ↔ y ∈ Line j x := by
+  simp [Line]
   constructor
-  · rintro ⟨β,h⟩
-    use β + -α
-    replace h := congrArg (· + EuclideanSpace.single j (-α)) h
-    conv at h => lhs; simp
-    rw [h]; simp
-  · rintro ⟨β,rfl⟩
+  · rintro ⟨z',h⟩
+    replace h := congrArg (·.update j (y j)) h; simp at h
+    use y j, h
+  · rintro ⟨z',rfl⟩
     simp
+
+theorem add_single_mem_iff {j : Fin d} {x y α} :
+    y + EuclideanSpace.single j α ∈ Line j x ↔ y ∈ Line j x := by
+  simp [Point.add_single_eq_update, update_mem_iff]
+
+end Line
 
 def UnitInterval (j : Fin d) (x : Point d) : Set (Point d) :=
   { x + EuclideanSpace.single j α | (α : ℝ) (_ : 0 ≤ α ∧ α < 1) }
 
-theorem UnitInterval.range_of_mem (a_mem : a ∈ UnitInterval j x) :
+namespace UnitInterval
+
+theorem range_of_mem (a_mem : a ∈ UnitInterval j x) :
       x j ≤ a j ∧ a j < x j + 1 := by
   simp [UnitInterval] at a_mem
   rcases a_mem with ⟨α,α_range,rfl⟩
   simpa
 
-@[simp] theorem UnitInterval.start_mem (j : Fin d) (x) : x ∈ UnitInterval j x := by
+@[simp] theorem start_mem (j : Fin d) (x) : x ∈ UnitInterval j x := by
   use 0; simp
 
-theorem UnitInterval.end_not_mem (j : Fin d) (x) :
+theorem end_not_mem (j : Fin d) (x) :
       x + unitVec j ∉ UnitInterval j x := by
   simp [unitVec, UnitInterval]
 
-@[simp] theorem UnitInterval.Nonempty (j : Fin d) (x) : (UnitInterval j x).Nonempty := by
+@[simp] theorem Nonempty (j : Fin d) (x) : (UnitInterval j x).Nonempty := by
   use x; apply start_mem
 
-@[simp] theorem UnitInterval.ne_empty (j : Fin d) (x) : (UnitInterval j x) = ∅ ↔ False := by
+@[simp] theorem ne_empty (j : Fin d) (x) : (UnitInterval j x) = ∅ ↔ False := by
   simp; apply Set.Nonempty.ne_empty; simp
 
-@[simp] theorem UnitInterval.inj_iff {j : Fin d} (x y : Point d) :
+@[simp] theorem inj_iff {j : Fin d} (x y : Point d) :
     UnitInterval j x = UnitInterval j y ↔ x = y := by
   constructor
   · intro h
@@ -85,12 +92,12 @@ theorem UnitInterval.end_not_mem (j : Fin d) (x) :
     linarith
   · rintro rfl; rfl
 
-theorem UnitInterval.app_eq_of_ne_of_mem {j j' : Fin d} (js_ne : j' ≠ j)
+theorem app_eq_of_ne_of_mem {j j' : Fin d} (js_ne : j' ≠ j)
     {x y} (y_mem : y ∈ UnitInterval j x) : y j' = x j' := by
   rcases y_mem with ⟨α,α_range,rfl⟩
   simp [js_ne]
 
-theorem UnitInterval.inter_nonempty_implies_mem_line (j : Fin d) (x₁ x₂ : Point d) :
+theorem inter_nonempty_implies_mem_line (j : Fin d) (x₁ x₂ : Point d) :
     (UnitInterval j x₁ ∩ UnitInterval j x₂).Nonempty → x₁ ∈ Line j x₂ := by
   intro h
   use x₁ j
@@ -104,7 +111,7 @@ theorem UnitInterval.inter_nonempty_implies_mem_line (j : Fin d) (x₁ x₂ : Po
   · rw [eq_comm]; exact app_eq_of_ne_of_mem js_ne h₂
   · exact app_eq_of_ne_of_mem js_ne h₁
 
-theorem UnitInterval.inter_nonempty_implies_diff_lt_one (j : Fin d) (x₁ x₂ : Point d) :
+theorem inter_nonempty_implies_diff_lt_one (j : Fin d) (x₁ x₂ : Point d) :
     (UnitInterval j x₁ ∩ UnitInterval j x₂).Nonempty → |x₁ j - x₂ j| < 1 := by
   rintro ⟨x,h₁,h₂⟩
   have g₁ := range_of_mem h₁
@@ -112,7 +119,7 @@ theorem UnitInterval.inter_nonempty_implies_diff_lt_one (j : Fin d) (x₁ x₂ :
   rw [abs_sub_lt_iff]
   constructor <;> linarith
 
-theorem UnitInterval.inter_nonempty_of_mem_line {j : Fin d} {x y : Point d}
+theorem inter_nonempty_of_mem_line {j : Fin d} {x y : Point d}
     (in_line : x ∈ Line j y) (close : |x j - y j| < 1)
   : (UnitInterval j x ∩ UnitInterval j y).Nonempty := by
   wlog h_le : x j ≤ y j generalizing x y
@@ -129,7 +136,11 @@ theorem UnitInterval.inter_nonempty_of_mem_line {j : Fin d} {x y : Point d}
     simp [h_le, close]
   · apply UnitInterval.start_mem
 
-theorem Line.inter_cube_eq {t : Point d} {j x} :
+end UnitInterval
+
+namespace Cube
+
+theorem inter_line_eq_inter_interval {t : Point d} {j x} :
     Cube t ∩ Line j x = Cube t ∩ UnitInterval j (x.update j (t j))
   := by
   ext y; simp only [Set.mem_inter_iff, and_congr_right_iff]
@@ -148,10 +159,10 @@ theorem Line.inter_cube_eq {t : Point d} {j x} :
     rintro ⟨α,α_range,rfl⟩ j' j'_ne
     simp [j'_ne]
 
-theorem UnitInterval.inter_cube_empty_of_not_mem {t : Point d} {j} {x : Point d} :
-    ¬ x.update j (t j) ∈ Cube t → Cube t ∩ UnitInterval j (x.update j (t j)) = ∅ := by
+theorem inter_interval_empty_of_not_mem {t : Point d} {j} {x : Point d}
+        (not_mem : ¬ x.update j (t j) ∈ Cube t)
+      : Cube t ∩ UnitInterval j (x.update j (t j)) = ∅ := by
   -- the hypothesis says there's some j' where x is out of range
-  intro not_mem
   rw [Cube.mem_iff] at not_mem
   set_option push_neg.use_distrib true in
   push_neg at not_mem
@@ -167,7 +178,7 @@ theorem UnitInterval.inter_cube_empty_of_not_mem {t : Point d} {j} {x : Point d}
   simp [j'_ne] at y_mem_interval
   cases t_j'_range <;> linarith
 
-theorem UnitInterval.inter_cube_eq_self_of_mem {t : Point d} {j} {x : Point d} :
+theorem inter_interval_eq_self_of_mem {t : Point d} {j} {x : Point d} :
     x.update j (t j) ∈ Cube t → Cube t ∩ UnitInterval j (x.update j (t j)) = UnitInterval j (x.update j (t j)) := by
   intro mem
   -- proving the interval subsets the cube
@@ -182,13 +193,13 @@ theorem UnitInterval.inter_cube_eq_self_of_mem {t : Point d} {j} {x : Point d} :
   else
   simpa [j'_ne] using mem
 
-theorem Line.inter_cube_eq_interval {t : Point d} {j x} :
+theorem inter_line_eq_interval {t : Point d} {j x} :
     (Cube t ∩ Line j x).Nonempty →
     Cube t ∩ Line j x = UnitInterval j (x.update j (t j))
   := by
   intro inter_nonempty
-  rw [inter_cube_eq] at inter_nonempty ⊢
-  apply UnitInterval.inter_cube_eq_self_of_mem
+  rw [inter_line_eq_inter_interval] at inter_nonempty ⊢
+  apply inter_interval_eq_self_of_mem
   rcases inter_nonempty with ⟨y,y_mem_cube,⟨α,α_range,rfl⟩⟩
   simp at y_mem_cube
   rw [Cube.mem_iff] at y_mem_cube ⊢
@@ -198,18 +209,32 @@ theorem Line.inter_cube_eq_interval {t : Point d} {j x} :
   else
     simp_all
 
-theorem Line.inter_cube_nonempty_iff_start_mem (t : Point d) (j x) :
+theorem inter_line_nonempty_iff_start_mem (t : Point d) (j x) :
     (Cube t ∩ Line j x).Nonempty ↔ (x.update j (t j)) ∈ Cube t
   := by
   constructor
   · intro h
-    have := Line.inter_cube_eq_interval h
+    have := inter_line_eq_interval h
     have := congrArg (x.update j (t j) ∈ ·) this
     simp at this
     exact this.1
   · intro h
     refine ⟨_, h, ?_⟩
     use t j
+
+theorem update_mem_of_inter_line_nonempty {t : Point d} {j x} (z : ℝ)
+    (inter_ne : (Cube t ∩ Line j x).Nonempty) (h : t j ≤ z ∧ z < t j + 1)
+    : x.update j z ∈ Cube t := by
+  rw [inter_line_nonempty_iff_start_mem] at inter_ne
+  rw [mem_iff] at inter_ne ⊢
+  intro j'; specialize inter_ne j'
+  if js_ne : j' = j then
+    subst j'; simp [h]
+  else
+    simpa [js_ne] using inter_ne
+
+end Cube
+
 
 structure Line.UnitPartition (j : Fin d) (x) where
   partition : Partition (Line j x)
@@ -410,7 +435,7 @@ def ILattice.line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) :
     intro i i_mem
     simp at i_mem
     rcases i_mem with ⟨⟨corner,corner_mem,rfl⟩,not_empty⟩
-    have := Line.inter_cube_eq_interval <| Set.nonempty_iff_ne_empty.mpr not_empty
+    have := Cube.inter_line_eq_interval <| Set.nonempty_iff_ne_empty.mpr not_empty
     refine ⟨_,this⟩
 
 
@@ -425,14 +450,14 @@ theorem ILattice.line_partition_start_coords (j : Fin d) (x T) :
   rw [Set.setOf_inj]; funext a; simp
   constructor
   · rintro ⟨y,⟨z,z_corner,h⟩,rfl⟩
-    have := Line.inter_cube_eq_interval (by rw [h]; apply UnitInterval.Nonempty j y)
+    have := Cube.inter_line_eq_interval (by rw [h]; apply UnitInterval.Nonempty j y)
     use z
     simp [z_corner, h, (UnitInterval.Nonempty j y).ne_empty ]
     rw [this, UnitInterval.inj_iff] at h
     have := congrFun h j
     simpa using this
   · rintro ⟨y,⟨y_corner,inter_nonempty⟩,rfl⟩
-    have := Line.inter_cube_eq_interval inter_nonempty
+    have := Cube.inter_line_eq_interval inter_nonempty
     refine ⟨_,⟨y,y_corner,this⟩,?_⟩
     simp
 
@@ -456,7 +481,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
       use T.get x
       constructor
       · apply T.get_mem
-      · rw [Line.inter_cube_eq_interval]
+      · rw [Cube.inter_line_eq_interval]
         use x; simp [T.mem_get]
     )
 
@@ -471,7 +496,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
         use c
         simp [inter_line] at c_mem
         refine ⟨c_mem.1, ?_⟩
-        rw [Line.inter_cube_eq_interval]
+        rw [Cube.inter_line_eq_interval]
         exact c_mem.2
       rw [start_coords_eq] at this
       rcases this with ⟨z,h⟩
@@ -490,7 +515,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
         have := UnitInterval.start_mem j w; rw [← c_inter] at this
         exact this.1
       have : w = x.update j (c j) := by
-        rw [Line.inter_cube_eq_interval ?ne, UnitInterval.inj_iff] at c_inter
+        rw [Cube.inter_line_eq_interval ?ne, UnitInterval.inj_iff] at c_inter
         rw [c_inter]
         case ne => rw [c_inter]; simp
       subst w
@@ -501,7 +526,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
         rintro c' ⟨⟨c'_corner,c'_inter_ne⟩,c'_j⟩
         refine T.covers_unique _ ⟨c'_corner, ?_⟩ ⟨c_is_corner,w_mem_c⟩
         rw [w_j, ← c'_j]
-        rw [Line.inter_cube_nonempty_iff_start_mem] at c'_inter_ne
+        rw [Cube.inter_line_nonempty_iff_start_mem] at c'_inter_ne
         exact c'_inter_ne
 
 
@@ -527,9 +552,10 @@ noncomputable def ILattice.covers (L : ILattice d j) (x : Point d) :
     rw [h] at this
     linarith
     done
-  · intro h
-    rw [Line.inter_cube_eq] at h
-    have := (not_imp_not.mpr UnitInterval.inter_cube_empty_of_not_mem) h.1.ne_empty
+  · rintro ⟨inter_ne,t_j⟩
+    have := Cube.update_mem_of_inter_line_nonempty
+    rw [Cube.inter_line_eq_inter_interval] at h
+    have := (not_imp_not.mpr Cube.inter_interval_empty_of_not_mem) h.1.ne_empty
     rw [h.2] at this
     simp [a] at this
     done
