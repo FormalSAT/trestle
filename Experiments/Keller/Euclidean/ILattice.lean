@@ -370,15 +370,19 @@ end Line.UnitPartition
 def ILattice.inter_line (corners : Set (Point d)) (j : Fin d) (x : Point d) :=
   { corner ∈ corners | (Cube corner ∩ Line j x).Nonempty }
 
+theorem ILattice.mem_inter_line (t : Point d) :
+  t ∈ inter_line corners j x ↔ t ∈ corners ∧ (Cube t ∩ Line j x).Nonempty
+  := by simp [inter_line]
+
 /-- i-lattice defn from Brakensiek (approximately) -/
 -- TODO(JG): `structure` automatically generates projections, can I just turn that off?
-inductive ILattice.integral_spaced (corners : Set (Point d)) (j : Fin d) : Prop
+inductive ILattice.IntegralSpaced (corners : Set (Point d)) (j : Fin d) : Prop
 | intro
     (offset : ℝ)
     (corner_to_Z : ∀ c ∈ corners, ∃ z:ℤ, c j = offset + z)
     (Z_to_corner : ∀ z:ℤ, ∃! c ∈ corners, c j = offset + z)
 
-theorem ILattice.integral_spaced.exists_unique_range {j : Fin d} (is : ILattice.integral_spaced corners j) :
+theorem ILattice.IntegralSpaced.exists_unique_range {j : Fin d} (is : ILattice.IntegralSpaced corners j) :
     ∀ a : ℝ, ∃! c ∈ corners, c j ≤ a ∧ a < c j + 1 := by
   rcases is with ⟨off,c2Z,Z2c⟩
   intro a
@@ -404,8 +408,8 @@ theorem ILattice.integral_spaced.exists_unique_range {j : Fin d} (is : ILattice.
 
 structure ILattice (d : ℕ) (j : Fin d) where
   corners : Set (Point d)
-  inter_line_integral_spaced : ∀ (x : Point d),
-    ILattice.integral_spaced (ILattice.inter_line corners j x) j
+  inter_line_IntegralSpaced : ∀ (x : Point d),
+    ILattice.IntegralSpaced (ILattice.inter_line corners j x) j
 
 def ILattice.line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) : Line.UnitPartition j x where
   partition := {
@@ -446,7 +450,7 @@ theorem ILattice.line_partition_start_coords (j : Fin d) (x T) :
     Set.mem_setOf_eq, Set.mem_diff, Set.mem_image]
   simp only [Set.mem_singleton_iff, UnitInterval.Nonempty, Set.Nonempty.ne_empty, not_false_eq_true,
     and_true]
-  simp only [inter_line, Set.mem_setOf_eq]
+  simp only [mem_inter_line]
   rw [Set.setOf_inj]; funext a; simp
   constructor
   · rintro ⟨y,⟨z,z_corner,h⟩,rfl⟩
@@ -464,7 +468,7 @@ theorem ILattice.line_partition_start_coords (j : Fin d) (x T) :
 
 def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
   corners := T.corners
-  inter_line_integral_spaced := by
+  inter_line_IntegralSpaced := by
     intro x
     -- get the line partition `T_i(x)`
     let line_part := line_partition_of_tiling j x T
@@ -494,7 +498,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
           Line.UnitPartition.starts, Line.UnitPartition.partition,
           -SetLike.mem_coe, -Partition.coe_parts]
         use c
-        simp [inter_line] at c_mem
+        rw [mem_inter_line] at c_mem
         refine ⟨c_mem.1, ?_⟩
         rw [Cube.inter_line_eq_interval]
         exact c_mem.2
@@ -521,7 +525,7 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
       subst w
       simp at w_j
       use c; constructor
-      · simp [inter_line, c_is_corner, c_inter, w_j]
+      · simp [mem_inter_line, c_is_corner, c_inter, w_j]
       · clear c_inter
         rintro c' ⟨⟨c'_corner,c'_inter_ne⟩,c'_j⟩
         refine T.covers_unique _ ⟨c'_corner, ?_⟩ ⟨c_is_corner,w_mem_c⟩
@@ -531,13 +535,13 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
 
 
 /-- Every `x` is contained by a unique cube -/
-noncomputable def ILattice.covers (L : ILattice d j) (x : Point d) :
+theorem ILattice.covers (L : ILattice d j) (x : Point d) :
     ∃! t ∈ L.corners, x ∈ Cube t := by
   -- The `j`-line through `x` is integral spaced
-  have := L.inter_line_integral_spaced x
+  have := L.inter_line_IntegralSpaced x
   -- so there is a unique corner where x is in range.
   replace this := this.exists_unique_range (x j)
-  simp [inter_line, and_assoc] at this
+  simp [mem_inter_line, and_assoc] at this
   -- this condition is the same as our desired condition
   convert this using 3; clear this; next t =>
   constructor
@@ -553,12 +557,38 @@ def ILattice.toTiling (L : ILattice d j) : Tiling d where
   covers := L.covers
 
 def ILattice.replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
+  /- for corners that are integer offset from a, we shift by b.
+    other corners stay in place -/
   corners :=
-    { (t + EuclideanSpace.single j b) | (t ∈ L.corners) (_ : ∃ z, t j = a + z) }
-    ∪ { (t) | (t ∈ L.corners) (_ : ∀ z, t j ≠ a + z)}
-  inter_line_integral_spaced := by
+    { t ∈ L.corners | ∃ z : ℤ, t j = a + z }.image (· + EuclideanSpace.single j b)
+    ∪ { t ∈ L.corners | ¬ ∃ z : ℤ, t j = a + z }
+  inter_line_IntegralSpaced := by
     intro x
-    sorry
+    generalize new_corners_def : (_ ∪ _ : Set (Point d)) = new_corners
+    have ⟨off,c2z,z2c⟩ := L.inter_line_IntegralSpaced x
+    by_cases h : ∃ a2off : ℤ, off = a + a2off
+    · suffices inter_line new_corners j x =
+          (inter_line L.corners j x).image (· + EuclideanSpace.single j b) by
+        rw [this]; clear this
+        use off + b
+        done
+      done
+    · suffices inter_line new_corners j x = inter_line L.corners j x by
+        rw [this]
+        exact ⟨off,c2z,z2c⟩
+      simp only [inter_line, ← new_corners_def,
+        --Set.image_add_right, Set.preimage_setOf_eq,
+        --PiLp.add_apply, PiLp.neg_apply, EuclideanSpace.single_apply, ↓reduceIte, not_exists,
+        --Set.mem_union, Set.mem_setOf_eq
+        ]
+      intro inter_ne
+      push_neg at h
+      constructor
+      · rintro ⟨t',t'_corner,_⟩
+        done
+      · intro t_corner
+        refine .inr ⟨t_corner,?_⟩
+        done
 
 def Tiling.replace (j : Fin d) (a b : ℝ) (T : Tiling d) : Tiling d :=
   ILattice.fromTiling T j |>.replace a b |>.toTiling
