@@ -530,35 +530,23 @@ def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
         exact c'_inter_ne
 
 
-/-- Get the corners whose cube contains `x` -/
+/-- Every `x` is contained by a unique cube -/
 noncomputable def ILattice.covers (L : ILattice d j) (x : Point d) :
     ∃! t ∈ L.corners, x ∈ Cube t := by
-  have ⟨off,corner_to_Z,Z_to_corner⟩ := L.inter_line_integral_spaced x
-  let a := Int.floor (x j - off)
-  specialize Z_to_corner a
-  simp [inter_line] at Z_to_corner
-  convert Z_to_corner using 1
-  ext t; simp [and_assoc]; intro t_mem
+  -- The `j`-line through `x` is integral spaced
+  have := L.inter_line_integral_spaced x
+  -- so there is a unique corner where x is in range.
+  replace this := this.exists_unique_range (x j)
+  simp [inter_line, and_assoc] at this
+  -- this condition is the same as our desired condition
+  convert this using 3; clear this; next t =>
   constructor
-  · intro x_mem
-    have inter_ne : (Cube t ∩ Line j x).Nonempty := ⟨x,x_mem,Line.start_mem _ _⟩
-    refine ⟨inter_ne,?_⟩
-    specialize corner_to_Z t ⟨t_mem,inter_ne⟩
-    rcases corner_to_Z with ⟨a₀,h⟩
-    rw [h]; simp
-    have : a ≤ x j - off := Int.floor_le _
-    have : x j - off < (a + 1 : ℤ) := Int.lt_succ_floor _
-    have := (Cube.mem_iff x t).mp x_mem j
-    rw [h] at this
-    linarith
-    done
-  · rintro ⟨inter_ne,t_j⟩
-    have := Cube.update_mem_of_inter_line_nonempty
-    rw [Cube.inter_line_eq_inter_interval] at h
-    have := (not_imp_not.mpr Cube.inter_interval_empty_of_not_mem) h.1.ne_empty
-    rw [h.2] at this
-    simp [a] at this
-    done
+  · intro h
+    refine ⟨⟨x,h,Line.start_mem ..⟩,?_⟩
+    exact (Cube.mem_iff _ _).mp h j
+  · rintro ⟨inter_ne,x_j_range⟩
+    have := Cube.update_mem_of_inter_line_nonempty (x j) inter_ne x_j_range
+    simpa using this
 
 def ILattice.toTiling (L : ILattice d j) : Tiling d where
   corners := L.corners
