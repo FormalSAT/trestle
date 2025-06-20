@@ -115,6 +115,10 @@ lemma Cube.exists_gap_of_inter_empty (c1 c2 : Point d) :
   apply Set.not_mem_empty x; rw [← inter_empty]
   simp [mem_c1, mem_c2]
 
+theorem Cube.mem_add_iff (c : Point d) (x y) :
+    x ∈ Cube (c + y) ↔ x - y ∈ Cube c := by
+  simp [Cube, sub_eq_add_neg]; apply iff_of_eq; congr 1; abel
+
 lemma Cube.inter_empty_of_exists_gap (c1 c2 : Point d) :
       (∃ j : Fin d, |c1 j - c2 j| ≥ 1) → (Cube c1 ∩ Cube c2 = ∅) := by
   rintro ⟨j,gap_at_j⟩

@@ -25,6 +25,8 @@ theorem mem_iff_all_eq (j : Fin d) (x y) :
 @[simp] theorem start_mem (j : Fin d) (x) : x ∈ Line j x := by
   use x j; ext j'; simp [Point.update]
 
+theorem nonempty : (Line j x).Nonempty := ⟨x,start_mem ..⟩
+
 theorem mem_comm (j : Fin d) {x y : Point d} :
       x ∈ Line j y ↔ y ∈ Line j x := by
   rw [Line.mem_iff_all_eq, Line.mem_iff_all_eq]
@@ -235,6 +237,50 @@ theorem update_mem_of_inter_line_nonempty {t : Point d} {j x} (z : ℝ)
 
 end Cube
 
+/-! ### Integral Spaced -/
+
+structure IntegralSpaced (S : Set ℝ) where
+  nonempty : S.Nonempty
+  spaced : ∀ x ∈ S, S = {x + ↑z | z : ℤ}
+
+namespace IntegralSpaced
+variable (h : IntegralSpaced S)
+include h
+
+theorem eq_add_of_mem_of_mem (hx : x ∈ S) (hy : y ∈ S) :
+    ∃ z : ℤ, x + z = y := by
+  rw [h.spaced x hx] at hy
+  simpa using hy
+
+theorem add_mem (hx : x ∈ S) (z : ℤ) : (x + z) ∈ S := by
+  rw [h.spaced x hx]; simp
+
+theorem exists_offset : ∃ x ∈ S, S = {x + ↑z | z : ℤ} := by
+  rcases h.nonempty with ⟨x,x_mem⟩
+  use x, x_mem, h.spaced x x_mem
+
+theorem unique_range (x : ℝ) :
+      ∃! s ∈ S, s ≤ x ∧ x < s + 1 := by
+  rcases h.exists_offset with ⟨off, -, rfl⟩; clear h
+  use off + ⌊x - off⌋
+  simp
+  have := Int.floor_le (x - off)
+  have := Int.lt_floor_add_one (x - off)
+  constructor
+  · constructor <;> linarith
+  · intro z h₁ h₂
+    rw [eq_comm, Int.floor_eq_iff]
+    constructor <;> linarith
+
+theorem image (hf : ∀ x z, f (x + z) = f x + z) : IntegralSpaced (f '' S) := by
+  constructor
+  · apply h.nonempty.image
+  · rintro _ ⟨x,x_mem,rfl⟩
+    have := h.spaced x x_mem; clear h x_mem; subst S
+    ext y
+    simp [hf]
+
+end IntegralSpaced
 
 structure Line.UnitPartition (j : Fin d) (x) where
   partition : Partition (Line j x)
@@ -333,85 +379,112 @@ theorem step_backward (a_mem : a ∈ P.start_coords) : a - 1 ∈ P.start_coords 
   rw [abs_of_nonneg (by linarith)] at gap
   linarith
 
-theorem start_coords_eq_Z ⦃a : ℝ⦄ (a_mem : a ∈ P.start_coords) :
-    P.start_coords = { a + ↑z | z : ℤ } := by
+def start_coords_IntegralSpaced : IntegralSpaced P.start_coords where
+  nonempty := by
+    have ⟨w,hw,_⟩ := P.covers x (Line.start_mem ..)
+    use w
+  spaced := by
+    intro a a_mem
 
-  -- the RHS is a subset of the LHS
-  have subset1 : { a + ↑z | z:ℤ } ⊆ P.start_coords := by
-    rintro _ ⟨z,rfl⟩
-    induction z using Int.induction_on with
-    | hz => simpa using a_mem
-    | hp i h => simp; convert P.step_forward h using 1; simp; ring
-    | hn i h => convert P.step_backward h using 1; simp; ring
+    -- the RHS is a subset of the LHS
+    have subset1 : { a + ↑z | z:ℤ } ⊆ P.start_coords := by
+      rintro _ ⟨z,rfl⟩
+      induction z using Int.induction_on with
+      | hz => simpa using a_mem
+      | hp i h => simp; convert P.step_forward h using 1; simp; ring
+      | hn i h => convert P.step_backward h using 1; simp; ring
 
-  -- so let's prove by double inclusion
-  apply subset1.antisymm'
-  intro p p_mem
-  -- there is a point in the RHS just below p
-  let b : ℝ := a + Int.floor (p - a)
-  have b_mem_RHS : b ∈ {a + ↑z | z:ℤ} := by simp [b]
-  -- in fact, p = b
-  suffices p = b by rw [this]; exact b_mem_RHS
-  -- from the other direction's subset, we know b ∈ LHS
-  have b_mem_LHS : b ∈ P.start_coords := subset1 b_mem_RHS
-  -- therefore either p = b or there's a gap
-  have := P.starts_gap p_mem b_mem_LHS
-  -- but there can't be such a gap
-  by_contra p_ne_b; specialize this p_ne_b
-  have b_le_p : b ≤ p := by unfold b; have := Int.floor_le (p-a); linarith
-  have p_lt_b1 : p < b+1 := by unfold b; have := Int.lt_floor_add_one (p-a); linarith
-  rw [abs_of_nonneg (by linarith)] at this
-  linarith
+    -- so let's prove by double inclusion
+    apply subset1.antisymm'
+    intro p p_mem
+    -- there is a point in the RHS just below p
+    let b : ℝ := a + Int.floor (p - a)
+    have b_mem_RHS : b ∈ {a + ↑z | z:ℤ} := by simp [b]
+    -- in fact, p = b
+    suffices p = b by rw [this]; exact b_mem_RHS
+    -- from the other direction's subset, we know b ∈ LHS
+    have b_mem_LHS : b ∈ P.start_coords := subset1 b_mem_RHS
+    -- therefore either p = b or there's a gap
+    have := P.starts_gap p_mem b_mem_LHS
+    -- but there can't be such a gap
+    by_contra p_ne_b; specialize this p_ne_b
+    have b_le_p : b ≤ p := by unfold b; have := Int.floor_le (p-a); linarith
+    have p_lt_b1 : p < b+1 := by unfold b; have := Int.lt_floor_add_one (p-a); linarith
+    rw [abs_of_nonneg (by linarith)] at this
+    linarith
 
 end Line.UnitPartition
 
 
+namespace ILattice
+
 /-- The `T_i(x)` operation in Brakensiek. -/
-def ILattice.inter_line (corners : Set (Point d)) (j : Fin d) (x : Point d) :=
+def inter_line (corners : Set (Point d)) (j : Fin d) (x : Point d) :=
   { corner ∈ corners | (Cube corner ∩ Line j x).Nonempty }
 
-theorem ILattice.mem_inter_line (t : Point d) :
+theorem mem_inter_line (t : Point d) :
   t ∈ inter_line corners j x ↔ t ∈ corners ∧ (Cube t ∩ Line j x).Nonempty
   := by simp [inter_line]
 
-/-- i-lattice defn from Brakensiek (approximately) -/
--- TODO(JG): `structure` automatically generates projections, can I just turn that off?
-inductive ILattice.IntegralSpaced (corners : Set (Point d)) (j : Fin d) : Prop
-| intro
-    (offset : ℝ)
-    (corner_to_Z : ∀ c ∈ corners, ∃ z:ℤ, c j = offset + z)
-    (Z_to_corner : ∀ z:ℤ, ∃! c ∈ corners, c j = offset + z)
+theorem inter_line.union {c1 c2 : Set (Point d)} {j x} :
+    inter_line (c1 ∪ c2) j x = inter_line c1 j x ∪ inter_line c2 j x := by
+  simp [inter_line]
 
-theorem ILattice.IntegralSpaced.exists_unique_range {j : Fin d} (is : ILattice.IntegralSpaced corners j) :
+theorem inter_line.filter {cs : Set (Point d)} {j x} (P : Point d → Prop) :
+    inter_line {c ∈ cs | P c} j x = {c ∈ inter_line cs j x | P c} := by
+  simp [inter_line]; aesop
+
+theorem inter_line.image {cs : Set (Point d)} {j x}
+    (h : ∀ t, (Cube (f t) ∩ Line j x).Nonempty ↔ (Cube t ∩ Line j x).Nonempty):
+    inter_line (f '' cs) j x = f '' inter_line cs j x := by
+  ext t; simp [inter_line]
+  aesop
+
+/-- i-lattice defn from Brakensiek (approximately) -/
+structure IntegralSpaced (corners : Set (Point d)) (j : Fin d) where
+  starts_inj : ∀ t₁ ∈ corners, ∀ t₂ ∈ corners, t₁ j = t₂ j → t₁ = t₂
+  integral_spaced : Euclidean.IntegralSpaced ((· j) '' corners)
+
+namespace IntegralSpaced
+
+theorem exists_unique_range {j : Fin d}
+    (is : ILattice.IntegralSpaced corners j) :
     ∀ a : ℝ, ∃! c ∈ corners, c j ≤ a ∧ a < c j + 1 := by
-  rcases is with ⟨off,c2Z,Z2c⟩
   intro a
-  -- ⌊a-off⌋ has a corresponding cube corner
-  specialize Z2c ⌊a - off⌋
-  rcases Z2c with ⟨c,⟨c_is_corner,c_j⟩,corner_unique⟩
-  -- this cube corner fulfills the condition
-  use c; constructor
-  · simp [c_is_corner,c_j]
-    constructor
-    · rw [add_comm, ← le_sub_iff_add_le]; apply Int.floor_le
-    · rw [add_assoc,add_comm,← sub_lt_iff_lt_add]; apply Int.lt_floor_add_one
-  -- and it is unique
-  · rintro c' ⟨c'_corner,c'_j_range⟩
-    apply corner_unique; clear corner_unique
-    refine ⟨c'_corner,?_⟩
-    specialize c2Z c' c'_corner
-    rcases c2Z with ⟨z,c'_j⟩
-    rw [c'_j] at c'_j_range ⊢; clear c'_j
-    simp
-    rw [eq_comm, Int.floor_eq_iff]
-    constructor <;> linarith
+  have := is.integral_spaced.unique_range a
+  simp at this
+  rcases this with ⟨_,⟨⟨c,c_corner,rfl⟩,range⟩,uniq⟩
+  refine ⟨c,⟨c_corner,range⟩,?_⟩
+  rintro c' ⟨c'_corner,range'⟩
+  apply is.starts_inj _ c'_corner _ c_corner
+  apply uniq
+  exact ⟨⟨c',c'_corner,rfl⟩,range'⟩
+
+theorem image_linear {j : Fin d} (is : ILattice.IntegralSpaced corners j) :
+      ILattice.IntegralSpaced ((· + v) '' corners) j := by
+  constructor
+  case starts_inj =>
+    simp; intro t₁ t₁_mem t₂ t₂_mem starts_eq
+    have := is.starts_inj _ t₁_mem _ t₂_mem
+    simpa [starts_eq] using this
+  case integral_spaced =>
+    have := is.integral_spaced.image (f := (· + v j))
+              (by intros; simp; ring)
+    rw [Set.image_image] at this ⊢
+    simpa using this
+
+end IntegralSpaced
+
+end ILattice
 
 structure ILattice (d : ℕ) (j : Fin d) where
   corners : Set (Point d)
   inter_line_IntegralSpaced : ∀ (x : Point d),
     ILattice.IntegralSpaced (ILattice.inter_line corners j x) j
 
-def ILattice.line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) : Line.UnitPartition j x where
+namespace ILattice
+
+def line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) : Line.UnitPartition j x where
   partition := {
     parts := T.corners.image (Cube · ∩ Line j x) \ { ∅ }
     sSupIndep' := by
@@ -443,7 +516,7 @@ def ILattice.line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) :
     refine ⟨_,this⟩
 
 
-theorem ILattice.line_partition_start_coords (j : Fin d) (x T) :
+theorem line_partition_start_coords (j : Fin d) (x T) :
         (line_partition_of_tiling j x T).start_coords =
         { t j | t ∈ (ILattice.inter_line T.corners j x)} := by
   simp only [line_partition_of_tiling, Line.UnitPartition.start_coords, Line.UnitPartition.starts,
@@ -466,76 +539,39 @@ theorem ILattice.line_partition_start_coords (j : Fin d) (x T) :
     simp
 
 
-def ILattice.fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
+def fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
   corners := T.corners
   inter_line_IntegralSpaced := by
     intro x
+
     -- get the line partition `T_i(x)`
     let line_part := line_partition_of_tiling j x T
 
-    -- The cube `T.get x` must contain x, so it is a natural choice of starting point
-
     -- we're gonna need to know the start coords are integer spaced
-    have start_coords_eq := line_part.start_coords_eq_Z
-    specialize @start_coords_eq (T.get x j) (by
-      use x.update j (T.get x j)
-      simp [line_part, line_partition_of_tiling,
-        Line.UnitPartition.starts, Line.UnitPartition.partition,
-        -SetLike.mem_coe, -Partition.coe_parts]
-      use T.get x
-      constructor
-      · apply T.get_mem
-      · rw [Cube.inter_line_eq_interval]
-        use x; simp [T.mem_get]
-    )
+    have start_coords_spaced := line_part.start_coords_IntegralSpaced
 
-    use T.get x j
-    -- first gotta prove each line cube is at an integer offset
-    · intro c c_mem
-      have : c j ∈ line_part.start_coords := by
-        use x.update j (c j)
-        simp [line_part, line_partition_of_tiling,
-          Line.UnitPartition.starts, Line.UnitPartition.partition,
-          -SetLike.mem_coe, -Partition.coe_parts]
-        use c
-        rw [mem_inter_line] at c_mem
-        refine ⟨c_mem.1, ?_⟩
-        rw [Cube.inter_line_eq_interval]
-        exact c_mem.2
-      rw [start_coords_eq] at this
-      rcases this with ⟨z,h⟩
-      use z, h.symm
+    constructor
+    case starts_inj =>
+      clear start_coords_spaced
+      rintro t₁ ⟨t₁_corner,t₁_line⟩ t₂ ⟨t₂_corner,t₂_line⟩ starts_eq
+      apply T.covers_unique (x.update j (t₁ j))
+      · use t₁_corner
+        apply Cube.update_mem_of_inter_line_nonempty _ t₁_line
+        simp
+      · use t₂_corner
+        rw [starts_eq]
+        apply Cube.update_mem_of_inter_line_nonempty _ t₂_line
+        simp
 
-    -- then that each integer offset is a unique cube
-    · intro z
-      have : T.get x j + z ∈ line_part.start_coords := by
-        rw [start_coords_eq]; simp
-      rcases this with ⟨w,w_mem_starts,w_j⟩
-      simp [line_part, line_partition_of_tiling,
-          Line.UnitPartition.starts, Line.UnitPartition.partition,
-          -SetLike.mem_coe, -Partition.coe_parts] at w_mem_starts
-      rcases w_mem_starts with ⟨c,c_is_corner,c_inter⟩
-      have w_mem_c : w ∈ Cube c := by
-        have := UnitInterval.start_mem j w; rw [← c_inter] at this
-        exact this.1
-      have : w = x.update j (c j) := by
-        rw [Cube.inter_line_eq_interval ?ne, UnitInterval.inj_iff] at c_inter
-        rw [c_inter]
-        case ne => rw [c_inter]; simp
-      subst w
-      simp at w_j
-      use c; constructor
-      · simp [mem_inter_line, c_is_corner, c_inter, w_j]
-      · clear c_inter
-        rintro c' ⟨⟨c'_corner,c'_inter_ne⟩,c'_j⟩
-        refine T.covers_unique _ ⟨c'_corner, ?_⟩ ⟨c_is_corner,w_mem_c⟩
-        rw [w_j, ← c'_j]
-        rw [Cube.inter_line_nonempty_iff_start_mem] at c'_inter_ne
-        exact c'_inter_ne
+    case integral_spaced =>
+      convert start_coords_spaced
+      rw [line_partition_start_coords]
+      ext t
+      simp
 
 
 /-- Every `x` is contained by a unique cube -/
-theorem ILattice.covers (L : ILattice d j) (x : Point d) :
+theorem covers (L : ILattice d j) (x : Point d) :
     ∃! t ∈ L.corners, x ∈ Cube t := by
   -- The `j`-line through `x` is integral spaced
   have := L.inter_line_IntegralSpaced x
@@ -552,46 +588,66 @@ theorem ILattice.covers (L : ILattice d j) (x : Point d) :
     have := Cube.update_mem_of_inter_line_nonempty (x j) inter_ne x_j_range
     simpa using this
 
-def ILattice.toTiling (L : ILattice d j) : Tiling d where
+def toTiling (L : ILattice d j) : Tiling d where
   corners := L.corners
   covers := L.covers
 
-def ILattice.replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
+def replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
   /- for corners that are integer offset from a, we shift by b.
     other corners stay in place -/
   corners :=
-    { t ∈ L.corners | ∃ z : ℤ, t j = a + z }.image (· + EuclideanSpace.single j b)
-    ∪ { t ∈ L.corners | ¬ ∃ z : ℤ, t j = a + z }
+    { t ∈ L.corners | ∃ z : ℤ, a + z = t j }.image (· + EuclideanSpace.single j b)
+    ∪ { t ∈ L.corners | ¬ ∃ z : ℤ, a + z = t j }
   inter_line_IntegralSpaced := by
     intro x
-    generalize new_corners_def : (_ ∪ _ : Set (Point d)) = new_corners
-    have ⟨off,c2z,z2c⟩ := L.inter_line_IntegralSpaced x
-    by_cases h : ∃ a2off : ℤ, off = a + a2off
-    · suffices inter_line new_corners j x =
-          (inter_line L.corners j x).image (· + EuclideanSpace.single j b) by
-        rw [this]; clear this
-        use off + b
-        done
-      done
-    · suffices inter_line new_corners j x = inter_line L.corners j x by
-        rw [this]
-        exact ⟨off,c2z,z2c⟩
-      simp only [inter_line, ← new_corners_def,
-        --Set.image_add_right, Set.preimage_setOf_eq,
-        --PiLp.add_apply, PiLp.neg_apply, EuclideanSpace.single_apply, ↓reduceIte, not_exists,
-        --Set.mem_union, Set.mem_setOf_eq
-        ]
-      intro inter_ne
-      push_neg at h
-      constructor
-      · rintro ⟨t',t'_corner,_⟩
-        done
-      · intro t_corner
-        refine .inr ⟨t_corner,?_⟩
-        done
 
+    rw [inter_line.union, inter_line.image ?h, inter_line.filter, inter_line.filter]
+    case h =>
+      intro t
+      simp [Cube.inter_line_nonempty_iff_start_mem]
+      rw [Cube.mem_add_iff,
+          sub_eq_add_neg,
+          ← EuclideanSpace.single_neg]
+      simp
+
+    generalize ucdef : setOf _ = updated_corners
+    generalize scdef : setOf _ = same_corners
+
+    -- the line through x is integral spaced
+    have line_IS := L.inter_line_IntegralSpaced x
+
+    -- either all are equal to `a` modulo 1 or none are
+    by_cases h : ∃ t ∈ inter_line L.corners j x, a = t j
+    · suffices ∀ t ∈ inter_line L.corners j x, ∃ z : ℤ, a + z = t j by
+        have sub1 : same_corners = ∅ := by
+          ext t; subst same_corners; simp; exact this t
+        have sub2 : updated_corners = inter_line L.corners j x := by
+          ext t; subst updated_corners; simp; exact this t
+        subst sub1 sub2; rw [Set.union_empty]
+        apply line_IS.image_linear
+      clear! updated_corners same_corners
+      rcases h with ⟨t,h,rfl⟩
+      intro t' t'_mem
+      apply line_IS.integral_spaced.eq_add_of_mem_of_mem
+        <;> aesop
+
+    · suffices ∀ t ∈ inter_line L.corners j x, ¬∃ z : ℤ, a + z = t j by
+        have sub1 : same_corners = inter_line L.corners j x := by
+          ext t; specialize this t; subst same_corners; simpa using this
+        have sub2 : updated_corners = ∅ := by
+          ext t; specialize this t; subst updated_corners; simpa using this
+        subst sub1 sub2; rw [Set.image_empty, Set.empty_union]
+        exact line_IS
+      clear! updated_corners same_corners
+
+      push_neg at h ⊢
+      intro t t_mem z t_j
+
+      have := line_IS.integral_spaced.add_mem (x := t j) (by aesop) (-z)
+      simp [← t_j] at this
+      obtain ⟨w, w_mem, rfl⟩ := this
+      apply h _ w_mem rfl
+
+/-- The replacement lemma! -/
 def Tiling.replace (j : Fin d) (a b : ℝ) (T : Tiling d) : Tiling d :=
   ILattice.fromTiling T j |>.replace a b |>.toTiling
-
-theorem Tiling.corners_replace {j : Fin d} {a b : ℝ} (T : Tiling d) :
-    T.replace j a b |>.corners =
