@@ -58,6 +58,9 @@ noncomputable instance : Coe (IntPoint d) (Point d) where
     (p1 + p2).toPoint = p1.toPoint + p2.toPoint := by
   ext j; simp [toPoint]
 
+@[simp] theorem IntPoint.toPoint_zero : IntPoint.toPoint (d := d) 0 = 0 := by
+  ext j; simp [toPoint]
+
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
     x ∈ Cube c ↔ ∀ j, c j ≤ x j ∧ x j < c j + 1 := by
   unfold Cube UnitCube; simp; simp [Set.mem_def]
@@ -139,6 +142,17 @@ theorem Cube.index_unique {c : Point d} {x : IntPoint d} :
   unfold index; rw [eq_comm, Int.ceil_eq_iff]
   constructor <;> linarith
 
+theorem Cube.index_add_intpoint (c : Point d) (x : IntPoint d) :
+    Cube.index (c + x.toPoint) = Cube.index c + x := by
+  unfold index; ext j; simp [IntPoint.toPoint]
+
+theorem Cube.close_of_mem_cube {t x y : Point d} (hx : x ∈ Cube t) (hy : y ∈ Cube t)
+      : ∀ j, |x j - y j| < 1 := by
+  rw [Cube.mem_iff] at hx hy
+  intro j
+  specialize hx j; specialize hy j
+  rw [abs_lt]
+  constructor <;> linarith
 
 theorem Faceshare.symm {c1 c2 : Point d} (h : Faceshare c1 c2) :
     Faceshare c2 c1 := by
@@ -174,6 +188,11 @@ theorem Tiling.index_get (i : IntPoint d) (T : Tiling d) :
     Cube.index (T.get i) = i := by
   have : i.toPoint ∈ Cube (T.get i) := Tiling.mem_get ..
   rw [eq_comm]; apply Cube.index_unique this
+
+theorem Tiling.get_index (T : Tiling d) (ht : t ∈ T.corners) :
+    T.get (Cube.index t) = t := by
+  have : (Cube.index t).toPoint ∈ Cube t := Cube.index_mem ..
+  rw [eq_comm]; apply T.get_unique _ _ ht this
 
 def Tiling.covers_unique (T : Tiling d) (x) :=
   @(T.covers x).unique
