@@ -54,6 +54,10 @@ noncomputable def IntPoint.toPoint {d : ℕ} (p : IntPoint d) : Point d :=
 noncomputable instance : Coe (IntPoint d) (Point d) where
   coe := IntPoint.toPoint
 
+@[simp] theorem IntPoint.toPoint_add (p1 p2 : IntPoint d) :
+    (p1 + p2).toPoint = p1.toPoint + p2.toPoint := by
+  ext j; simp [toPoint]
+
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
     x ∈ Cube c ↔ ∀ j, c j ≤ x j ∧ x j < c j + 1 := by
   unfold Cube UnitCube; simp; simp [Set.mem_def]
