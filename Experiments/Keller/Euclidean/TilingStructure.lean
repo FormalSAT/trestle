@@ -1,4 +1,5 @@
-import Experiments.Keller.Euclidean.Defs
+import Experiments.Keller.Euclidean.Basic
+import Experiments.Keller.Euclidean.Upstream
 
 import Mathlib.Order.Partition.Basic
 
