@@ -648,6 +648,14 @@ def replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
       obtain ⟨w, w_mem, rfl⟩ := this
       apply h _ w_mem rfl
 
+end ILattice
+
 /-- The replacement lemma! -/
 def Tiling.replace (j : Fin d) (a b : ℝ) (T : Tiling d) : Tiling d :=
   ILattice.fromTiling T j |>.replace a b |>.toTiling
+
+theorem Tiling.corners_replace {j : Fin d} {a b : ℝ} (T : Tiling d) :
+    (T.replace j a b).corners =
+    { t ∈ T.corners | ∃ z : ℤ, a + z = t j }.image (· + EuclideanSpace.single j b)
+    ∪ { t ∈ T.corners | ¬ ∃ z : ℤ, a + z = t j }
+:= by rfl
