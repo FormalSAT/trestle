@@ -474,6 +474,34 @@ theorem image_linear {j : Fin d} (is : ILattice.IntegralSpaced corners j) :
     rw [Set.image_image] at this ⊢
     simpa using this
 
+theorem exists_unique_next {j : Fin d}
+    (is : ILattice.IntegralSpaced corners j) (ht : t ∈ corners)
+  : ∃! t' ∈ corners, t j + 1 = t' j := by
+  match is with
+  | {starts_inj,integral_spaced} =>
+  have := integral_spaced.spaced (t j) ⟨t,ht,rfl⟩
+  replace this := congrArg (t j + 1 ∈ ·) this
+  simp at this
+  rcases this with ⟨t',ht',t'_j⟩
+  use t', ⟨ht',t'_j.symm⟩
+  rintro t'' ⟨ht'',t''_j⟩
+  apply starts_inj _ ht'' _ ht'
+  linarith
+
+theorem exists_unique_prev {j : Fin d}
+    (is : ILattice.IntegralSpaced corners j) (ht : t ∈ corners)
+  : ∃! t' ∈ corners, t' j + 1 = t j := by
+  match is with
+  | {starts_inj,integral_spaced} =>
+  have := integral_spaced.spaced (t j) ⟨t,ht,rfl⟩
+  replace this := congrArg (t j + (-1 : ℤ) ∈ ·) this
+  simp [-Int.cast_neg] at this; simp at this
+  rcases this with ⟨t',ht',t'_j⟩
+  use t', ⟨ht',by simp [t'_j]⟩
+  rintro t'' ⟨ht'',t''_j⟩
+  apply starts_inj _ ht'' _ ht'
+  linarith
+
 end IntegralSpaced
 
 end ILattice
