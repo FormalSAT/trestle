@@ -58,12 +58,38 @@ noncomputable instance : Coe (IntPoint d) (Point d) where
     (p1 + p2).toPoint = p1.toPoint + p2.toPoint := by
   ext j; simp [toPoint]
 
+@[simp] theorem IntPoint.toPoint_nsmul (n : ℕ) (b : IntPoint d) :
+    (n • b).toPoint = n • b.toPoint := by
+  ext j; simp [toPoint]
+
+@[simp] theorem IntPoint.toPoint_zsmul (z : ℤ) (b : IntPoint d) :
+    (z • b).toPoint = z • b.toPoint := by
+  ext j; simp [toPoint]
+
 @[simp] theorem IntPoint.toPoint_zero : IntPoint.toPoint (d := d) 0 = 0 := by
   ext j; simp [toPoint]
+
+@[simp] theorem IntPoint.apply_toPoint (j : Fin d) (p : IntPoint d) :
+      p.toPoint j = p j := rfl
+
+def IntPoint.single (j : Fin d) (z : ℤ) : IntPoint d := fun j' => if j' = j then z else 0
+
+@[simp] theorem IntPoint.apply_single_eq (j : Fin d) (z : ℤ) :
+      single j z j = z := by simp [single]
+
+@[simp] theorem IntPoint.apply_single_ne (j : Fin d) (z : ℤ) {j' : Fin d} (h : j' ≠ j) :
+      single j z j' = 0 := by simp [single, h]
+
+@[simp] theorem IntPoint.toPoint_single : IntPoint.toPoint (IntPoint.single j z) = EuclideanSpace.single j (↑z) := by
+  ext j'; by_cases j' = j <;> simp [*]
+
 
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
     x ∈ Cube c ↔ ∀ j, c j ≤ x j ∧ x j < c j + 1 := by
   unfold Cube UnitCube; simp; simp [Set.mem_def]
+
+theorem Cube.start_mem (c : Point d) : c ∈ Cube c := by
+  simp [mem_iff]
 
 lemma Cube.exists_gap_of_inter_empty (c1 c2 : Point d) :
       (Cube c1 ∩ Cube c2 = ∅) → (∃ j : Fin d, |c1 j - c2 j| ≥ 1) := by
@@ -177,12 +203,15 @@ theorem Tiling.mem_get (T : Tiling d) (p : Point d) : p ∈ Cube (T.get p) := by
   unfold Tiling.get
   apply Exists.choose_spec (T.covers p) |>.1.2
 
-theorem Tiling.get_unique (T : Tiling d) (p : Point d) (c : Point d) :
+theorem Tiling.get_unique {T : Tiling d} {p c} :
     c ∈ T.corners → p ∈ Cube c → c = T.get p := by
   intro c_mem p_mem
   unfold Tiling.get
   apply Exists.choose_spec (T.covers p) |>.2
   simp [*]
+
+theorem Tiling.get_eq_of_mem_corners (T : Tiling d) {t} (h : t ∈ T.corners) : T.get t = t := by
+  rw [eq_comm]; apply T.get_unique h (Cube.start_mem _)
 
 theorem Tiling.index_get (i : IntPoint d) (T : Tiling d) :
     Cube.index (T.get i) = i := by
@@ -192,7 +221,36 @@ theorem Tiling.index_get (i : IntPoint d) (T : Tiling d) :
 theorem Tiling.get_index (T : Tiling d) (ht : t ∈ T.corners) :
     T.get (Cube.index t) = t := by
   have : (Cube.index t).toPoint ∈ Cube t := Cube.index_mem ..
-  rw [eq_comm]; apply T.get_unique _ _ ht this
+  rw [eq_comm]; apply T.get_unique ht this
 
 def Tiling.covers_unique (T : Tiling d) (x) :=
   @(T.covers x).unique
+
+/-- Proposition 5 in BHMN -/
+theorem Tiling.FaceshareFree.of_neighbors {T : Tiling d}
+    (h : ∀ (x : IntPoint d) (j : Fin d),
+      ¬ (T.get x) + EuclideanSpace.single j 1 = (T.get (x + IntPoint.single j 1).toPoint))
+    : T.FaceshareFree := by
+  rintro t₁ t₁_corner t₂ t₂_corner - ts_faceshare
+  obtain ⟨j,diff_one,others_eq⟩ := ts_faceshare
+  wlog t₁_smaller : t₁ j ≤ t₂ j generalizing t₁ t₂
+  · apply this t₂_corner t₁_corner
+    case diff_one => rw [abs_sub_comm]; exact diff_one
+    case others_eq => simp_rw [eq_comm]; exact others_eq
+    linarith
+  -- rewrite the abs
+  rw [← sub_nonpos] at t₁_smaller
+  rw [abs_of_nonpos t₁_smaller] at diff_one
+  clear t₁_smaller
+  -- now we know the relation between t₁ and t₂
+  have : t₁ + EuclideanSpace.single j 1 = t₂ := by
+    ext j'
+    if hj : j' = j then subst j'; simp; linarith
+    else simp [hj,others_eq]
+  -- and can apply the hypothesis `h`
+  apply h (Cube.index t₁) j
+  convert this
+  · rw [T.get_index]; assumption
+  · rw [← Cube.index_add_intpoint]
+    simp [this]
+    apply T.get_index t₂_corner
