@@ -50,8 +50,15 @@ variable (T : Tiling d)
 def core := { T.get i | (i ∈ PeriodicIndex d)}
 def corners' := {t + (2 • x).toPoint | (t ∈ core T) (x : IntPoint d)}
 
-/-- BHMN A.3 Fact 1 -/
-theorem corners'_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ corners' T, x ∈ Cube t := by
+theorem core_subset_corners : core T ⊆ T.corners := by
+  rintro _ ⟨ti,-,rfl⟩; apply T.get_mem
+
+theorem core_subset_corners' : core T ⊆ corners' T := by
+  rintro t t_mem
+  use t, t_mem, 0
+  simp
+
+theorem core_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ core T, x ∈ Cube t := by
   intro x x_mem
 
   -- x is in a cube in T
@@ -65,39 +72,60 @@ theorem corners'_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ corners' T, 
     use Cube.index t, i_mem_t
     rw [T.get_index t_corner]
 
-  -- and core cubes are in `corners'`
-  have t_corner' : t ∈ corners' T := by
-    use t, t_in_core, 0
-    ext; simp [IntPoint.toPoint]
-
-  use t, ⟨t_corner',x_mem_t⟩
+  use t, ⟨t_in_core,x_mem_t⟩
   -- but we must prove this is unique
+  rintro t' ⟨t'_core,x_mem_t'⟩
+  refine t_uniq _ ⟨core_subset_corners T t'_core,x_mem_t'⟩
+
+theorem core_can_step_unitcube : ∀ x ∈ UnitCube d, ∀ j : Fin d,
+    x + EuclideanSingle.
+
+/-- BHMN A.3 Fact 1 -/
+theorem corners'_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ corners' T, x ∈ Cube t := by
+  intro x x_mem
+
+  obtain ⟨t,⟨t_core,x_mem_t⟩,t_uniq⟩ := core_covers_unitcube T x x_mem
+
+  use t, ⟨core_subset_corners' T t_core, x_mem_t⟩
+
   rintro t' ⟨t'_corner,x_mem_t'⟩
-  refine t_uniq _ ⟨?_,x_mem_t'⟩
 
   -- the other `t'` should also have a periodic index
   have : Cube.index t' ∈ PeriodicIndex d :=
     PeriodicIndex.of_inter_unitcube_cube_nonempty ⟨x,x_mem,x_mem_t'⟩
-  clear! x
 
   -- and therefore its membership in `corners'` is only possible with offset 0
-  rcases t'_corner with ⟨t',⟨i,i_pidx,rfl⟩,offset,rfl⟩
+  rcases t'_corner with ⟨-,⟨i,i_pidx,rfl⟩,offset,rfl⟩
   have : offset = 0 := by
     ext j; specialize this j; specialize i_pidx j
     rw [Cube.index_add_intpoint, Tiling.index_get] at this
     simp at i_pidx this ⊢
     omega
+  subst offset; simp [T.index_get] at this ⊢
+  -- so `t'` is in `core`
+  have : T.get i.toPoint ∈ core T := ⟨i,this,rfl⟩
+  -- and therefore equal to t
+  apply t_uniq _ ⟨this,by simpa using x_mem_t'⟩
 
-  -- which means `t'` was actually in `T` the whole time
-  subst offset
-  simp [T.get_mem]
+theorem split_point (x : Point d) :
+      ∃ x_int : IntPoint d, ∃ x_rem ∈ UnitCube d, x = x_int + x_rem := by
+  let x_int : IntPoint d := fun j => ⌊x j⌋
+  use x_int, x - x_int
+  constructor
+  · intro j; simp [x_int, Int.fract_lt_one]
+  · ext j; simp [x_int]
 
+theorem corners'_covers (p : Point d) : ∃! c, c ∈ corners' T ∧ p ∈ Cube c := by
+  obtain ⟨p_int,p_rem,p_rem_mem_unitcube,rfl⟩ := split_point p
 
+  have := core_covers_unitcube T p_rem p_rem_mem_unitcube
+
+  -- for every dimension,
+  sorry
 
 def T' : Tiling d where
   corners := corners' T
-  covers := by
-    done
+  covers := corners'_covers T
 
 theorem T'_periodic : (T' T).Periodic := by
   simp [T', Tiling.Periodic, corners', core]
