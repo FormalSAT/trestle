@@ -7,9 +7,9 @@ def Tiling.Periodic (T : Tiling d) : Prop :=
   ∀ t ∈ T.corners, ∀ x : IntPoint d, t + 2 • x ∈ T.corners
 
 /-- `{0,1}ᵈ` on paper -/
-def PeriodicIndex (d : Nat) := { i : IntPoint d | ∀ j, i j ∈ ({0,1} : Set ℤ) }
+def CoreIndex (d : Nat) := { i : IntPoint d | ∀ j, i j ∈ ({0,1} : Set ℤ) }
 
-theorem PeriodicIndex.mem_iff_real_range : i ∈ PeriodicIndex d ↔ ∀ j, (-1 : ℝ) < i j ∧ i j < (2 : ℝ) := by
+theorem CoreIndex.mem_iff_real_range : i ∈ CoreIndex d ↔ ∀ j, (-1 : ℝ) < i j ∧ i j < (2 : ℝ) := by
   constructor
   · intro h j; specialize h j
     aesop
@@ -18,11 +18,11 @@ theorem PeriodicIndex.mem_iff_real_range : i ∈ PeriodicIndex d ↔ ∀ j, (-1 
       simp; omega
     simpa [← Int.cast_lt (R := ℝ)] using h j
 
-/-- if a cube intersects with the origin unit cube `[0,1]ᵈ`,
+/-- if a cube intersects with the origin unit cube `[0,1)ᵈ`,
     then its integer index must be in `{0,1}ᵈ` -/
-theorem PeriodicIndex.of_inter_unitcube_cube_nonempty (h : (UnitCube d ∩ Cube t).Nonempty)
-    : Cube.index t ∈ PeriodicIndex d := by
-  rw [PeriodicIndex.mem_iff_real_range]
+theorem CoreIndex.of_inter_unitcube_cube_nonempty (h : (UnitCube d ∩ Cube t).Nonempty)
+    : Cube.index t ∈ CoreIndex d := by
+  rw [CoreIndex.mem_iff_real_range]
   intro j
   rcases h with ⟨x,x_mem_unit,x_mem_t⟩
   specialize x_mem_unit j
@@ -30,8 +30,8 @@ theorem PeriodicIndex.of_inter_unitcube_cube_nonempty (h : (UnitCube d ∩ Cube 
   simp [IntPoint.toPoint, abs_lt] at x_mem_t
   constructor <;> linarith
 
-theorem PeriodicIndex.decompose_intpoint (x : IntPoint d) :
-      ∃ x' ∈ PeriodicIndex d, ∃ y : IntPoint d, x = x' + 2 • y := by
+theorem CoreIndex.decompose_intpoint (x : IntPoint d) :
+      ∃ x' ∈ CoreIndex d, ∃ y : IntPoint d, x = x' + 2 • y := by
 
   -- can decompose component-wise with emod and ediv
   have : ∀ j : Fin d, Σ' x', Σ' y, x' ∈ ({0,1} : Set ℤ) ∧ x j = x' + 2 * y := by
@@ -55,7 +55,7 @@ namespace Hajos
 
 variable (T : Tiling d)
 
-def core := { t ∈ T.corners | (Cube.index t ∈ PeriodicIndex d)}
+def core := { t ∈ T.corners | (Cube.index t ∈ CoreIndex d)}
 def corners' := {t + (2 • x).toPoint | (t ∈ core T) (x : IntPoint d)}
 
 theorem core_subset_corners : core T ⊆ T.corners := by
@@ -76,7 +76,7 @@ theorem core_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ core T, x ∈ Cu
   have t_in_core : t ∈ core T := by
     simp [core]
     use t_corner
-    exact PeriodicIndex.of_inter_unitcube_cube_nonempty ⟨x,x_mem,x_mem_t⟩
+    exact CoreIndex.of_inter_unitcube_cube_nonempty ⟨x,x_mem,x_mem_t⟩
 
   use t, ⟨t_in_core,x_mem_t⟩
   -- but we must prove this is unique
@@ -91,11 +91,12 @@ theorem corners'_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ corners' T, 
 
   use t, ⟨core_subset_corners' T t_core, x_mem_t⟩
 
+  -- just need to prove uniqueness
   rintro t' ⟨t'_corner,x_mem_t'⟩
 
   -- the other `t'` should also have a periodic index
-  have : Cube.index t' ∈ PeriodicIndex d :=
-    PeriodicIndex.of_inter_unitcube_cube_nonempty ⟨x,x_mem,x_mem_t'⟩
+  have : Cube.index t' ∈ CoreIndex d :=
+    CoreIndex.of_inter_unitcube_cube_nonempty ⟨x,x_mem,x_mem_t'⟩
 
   -- and therefore its membership in `corners'` is only possible with offset 0
   rcases t'_corner with ⟨t',⟨t'_corner,t'_pidx⟩,offset,rfl⟩
@@ -146,8 +147,8 @@ theorem core_can_step_unitcube : ∀ x ∈ UnitCube d, ∀ j : Fin d,
       constructor <;> linarith
 
     -- and its index is periodic
-    have t'_pidx : Cube.index t' ∈ PeriodicIndex d := by
-      rw [PeriodicIndex.mem_iff_real_range]
+    have t'_pidx : Cube.index t' ∈ CoreIndex d := by
+      rw [CoreIndex.mem_iff_real_range]
       intro j'
 
       -- unfold defn of Cube.index and bound the ceil operation
@@ -188,8 +189,8 @@ theorem core_can_step_unitcube : ∀ x ∈ UnitCube d, ∀ j : Fin d,
       constructor <;> linarith
 
     -- and its index is periodic
-    have t'_pidx : Cube.index t' ∈ PeriodicIndex d := by
-      rw [PeriodicIndex.mem_iff_real_range]
+    have t'_pidx : Cube.index t' ∈ CoreIndex d := by
+      rw [CoreIndex.mem_iff_real_range]
       intro j'
 
       -- unfold defn of Cube.index and bound the ceil operation
@@ -316,7 +317,7 @@ theorem T'_ff (T_ff : T.FaceshareFree) : (T' T).FaceshareFree := by
   apply Tiling.FaceshareFree.of_neighbors
   intro x j h
 
-  obtain ⟨x',x'_pidx,y,x_eq⟩ := PeriodicIndex.decompose_intpoint x
+  obtain ⟨x',x'_pidx,y,x_eq⟩ := CoreIndex.decompose_intpoint x
   cases x'_pidx j
   next x'_j_zero =>
     have : T'.get x' + .single j 1 = T'.get (x' + .single j 1).toPoint := by
