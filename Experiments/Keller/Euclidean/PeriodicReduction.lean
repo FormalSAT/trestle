@@ -113,8 +113,8 @@ theorem corners'_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ corners' T, 
 /-- from the unitcube, we can always step either forward or backward by 1
     and remain in the core.
 
-    this is heavily modified from BHMN, and is the key lemma
-    used in `corners'_covers` -/
+    this is inspired by BHMN A.3 Fact 2,
+    and is the key lemma used in `corners'_covers` -/
 theorem core_can_step_unitcube : ∀ x ∈ UnitCube d, ∀ j : Fin d,
     (∃ t ∈ core T, x + .single j 1 ∈ Cube t) ∨
     (∃ t ∈ core T, x - .single j 1 ∈ Cube t) := by
@@ -214,6 +214,77 @@ theorem core_can_step_unitcube : ∀ x ∈ UnitCube d, ∀ j : Fin d,
 
     use t', ⟨t'_corner,t'_pidx⟩
 
+
+
+/-- Inductive hypothesis for proving `corners'_covers` -/
+structure corners'_covers.UpTo (doneDims : Nat) where
+  covers : ∀ (x : Point d) (_x_range : ∀ j : Fin d, j.val ≥ doneDims → 0 ≤ x j ∧ x j < 1),
+              ∃! t ∈ corners' T, x ∈ Cube t
+
+
+theorem corners'_covers.zero : corners'_covers.UpTo T 0 := by
+  intro x x_range
+  have : x ∈ UnitCube d := by simpa using x_range
+  apply corners'_covers_unitcube _ _ this
+
+theorem split_real (x : ℝ) :
+      ∃ x_int : Int, ∃ x_rem : ℝ, (0 ≤ x_rem ∧ x_rem < 1) ∧ x = x_int + x_rem := by
+  let x_int : Int := ⌊x⌋
+  use x_int, x - x_int
+  refine ⟨⟨?_,?_⟩,?_⟩ <;> simp [x_int, Int.fract_lt_one]
+
+theorem corners'_covers.step (doneDims : Nat) (doneDims_lt : doneDims < d) :
+    UpTo T doneDims → UpTo T (doneDims + 1) := by
+  intro ih x x_range
+
+  obtain ⟨x_int,x_rem,x_rem_range,x_eq_sum⟩ := split_real (x ⟨doneDims,doneDims_lt⟩)
+
+  -- first let's get a point that is in the IH range
+  let x_prev := Point.ofFn (d := d) fun j =>
+    if j.val = doneDims then x_rem
+    else x j
+
+  -- and apply the IH
+  specialize ih x_prev (by
+    intro j hj
+    if j.val = doneDims then
+      subst doneDims
+      simp [x_prev]; exact x_rem_range
+    else
+      simp [x_prev, *]
+      apply x_range; omega
+  )
+
+  obtain ⟨t_prev,⟨t_prev_corner,x_prev_mem⟩,t_prev_uniq⟩ := ih
+
+  -- now we note that
+  sorry
+
+theorem corners'_can_step (x : Point d) (j : Fin d) (z : ℤ) :
+    (∃ t ∈ corners' T, x ∈ Cube t) → ∃ t ∈ corners' T, (x + .single j z) ∈ Cube t := by
+  rintro ⟨t,t_corners',x_mem_t⟩
+  -- per defn of corners', `t` is even offset from a core cube
+  obtain ⟨t,t_core,offset,rfl⟩ := t_corners'
+
+  by_cases Even z
+  -- if `z` is even, we can directly reuse `t`
+  case pos evenz =>
+    rcases evenz with ⟨z,rfl⟩
+    refine ⟨t + (2 • (offset + IntPoint.single j z)).toPoint
+      , ?in_corners',?x_mem⟩
+    case in_corners' =>
+      use t, t_core, offset + IntPoint.single j z
+    case x_mem =>
+      rw [Cube.mem_add_iff] at x_mem_t ⊢
+      convert x_mem_t using 1
+      ext j'; by_cases j' = j <;> simp [*]
+      ring
+  -- if `z` is odd, we need to step either forward or backward within the core
+  case neg oddz =>
+    rw [Int.not_even_iff_odd] at oddz; rcases oddz with ⟨z,rfl⟩
+    have := core_can_step_unitcube
+    done
+
 theorem split_point (x : Point d) :
       ∃ x_int : IntPoint d, ∃ x_rem ∈ UnitCube d, x = x_int + x_rem := by
   let x_int : IntPoint d := fun j => ⌊x j⌋
@@ -225,7 +296,7 @@ theorem split_point (x : Point d) :
 theorem corners'_covers (p : Point d) : ∃! c, c ∈ corners' T ∧ p ∈ Cube c := by
   obtain ⟨p_int,p_rem,p_rem_mem_unitcube,rfl⟩ := split_point p
 
-  -- for every dimension,
+  -- basically,
   sorry
 
 def T' : Tiling d where
