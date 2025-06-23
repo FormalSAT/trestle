@@ -47,42 +47,61 @@ theorem Point.add_single_eq_update {x : Point d} {j α} :
   rw [add_single_eq_update]; simp
 
 
-abbrev IntPoint (d : ℕ) : Type := Fin d → ℤ
-noncomputable def IntPoint.toPoint {d : ℕ} (p : IntPoint d) : Point d :=
+def IntPoint (d : ℕ) : Type := Fin d → ℤ
+
+namespace IntPoint
+
+instance : Add (IntPoint d) := Pi.instAdd
+instance : SMul ℤ (IntPoint d) where
+  smul s p := Pi.instMul.mul (fun _ => s) p
+instance : SMul ℕ (IntPoint d) where
+  smul s p := (s : ℤ) • p
+
+instance : Zero (IntPoint d) := inferInstanceAs (Zero (Fin d → ℤ))
+
+@[simp] theorem app_add (a b : IntPoint d) (j : Fin d) : (a + b) j = a j + b j := rfl
+@[simp] theorem app_zsmul (s : ℤ) (a : IntPoint d) (j : Fin d) : (s • a) j = s * a j := rfl
+@[simp] theorem app_nsmul (s : ℕ) (a : IntPoint d) (j : Fin d) : (s • a) j = s * a j := rfl
+@[simp] theorem app_zero (j : Fin d) : (0 : IntPoint d) j = 0 := rfl
+
+@[ext] theorem ext (a b : IntPoint d) : (∀ j, a j = b j) → a = b := funext
+
+noncomputable def toPoint {d : ℕ} (p : IntPoint d) : Point d :=
   Point.ofFn fun j => p j
 
 noncomputable instance : Coe (IntPoint d) (Point d) where
   coe := IntPoint.toPoint
 
-@[simp] theorem IntPoint.toPoint_add (p1 p2 : IntPoint d) :
+@[simp] theorem toPoint_add (p1 p2 : IntPoint d) :
     (p1 + p2).toPoint = p1.toPoint + p2.toPoint := by
   ext j; simp [toPoint]
 
-@[simp] theorem IntPoint.toPoint_nsmul (n : ℕ) (b : IntPoint d) :
+@[simp] theorem toPoint_nsmul (n : ℕ) (b : IntPoint d) :
     (n • b).toPoint = n • b.toPoint := by
   ext j; simp [toPoint]
 
-@[simp] theorem IntPoint.toPoint_zsmul (z : ℤ) (b : IntPoint d) :
+@[simp] theorem toPoint_zsmul (z : ℤ) (b : IntPoint d) :
     (z • b).toPoint = z • b.toPoint := by
   ext j; simp [toPoint]
 
-@[simp] theorem IntPoint.toPoint_zero : IntPoint.toPoint (d := d) 0 = 0 := by
+@[simp] theorem toPoint_zero : IntPoint.toPoint (d := d) 0 = 0 := by
   ext j; simp [toPoint]
 
-@[simp] theorem IntPoint.apply_toPoint (j : Fin d) (p : IntPoint d) :
+@[simp] theorem apply_toPoint (j : Fin d) (p : IntPoint d) :
       p.toPoint j = p j := rfl
 
-def IntPoint.single (j : Fin d) (z : ℤ) : IntPoint d := fun j' => if j' = j then z else 0
+def single (j : Fin d) (z : ℤ) : IntPoint d := fun j' => if j' = j then z else 0
 
-@[simp] theorem IntPoint.apply_single_eq (j : Fin d) (z : ℤ) :
+@[simp] theorem apply_single_eq (j : Fin d) (z : ℤ) :
       single j z j = z := by simp [single]
 
-@[simp] theorem IntPoint.apply_single_ne (j : Fin d) (z : ℤ) {j' : Fin d} (h : j' ≠ j) :
+@[simp] theorem apply_single_ne (j : Fin d) (z : ℤ) {j' : Fin d} (h : j' ≠ j) :
       single j z j' = 0 := by simp [single, h]
 
-@[simp] theorem IntPoint.toPoint_single : IntPoint.toPoint (IntPoint.single j z) = EuclideanSpace.single j (↑z) := by
+@[simp] theorem toPoint_single : IntPoint.toPoint (IntPoint.single j z) = EuclideanSpace.single j (↑z) := by
   ext j'; by_cases j' = j <;> simp [*]
 
+end IntPoint
 
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
     x ∈ Cube c ↔ ∀ j, c j ≤ x j ∧ x j < c j + 1 := by
