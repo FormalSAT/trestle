@@ -18,6 +18,22 @@ theorem CoreIndex.mem_iff_real_range : i ∈ CoreIndex d ↔ ∀ j, (-1 : ℝ) <
       simp; omega
     simpa [← Int.cast_lt (R := ℝ)] using h j
 
+/-- a cube's index is core if the cube's corner is in (-1,1] -/
+theorem CoreIndex.index_mem_iff : Cube.index t ∈ CoreIndex d ↔ ∀ j, (-1 : ℝ) < t j ∧ t j ≤ (1 : ℝ) := by
+  constructor
+  · intro h j; specialize h j
+    simp only [Cube.index, Set.mem_insert_iff, Set.mem_singleton_iff, Int.ceil_eq_iff,
+                Int.cast_zero, zero_sub, Int.cast_one, sub_self] at h
+    cases h <;> constructor <;> linarith
+  · intro h j; specialize h j
+    simp only [Cube.index, Set.mem_insert_iff, Set.mem_singleton_iff, Int.ceil_eq_iff,
+                Int.cast_zero, zero_sub, Int.cast_one, sub_self]
+    by_cases t j ≤ 0
+    · left; constructor <;> linarith
+    · right; constructor <;> linarith
+
+def ClosedCube (t : Point d) := { x : Point d | ∀ j, t j ≤ x j ∧ x j ≤ t j + 1 }
+
 /-- if a cube intersects with the origin unit cube `[0,1)ᵈ`,
     then its integer index must be in `{0,1}ᵈ` -/
 theorem CoreIndex.of_inter_unitcube_cube_nonempty (h : (UnitCube d ∩ Cube t).Nonempty)
@@ -65,6 +81,77 @@ theorem core_subset_corners' : core T ⊆ corners' T := by
   rintro t t_mem
   use t, t_mem, 0
   simp
+
+theorem core_diff_lt_2 (ht1 : t1 ∈ core T) (ht2 : t2 ∈ core T) :
+    ∀ j, |t1 j - t2 j| < 2 := by
+  intro j
+  obtain ⟨t1_corner,t1_idx_core⟩ := ht1
+  obtain ⟨t2_corner,t2_idx_core⟩ := ht2
+  rw [CoreIndex.index_mem_iff] at t1_idx_core t2_idx_core
+  specialize t1_idx_core j; specialize t2_idx_core j
+  rw [abs_lt]
+  constructor <;> linarith
+
+theorem corners'_closed_even_addition (t) (ht : t ∈ corners' T) (z : IntPoint d) :
+    t + 2 • z ∈ corners' T := by
+  obtain ⟨t,t_core,off,rfl⟩ := ht
+  use t, t_core, off + z
+  simp [add_assoc]
+
+--theorem corners'_adjacent_of_adjacent_points (ht1 : t1 ∈ corners' T) (ht2 : t2 ∈ corners' T) (x j) :
+--      x ∈ Cube t1 → x + .single j 1 ∈ Cube t2 → t1 j + 1 = t2 j := by
+--  intro mem_t1 mem_t2
+--  obtain ⟨t1,t1_core,off1,rfl⟩ := ht1
+--  obtain ⟨t2,t2_core,off2,rfl⟩ := ht2
+--
+--  simp
+
+
+theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
+    (h : ∀ x ∈ ClosedCube c, ∃! t ∈ corners' T, x ∈ Cube t)
+    : ∀ x ∈ ClosedCube c, ∃! t ∈ corners' T, x + .single j 1 ∈ Cube t := by
+  intro x x_mem_c
+
+  -- get the points where `Line j x` intersects the boundary of `ClosedCube c`
+  let x₀ := x.update j (c j)
+  let x₁ := x.update j (c j + 1)
+
+  -- those points must both be covered uniquely by corners'
+  obtain ⟨t₀,⟨t₀_corners',x₀_mem_t₀⟩,t₀_uniq⟩ := h x₀ <| by
+    intro j'
+    if j' = j then subst j'; simp [x₀]
+    else
+      simp [x₀, x_mem_c j', *]
+  obtain ⟨t₁,⟨t₁_corners',x₁_mem_t₁⟩,t₁_uniq⟩ := h x₁ <| by
+    intro j'
+    if j' = j then subst j'; simp [x₁]
+    else
+      simp [x₁, x_mem_c j', *]
+
+  have : t₀ j + 1 = t₁ j := by
+    sorry
+
+  -- either `x ∈ t₀`, which implies `x + eⱼ ∈ t₁`
+  if x j < t₀ j + 1 then
+    use t₁
+    refine ⟨⟨t₁_corners',?step_mem⟩,?uniq⟩
+    case step_mem =>
+      rw [Cube.mem_iff]; intro j'
+      if j' = j then
+        have := (Cube.mem_iff _ _).mp x₀_mem_t₀ j
+        have := x_mem_c j
+        subst j'
+        simp_all +zetaDelta; linarith
+      else
+        have := (Cube.mem_iff _ _).mp x₁_mem_t₁ j'
+        simp_all +zetaDelta
+
+    case uniq =>
+      rintro t ⟨t_corner,x_step_mem_t⟩
+      done
+  -- or `x ∈ t₁`, which implies `x + eⱼ ∈ t₀ + 2eⱼ`
+  else
+    done
 
 theorem core_covers_unitcube : ∀ x ∈ UnitCube d, ∃! t ∈ core T, x ∈ Cube t := by
   intro x x_mem

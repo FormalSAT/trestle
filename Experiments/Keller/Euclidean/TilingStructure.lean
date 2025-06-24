@@ -688,3 +688,38 @@ theorem Tiling.corners_replace {j : Fin d} {a b : ℝ} (T : Tiling d) :
     { t ∈ T.corners | ∃ z : ℤ, a + z = t j }.image (· + EuclideanSpace.single j b)
     ∪ { t ∈ T.corners | ¬ ∃ z : ℤ, a + z = t j }
 := by rfl
+
+/-- Proof of BHMN A.2.4 -/
+theorem Tiling.cube_adj_of_adj_points (T : Tiling d) {x j} :
+      t₁ ∈ T.corners → t₂ ∈ T.corners → x ∈ Cube t₁ → x + .single j 1 ∈ Cube t₂ →
+      t₁ j + 1 = t₂ j := by
+  intro t1_corner t2_corner x_mem_t1 x'_mem_t2
+
+  have t1_t2_relation : t₁ j < t₂ j ∧ t₂ j < t₁ j + 2 := by
+    have := (Cube.mem_iff _ _).mp x_mem_t1 j
+    have := (Cube.mem_iff _ _).mp x'_mem_t2 j
+    simp at this
+    constructor <;> linarith
+
+  have := ILattice.inter_line_IntegralSpaced (.fromTiling T j) x
+  replace this :=
+    this.integral_spaced.spaced (t₁ j) ⟨t₁,⟨t1_corner,x,x_mem_t1,Line.start_mem ..⟩,rfl⟩
+  replace this : t₂ j ∈ { t₁ j + z | (z : ℤ) } := by
+    rw [← this]; simp [ILattice.fromTiling]
+    refine ⟨t₂, ⟨t2_corner,_,x'_mem_t2,?_⟩, rfl⟩
+    rw [Point.add_single_eq_update, Line.update_mem_iff]
+    apply Line.start_mem
+
+  obtain ⟨z,h⟩ := this
+  simp [← h] at t1_t2_relation ⊢
+  rw [← Int.cast_two, Int.cast_lt] at t1_t2_relation
+  rw [← Int.cast_one, Int.cast_inj]
+  omega
+
+/-- BHMN A.2.4 -/
+theorem Tiling.get_add_single (T : Tiling d) {x j} :
+      T.get (x + .single j 1) j = T.get x j + 1 := by
+  rw [eq_comm]
+  apply T.cube_adj_of_adj_points
+    (T.get_mem _) (T.get_mem _)
+    (T.mem_get _) (T.mem_get _)
