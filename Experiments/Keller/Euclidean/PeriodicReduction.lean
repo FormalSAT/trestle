@@ -194,30 +194,42 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
     : ∀ x ∈ ClosedCube c, ∃! t ∈ corners' T, x + .single j 1 ∈ Cube t := by
   intro x x_mem_c
 
-  -- get the points where `Line j x` intersects the boundary of `ClosedCube c`
+  -- We have 3 points of interest
+  -- note that `x` is between `x₀` and `x₁`, while `x + eⱼ` is between `x₁` and `x₂`
   let x₀ := x.update j (c j)
   let x₁ := x.update j (c j + 1)
+  let x₂ := x.update j (c j + 2)
 
+  have x₂_eq : x₂ = x₀ + 2 • (IntPoint.single j 1).toPoint := by simp [x₀, x₂]
+
+  -- x₀ and x₁ are uniquely covered because they are in `c`
   have x₀_mem_c : x₀ ∈ ClosedCube c := by
-    intro j'
-    if j' = j then subst j'; simp [x₀]
-    else
-      simp [x₀, x_mem_c j', *]
+    intro j'; by_cases hj : j' = j <;>
+      ((try rw [hj]); simp [x₀, hj, x_mem_c j'])
 
-  -- those points must both be covered uniquely by corners'
-  obtain ⟨t₀,⟨t₀_corners',x₀_mem_t₀⟩,t₀_uniq⟩ := h x₀ x₀_mem_c
+  have x₁_mem_c : x₁ ∈ ClosedCube c := by
+    intro j'; by_cases hj : j' = j <;>
+      ((try rw [hj]); simp [x₁, hj, x_mem_c j'])
 
-  obtain ⟨t₁,⟨t₁_corners',x₁_mem_t₁⟩,t₁_uniq⟩ := h x₁ <| by
-    intro j'
-    if j' = j then subst j'; simp [x₁]
-    else
-      simp [x₁, x_mem_c j', *]
+  have x₀_uniquely_covered := h x₀ x₀_mem_c
+  have x₁_uniquely_covered := h x₁ x₁_mem_c
+
+  -- x₂ is uniquely covered because it is even offset away from x₀
+  have x₂_uniquely_covered := by
+    have := corners'_uniquely_closed_even_addition T x₀ x₀_uniquely_covered (.single j 1)
+    rw [← x₂_eq] at this
+    exact this
+
+  -- the cubes containing each point will be called `t₀`, `t₁`, `t₂`
+  obtain ⟨t₀,⟨t₀_corner,x₀_mem_t₀⟩,t₀_uniq⟩ := x₀_uniquely_covered
+  obtain ⟨t₁,⟨t₁_corner,x₁_mem_t₁⟩,t₁_uniq⟩ := x₁_uniquely_covered
+  obtain ⟨t₂,⟨t₂_corner,x₂_mem_t₂⟩,t₂_uniq⟩ := x₂_uniquely_covered
 
   -- the interval between x₀ and x₁ is uniquely covered,
   -- so the cubes containing x₀ and x₁ must be adjacent
-  have : t₀ j + 1 = t₁ j := by
+  have t₀_step_t₁ : t₀ j + 1 = t₁ j := by
     apply cubes_adjacent_of_uniquely_covers_interval (corners' T) j x₀ ?h
-      t₀_corners' x₀_mem_t₀ t₁_corners' (by simpa [Point.add_single_eq_update, x₀])
+      t₀_corner x₀_mem_t₀ t₁_corner (by simpa [Point.add_single_eq_update, x₀])
     intro α α_range
     apply h
     simp [x₀]
@@ -225,103 +237,87 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
     if j' = j then subst j'; simpa using α_range else
     simp [*, x_mem_c j']
 
-  -- either `x ∈ t₀`, which implies `x + eⱼ ∈ t₁`
-  if x j < t₀ j + 1 then
-    use t₁
-    refine ⟨⟨t₁_corners',?step_mem⟩,?uniq⟩
-    case step_mem =>
-      rw [Cube.mem_iff]; intro j'
-      if j' = j then
-        have := (Cube.mem_iff _ _).mp x₀_mem_t₀ j
-        have := x_mem_c j
-        subst j'
-        simp_all +zetaDelta; linarith
-      else
-        have := (Cube.mem_iff _ _).mp x₁_mem_t₁ j'
-        simp_all +zetaDelta
+  -- also `t₂` must be `t₀ + 2eⱼ`
+  have t₂_eq : t₂ = t₀ + 2 • IntPoint.single j 1 := by
+    rw [eq_comm];
+    apply t₂_uniq _ ⟨?_, ?_⟩
+    apply corners'_closed_even_addition T _ t₀_corner
+    simp only [Cube.mem_add_iff, x₂_eq, add_sub_cancel_right]
+    exact x₀_mem_t₀
 
-    case uniq =>
-      rintro t ⟨t_corner,x_step_mem_t⟩
-      if t j ≤ c j + 1 then
-        apply t₁_uniq
-        use t_corner
-        have := Cube.update_mem_of_mem x_step_mem_t (y := c j + 1) (j := j) (by
-          have := (Cube.mem_iff _ _).mp x_step_mem_t j
-          have := x_mem_c j
-          simp_all; linarith)
-        simpa [Point.add_single_eq_update] using this
-      else
-        exfalso
-        have one := x_mem_c j
-        have two := (Cube.mem_iff _ _).mp x_step_mem_t j
-        simp at one two
-        have := corners'_uniquely_closed_even_addition T x₀ (h x₀ x₀_mem_c) (.single j 1)
-          |>.unique (y₁ := t) (y₂ := t₀ + (2 • IntPoint.single j 1).toPoint)
-          ?first_goal ?second_goal
-        case first_goal =>
-          use t_corner; simp [x₀, Point.add_single_eq_update]
-          have := Cube.update_mem_of_mem x_step_mem_t (y := c j + 2) (j := j) (by
-            constructor <;> linarith)
-          simpa [Point.add_single_eq_update] using this
-        case second_goal =>
-          have := corners'_closed_even_addition T _ t₀_corners' (.single j 1)
-          use (by simpa using this)
-          rw [Cube.mem_add_iff]; simpa using x₀_mem_t₀
-        replace this := congrArg (· j) this; simp at this
-        linarith
+  have t₁_step_t₂ : t₁ j + 1 = t₂ j := by
+    subst t₂; simp [← t₀_step_t₁]; ring
 
-  -- or `x ∈ t₁`, which implies `x + eⱼ ∈ t₀ + 2eⱼ`
-  else
-    use t₀ + 2 • IntPoint.single j 1
-    refine ⟨⟨?mem_corners',?step_mem⟩,?uniq⟩
-    case mem_corners' =>
-      apply corners'_closed_even_addition T _ t₀_corners'
-    case step_mem =>
-      rw [Cube.mem_iff]; intro j'
-      if js_ne : j' = j then
-        subst j'
-        have := (Cube.mem_iff _ _).mp x₁_mem_t₁ j
-        have := x_mem_c j
-        simp [x₁] at *
-        constructor <;> linarith
-      else
-        have := (Cube.mem_iff _ _).mp x₀_mem_t₀ j'
-        unfold x₀ at this
-        simp [js_ne] at this ⊢
-        simpa using this
+  -- every cube containing `x + eⱼ` must also contain either `x₁` or `x₂`,
+  have must_contain_x1_x2 : ∀ t, x + .single j 1 ∈ Cube t → x₁ ∈ Cube t ∨ x₂ ∈ Cube t := by
+    intro t x_step_mem
+    have := x_mem_c j
+    have := (Cube.mem_iff _ _).mp x_step_mem j; simp at this
+    if t j ≤ c j + 1 then
+      left
+      have := Cube.update_mem_of_mem x_step_mem (y := c j + 1) (j := j) (by
+        constructor <;> linarith)
+      simpa [Point.add_single_eq_update] using this
+    else
+      right
+      have := Cube.update_mem_of_mem x_step_mem (y := c j + 2) (j := j) (by
+        constructor <;> linarith)
+      simpa [Point.add_single_eq_update] using this
 
-    case uniq =>
-      rintro t ⟨t_corner,x_step_mem_t⟩
-      have one := x_mem_c j
-      have two := (Cube.mem_iff _ _).mp x_step_mem_t j
-      simp at one two
+  -- and, if `t` is a corner, it must equal either `t₁` or `t₂`
+  have eq_t1_or_t2 : ∀ t ∈ corners' T, x + .single j 1 ∈ Cube t → t = t₁ ∨ t = t₂ := by
+    intro t t_corner x_step_mem
+    cases must_contain_x1_x2 t x_step_mem
+    case inl =>
+      left; apply t₁_uniq _ ⟨t_corner,‹_›⟩
+    case inr =>
+      right; apply t₂_uniq _ ⟨t_corner,‹_›⟩
 
-      if t j ≤ c j + 1 then
-        exfalso
-        have := t₁_uniq _ ⟨t_corner,?mem⟩
-        case mem =>
-          have := Cube.update_mem_of_mem x_step_mem_t (y := c j + 1) (j := j) (by
-            have := (Cube.mem_iff _ _).mp x_step_mem_t j
-            have := x_mem_c j
-            simp_all; linarith)
-          simpa [Point.add_single_eq_update] using this
-        replace this := congrArg (· j) this; simp at this
-        linarith
+  -- but `t₁` and `t₂` are disjoint...
+  have t₁_t₂_disjoint : Disjoint (Cube t₁) (Cube t₂) := by
+    rw [Set.disjoint_iff_inter_eq_empty]
+    apply Cube.inter_empty_of_exists_gap
+    use j; simp [← t₁_step_t₂]
 
-      else
-        have := corners'_uniquely_closed_even_addition T x₀ (h x₀ x₀_mem_c) (.single j 1)
-          |>.unique (y₁ := t) (y₂ := t₀ + (2 • IntPoint.single j 1).toPoint)
-          ?first_goal ?second_goal
-        case first_goal =>
-          use t_corner; simp [x₀, Point.add_single_eq_update]
-          have := Cube.update_mem_of_mem x_step_mem_t (y := c j + 2) (j := j) (by
-            constructor <;> linarith)
-          simpa [Point.add_single_eq_update] using this
-        case second_goal =>
-          have := corners'_closed_even_addition T _ t₀_corners' (.single j 1)
-          use (by simpa using this)
-          rw [Cube.mem_add_iff]; simpa using x₀_mem_t₀
-        simpa [Point.add_single_eq_update] using this
+  -- OK: now we case on whether `x` is in `t₀` or `t₁`
+  by_cases comparison : x j < t₀ j + 1
+  case pos =>
+    -- `x + eⱼ` is in `t₁`
+    have x_step_mem : x + .single j 1 ∈ Cube t₁ := by
+      have : t₀ j ≤ x₀ j := (Cube.mem_iff _ _).mp x₀_mem_t₀ j |>.1
+      have : x₀ j = c j := by simp +zetaDelta
+      have : c j ≤ x j := x_mem_c j |>.1
+      have := Cube.update_mem_of_mem x₁_mem_t₁ (y := x j + 1) (j := j) (by
+        constructor <;> linarith)
+      simpa [x₁, Point.add_single_eq_update] using this
+
+    refine ⟨t₁, ⟨t₁_corner, x_step_mem⟩, ?_⟩
+
+    · rintro t ⟨t_corner,x_step_mem_t⟩
+      cases eq_t1_or_t2 t t_corner x_step_mem_t
+      case inl h => exact h
+      case inr h =>
+        exfalso; subst t
+        apply t₁_t₂_disjoint.not_mem_of_mem_left x_step_mem x_step_mem_t
+
+  case neg =>
+    -- `x + eⱼ` is in `t₂`
+    have x_step_mem : x + .single j 1 ∈ Cube t₂ := by
+      have : x j ≤ c j + 1 := x_mem_c j |>.2
+      have : x₁ j = c j + 1 := by simp +zetaDelta
+      have : x₁ j < t₁ j + 1 := (Cube.mem_iff _ _).mp x₁_mem_t₁ j |>.2
+      have := Cube.update_mem_of_mem x₂_mem_t₂ (y := x j + 1) (j := j) (by
+        constructor <;> linarith)
+      simpa [x₂, Point.add_single_eq_update] using this
+
+    refine ⟨t₂, ⟨t₂_corner, x_step_mem⟩, ?_⟩
+
+    · rintro t ⟨t_corner,x_step_mem_t⟩
+      cases eq_t1_or_t2 t t_corner x_step_mem_t
+      case inr h => exact h
+      case inl h =>
+        exfalso; subst t
+        apply t₁_t₂_disjoint.not_mem_of_mem_right x_step_mem x_step_mem_t
 
 /-- BHMN A.3 Fact 1 (roughly) -/
 theorem core_covers_closedcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ core T, x ∈ Cube t := by
