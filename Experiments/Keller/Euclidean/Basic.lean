@@ -8,21 +8,23 @@ namespace Keller.Euclidean
 abbrev unitVec [DecidableEq ι] [RCLike 𝕜] (i : ι) := EuclideanSpace.single (𝕜 := 𝕜) i 1
 
 
-noncomputable def Point.ofFn (f : Fin d → ℝ) : Point d := (EuclideanSpace.equiv _ _).symm f
-@[simp] theorem Point.app_ofFn (x) (f : Fin d → ℝ) : (Point.ofFn f) x = f x := rfl
-@[simp] theorem Point.ofFn_point (x : Point d) : Point.ofFn x = x := rfl
+namespace Point
 
-noncomputable def Point.update (x : Point d) (j : Fin d) (y : ℝ) :=
+noncomputable def ofFn (f : Fin d → ℝ) : Point d := (EuclideanSpace.equiv _ _).symm f
+@[simp] theorem app_ofFn (x) (f : Fin d → ℝ) : (Point.ofFn f) x = f x := rfl
+@[simp] theorem ofFn_point (x : Point d) : Point.ofFn x = x := rfl
+
+noncomputable def update (x : Point d) (j : Fin d) (y : ℝ) :=
   Point.ofFn <| Function.update x j y
-@[simp] theorem Point.app_update_eq : Point.update x j y j = y := by
+@[simp] theorem app_update_eq : Point.update x j y j = y := by
   simp [Point.update]
-@[simp] theorem Point.app_update_ne (h : j' ≠ j) : Point.update x j y j' = x j' := by
+@[simp] theorem app_update_ne (h : j' ≠ j) : Point.update x j y j' = x j' := by
   simp [Point.update, h]
 
-@[simp] theorem Point.update_app {x : Point d} {j} : Point.update x j (x j) = x := by
+@[simp] theorem update_app {x : Point d} {j} : Point.update x j (x j) = x := by
   simp [Point.update]
 
-theorem Point.update_inj {x} {j : Fin d} {a b} :
+theorem update_inj {x} {j : Fin d} {a b} :
     Point.update x j a = Point.update x j b ↔ a = b := by
   constructor
   · intro h
@@ -30,7 +32,7 @@ theorem Point.update_inj {x} {j : Fin d} {a b} :
     simpa using h
   · rintro rfl; rfl
 
-theorem Point.add_single_eq_update {x : Point d} {j α} :
+theorem add_single_eq_update {x : Point d} {j α} :
       x + EuclideanSpace.single j α = x.update j (x j + α) := by
   ext j'
   if j' = j then
@@ -38,13 +40,19 @@ theorem Point.add_single_eq_update {x : Point d} {j α} :
   else
     simp [*]
 
-@[simp] theorem Point.update_update {x : Point d} {j α α'} :
+@[simp] theorem update_update {x : Point d} {j α α'} :
       (x.update j α).update j α' = x.update j α' := by
   simp [Point.update]
 
-@[simp] theorem Point.update_add_single {x : Point d} {j y α} :
+@[simp] theorem update_add_single {x : Point d} {j y α} :
       x.update j y + EuclideanSpace.single j α = x.update j (y + α) := by
   rw [add_single_eq_update]; simp
+
+@[simp] theorem nsmul_single (n : ℕ) (j : Fin d) (x : ℝ) :
+    n • EuclideanSpace.single j x = EuclideanSpace.single j (n * x) := by
+  ext j'; by_cases j' = j <;> simp_all
+
+end Point
 
 
 def IntPoint (d : ℕ) : Type := Fin d → ℤ
@@ -52,6 +60,7 @@ def IntPoint (d : ℕ) : Type := Fin d → ℤ
 namespace IntPoint
 
 instance : Add (IntPoint d) := Pi.instAdd
+instance : Neg (IntPoint d) := Pi.instNeg
 instance : SMul ℤ (IntPoint d) where
   smul s p := Pi.instMul.mul (fun _ => s) p
 instance : SMul ℕ (IntPoint d) where
@@ -75,6 +84,10 @@ noncomputable instance : Coe (IntPoint d) (Point d) where
 @[simp] theorem toPoint_add (p1 p2 : IntPoint d) :
     (p1 + p2).toPoint = p1.toPoint + p2.toPoint := by
   ext j; simp [toPoint]
+
+@[simp] theorem toPoint_neg (p : IntPoint d) :
+    (-p).toPoint = -p.toPoint := by
+  ext j; simp [toPoint, instNeg, Pi.instNeg]
 
 @[simp] theorem toPoint_nsmul (n : ℕ) (b : IntPoint d) :
     (n • b).toPoint = n • b.toPoint := by
@@ -101,6 +114,12 @@ def single (j : Fin d) (z : ℤ) : IntPoint d := fun j' => if j' = j then z else
 @[simp] theorem toPoint_single : IntPoint.toPoint (IntPoint.single j z) = EuclideanSpace.single j (↑z) := by
   ext j'; by_cases j' = j <;> simp [*]
 
+@[simp] theorem nsmul_single (n : ℕ) (i : ℤ) : n • IntPoint.single j i = .single j (n * i) := by
+  ext j'; by_cases j' = j <;> simp_all
+
+@[simp] theorem zsmul_single (z : ℕ) (i : ℤ) : z • IntPoint.single j i = .single j (z * i) := by
+  ext j'; by_cases j' = j <;> simp_all
+
 end IntPoint
 
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
@@ -109,6 +128,15 @@ theorem Cube.mem_iff (x : Point d) (c : Point d) :
 
 theorem Cube.start_mem (c : Point d) : c ∈ Cube c := by
   simp [mem_iff]
+
+theorem Cube.update_mem_of_mem (x_mem : x ∈ Cube t) (range : t j ≤ y ∧ y < t j + 1) :
+    x.update j y ∈ Cube t := by
+  rw [Cube.mem_iff] at x_mem ⊢
+  intro j'
+  if j' = j then
+    subst j'; simpa using range
+  else
+    simp [*]
 
 lemma Cube.exists_gap_of_inter_empty (c1 c2 : Point d) :
       (Cube c1 ∩ Cube c2 = ∅) → (∃ j : Fin d, |c1 j - c2 j| ≥ 1) := by
