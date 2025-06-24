@@ -337,8 +337,7 @@ theorem core_covers_closedcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ core T, x �
   rintro t' ⟨t'_core,x_mem_t'⟩
   refine t_uniq _ ⟨core_subset_corners T t'_core,x_mem_t'⟩
 
-@[deprecated]
-theorem corners'_covers_unitcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ corners' T, x ∈ Cube t := by
+theorem corners'_covers_closedcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ corners' T, x ∈ Cube t := by
   intro x x_mem
 
   obtain ⟨t,⟨t_core,x_mem_t⟩,t_uniq⟩ := core_covers_closedcube T x x_mem
@@ -367,15 +366,15 @@ theorem corners'_covers_unitcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ corners' T
 
 
 /-- Inductive hypothesis for proving `corners'_covers` -/
-structure corners'_covers.UpTo (doneDims : Nat) where
-  covers : ∀ (x : Point d) (_x_range : ∀ j : Fin d, j.val ≥ doneDims → 0 ≤ x j ∧ x j < 1),
+def corners'_covers.UpTo (doneDims : Nat) :=
+  ∀ (x : Point d) (_x_range : ∀ j : Fin d, j.val ≥ doneDims → 0 ≤ x j ∧ x j ≤ 1),
               ∃! t ∈ corners' T, x ∈ Cube t
 
 
 theorem corners'_covers.zero : corners'_covers.UpTo T 0 := by
   intro x x_range
-  have : x ∈ UnitCube d := by simpa using x_range
-  apply corners'_covers_unitcube _ _ this
+  have : x ∈ ClosedCube 0 := by intro j; simpa using x_range j
+  apply corners'_covers_closedcube _ _ this
 
 theorem split_real (x : ℝ) :
       ∃ x_int : Int, ∃ x_rem : ℝ, (0 ≤ x_rem ∧ x_rem < 1) ∧ x = x_int + x_rem := by
@@ -390,64 +389,90 @@ theorem corners'_covers.step (doneDims : Nat) (doneDims_lt : doneDims < d) :
   obtain ⟨x_int,x_rem,x_rem_range,x_eq_sum⟩ := split_real (x ⟨doneDims,doneDims_lt⟩)
 
   -- first let's get a point that is in the IH range
-  let x_prev := Point.ofFn (d := d) fun j =>
-    if j.val = doneDims then x_rem
-    else x j
+  let x_prev := x.update ⟨doneDims,doneDims_lt⟩ x_rem
 
   -- and apply the IH
-  specialize ih x_prev (by
+  have x_prev_uniq_covered := ih x_prev (by
     intro j hj
     if j.val = doneDims then
       subst doneDims
-      simp [x_prev]; exact x_rem_range
+      simp [x_prev]; constructor <;> linarith [x_rem_range]
     else
-      simp [x_prev, *]
+      simp [x_prev, Fin.ext_iff, *]
       apply x_range; omega
   )
 
-  obtain ⟨t_prev,⟨t_prev_corner,x_prev_mem⟩,t_prev_uniq⟩ := ih
+  -- now we case on whether the offset `x_int` is even or odd
+  cases Int.even_or_odd x_int
+  case inl x_int_even =>
+    rcases x_int_even with ⟨x_int,rfl⟩
+    convert corners'_uniquely_closed_even_addition T
+        x_prev x_prev_uniq_covered (.single ⟨doneDims,doneDims_lt⟩ x_int)
+    ext j
+    by_cases hj : j.val = doneDims
+    · subst hj; simp [x_prev, x_eq_sum]; ring
+    · simp [hj, Fin.ext_iff, x_prev]
 
-  -- now we note that
-  sorry
+  case inr x_int_odd =>
+    rcases x_int_odd with ⟨x_int,rfl⟩
 
-theorem corners'_can_step (x : Point d) (j : Fin d) (z : ℤ) :
-    (∃ t ∈ corners' T, x ∈ Cube t) → ∃ t ∈ corners' T, (x + .single j z) ∈ Cube t := by
-  rintro ⟨t,t_corners',x_mem_t⟩
-  -- per defn of corners', `t` is even offset from a core cube
-  obtain ⟨t,t_core,offset,rfl⟩ := t_corners'
+    -- we can extend the IH to a cube containing `x_prev + .single doneDims 1`
+    let corner : Point d := Point.ofFn fun j =>
+      if j.val < doneDims then x j else 0
 
-  by_cases Even z
-  -- if `z` is even, we can directly reuse `t`
-  case pos evenz =>
-    rcases evenz with ⟨z,rfl⟩
-    refine ⟨t + (2 • (offset + IntPoint.single j z)).toPoint
-      , ?in_corners',?x_mem⟩
-    case in_corners' =>
-      use t, t_core, offset + IntPoint.single j z
-    case x_mem =>
-      rw [Cube.mem_add_iff] at x_mem_t ⊢
-      convert x_mem_t using 1
-      ext j'; by_cases j' = j <;> simp [*]
-      ring
-  -- if `z` is odd, we need to step either forward or backward within the core
-  case neg oddz =>
-    rw [Int.not_even_iff_odd] at oddz; rcases oddz with ⟨z,rfl⟩
-    have := core_can_step_unitcube
-    done
+    have x_prev_mem_corner : x_prev ∈ ClosedCube corner := by
+      intro j
+      if j.val = doneDims then
+        subst doneDims; simp [corner, x_prev]
+        constructor <;> linarith
+      else
+        if j.val < doneDims then
+          simp [corner, x_prev, Fin.ext_iff, *]
+        else
+          have := x_range j (by omega)
+          simp [corner, x_prev, Fin.ext_iff, *]
 
-theorem split_point (x : Point d) :
-      ∃ x_int : IntPoint d, ∃ x_rem ∈ UnitCube d, x = x_int + x_rem := by
-  let x_int : IntPoint d := fun j => ⌊x j⌋
-  use x_int, x - x_int
-  constructor
-  · intro j; simp [x_int, Int.fract_lt_one]
-  · ext j; simp [x_int]
+    have := corners'_step_closed_cube T corner ⟨doneDims,doneDims_lt⟩ (by
+      intro x' x'_range
+      apply ih
+      intro j hj
+      if j.val = doneDims then
+        subst doneDims
+        have := x'_range j
+        simpa [corner] using this
+      else
+        have : ¬ j.val < doneDims := by omega
+        have := x_range j (by omega)
+        have := x'_range j
+        simp [corner, Fin.ext_iff, *] at this
+        constructor <;> linarith
+    )
 
-theorem corners'_covers (p : Point d) : ∃! c, c ∈ corners' T ∧ p ∈ Cube c := by
-  obtain ⟨p_int,p_rem,p_rem_mem_unitcube,rfl⟩ := split_point p
+    -- and then step by 2 • x_int to get back to x
+    specialize this x_prev x_prev_mem_corner
+    have := corners'_uniquely_closed_even_addition T _ this
+      (.single ⟨doneDims, doneDims_lt⟩ x_int)
+    convert this
 
-  -- basically,
-  sorry
+    ext j
+    if h : j.val = doneDims then
+      subst doneDims
+      simp at x_eq_sum
+      simp [Fin.ext_iff, x_prev, x_eq_sum]; ring
+    else
+      simp [Fin.ext_iff, h, x_prev]
+
+theorem corners'_covers : ∀ p : Point d, ∃! c, c ∈ corners' T ∧ p ∈ Cube c := by
+  have : ∀ j (hj : j ≤ d), corners'_covers.UpTo T j := by
+    intro j hj
+    induction j with
+    | zero => apply corners'_covers.zero
+    | succ j ih =>
+      specialize ih (Nat.le_of_lt hj)
+      apply corners'_covers.step T _ hj ih
+
+  intro p
+  exact this d (Nat.le_refl _) p (by simp)
 
 def T' : Tiling d where
   corners := corners' T
