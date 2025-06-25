@@ -479,30 +479,91 @@ def T' : Tiling d where
   covers := corners'_covers T
 
 theorem T'_periodic : (T' T).Periodic := by
-  simp [T', Tiling.Periodic, corners', core]
-  rintro t i hi x x'
-  use i, hi, x+x'
-  ext j; simp [mul_add]; abel
+  intro t t_corner off
+  simp [T'] at t_corner ⊢
+  apply corners'_closed_even_addition _ _ t_corner
+
+theorem T'_get_add_even_integer (x : Point d) (z : IntPoint d) :
+    (T' T).get (x + 2 • z) = (T' T).get x + 2 • z := by
+  rw [eq_comm]; apply Tiling.get_unique
+  · apply corners'_closed_even_addition
+    have := Tiling.get_mem (T' T) x
+    simpa using this
+  · rw [Cube.mem_add_iff]
+    simpa using Tiling.mem_get (T' T) x
+
+theorem T'_get_eq_T_get_of_core_idx (x : IntPoint d) (x_core : x ∈ CoreIndex d) :
+    (T' T).get x = T.get x := by
+  rw [eq_comm]; apply Tiling.get_unique
+  · use T.get x
+    constructor
+    · use T.get_mem ..; rw [T.index_get]; exact x_core
+    · use 0; simp
+  · apply Tiling.mem_get
 
 theorem T'_ff (T_ff : T.FaceshareFree) : (T' T).FaceshareFree := by
   let T' := T' T; refold_let T'
 
-  -- use BHMN Prop 5
+  -- per BHMN Prop 5, suppose there were facesharing neighbors
   apply Tiling.FaceshareFree.of_neighbors
   intro x j h
 
-  obtain ⟨x',x'_pidx,y,x_eq⟩ := CoreIndex.decompose_intpoint x
-  cases x'_pidx j
+  -- split x into a core index and an even integer offset
+  obtain ⟨x',x'_core,y,x_eq⟩ := CoreIndex.decompose_intpoint x
+
+  have : T'.get x' + IntPoint.single j 1 = T'.get (x' + IntPoint.single j 1).toPoint := by
+    calc
+      _ = T'.get (x' + 2 • y + 2 • (-y).toPoint) + .single j 1 := by simp
+      _ = T'.get (x' + 2 • y) + 2 • (-y).toPoint + .single j 1 := by rw [T'_get_add_even_integer, IntPoint.toPoint_neg]
+      _ = T'.get x + 2 • (-y).toPoint + .single j 1            := by rw [x_eq]; simp
+      _ = T'.get x + .single j 1 + 2 • (-y).toPoint            := by rw [add_right_comm]
+      _ = T'.get (x + IntPoint.single j 1) + 2 • (-y).toPoint  := by rw [h, IntPoint.toPoint_add]
+      _ = T'.get (x + IntPoint.single j 1 + 2 • (-y).toPoint)  := by rw [T'_get_add_even_integer]
+      _ = T'.get (x + 2 • (-y).toPoint + IntPoint.single j 1)  := by rw [add_right_comm]
+      _ = T'.get (x' + IntPoint.single j 1).toPoint := by rw [x_eq]; simp
+
+  have := x'_core j; simp at this
+  cases this
   next x'_j_zero =>
-    have : T'.get x' + .single j 1 = T'.get (x' + .single j 1).toPoint := by
-      calc
-        _ = T'.get (x' + (2 : ℤ) • y + (-2) • y) + .single j 1 := by done
-        _ = T'.get (x' + 2 • y) + (-2) • y + .single j 1 := by done
-        _ = T'.get x + (-2) • y + .single j 1 := by
-            rw [x_eq, IntPoint.toPoint_add, IntPoint.toPoint_smul]
-    done
+    apply T_ff (T.get_mem x') (T.get_mem (x' + .single j 1).toPoint)
+      (by intro h; have := T.get_inj h |> congrArg (· j); simp at this)
+    rw [T'_get_eq_T_get_of_core_idx _ _ x'_core,
+        T'_get_eq_T_get_of_core_idx _ _ ?x'_step_core] at this
+    case x'_step_core =>
+      intro j'
+      if j' = j then
+        subst j'; simp [x'_j_zero]
+      else
+        simpa [*] using x'_core j'
+
+    use j; rw [← this]; simp
+
   next x'_j_one =>
-    done
+    replace this : T'.get x' + IntPoint.single j (-1) = T'.get (x' + IntPoint.single j (-1)).toPoint := by
+      calc
+        _ = T'.get x' + (IntPoint.single j 1 + (2 : ℕ) • IntPoint.single j (-1)).toPoint := by
+          congr 1; apply congrArg; simp
+        _ = T'.get x' + IntPoint.single j 1 + _ := by rw [IntPoint.toPoint_add, add_assoc]
+        _ = T'.get (x' + IntPoint.single j 1).toPoint + _ := by rw [this]
+        _ = T'.get (x' + IntPoint.single j 1).toPoint + 2 • IntPoint.single j (-1) := by simp
+        _ = T'.get _ := by rw [← T'_get_add_even_integer, ← IntPoint.toPoint_nsmul, ← IntPoint.toPoint_add]
+        _ = T'.get (x' + IntPoint.single j (-1)).toPoint := by
+          rw [add_assoc]
+          apply congrArg; apply congrArg; congr
+          simp
+
+    apply T_ff (T.get_mem x') (T.get_mem (x' + .single j (-1)).toPoint)
+      (by intro h; have := T.get_inj h |> congrArg (· j); simp at this)
+    rw [T'_get_eq_T_get_of_core_idx _ _ x'_core,
+        T'_get_eq_T_get_of_core_idx _ _ ?x'_step_core] at this
+    case x'_step_core =>
+      intro j'
+      if j' = j then
+        subst j'; simp [x'_j_one]
+      else
+        simpa [*] using x'_core j'
+
+    use j; rw [← this]; simp
 
 end Hajos
 
@@ -518,3 +579,9 @@ theorem conjecture_iff_periodic : conjectureIn d ↔ (¬ ∃ T : Tiling d, T.Per
   · rintro h ⟨T,-,ff⟩
     apply h ⟨T,ff⟩
   · apply Hajos
+
+/--
+info: 'Keller.Euclidean.conjecture_iff_periodic' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms conjecture_iff_periodic

@@ -52,6 +52,9 @@ theorem add_single_eq_update {x : Point d} {j α} :
     n • EuclideanSpace.single j x = EuclideanSpace.single j (n * x) := by
   ext j'; by_cases j' = j <;> simp_all
 
+@[simp] theorem single_add (j : Fin d) (a b : ℝ) : EuclideanSpace.single j a + .single j b = .single j (a + b) := by
+  ext j'; aesop
+
 end Point
 
 
@@ -59,14 +62,7 @@ def IntPoint (d : ℕ) : Type := Fin d → ℤ
 
 namespace IntPoint
 
-instance : Add (IntPoint d) := Pi.instAdd
-instance : Neg (IntPoint d) := Pi.instNeg
-instance : SMul ℤ (IntPoint d) where
-  smul s p := Pi.instMul.mul (fun _ => s) p
-instance : SMul ℕ (IntPoint d) where
-  smul s p := (s : ℤ) • p
-
-instance : Zero (IntPoint d) := inferInstanceAs (Zero (Fin d → ℤ))
+instance : AddCommGroup (IntPoint d) := inferInstanceAs (AddCommGroup (Fin d → ℤ))
 
 @[simp] theorem app_add (a b : IntPoint d) (j : Fin d) : (a + b) j = a j + b j := rfl
 @[simp] theorem app_zsmul (s : ℤ) (a : IntPoint d) (j : Fin d) : (s • a) j = s * a j := rfl
@@ -87,7 +83,7 @@ noncomputable instance : Coe (IntPoint d) (Point d) where
 
 @[simp] theorem toPoint_neg (p : IntPoint d) :
     (-p).toPoint = -p.toPoint := by
-  ext j; simp [toPoint, instNeg, Pi.instNeg]
+  ext j; simp [toPoint, ← Int.cast_neg]; rfl
 
 @[simp] theorem toPoint_nsmul (n : ℕ) (b : IntPoint d) :
     (n • b).toPoint = n • b.toPoint := by
@@ -119,6 +115,10 @@ def single (j : Fin d) (z : ℤ) : IntPoint d := fun j' => if j' = j then z else
 
 @[simp] theorem zsmul_single (z : ℕ) (i : ℤ) : z • IntPoint.single j i = .single j (z * i) := by
   ext j'; by_cases j' = j <;> simp_all
+
+@[simp] theorem single_add_single (j : Fin d) (x y : ℤ) :
+      IntPoint.single j x + .single j y = .single j (x + y) := by
+  ext j'; by_cases j' = j <;> simp [*]
 
 end IntPoint
 
@@ -269,6 +269,11 @@ theorem Tiling.get_index (T : Tiling d) (ht : t ∈ T.corners) :
     T.get (Cube.index t) = t := by
   have : (Cube.index t).toPoint ∈ Cube t := Cube.index_mem ..
   rw [eq_comm]; apply T.get_unique ht this
+
+theorem Tiling.get_inj (T : Tiling d) {x y : IntPoint d} : T.get x = T.get y → x = y := by
+  intro h
+  have := congrArg Cube.index h
+  simpa [T.index_get] using this
 
 def Tiling.covers_unique (T : Tiling d) (x) :=
   @(T.covers x).unique
