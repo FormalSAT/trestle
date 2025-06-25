@@ -52,7 +52,7 @@ def conjectureIn (n : Nat) : Prop :=
 
 
 
-theorem sam.idx_not_adj (v₁ v₂ : KVertex n s)
+theorem same_idx_not_adj (v₁ v₂ : KVertex n s)
   : v₁.idx = v₂.idx → ¬ KAdj v₁ v₂ := by
   intro h
   unfold KAdj; simp [h]
@@ -61,7 +61,7 @@ theorem KVertex.idx_injOn_clique (isClique : (KGraph n s).IsClique vs) :
     vs.InjOn KVertex.idx := by
   intro v₁ hv₁ v₂ hv₂ h
   by_contra hne
-  have := sam.idx_not_adj v₁ v₂ h
+  have := same_idx_not_adj v₁ v₂ h
   have := isClique hv₁ hv₂ hne
   contradiction
 

@@ -278,6 +278,10 @@ theorem Tiling.get_inj (T : Tiling d) {x y : IntPoint d} : T.get x = T.get y →
 def Tiling.covers_unique (T : Tiling d) (x) :=
   @(T.covers x).unique
 
+theorem Tiling.exists_gap (T : Tiling d) (h₁ : t₁ ∈ T.corners) (h₂ : t₂ ∈ T.corners) (h : t₁ ≠ t₂) :
+    ∃ j, |t₁ j - t₂ j| ≥ 1 := by
+  sorry
+
 /-- Proposition 5 in BHMN -/
 theorem Tiling.FaceshareFree.of_neighbors {T : Tiling d}
     (h : ∀ (x : IntPoint d) (j : Fin d),

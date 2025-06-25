@@ -74,3 +74,6 @@ def of_exists_unique (s : Set α) (p : Set (Set α)) (subsets : ∀ t ∈ p, t �
     (of_exists_unique s p subsets h).parts = p \ {∅} := rfl
 
 end Set.Partition
+
+theorem Bool.toInt_inj : Bool.toInt b₁ = Bool.toInt b₂ → b₁ = b₂ := by
+  cases b₁ <;> cases b₂ <;> simp

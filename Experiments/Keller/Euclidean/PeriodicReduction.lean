@@ -63,7 +63,7 @@ namespace Hajos
 variable (T : Tiling d)
 
 def core := { t ∈ T.corners | (Cube.index t ∈ CoreIndex d)}
-def corners' := {t + (2 • x).toPoint | (t ∈ core T) (x : IntPoint d)}
+def corners' := {t + 2 • x | (t ∈ core T) (x : IntPoint d)}
 
 theorem core_subset_corners : core T ⊆ T.corners := by
   apply Set.sep_subset
@@ -93,7 +93,7 @@ theorem corners'_uniquely_closed_even_addition (x : Point d) (h : ∃! t ∈ cor
   : ∀ z : IntPoint d, ∃! t ∈ corners' T, x + 2 • z ∈ Cube t := by
   intro z
   obtain ⟨-,⟨⟨t,t_core,off,rfl⟩,x_mem_t⟩,uniq⟩ := h
-  use t + (2 • (off + z)).toPoint
+  use t + (2 • (off + z).toPoint)
   refine ⟨⟨?corner,?mem⟩,?uniq⟩
   case corner =>
     use t, t_core
@@ -355,7 +355,7 @@ theorem corners'_covers_closedcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ corners'
   rcases t'_corner with ⟨t',⟨t'_corner,t'_pidx⟩,offset,rfl⟩
   have : offset = 0 := by
     ext j; specialize this j; specialize t'_pidx j
-    rw [Cube.index_add_intpoint] at this
+    rw [← IntPoint.toPoint_nsmul, Cube.index_add_intpoint] at this
     simp at t'_pidx this ⊢
     omega
   subst offset; simp [T.index_get] at this ⊢
