@@ -280,7 +280,10 @@ def Tiling.covers_unique (T : Tiling d) (x) :=
 
 theorem Tiling.exists_gap (T : Tiling d) (h₁ : t₁ ∈ T.corners) (h₂ : t₂ ∈ T.corners) (h : t₁ ≠ t₂) :
     ∃ j, |t₁ j - t₂ j| ≥ 1 := by
-  sorry
+  apply Cube.exists_gap_of_inter_empty
+  contrapose h; push_neg at h ⊢
+  rcases h with ⟨x,mem1,mem2⟩
+  apply T.covers_unique x ⟨h₁,mem1⟩ ⟨h₂,mem2⟩
 
 /-- Proposition 5 in BHMN -/
 theorem Tiling.FaceshareFree.of_neighbors {T : Tiling d}

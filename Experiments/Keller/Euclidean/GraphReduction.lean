@@ -21,12 +21,58 @@ theorem corners_eq_of_periodic (T : Tiling n) (periodic : T.Periodic) :
   · exact ⟨this t'_corner, t_mem_t'⟩
   · exact ⟨t_corner, Cube.start_mem ..⟩
 
-theorem fract_eq_of_mem_core {T : Tiling n} (h₁ : t₁ ∈ Hajos.core T) (h₂ : t₂ ∈ Hajos.core T)
-    (ne : t₁ ≠ t₂) : ∃ j, Int.fract (t₁ j) = Int.fract (t₂ j) := by
+theorem fract_eq_of_mem_core {T : Tiling n} (Tper : T.Periodic)
+      (h₁ : t₁ ∈ Hajos.core T) (h₂ : t₂ ∈ Hajos.core T) (ne : t₁ ≠ t₂) :
+      ∃ j, Int.fract (t₁ j) = Int.fract (t₂ j) := by
   by_contra contra
   push_neg at contra
-  have := Cube.exists_gap_of_inter_empty
-  sorry
+  replace contra : ∀ j, Int.fract (t₁ j - t₂ j) ≠ 0 := by
+    intro j hj; specialize contra j
+    rw [ne_eq, Int.fract_eq_fract] at contra
+    rw [Int.fract_eq_iff] at hj; simp at hj
+    contradiction
+  have exists_offs : ∀ j, ∃ z : ℤ, |t₁ j - t₂ j + 2 * z| < 1 := by
+    intro j; specialize contra j
+    generalize t₁ j - t₂ j = x at contra ⊢
+    use -⌊(x+1)/2⌋
+    -- the contra fact means the floor must actually *do* something
+    have : 2 * (⌊(x + 1) / 2⌋ : ℝ) ≠ x + 1 := by
+      intro h; apply contra; clear contra
+      rw [← sub_eq_iff_eq_add, eq_comm] at h
+      calc Int.fract x
+        _ = Int.fract (2 * (⌊_⌋ : ℝ)) := by rw [h, Int.fract_sub_one]
+        _ = Int.fract ((2 * ⌊_⌋ : ℤ) : ℝ) := by simp; rfl
+      apply Int.fract_intCast
+    -- lower bound the integer term
+    have lower_bound := Int.lt_floor_add_one ((x+1)/2)
+    rw [div_lt_iff₀' (by simp), mul_add] at lower_bound
+    simp at lower_bound
+    -- upper bound the integer term
+    have upper_bound := Int.floor_le ((x+1)/2)
+    rw [le_div_iff₀' (by simp)] at upper_bound
+    replace upper_bound := lt_of_le_of_ne upper_bound this
+    rw [abs_lt]; simp
+    constructor <;> linarith
+  have : Nonempty ((j : Fin n) → { z : ℤ // |t₁ j - t₂ j + 2 * z| < 1}) := by
+    apply Classical.nonempty_pi.mpr
+    intro j; specialize exists_offs j; simpa
+  clear exists_offs contra
+  obtain ⟨offs⟩ := this
+  let z : IntPoint n := fun j => offs j
+
+  obtain ⟨j,diff_ge_1⟩ := T.exists_gap (Tper t₁ h₁.1 z) h₂.1 (by
+    intro h
+    have : z = 0 := by
+      ext j
+      have := h₁.2 j
+      have := h₂.2 j; rw [← h, ← IntPoint.toPoint_nsmul, Cube.index_add_intpoint] at this
+      simp_all; omega
+    simp [this] at h; contradiction)
+
+  simp [add_sub_right_comm, z] at diff_ge_1
+  have := offs j |>.2
+  linarith
+
 
 def offsets (j : Fin n) (T : Tiling n) := { Int.fract (t j) | t ∈ T.corners }
 
