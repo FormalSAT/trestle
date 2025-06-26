@@ -5,7 +5,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Experiments.Keller.Encoding
+import Experiments.Keller.Encoding.CNF
 import Experiments.Keller.G8_Clique
 
 import Experiments.Solver.Builtin
@@ -13,7 +13,7 @@ import Experiments.Solver.Builtin
 namespace Keller
 
 theorem conjectureIn_of_cnf_unsat {n : Nat} (h : conjectureIn (n+1)) :
-  ¬(Encoding.fullEncoding (n+2) (2^(n+1))).val.toICnf.Sat → conjectureIn (n+2) := by
+  ¬(Encoding.CNF.fullEncoding (n+2) (2^(n+1))).val.toICnf.Sat → conjectureIn (n+2) := by
   intro unsat
   unfold conjectureIn
   by_contra ex
@@ -24,7 +24,7 @@ theorem conjectureIn_of_cnf_unsat {n : Nat} (h : conjectureIn (n+1)) :
   match s, this with
   | s+2, _ =>
   have ⟨tc⟩ := SymmBreak.C3Zeros.ofClique h c
-  have sat := Encoding.cliqueToAssn_satisfies_fullSpec tc
+  have sat := Encoding.Spec.cliqueToAssn_satisfies_fullSpec tc
   apply unsat; clear unsat
   unfold Trestle.Cnf.Sat Trestle.Model.PropFun.Sat
   rw [Trestle.Encode.VEncCNF.toICnf_equisatisfiable]
