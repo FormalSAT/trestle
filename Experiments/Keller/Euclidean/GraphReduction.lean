@@ -21,18 +21,21 @@ theorem corners_eq_of_periodic (T : Tiling n) (periodic : T.Periodic) :
   · exact ⟨this t'_corner, t_mem_t'⟩
   · exact ⟨t_corner, Cube.start_mem ..⟩
 
+/-- BHMN Appendix A.4 Lemma 3 Step 1 -/
 theorem fract_eq_of_mem_core {T : Tiling n} (Tper : T.Periodic)
       (h₁ : t₁ ∈ Hajos.core T) (h₂ : t₂ ∈ Hajos.core T) (ne : t₁ ≠ t₂) :
-      ∃ j, Int.fract (t₁ j) = Int.fract (t₂ j) := by
+      ∃ j, Cube.index t₁ j ≠ Cube.index t₂ j ∧ Int.fract (t₁ j) = Int.fract (t₂ j) := by
   by_contra contra
   push_neg at contra
-  replace contra : ∀ j, Int.fract (t₁ j - t₂ j) ≠ 0 := by
-    intro j hj; specialize contra j
+  replace contra : ∀ j, Cube.index t₁ j ≠ Cube.index t₂ j → Int.fract (t₁ j - t₂ j) ≠ 0 := by
+    intro j hj h; specialize contra j hj
     rw [ne_eq, Int.fract_eq_fract] at contra
-    rw [Int.fract_eq_iff] at hj; simp at hj
+    rw [Int.fract_eq_iff] at h; simp at h
     contradiction
-  have exists_offs : ∀ j, ∃ z : ℤ, |t₁ j - t₂ j + 2 * z| < 1 := by
-    intro j; specialize contra j
+
+  have exists_offs : ∀ j, Cube.index t₁ j ≠ Cube.index t₂ j →
+                      ∃ z : ℤ, |t₁ j - t₂ j + 2 * z| < 1 := by
+    intro j hj; specialize contra j hj
     generalize t₁ j - t₂ j = x at contra ⊢
     use -⌊(x+1)/2⌋
     -- the contra fact means the floor must actually *do* something
@@ -53,12 +56,17 @@ theorem fract_eq_of_mem_core {T : Tiling n} (Tper : T.Periodic)
     replace upper_bound := lt_of_le_of_ne upper_bound this
     rw [abs_lt]; simp
     constructor <;> linarith
-  have : Nonempty ((j : Fin n) → { z : ℤ // |t₁ j - t₂ j + 2 * z| < 1}) := by
-    apply Classical.nonempty_pi.mpr
-    intro j; specialize exists_offs j; simpa
+
+  have offs : (j : Fin n) → Cube.index t₁ j ≠ Cube.index t₂ j → { z : ℤ // |t₁ j - t₂ j + 2 * z| < 1} := by
+    apply Nonempty.some
+    apply Classical.nonempty_pi.mpr; intro j
+    apply Classical.nonempty_pi.mpr; intro hj
+    specialize exists_offs j hj; simpa
+
   clear exists_offs contra
-  obtain ⟨offs⟩ := this
-  let z : IntPoint n := fun j => offs j
+
+  let z : IntPoint n := fun j =>
+    if h : Cube.index t₁ j ≠ Cube.index t₂ j then offs j h else 0
 
   obtain ⟨j,diff_ge_1⟩ := T.exists_gap (Tper t₁ h₁.1 z) h₂.1 (by
     intro h
@@ -69,10 +77,27 @@ theorem fract_eq_of_mem_core {T : Tiling n} (Tper : T.Periodic)
       simp_all; omega
     simp [this] at h; contradiction)
 
-  simp [add_sub_right_comm, z] at diff_ge_1
-  have := offs j |>.2
-  linarith
+  if hidx : Cube.index t₁ j = Cube.index t₂ j then
+    simp [z, hidx] at diff_ge_1
+    simp [Cube.index] at hidx
+    rw [le_abs] at diff_ge_1
+    cases diff_ge_1
+    case inl =>
+      have := hidx ▸ Int.le_ceil (t₁ j)
+      have := Int.ceil_lt_add_one (t₂ j)
+      linarith
+    case inr =>
+      have := hidx ▸ Int.le_ceil (t₂ j)
+      have := Int.ceil_lt_add_one (t₁ j)
+      linarith
+  else
+    simp [add_sub_right_comm, z, hidx] at diff_ge_1
+    have := offs j hidx |>.2
+    linarith
 
+/-! ### Bound # of Offsets in Each Dimension
+
+For a `n+1` dimensional periodic tiling, there are ≤ `2^n` offsets in each dimension. -/
 
 def offsets (j : Fin n) (T : Tiling n) := { Int.fract (t j) | t ∈ T.corners }
 
@@ -133,49 +158,134 @@ theorem offsets_map_surj_of_periodic {j : Fin n} (T : Tiling n) (periodic : T.Pe
   use ⟨_,t_core.2, t_idx_0⟩
   simp [offsets_map, T.get_index t_core.1]
 
-def bitvec_eqv_coreidx : BitVec n ≃ {i // i ∈ CoreIndex n} where
-  toFun i := ⟨fun j => i[j].toInt,by intro j; by_cases i[j] <;> simp [*]⟩
-  invFun i := BitVec.ofFn fun j => i.1 j = 1
+def coreidx_half_stepdown : {i // i ∈ CoreIndex (n+1) ∧ i j = 0} ≃ {i // i ∈ CoreIndex n} where
+  toFun := fun ⟨i,i_core,_⟩ =>
+    ⟨ fun ⟨j',h'⟩ => if h : j' < j then i ⟨j',by omega⟩ else i ⟨j' + 1,by omega⟩
+    , by intro j'; dsimp; split <;> apply i_core ⟩
+  invFun := fun ⟨i,i_core⟩ =>
+    ⟨ fun ⟨j',h'⟩ => if h : j' < j then i ⟨j',by omega⟩ else if h : j' = j then 0 else i ⟨j'-1,by omega⟩
+    , by constructor
+         · intro j'; dsimp; split <;> (try split) <;> (try apply i_core) ; simp
+         · simp⟩
   left_inv := by
-    intro i; ext j
-    by_cases i[j] <;> simp [*]
+    rintro ⟨i,i_core,_⟩; ext ⟨j',h'⟩
+    if j' < j then simp [*] else
+    if j' = j then simp [*] else
+    have : ¬ (j' - 1 < j) := by omega
+    have : j' - 1 + 1 = j' := by omega
+    simp [*]
   right_inv := by
+    rintro ⟨i,i_core⟩; ext ⟨j',h'⟩
+    if j' < j then simp [*] else
+    have : ¬ (j' + 1 < j) := by omega
+    have : ¬ (j' + 1 = j) := by omega
+    simp [*]
+
+def coreidx_eqv_bitvec : {i // i ∈ CoreIndex n} ≃ BitVec n where
+  toFun i := BitVec.ofFn fun j => i.1 j = 1
+  invFun i := ⟨fun j => i[j].toInt,by intro j; by_cases i[j] <;> simp [*]⟩
+  left_inv := by
     intro i; ext j
     have := i.2 j; simp at this
     cases this <;> simp [*]
+  right_inv := by
+    intro i; ext j
+    by_cases i[j] <;> simp [*]
 
-theorem exists_color_map (T : Tiling (n+1)) (h : T.Periodic) (j) : Nonempty (offsets j T ↪ Fin (2^n)) := by
-  have off_to_idx := offsets_map_surj_of_periodic T h (j := j) |>.preimage_injective |> Function.Embedding.mk _
-  --have bv_to_idx := bitvec_to_coreidx (n := n) (j := j)
-  sorry
+noncomputable def exists_color_map (T : Tiling (n+1)) (h : T.Periodic) (j) : offsets j T ↪ Fin (2^n) := by
+  have off_to_idx := offsets_map_surj_of_periodic T h (j := j)
+  have idx_to_off := Function.Embedding.ofSurjective _ off_to_idx
+  refine Function.Embedding.trans idx_to_off ?_
+  apply Equiv.toEmbedding
+  refine Equiv.trans coreidx_half_stepdown ?_
+  refine Equiv.trans coreidx_eqv_bitvec ?_
+  apply BitVec.equiv_fin
 
+
+/-! ### Tiling to Clique -/
 
 noncomputable def corner_to_vec (T : Tiling n) (colors : ∀ j, offsets j T ↪ α)
     {t} (t_corner : t ∈ T.corners) : Vector α n :=
   Vector.ofFn fun j => colors j ⟨ Int.fract (t j), t, t_corner, rfl⟩
 
-end Graph
 
-open Graph
-
-theorem clique_of_tiling (T : Tiling (n+1)) (periodic : T.Periodic) (ff_free : T.FaceshareFree) :
-      Nonempty <| KClique (n+1) (2^n) := by
-  have colors : (∀ j : Fin (n+1), Graph.offsets j T ↪ Fin (2^n)) := by
-    apply Nonempty.some
-    rw [Classical.nonempty_pi]
-    intro j; apply Graph.exists_color_map _ periodic
+noncomputable def clique_of_tiling (T : Tiling (n+1)) (periodic : T.Periodic) (ff_free : T.FaceshareFree) :
+      KClique (n+1) (2^n) := by
+  have colors : (∀ j : Fin (n+1), Graph.offsets j T ↪ Fin (2^n)) :=
+    Graph.exists_color_map _ periodic
 
   let K : Finset (KVertex (n+1) (2^n)) :=
-    {⟨i, corner_to_vec T colors (T.get_mem (bitvec_eqv_coreidx i))⟩ | (i) }
+    { ⟨i, corner_to_vec T colors (T.get_mem (coreidx_eqv_bitvec.symm i))⟩ | (i) }
 
-  apply Nonempty.intro
   use K
   constructor
   · rintro ⟨i₁,c₁⟩ v₁_mem ⟨i₂,c₂⟩ v₂_mem vs_ne
+    -- do a bunch of book-keeping
     simp [K] at v₁_mem v₂_mem; subst c₁ c₂
     clear K
     have is_ne : i₁ ≠ i₂ := by simpa +contextual using vs_ne
     clear vs_ne
-    simp [KAdj]
-    done
-  · done
+    simp [KAdj, corner_to_vec]
+    generalize ht₁ : T.get _ = t₁
+    generalize ht₂ : T.get _ = t₂
+    have ts_ne : t₁ ≠ t₂ := by
+      intro h; subst ht₁ ht₂; replace h := T.get_inj h; simp [Subtype.val_inj] at h; contradiction
+    have t₁_core : t₁ ∈ Hajos.core T := by simp [← ht₁, Hajos.core, T.get_mem, T.index_get]
+    have t₂_core : t₂ ∈ Hajos.core T := by simp [← ht₂, Hajos.core, T.get_mem, T.index_get]
+    -- OK! the s-gap comes from the following lemma:
+    have := fract_eq_of_mem_core periodic (t₁ := t₁) (t₂ := t₂) t₁_core t₂_core ts_ne
+    obtain ⟨j₁,idxs_ne,fracts_eq⟩ := this
+    simp [← ht₁, ← ht₂, Tiling.index_get, coreidx_eqv_bitvec, Bool.toInt_inj] at idxs_ne
+    use j₁, idxs_ne, fracts_eq
+    -- The second difference is because T is faceshare-free.
+    by_contra contra
+    push_neg at contra
+    replace contra : ∀ (j2 : Fin (n + 1)), j2 ≠ j₁ → t₁ j2 = t₂ j2 := by
+      clear fracts_eq idxs_ne ts_ne
+      intro j₂ j₂_ne; specialize contra j₂ (Ne.symm j₂_ne)
+      obtain ⟨idxs_eq,fracts_eq⟩ := contra
+      replace idxs_eq : Cube.index t₁ j₂ = Cube.index t₂ j₂ := by
+        simp [← ht₁, ← ht₂, T.index_get, coreidx_eqv_bitvec, Bool.toInt_inj]; exact idxs_eq
+      replace idxs_eq : ⌈t₁ j₂⌉ = ⌈t₂ j₂⌉ := by
+        simpa [Cube.index] using idxs_eq
+      -- TODO(JG): make this its own lemma about Int.ceil and Int.fract
+      rw [eq_comm, Int.fract_eq_fract] at fracts_eq
+      obtain ⟨z,h⟩ := fracts_eq
+      have : z = 0 := by
+        rw [sub_eq_iff_eq_add'] at h
+        rw [h] at idxs_eq
+        simpa [Int.ceil_add_int] using idxs_eq
+      simp [this] at h; linarith
+    apply ff_free (x := t₁) (y := t₂) (ht₁ ▸ T.get_mem ..) (ht₂ ▸ T.get_mem ..) ts_ne
+    refine ⟨j₁,?_,contra⟩
+    -- because the offsets are equal, the diff must be integral
+    rw [Int.fract_eq_fract] at fracts_eq
+    -- but also, because both are in the core, the diff is < 2
+    have diff_lt_2 := Hajos.core_diff_lt_2 T t₁_core t₂_core j₁
+    -- and the diff can't be 0, because that contradicts `t₁ ≠ t₂`!
+    have diff_ne_0 : |t₁ j₁ - t₂ j₁| ≠ 0 := by
+      simp [sub_eq_iff_eq_add]
+      intro j₁_eq; apply ts_ne; ext j
+      if j = j₁ then subst j; apply j₁_eq
+      else apply contra; assumption
+    obtain ⟨z,hz⟩ := fracts_eq
+    rw [hz] at diff_lt_2 diff_ne_0 ⊢
+    clear * - diff_lt_2 diff_ne_0
+    -- TODO(JG): surely there is a better way to do this...
+    simp_all [abs_lt, abs_eq]
+    rw [show (2 : ℝ) = Int.cast 2 by simp, ← Int.cast_neg, Int.cast_lt, Int.cast_lt] at diff_lt_2
+    rw [show (-1 : ℝ) = Int.cast (-1) by simp, Int.cast_inj]
+    omega
+  · simp [K]
+    rw [Finset.card_image_of_injective _ ?inj]
+    · simp
+    case inj =>
+      intro i₁ i₂; simp +contextual
+
+
+/-! ### Clique to Tiling -/
+
+
+end Graph
+
+open Graph
