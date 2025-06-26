@@ -19,6 +19,9 @@ structure KVertex (n s : Nat) where
   color : Vector (Fin s) n
 deriving Repr, DecidableEq
 
+instance KVertex.instInhabited [Inhabited (Fin s)] : Inhabited (KVertex n s) :=
+  ⟨⟨default, default⟩⟩
+
 def KAdj (v₁ v₂ : KVertex n s) : Prop :=
   ∃ (j₁ : Fin n),
       v₁.idx[j₁] ≠ v₂.idx[j₁] ∧ v₁.color[j₁] = v₂.color[j₁] ∧

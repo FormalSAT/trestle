@@ -289,3 +289,22 @@ noncomputable def clique_of_tiling (T : Tiling (n+1)) (periodic : T.Periodic) (f
 end Graph
 
 open Graph
+
+theorem graphConjecture_implies_euclideanConjecture (h : Keller.conjectureIn n) :
+      Euclidean.conjectureIn n := by
+  rw [conjecture_iff_periodic]
+  rintro ⟨T,T_per,T_ff⟩
+  apply h.false; clear h
+  match n with
+  | 0 => simp [KClique]; use {default}, default
+  | n+1 =>
+  apply Graph.clique_of_tiling T T_per T_ff
+
+
+/--
+info: 'Keller.Euclidean.graphConjecture_implies_euclideanConjecture' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms graphConjecture_implies_euclideanConjecture
