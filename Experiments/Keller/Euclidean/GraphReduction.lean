@@ -209,7 +209,7 @@ noncomputable def corner_to_vec (T : Tiling n) (colors : ∀ j, offsets j T ↪ 
   Vector.ofFn fun j => colors j ⟨ Int.fract (t j), t, t_corner, rfl⟩
 
 
-noncomputable def clique_of_tiling (T : Tiling (n+1)) (periodic : T.Periodic) (ff_free : T.FaceshareFree) :
+noncomputable def tiling_to_clique (T : Tiling (n+1)) (periodic : T.Periodic) (ff_free : T.FaceshareFree) :
       KClique (n+1) (2^n) := by
   have colors : (∀ j : Fin (n+1), Graph.offsets j T ↪ Fin (2^n)) :=
     Graph.exists_color_map _ periodic
@@ -285,6 +285,51 @@ noncomputable def clique_of_tiling (T : Tiling (n+1)) (periodic : T.Periodic) (f
 
 /-! ### Clique to Tiling -/
 
+noncomputable def vert_to_offset (v : KVertex n s) : Point n :=
+  Point.ofFn fun j => v.idx[j].toInt + v.color[j] / s
+
+theorem vert_to_offset.bounds (v : KVertex n s) :
+    ∀ j, 0 ≤ vert_to_offset v j ∧ vert_to_offset v j < 2 := by
+  intro j
+  have : 0 ≤ (v.idx[j].toInt: ℝ) ∧ (v.idx[j].toInt: ℝ) ≤ 1 := by
+    cases v.idx[j] <;> simp
+  have : 0 ≤ (v.color[j] / s: ℝ) ∧ (v.color[j]: ℝ) / s < 1 := by
+    have hs : (s : ℝ) > 0 := by
+      simp [Nat.pos_iff_ne_zero]; rintro rfl; apply Fin.elim0 v.color[j]
+    rw [le_div_iff₀ hs, div_lt_iff₀ hs]
+    simp
+
+  simp only [vert_to_offset, Point.app_ofFn]
+  constructor <;> linarith
+
+def clique_to_corners (K : KClique n s) : Set (Point n) :=
+  { vert_to_offset v + 2 • z | (v ∈ K.val) (z : IntPoint n) }
+
+theorem clique_to_corners_disjoint (K : KClique n s) :
+    (clique_to_corners K).PairwiseDisjoint Cube := by
+  intro t₁ ht₁ t₂ ht₂ ts_ne
+  simp [clique_to_corners] at ht₁ ht₂
+  obtain ⟨v₁,v₁_mem,off₁,ht₁⟩ := ht₁
+  obtain ⟨v₂,v₂_mem,off₂,ht₂⟩ := ht₂
+
+  have := K.isClique v₁_mem v₂_mem
+
+  rw [Function.onFun, Set.disjoint_iff]
+  
+  rintro x ⟨x_mem_t₁,x_mem_t₂⟩
+  show False
+
+  sorry
+
+
+def clique_to_tiling (K : KClique (n+1) (2^n)) :
+          ∃ T : Tiling (n+1), T.Periodic ∧ T.FaceshareFree := by
+  use {
+    corners := clique_to_corners K
+    covers := sorry
+  }
+  sorry
+
 
 end Graph
 
@@ -298,7 +343,7 @@ theorem graphConjecture_implies_euclideanConjecture (h : Keller.conjectureIn n) 
   match n with
   | 0 => simp [KClique]; use {default}, default
   | n+1 =>
-  apply Graph.clique_of_tiling T T_per T_ff
+  apply Graph.tiling_to_clique T T_per T_ff
 
 
 /--
