@@ -153,6 +153,9 @@ theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List 
       Array.foldl f (f init a) { toList := as } 0 (size { toList := as }) := by
   simp only [List.length_cons, List.foldl_toArray', List.foldl_cons]
 
+theorem Array.ofFn_getElem (A : Array α) : Array.ofFn (n := A.size) (A[·]) = A := by
+  ext i hi <;> simp
+
 /-! List -/
 
 open List in

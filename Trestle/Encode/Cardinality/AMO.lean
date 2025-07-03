@@ -154,7 +154,8 @@ def amoCut4 (lits : Array (Literal ν)) (k : Nat := 3) (hk : k ≥ 2 := by decid
   )
 termination_by lits.size
 
-def amoSeqCounter (lits : Array (Literal ν))
+/-- The order encoding, except we do not substitute the literals. -/
+def amoOrdEncoding (lits : Array (Literal ν))
     : VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) :=
   (VEncCNF.withTemps (Fin (lits.size - 1)) <|
     VEncCNF.for_all (Array.finRange (lits.size-1)) fun i =>
@@ -222,6 +223,5 @@ def amoSeqCounter (lits : Array (Literal ν))
         simp_all; omega
 
     )
-
 
 end Trestle.Encode.Cardinality
