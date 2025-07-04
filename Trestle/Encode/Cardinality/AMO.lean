@@ -69,11 +69,10 @@ theorem amo_iff (lits : Array (Literal ν)) (τ) :
 def amoPairwise (lits : Array (Literal ν)) :
     VEncCNF ν Unit (atMost 1 (Multiset.ofList lits.toList)) := (
   -- for every pair (i, j) of literals in `lits`, they can't both be true
-  for_all (Array.ofFn id) fun (j : Fin lits.size) =>
-    for_all (Array.ofFn (fun (i : Fin j.val) =>
-      Fin.castLT i (by cases i; cases j; omega)))
-    fun (i : Fin lits.size) => by with_reducible
-      exact addClause #[-lits[i], -lits[j]]
+  for_all (Array.ofFn id) fun (i : Fin lits.size) =>
+    for_all (Array.ofFn (n := lits.size-1-i) (⟨i+1+·,by omega⟩))
+      fun (j : Fin lits.size) =>
+        addClause #[-lits[i], -lits[j]]
   ).mapProp (by
     ext τ; rw [amo_iff]
     simp [Fin.forall_iff]
@@ -81,12 +80,14 @@ def amoPairwise (lits : Array (Literal ν)) :
     · intro h i i_range j j_range i_sat j_sat
       wlog le : i ≤ j generalizing i j
       · rw [eq_comm]; apply this j j_range i i_range j_sat i_sat (by omega)
-      specialize h j j_range i i_range i
+      if i = j then assumption else
+      have lt : i < j := by omega
+      specialize h i i_range j j_range (j-(i+1)) (by omega) (by omega)
       simp [i_sat, j_sat] at h
-      apply Nat.le_antisymm le h
-    · rintro h j j_range _ i_range i i_lt_j rfl
-      specialize h i i_range j j_range
-      simpa [Nat.ne_of_lt i_lt_j, imp_iff_not_or] using h
+    · rintro h i i_range j j_range diff diff_range rfl
+      specialize h i i_range (i+1+diff) j_range
+      simp only [show ¬ i = i + 1 + diff by omega] at h
+      simpa [imp_iff_not_or] using h
   )
 
 

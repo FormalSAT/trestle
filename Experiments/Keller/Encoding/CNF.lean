@@ -84,20 +84,20 @@ where
     withTemps (Fin n)
       (names := some fun j' => toString (AllVars.y (s := s) i i' j')) <|
     seq[
-      for_all (Array.finRange n) fun j' =>
-        VEncCNF.guard (j' ≠ j) fun _h =>
-          for_all (Array.finRange s) fun k =>
-            addClause #[.neg (.inr j'), .neg (.inl (x i j' k)), .neg (.inl (x i' j' k))]
-    , addClause (Array.mk (do
+      addClause (Array.mk (do
         let j' ← List.finRange n
         guard (j' ≠ j)
         return Literal.pos (Sum.inr j')
       ))
+    , for_all (Array.finRange n) fun j' =>
+        VEncCNF.guard (j' ≠ j) fun _h =>
+          for_all (Array.finRange s) fun k =>
+            addClause #[.neg (.inr j'), .neg (.inl (x i j' k)), .neg (.inl (x i' j' k))]
     ]).mapProp (by
       ext τ
       simp [-not_or, -not_and, not_and_or, Clause.satisfies_iff, _root_.guard, failure]
       constructor
-      · rintro ⟨σ,rfl,h1,_,⟨j',j'_ne,k,rfl⟩,h_sat⟩
+      · rintro ⟨σ,rfl,⟨_,⟨j',j'_ne,k⟩,h_sat⟩,h1⟩
         use j', j'_ne
         intro k
         specialize h1 j' j'_ne k
@@ -107,23 +107,24 @@ where
         use (fun | .inl v => τ v | .inr _j' => j' = _j')
         refine ⟨?_,?_,?_⟩
         · ext v; simp
+        · use Literal.pos (.inr j')
+          simp [j'_ne]
         · intro _j' _j'_ne k
           specialize h k
           by_cases j' = _j' <;> simp_all
-        · use Literal.pos (.inr j')
-          simp [j'_ne]
       )
 
 
 /-- ensures `i` and `i'` have a coord `j` on which the bits differ but colors equal -/
-def hasSGap (i i' : BitVec n) : VEncCNF (Vars n s) Unit
+def hasSGap {n s} (i i' : BitVec n) : VEncCNF (Vars n s) Unit
       (fun τ => ∃ j, i[j] ≠ i'[j] ∧ ∀ k, τ (x i j k) = τ (x i' j k)) :=
   -- only can consider those `j` for which `i` and `i'` could have an `s`-gap
   (let potentialJs := Array.finRange n |>.filter fun j => i[j] ≠ i'[j]
   newCtx s!"s gap c{i.toNat} c{i'.toNat}" <|
   withTemps (Fin n) (names := some fun j => toString (AllVars.z (s := s) i i' j)) <|
     seq[
-      for_all potentialJs fun j =>
+      addClause (potentialJs |>.map (Literal.pos <| Sum.inr ·))
+    , for_all potentialJs fun j =>
         newCtx s!"s gap c{i.toNat} c{i'.toNat} at {j}" <|
         for_all (Array.finRange s) fun k =>
           seq[
@@ -132,13 +133,13 @@ def hasSGap (i i' : BitVec n) : VEncCNF (Vars n s) Unit
             addClause #[Literal.neg (Sum.inr j),
               Literal.neg (Sum.inl (x i j k)), Literal.pos (Sum.inl (x i' j k))]
           ]
-    , addClause (potentialJs |>.map (Literal.pos <| Sum.inr ·)) ]
+    ]
   )
   |>.mapProp (by
     ext τ
     simp [Clause.satisfies_iff, -Array.size_finRange]
     constructor
-    · rintro ⟨σ, rfl, h_js, j, is_ne_at_j, j_true⟩
+    · rintro ⟨σ, rfl, ⟨j, is_ne_at_j, j_true⟩, h_js⟩
       use j, is_ne_at_j
       intro k
       specialize h_js j is_ne_at_j k

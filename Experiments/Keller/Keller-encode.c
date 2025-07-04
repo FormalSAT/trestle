@@ -9,17 +9,19 @@
 /* In the paper, N = 7 and S = {3,4,6} */
 int N, S;
 
+// if defined, uses sequential counter instead of pairwise AMO encoding
+//#define SEQCOUNTER
+
+
 /* converts indicator for index w, coordinate i, shift c
 to a CNF variable (x_{w,i,c} notation in paper) */
 int var_x(int w, int i, int c) {
   assert(w >= 0 && w < (1 << N));
   assert(i >= 0 && i < N);
   assert(c >= 0 && c < S);
-  return S*N*w + S*i + c + 1;
+  return 1 + S*N*w + S*i + c;
 }
 
-// if defined, uses sequential counter instead of pairwise AMO encoding
-//#define SEQCOUNTER
 
 /* Assert that for all cubes w and coordinates i
    exactly one of x_{w,i,0}, ..., x_{w,i,S-1} is true */
@@ -75,69 +77,68 @@ void gen_coords() {
 /* Assert for every pair of cubes w, ww that they do not intersect
    and do not faceshare */
 void gen_edges() {
-  // the last var used so far
-  int var = (1 << N) * N * S;
+  // the next available var
+  int var = 1 + (1 << N) * N * S;
   #ifdef SEQCOUNTER
   var += (1 << N) * N * S;
   #endif
 
+  // second difference clauses
   for (int w = 0; w < (1 << N); w++) {
-    for (int ww = w+1; ww < (1 << N); ww++) {
-      int j = 0;
-      int xor = w ^ ww;
+    for (int iFlip = 0; iFlip < N; iFlip++) {
+      int ww = w ^ (1 << iFlip);
+      if (w < ww) {
 
-      // z variables are var + j
+        // y variables are var + i
 
-      /* of the bits which w and ww differ in, they must be EXACTLY the same in one place */
-      for (int i = 0; i < N; i++) {
-        if (xor & (1 << i)) {
-          j++;
-          printf ("%i ", var + j);
-        }
-      }
-      printf ("0\n");
-
-      j = 0;
-
-      for (int i = 0; i < N; i++) {
-        if (xor & (1 << i)) {
-          j++;
-          for (int c = 0; c < S; c++) {
-            printf ("-%i %i -%i 0\n", var + j, var_x(w, i, c), var_x (ww, i, c));
-            printf ("-%i -%i %i 0\n", var + j, var_x(w, i, c), var_x (ww, i, c));
-          }
-        }
-      }
-
-      // # of z variables was j
-      var += j;
-
-      /* do w and ww differ only in one coordinate ? */
-      if (__builtin_popcount(xor) == 1) {
-
-        // y variables are var + j
-        j = 0;
         for (int i = 0; i < N; i++) {
-          if (xor != (1 << i)) {
-            j++;
-            printf ("%i ", var + j);
+          if (i != iFlip) {
+            printf ("%i ", var + i);
           }
         }
         printf ("0\n");
       
-        j = 0;
         for (int i = 0; i < N; i++) {
-          if (xor != (1 << i)) {
-            j++;
+          if (i != iFlip) {
             for (int c = 0; c < S; c++) {
-              printf ("-%i -%i -%i 0\n", var + j, var_x(w, i, c), var_x (ww, i, c));
+              printf ("-%i -%i -%i 0\n", var + i, var_x(w, i, c), var_x (ww, i, c));
             }
           }
         }
   
-        // # of y variables was j
-        var += j;
+        // used N variables for y
+        var += N;
       }
+    }
+  }
+
+  // s gap clauses
+  for (int w = 0; w < (1 << N); w++) {
+    for (int ww = w+1; ww < (1 << N); ww++) {
+      int xor = w ^ ww;
+
+      // z variables are var + i
+
+      /* of the bits which w and ww differ in, they must be EXACTLY the same in one place */
+      for (int i = 0; i < N; i++) {
+        if (xor & (1 << i)) {
+          printf ("%i ", var + i);
+        }
+      }
+      printf ("0\n");
+
+      for (int i = 0; i < N; i++) {
+        if (xor & (1 << i)) {
+          for (int c = 0; c < S; c++) {
+            printf ("-%i %i -%i 0\n", var + i, var_x(w, i, c), var_x (ww, i, c));
+            printf ("-%i -%i %i 0\n", var + i, var_x(w, i, c), var_x (ww, i, c));
+          }
+        }
+      }
+
+      // we used N variables for the z ones
+      var += N;
+
     }
   }
 }
@@ -220,13 +221,24 @@ int main (int argc, char** argv) {
   #endif
 
   int nCls  = 0;
+  // AMO clauses
   #ifdef SEQCOUNTER
     nCls += (1 << N) * N * (4 * S - 1);
   #else
     nCls += (1 << N) * N * (1 + S * (S-1) / 2);
   #endif
-  nCls += (1 << N) * N * (2*S*N - 2*S + 1) / 2;
-  nCls += (1 << (2*N - 1)) * N * S + (1 << N) * ((1 << N)-1) / 2;
+  // two diff clauses. counting:
+  //   iter over N dims for the one flipped bit
+  //     iter over 2^(N-1) assignments to the other bits
+  //       1 + (N-1)*S clauses in each iter
+  nCls += N * (1 << (N-1)) * (1 + (N-1) * S);
+  // s gap clauses. counting:
+  //   iter over (2^N choose 2) pairs
+  //     1 clause (the long clause) for each iter
+  //   iter over j in N dims
+  //     iter over 2^(2N-2) pairs of indices s.t. different at j and first < second
+  //       2*S clauses
+  nCls += (1 << N) * ((1 << N)-1) / 2 + N * (1 << (2*N - 1)) * S;
 
   // number of SB clauses
   nCls += 2 * N + N-3;

@@ -59,7 +59,8 @@ def baseSpec : Model.PropPred (Vars n s) :=
     (∀ (i i' : BitVec n) (j : Fin n), i ^^^ i' = BitVec.oneAt j →
         ∃ j', j' ≠ j ∧ ∀ k, ¬ τ (x i j' k) ∨ ¬ τ (x i' j' k)) ∧
     -- type 5/6 clauses in paper
-    (∀ (i i' : BitVec n), i ≠ i' → ∃ j, i[j] ≠ i'[j] ∧ ∀ (k : Fin s), τ (x i j k) = τ (x i' j k)))
+    (∀ (i i' : BitVec n), i ≠ i' → ∃ j, i[j] ≠ i'[j] ∧ ∀ (k : Fin s), τ (x i j k) = τ (x i' j k))
+  )
 
 def c0_c1_spec : Model.PropPred (Vars (n+2) (s+2)) :=
   fun τ =>
