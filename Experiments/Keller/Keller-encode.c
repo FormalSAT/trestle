@@ -19,7 +19,7 @@ int var_x(int w, int i, int c) {
 }
 
 // if defined, uses sequential counter instead of pairwise AMO encoding
-#define SEQCOUNTER
+//#define SEQCOUNTER
 
 /* Assert that for all cubes w and coordinates i
    exactly one of x_{w,i,0}, ..., x_{w,i,S-1} is true */
@@ -118,20 +118,18 @@ void gen_edges() {
         // y variables are var + j
         j = 0;
         for (int i = 0; i < N; i++) {
-          if (xor != (1 << i))
-            for (int c = 0; c < S; c++) {
-              j++;
-              printf ("%i ", var + j);
-            }
+          if (xor != (1 << i)) {
+            j++;
+            printf ("%i ", var + j);
+          }
         }
         printf ("0\n");
       
         j = 0;
         for (int i = 0; i < N; i++) {
           if (xor != (1 << i)) {
+            j++;
             for (int c = 0; c < S; c++) {
-              j++;
-              printf ("-%i  %i  %i 0\n", var + j, var_x(w, i, c), var_x (ww, i, c));
               printf ("-%i -%i -%i 0\n", var + j, var_x(w, i, c), var_x (ww, i, c));
             }
           }
