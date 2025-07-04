@@ -18,9 +18,45 @@ int var_x(int w, int i, int c) {
   return S*N*w + S*i + c + 1;
 }
 
+// if defined, uses sequential counter instead of pairwise AMO encoding
+#define SEQCOUNTER
+
 /* Assert that for all cubes w and coordinates i
    exactly one of x_{w,i,0}, ..., x_{w,i,S-1} is true */
 void gen_coords() {
+  #ifdef SEQCOUNTER
+  // the last var used so far
+  int var = (1 << N) * N * S;
+
+  for (int w = 0; w < (1 << N); w++) {
+    for (int i = 0; i < N; i++) {
+      // for every k we need:
+      //    s(k) => s(k-1) \/ x(k)
+      //    s(k) <= s(k-1)
+      //    s(k) <= x(k)
+      //    not s(k-1) \/ not x(k)
+
+      // for k = 0, treat s(k-1) like false
+      printf("-%i %i 0\n", var + var_x(w,i,0), var_x(w,i,0));
+      printf("%i -%i 0\n", var + var_x(w,i,0), var_x(w,i,0));
+
+      for (int k = 1; k < S; k++) {
+        int x = var_x(w,i,k);
+        int s_pred = var + var_x(w,i,k-1);
+        int s = var + var_x(w,i,k);
+        printf("-%i %i %i 0\n", s, s_pred, x);
+        printf("%i -%i 0\n",    s, s_pred);
+        printf("%i -%i 0\n",    s,         x);
+        printf("-%i -%i 0\n", s_pred, x);
+      }
+
+      // and the last s var must be true, to force at least one
+      printf("%i 0\n", var + var_x(w,i,S-1));
+    }
+  }
+
+  #else
+
   // Pairwise encoding
   for (int w = 0; w < (1 << N); w++)
     for (int i = 0; i < N; i++) {
@@ -33,6 +69,7 @@ void gen_coords() {
         for (int cc = c+1; cc < S; cc++)
           printf ("-%i -%i 0\n", var_x(w, i, c), var_x(w, i, cc));
     }
+  #endif
 }
 
 /* Assert for every pair of cubes w, ww that they do not intersect
@@ -40,6 +77,9 @@ void gen_coords() {
 void gen_edges() {
   // the last var used so far
   int var = (1 << N) * N * S;
+  #ifdef SEQCOUNTER
+  var += (1 << N) * N * S;
+  #endif
 
   for (int w = 0; w < (1 << N); w++) {
     for (int ww = w+1; ww < (1 << N); ww++) {
@@ -176,9 +216,19 @@ int main (int argc, char** argv) {
   assert(S > 1);
 
   int nVars = (1 << (N-1)) * N * (N * S + S + (1 << (N-1)));
-  int nCls  = (1 << N) * N * (1 + S * (S-1) / 2);
-  nCls     += (1 << N) * N * (2*S*N - 2*S + 1) / 2;
-  nCls     += (1 << (2*N - 1)) * N * S + (1 << N) * ((1 << N)-1) / 2;
+
+  #ifdef SEQCOUNTER
+  nVars += (1 << N) * N * S;
+  #endif
+
+  int nCls  = 0;
+  #ifdef SEQCOUNTER
+    nCls += (1 << N) * N * (4 * S - 1);
+  #else
+    nCls += (1 << N) * N * (1 + S * (S-1) / 2);
+  #endif
+  nCls += (1 << N) * N * (2*S*N - 2*S + 1) / 2;
+  nCls += (1 << (2*N - 1)) * N * S + (1 << N) * ((1 << N)-1) / 2;
 
   // number of SB clauses
   nCls += 2 * N + N-3;
