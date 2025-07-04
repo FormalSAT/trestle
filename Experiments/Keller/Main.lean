@@ -113,10 +113,12 @@ where run (p : Parsed) := do
 
   let {clauses := full, ..} ← IO.ofExcept <|
     Solver.Dimacs.parseFormula (← IO.FS.readFile fullFile)
+    |>.mapError (s!"parsing full CNF: {·}")
   let {clauses := core, ..} ← IO.ofExcept <|
     Solver.Dimacs.parseFormula (← IO.FS.readFile coreFile)
+    |>.mapError (s!"parsing core CNF: {·}")
 
-  let coreSet := core.foldl (init := Std.HashSet.empty (capacity := 200000))
+  let coreSet := core.foldl (init := Std.HashSet.empty (capacity := full.size))
     (fun set line =>
       match line with
       | .clause clause =>
