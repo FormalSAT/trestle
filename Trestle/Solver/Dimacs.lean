@@ -97,7 +97,7 @@ def parseLit (maxVar : Nat) (s : String) : Except String ILit := do
     parseVar maxVar s
 
 def parseClause (maxVar : Nat) (s : String) : Except String IClause := do
-  aux (s.splitOn " ") #[]
+  aux (s.splitOn " " |>.filter (!·.isEmpty)) #[]
 where aux (L : List String) (acc : Array ILit) := do
   match L with
   | [] => throw s!"Line was empty? `{s}`"
