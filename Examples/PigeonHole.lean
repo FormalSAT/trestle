@@ -29,7 +29,7 @@ def encoding (n) : VEncCNF (Var n) Unit (fun τ =>
     for_all (List.toArray <| List.finRange (n+1)) fun p =>
       addClause (List.toArray (holesWithPigeon p))
   , for_all (List.toArray (List.finRange n)) fun h =>
-      Cardinality.amoSeqCounter (List.toArray (pigeonsInHole h))
+      Cardinality.amoPairwise (List.toArray (pigeonsInHole h))
   ]
   |>.mapProp (by
     ext τ
