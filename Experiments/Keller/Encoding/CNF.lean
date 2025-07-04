@@ -26,14 +26,14 @@ def coordinates : VEncCNF (Vars n s) Unit (fun τ =>
     for_all (Array.finRange n) fun j =>
       newCtx s!"exactly one x_{i.toNat},{j}" <|
       let vars := Array.ofFn (fun k => Literal.pos <| Vars.x i j k)
-      Cardinality.sinzExactlyOne vars
-      --show VEncCNF _ Unit (Cardinality.exactly 1 vars.toList) from
-      --seq[
-      --  -- at least one of the `c_ij-` variables is true
-      --  Cardinality.atLeastOne vars,
-      --  -- at most one of the `c_ij-` variables is true
-      --  Cardinality.amoPairwise vars
-      --] |>.mapProp (by ext; simp; omega)
+      --Cardinality.sinzExactlyOne vars
+      show VEncCNF _ Unit (Cardinality.exactly 1 vars.toList) from
+      seq[
+        -- at least one of the `c_ij-` variables is true
+        Cardinality.atLeastOne vars,
+        -- at most one of the `c_ij-` variables is true
+        Cardinality.amoPairwise vars
+      ] |>.mapProp (by ext; simp; omega)
   ).mapProp (by
     -- annoying boilerplate
     ext τ; simp [-Cardinality.satisfies_cardPred]
@@ -48,7 +48,7 @@ def coordinates : VEncCNF (Vars n s) Unit (fun τ =>
 /-- ensure for all pairs where only one coordinate is guaranteed to be different,
 that there is a second coordinate which is also different -/
 def twoDiffs : VEncCNF (Vars n s) Unit (fun τ =>
-    ∀ (i i' : BitVec n) (j : Fin n), i ^^^ i' = .oneAt j → ∃ j' ≠ j, ∃ k, τ (x i j' k) ≠ τ (x i' j' k)) :=
+    ∀ (i i' : BitVec n) (j : Fin n), i ^^^ i' = .oneAt j → ∃ j' ≠ j, ∀ k, ¬ τ (x i j' k) ∨ ¬ τ (x i' j' k)) :=
   (for_all (allBitVecs n) fun i =>
     for_all (Array.finRange n) fun j =>
       -- the bitvector which must be different only at coord `j`
@@ -64,7 +64,7 @@ def twoDiffs : VEncCNF (Vars n s) Unit (fun τ =>
       · specialize this τ i' i (BitVec.le_total _ _ |>.resolve_left h_le)
         convert this using 3
         · rw [BitVec.xor_comm]
-        · simp_rw [eq_comm (a := τ (x i _ _))]
+        · simp_rw [or_comm (a := τ (x i _ _) = _)]
       intro h j i_i'
       have : i < i' := by
         apply BitVec.lt_of_le_ne h_le; rintro rfl
@@ -78,51 +78,41 @@ def twoDiffs : VEncCNF (Vars n s) Unit (fun τ =>
   )
 where
   twoDiffsAt (i i' j) : VEncCNF (Vars n s) Unit
-    (fun τ => ∃ j' ≠ j, ∃ k, τ (x i j' k) ≠ τ (x i' j' k))
+    (fun τ => ∃ j' ≠ j, ∀ k, ¬ τ (x i j' k) ∨ ¬ τ (x i' j' k))
   :=
     (newCtx s!"two diffs c{i.toNat} c{i'.toNat}" <|
-    withTemps (Fin n × Fin s)
-      (names := some fun (j',k) => toString (AllVars.y i i' j' k)) <|
+    withTemps (Fin n)
+      (names := some fun j' => toString (AllVars.y (s := s) i i' j')) <|
     seq[
       for_all (Array.finRange n) fun j' =>
         VEncCNF.guard (j' ≠ j) fun _h =>
           for_all (Array.finRange s) fun k =>
-            xNeAt i i' j' k
+            addClause #[.neg (.inr j'), .neg (.inl (x i j' k)), .neg (.inl (x i' j' k))]
     , addClause (Array.mk (do
         let j' ← List.finRange n
         guard (j' ≠ j)
-        let k ← List.finRange s
-        return Literal.pos (Sum.inr (j',k))
+        return Literal.pos (Sum.inr j')
       ))
     ]).mapProp (by
       ext τ
-      simp [Clause.satisfies_iff, _root_.guard, failure]
+      simp [-not_or, -not_and, not_and_or, Clause.satisfies_iff, _root_.guard, failure]
       constructor
       · rintro ⟨σ,rfl,h1,_,⟨j',j'_ne,k,rfl⟩,h_sat⟩
-        simp at h_sat
-        use j', j'_ne, k
-        specialize h1 j'; simp [j'_ne, h_sat] at h1
-        specialize h1 k; simp [h_sat] at h1
-        simp [h1]
-      · rintro ⟨j',j'_ne,k,h⟩
-        use (fun | .inl v => τ v | .inr (_j',_k) => j' = _j' ∧ k = _k)
+        use j', j'_ne
+        intro k
+        specialize h1 j' j'_ne k
+        simp_all only [LitVar.toPropFun_mkPos, PropFun.satisfies_var,
+            Bool.true_eq_false, false_or, Function.comp_apply]
+      · rintro ⟨j',j'_ne,h⟩
+        use (fun | .inl v => τ v | .inr _j' => j' = _j')
         refine ⟨?_,?_,?_⟩
         · ext v; simp
-        · aesop
-        · use Literal.pos (.inr (j',k))
+        · intro _j' _j'_ne k
+          specialize h k
+          by_cases j' = _j' <;> simp_all
+        · use Literal.pos (.inr j')
           simp [j'_ne]
       )
-  xNeAt (i i' j' k) : VEncCNF (Vars n s ⊕ _ × _) Unit
-        (fun τ => τ (.inr (j',k)) → τ (.inl <| x i j' k) ≠ τ (.inl <| x i' j' k)) :=
-    let temp := Literal.neg (Sum.inr (j',k))
-    seq[
-      addClause #[temp, Literal.pos <| Sum.inl (Vars.x i j' k), Literal.pos <| Sum.inl (Vars.x i' j' k)],
-      addClause #[temp, Literal.neg <| Sum.inl (Vars.x i j' k), Literal.neg <| Sum.inl (Vars.x i' j' k)]]
-    |>.mapProp (by
-      ext τ; simp [Clause.satisfies_iff, temp]
-      generalize τ _ = a; generalize τ _ = b; generalize τ _ = c
-      cases a <;> cases b <;> simp
-    )
 
 
 /-- ensures `i` and `i'` have a coord `j` on which the bits differ but colors equal -/

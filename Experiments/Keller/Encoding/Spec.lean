@@ -27,7 +27,7 @@ instance : ToString (Vars n s) where
 
 inductive AllVars (n s : Nat)
 | x (i : BitVec n) (j : Fin n) (k : Fin s)
-| y (i i' : BitVec n) (j : Fin n) (k : Fin s)
+| y (i i' : BitVec n) (j : Fin n)
 | z (i i' : BitVec n) (j : Fin n)
 deriving DecidableEq, Repr
 
@@ -36,9 +36,9 @@ instance [Inhabited (Fin n)] [Inhabited (Fin s)] : Inhabited (AllVars n s) where
 
 instance : ToString (AllVars n s) where
   toString
-    | .x i j k    => s!"x{i.toNat},{j},{k}"
-    | .y i i' j k => s!"y{i.toNat},{i'.toNat},{j},{k}"
-    | .z i i' j   => s!"z{i.toNat},{i'.toNat},{j}"
+    | .x i j k  => s!"x{i.toNat},{j},{k}"
+    | .y i i' j => s!"y{i.toNat},{i'.toNat},{j}"
+    | .z i i' j => s!"z{i.toNat},{i'.toNat},{j}"
 
 def allBitVecs (n) : Array (BitVec n) := Array.ofFn (BitVec.ofFin)
 
@@ -57,7 +57,7 @@ def baseSpec : Model.PropPred (Vars n s) :=
     (∀ (i : BitVec n) (j : Fin n), ∃! k, τ (x i j k)) ∧
     -- type 2 clauses in paper
     (∀ (i i' : BitVec n) (j : Fin n), i ^^^ i' = BitVec.oneAt j →
-        ∃ j', j' ≠ j ∧ ∃ k, τ (x i j' k) ≠ τ (x i' j' k)) ∧
+        ∃ j', j' ≠ j ∧ ∀ k, ¬ τ (x i j' k) ∨ ¬ τ (x i' j' k)) ∧
     -- type 5/6 clauses in paper
     (∀ (i i' : BitVec n), i ≠ i' → ∃ j, i[j] ≠ i'[j] ∧ ∀ (k : Fin s), τ (x i j k) = τ (x i' j k)))
 
@@ -123,8 +123,9 @@ theorem cliqueToAssn_satisfies_baseSpec (c : KClique n s) :
     intro i j; simp only [Model.PropFun.satisfies_var, decide_eq_true_eq]; apply existsUnique_eq' (a' := (c.get i)[j])
   · intro i i' j is_xor
     have ⟨_,j2,js_ne,h⟩ := c.get_adj_of_xor_eq j is_xor
-    use j2, js_ne, (c.get i')[j2]
-    simpa using h
+    use j2, js_ne
+    intro k
+    simp_all; omega
   · intro i i' is_ne
     have ⟨j1,is_ne_j1,cs_eq_j1,_⟩ := c.get_adj is_ne
     use j1, is_ne_j1
@@ -233,9 +234,8 @@ theorem clique_of_satisfies_baseSpec {τ : Model.PropAssignment (Vars n s)} :
       simp; rw [← mem2 j1, ← cs_eq_j1, mem1]
     if just_one_diff : i1 ^^^ i2 = 1#n <<< j1.val then
       specialize twoDiffs i1 i2 j1 just_one_diff
-      rcases twoDiffs with ⟨j2,js_ne,k,x_ne⟩
+      rcases twoDiffs with ⟨j2,js_ne,k⟩
       use j2, js_ne.symm
-      rw [Ne, Bool.eq_iff_iff, mem1, mem2] at x_ne
       right; intro; simp_all
     else
       rw [BitVec.eq_of_getElem_eq_iff] at just_one_diff

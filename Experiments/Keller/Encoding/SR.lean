@@ -19,11 +19,11 @@ def AllVars.reorder (f : Fin n ≃ Fin n) : AllVars n s → AllVars n s :=
   let iMap : BitVec n → BitVec n := fun i => BitVec.ofFn ( i[f.symm ·] )
   fun
   | .x i j k => .x (iMap i) (f j) k
-  | .y i i' j k =>
+  | .y i i' j =>
     -- the y vars are symmetric in the `i`s, and we only use the one where `i` < `i'`
     -- so we need to figure out which one is which after the mapping
     let (i1,i2) := if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
-    .y i1 i2 (f j) k
+    .y i1 i2 (f j)
   | .z i i' j =>
     -- see above
     let (i1,i2) := if iMap i < iMap i' then (iMap i, iMap i') else (iMap i', iMap i)
@@ -31,7 +31,7 @@ def AllVars.reorder (f : Fin n ≃ Fin n) : AllVars n s → AllVars n s :=
 
 def AllVars.renumber (f : Fin n → Fin s → Fin s) : AllVars n s → AllVars n s
 | .x i j k => .x i j (f j k)
-| .y i i' j k => .y i i' j (f j k)
+| .y i i' j => .y i i' j
 | .z i i' j => .z i i' j
 
 namespace SR
@@ -55,8 +55,7 @@ def substsOfMap (f : AllVars n s → AllVars n s) : Array (AllVars n s × Litera
       if i < i' then
         for j in Array.finRange n do
           if j ≠ jdiff then
-            for k in Array.finRange s do
-              substs := substs.push <| subst <| .y i i' j  k
+            substs := substs.push <| subst <| .y i i' j
 
   -- z_i,i',j <-> z_map(i),map(i'),j'
   for i in allBitVecs n do
