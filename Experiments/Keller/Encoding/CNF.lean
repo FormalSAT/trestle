@@ -26,25 +26,21 @@ def coordinates : VEncCNF (Vars n s) Unit (fun τ =>
     for_all (Array.finRange n) fun j =>
       newCtx s!"exactly one x_{i.toNat},{j}" <|
       let vars := Array.ofFn (fun k => Literal.pos <| Vars.x i j k)
-      seq[
-        -- at least one of the `c_ij-` variables is true
-        Cardinality.atLeastOne vars,
-        -- at most one of the `c_ij-` variables is true
-        Cardinality.amoPairwise vars
-      ]
+      Cardinality.sinzExactlyOne vars
+      --show VEncCNF _ Unit (Cardinality.exactly 1 vars.toList) from
+      --seq[
+      --  -- at least one of the `c_ij-` variables is true
+      --  Cardinality.atLeastOne vars,
+      --  -- at most one of the `c_ij-` variables is true
+      --  Cardinality.amoPairwise vars
+      --] |>.mapProp (by ext; simp; omega)
   ).mapProp (by
     -- annoying boilerplate
-    ext τ; simp
+    ext τ; simp [-Cardinality.satisfies_cardPred]
     apply forall_congr'; intro i
     apply forall_congr'; intro j
-    -- LHS says card is equal to one
-    rw [← Nat.le_antisymm_iff, eq_comm, Cardinality.card_eq_one]
-    case nodup =>
-      simp [List.nodup_ofFn]; intro; simp [LitVar.ext_iff]
-    -- wiggle some defs around
-    simp [List.mem_ofFn, LitVar.mkPos]
-    simp_rw [ExistsUnique, ← exists_and_right]
-    aesop
+    rw [Cardinality.exactly_one_iff_unique_idx]
+    simp [ExistsUnique, Fin.exists_iff, Fin.forall_iff]
   )
 
 
