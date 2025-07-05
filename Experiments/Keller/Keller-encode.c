@@ -4,8 +4,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define SBP
-
 /* N is the dimension, S is the number of different shifts (modulo 1) */
 /* In the paper, N = 7 and S = {3,4,6} */
 int N, S;
