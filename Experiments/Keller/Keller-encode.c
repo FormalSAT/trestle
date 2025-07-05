@@ -274,13 +274,13 @@ void gen_cubes() {
       // step cidx
       running = false;
       for (int c = N-6; c >= 0; c--) {
-        cidx[c] = (cidx[c]+1) % 52;
-        if (cidx[c] > 0) {
-          for (int c2 = c+1; c2 < N-5; c2++) {
-            cidx[c2] = cidx[c];
-          }
+        int prev_idx = (c == 0) ? 51 : cidx[c-1];
+        if (prev_idx > cidx[c]) {
+          cidx[c] += 1;
           running = true;
           break;
+        } else {
+          cidx[c] = 0;
         }
       }
     }
