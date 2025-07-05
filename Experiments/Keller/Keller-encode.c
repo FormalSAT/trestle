@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define SBP
 
@@ -9,8 +10,16 @@
 /* In the paper, N = 7 and S = {3,4,6} */
 int N, S;
 
-// if defined, uses sequential counter instead of pairwise AMO encoding
+// use sequential counter exactly1 instead of pairwise AMO encoding
 //#define SEQCOUNTER
+
+// if defined, outputs extra symmetry breaking clauses
+// that are normally verified by SR proof
+#define EXTRA_SB
+
+// if defined, outputs an increment CNF with appropriate cubes.
+// the cube split is normally verified by SR proof.
+#define CUBES
 
 
 /* converts indicator for index w, coordinate i, shift c
@@ -204,6 +213,82 @@ void sym_break() {
     }
 }
 
+void extra_sym_break() {
+  if (N < 5 || S < 4) return;
+
+  // c3[j] < 2 for j >= 2
+  for (int j = 2; j < N; j++) {
+    for (int k = 2; k < S; k++) {
+      printf("-%i 0\n", var_x(3,j,k));
+    }
+  }
+
+  // fix c3 at j=2,3,4; I include the clauses exactly as they are from the DSR proof.
+  printf("%i 0\n", var_x(3,2,1));
+  printf("%i 0\n", var_x(3,3,1));
+  printf("-%i %i 0\n", var_x(7,3,1), var_x(3,4,1));
+  printf("-%i %i 0\n", var_x(11,2,1), var_x(3,4,1));
+  printf("%i 0\n", var_x(3,4,1));
+}
+
+void gen_cubes() {
+  if (N < 5 || S < 4) return;
+
+  int canon_mats[28][6] = {
+    { 1, 0, 0, 1, 1, 0}, { 1, 1, 1, 2, 0, 1}, { 1, 1, 1, 1, 1, 0}, { 1, 1, 0, 0, 2, 1},
+    { 1, 2, 0, 1, 1, 2}, { 1, 1, 1, 1, 1, 2}, { 1, 1, 0, 1, 2, 2}, { 1, 1, 2, 1, 2, 2},
+    { 1, 0, 1, 0, 1, 1}, { 1, 1, 0, 1, 2, 0}, { 1, 1, 0, 2, 2, 1}, { 1, 2, 0, 2, 1, 1},
+    { 1, 2, 1, 3, 1, 1}, { 1, 0, 0, 1, 1, 2}, { 1, 1, 2, 1, 3, 2}, { 1, 0, 1, 2, 1, 1},
+    { 1, 1, 1, 1, 2, 2}, { 1, 1, 0, 1, 0, 2}, { 1, 1, 0, 1, 0, 0}, { 1, 2, 1, 2, 1, 1},
+    { 1, 2, 2, 1, 1, 2}, { 1, 1, 1, 1, 0, 2}, { 1, 1, 1, 0, 2, 1}, { 1, 1, 1, 1, 1, 1},
+    { 1, 1, 1, 0, 0, 1}, { 1, 1, 1, 1, 0, 0}, { 1, 2, 0, 3, 1, 1}, { 1, 1, 1, 2, 2, 1},
+  };
+
+  int canon_cols[52][4] = {
+    {0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0}, {0, 0, 1, 1}, {0, 0, 1, 2},
+    {0, 1, 0, 0}, {0, 1, 0, 1}, {0, 1, 0, 2}, {0, 1, 1, 0}, {0, 1, 1, 1},
+    {0, 1, 1, 2}, {0, 1, 2, 0}, {0, 1, 2, 1}, {0, 1, 2, 2}, {0, 1, 2, 3},
+    {1, 0, 0, 0}, {1, 0, 0, 1}, {1, 0, 0, 2}, {1, 0, 1, 0}, {1, 0, 1, 1},
+    {1, 0, 1, 2}, {1, 0, 2, 0}, {1, 0, 2, 1}, {1, 0, 2, 2}, {1, 0, 2, 3},
+    {1, 1, 0, 0}, {1, 1, 0, 1}, {1, 1, 0, 2}, {1, 1, 1, 0}, {1, 1, 1, 1},
+    {1, 1, 1, 2}, {1, 1, 2, 0}, {1, 1, 2, 1}, {1, 1, 2, 2}, {1, 1, 2, 3},
+    {1, 2, 0, 0}, {1, 2, 0, 1}, {1, 2, 0, 2}, {1, 2, 0, 3},
+    {1, 2, 1, 0}, {1, 2, 1, 1}, {1, 2, 1, 2}, {1, 2, 1, 3},
+    {1, 2, 2, 0}, {1, 2, 2, 1}, {1, 2, 2, 2}, {1, 2, 2, 3},
+    {1, 2, 3, 0}, {1, 2, 3, 1}, {1, 2, 3, 2}, {1, 2, 3, 3}, {1, 2, 3, 4},
+  };
+
+  for (int midx = 0; midx < 28; midx++) {
+    int *mat = canon_mats[midx];
+
+    int cidx[N-5]; for (int c = 0; c < N-5; c++) cidx[c] = 0;
+  
+    bool running = true;
+    while (running) {
+      printf("a %i %i %i %i %i %i ", var_x(7,3,mat[0]), var_x(7,4,mat[1]),
+        var_x(11,2,mat[2]), var_x(11,4,mat[3]), var_x(19,2,mat[4]), var_x(19,3,mat[5]));
+      for (int j = 5; j < N; j++) {
+        int *col = canon_cols[cidx[j-5]];
+        printf("%i %i %i %i ", var_x(3,j,col[0]), var_x(7,j,col[1]), var_x(11,j,col[2]), var_x(19,j,col[3]));
+      }
+      printf("0\n");
+
+      // step cidx
+      running = false;
+      for (int c = N-6; c >= 0; c--) {
+        cidx[c] = (cidx[c]+1) % 52;
+        if (cidx[c] > 0) {
+          for (int c2 = c+1; c2 < N-5; c2++) {
+            cidx[c2] = cidx[c];
+          }
+          running = true;
+          break;
+        }
+      }
+    }
+  }
+}
+
 int main (int argc, char** argv) {
   if (argc < 3) {
     printf ("Keller encode requires two arguments: N and S\n"); exit (0); }
@@ -248,11 +333,30 @@ int main (int argc, char** argv) {
     nCls += (N-4) * (N-5) / 2;
   }
 
+  #ifdef EXTRA_SB
+  if (N >= 5 && S >= 4) {
+    nCls += (N-2) * (S-2) + 5;
+  }
+  #endif
+
+
+  #ifdef CUBES
+  printf("p inccnf\n");
+  #else
   printf ("p cnf %i %i\n", nVars, nCls);
+  #endif
 
   gen_coords();
 
   gen_edges();
 
   sym_break();
+
+  #ifdef EXTRA_SB
+  extra_sym_break();
+  #endif
+
+  #ifdef CUBES
+  gen_cubes();
+  #endif
 }
