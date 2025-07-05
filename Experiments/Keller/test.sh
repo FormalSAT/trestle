@@ -24,7 +24,7 @@ PATH="$PWD/../../.lake/build/bin:$PATH"
 keller cnf $N $S --cnf $CNF --dsr $DSR --cube $CUBES
 
 # can also use the C encoder to generate CNF
-gcc Keller-encode.c && ./a.out $N $S > $CNF
+#gcc Keller-encode.c && ./a.out $N $S > $CNF
 
 # check the SR proof
 time dsr-trim -f $CNF $DSR $LSR
@@ -34,13 +34,14 @@ lsr-check $CNF $LSR
 # append the SR proven clauses
 keller append-sr-clauses --cnf $CNF --sr $DSR --out $SB
 
-# append the cubes
+# combine CNF with cubes
 (echo "p inccnf"; grep -v "^p" $SB; cat $CUBES) > $INC
+# generate corresponding tautology check
+keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO
 
 USE_CUBES=true
 if $USE_CUBES; then
   # check that the cubes negated leads to tautology
-  keller negate-cubes --cnf $SB --cubes $CUBES --out $TAUTO
   cadical $TAUTO || true
 
   cadical --forcephase=1 $INC
