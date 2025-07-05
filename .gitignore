@@ -4,6 +4,7 @@
 
 *.icnf
 *.cnf
+*.dnf
 *.dsr
 *.lsr
 *.drat
