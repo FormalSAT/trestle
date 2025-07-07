@@ -19,6 +19,9 @@ int N, S;
 // the cube split is normally verified by SR proof.
 #define CUBES
 
+// output a cube split for the first cube instead of the whole search space  .
+#define FIRST_CUBE_SPLIT
+
 
 /* converts indicator for index w, coordinate i, shift c
 to a CNF variable (x_{w,i,c} notation in paper) */
@@ -287,6 +290,43 @@ void gen_cubes() {
   }
 }
 
+void gen_first_cube_split() {
+  assert(N==7);
+
+  printf("%i 0\n", var_x( 7,3,1));
+  printf("%i 0\n", var_x( 7,4,0));
+  printf("%i 0\n", var_x(11,2,0));
+  printf("%i 0\n", var_x(11,4,1));
+  printf("%i 0\n", var_x(19,2,1));
+  printf("%i 0\n", var_x(19,3,0));
+
+  for (int j = 5; j < 7; j++) {
+    printf("%i 0\n", var_x( 3,j,0));
+    printf("%i 0\n", var_x( 7,j,0));
+    printf("%i 0\n", var_x(11,j,0));
+    printf("%i 0\n", var_x(19,j,0));
+  }
+
+  int CUBE_LEN = 12;
+  for (int ct = 0; ct < (1<<CUBE_LEN); ct++) {
+    printf("a ");
+    for (int r = 0; r < 3; r++) {
+      int i = 2+2*r; // 2,4,6
+      for (int c = 0; c < 4; c++) {
+        int j = 3+c; // 3,4,5,6
+
+        if (ct & (1 << (CUBE_LEN - 1 - (4 * r + c)))) {
+          printf("-%i ", var_x(i,j,0));
+        } else {
+          printf("%i ", var_x(i,j,0));
+        }
+      }
+    }
+    printf("0\n");
+  }
+
+}
+
 int main (int argc, char** argv) {
   if (argc < 3) {
     printf ("Keller encode requires two arguments: N and S\n"); exit (0); }
@@ -355,6 +395,10 @@ int main (int argc, char** argv) {
   #endif
 
   #ifdef CUBES
-  gen_cubes();
+    #ifdef FIRST_CUBE_SPLIT
+    gen_first_cube_split();
+    #else
+    gen_cubes();
+    #endif
   #endif
 }
