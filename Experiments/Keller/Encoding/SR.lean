@@ -413,24 +413,56 @@ def extra_renumber_bounds (j : Fin n) : SRGen n s Unit := do
       | some next => ltK := next
       | none => break
 
+open AllVars in
+def hardest_mat_rotation : SRGen n s Unit := do
+  if h : ¬(n ≥ 5 ∧ s ≥ 2) then return else
+  have h := not_not.mp h
+
+  let z : Fin s := ⟨0,by omega⟩
+  let o : Fin s := ⟨1,by omega⟩
+
+  let j2 : Fin n := ⟨2, by omega⟩
+  let j3 : Fin n := ⟨3, by omega⟩
+  let j4 : Fin n := ⟨4, by omega⟩
+
+  -- 1 1 0
+  -- 0 1 1
+  -- 1 0 1
+  let cond : Array (Literal (AllVars n s)) :=
+    Array.map Literal.neg #[
+               x 07 j3 o, x 07 j4 z,
+    x 11 j2 z,            x 11 j4 o,
+    x 19 j2 o, x 19 j3 z                 ]
+
+  let substs := substsOfMap (s := s) <| AllVars.reorder <|
+    ((Equiv.swap j2 j3).trans (Equiv.swap j3 j4))
+
+  SRGen.write <| SR.mkLine (cond ++ #[.neg (x 2 j2 z), .pos (x 2 j3 z)]) (by simp +zetaDelta)
+    ( #[.pos (x 2 j3 z), .neg (x 2 j4 z)] )
+    substs
+
+  SRGen.write <| SR.mkLine (cond ++ #[.neg (x 2 j3 z), .pos (x 2 j4 z)]) (by simp +zetaDelta)
+    #[.pos (x 2 j4 z), .neg (x 2 j2 z),] substs
+
+
 def all (n s) : SRGen n s Unit := do
   c3_bounds
   c3_fixed
 
-  for hj : j in [2:n] do
-    have : 2 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
-    cX_bounds ⟨j,hj.upper⟩
+  for hj : j in [2:min 5 n] do
+    have : 2 ≤ j ∧ (j < 5 ∧ j < n) := ⟨hj.lower,by simpa using hj.upper⟩
+    cX_bounds ⟨j,this.2.2⟩
 
-    if h : j < 5 then
-      col234_incSorted j (by omega)
-    else
-      col5_incSorted j (by omega)
+    col234_incSorted j (by omega)
 
     if h : 3 ≤ j ∧ j < 5 then
       mat_canonical (j-1) (by omega)
 
-  --for hj : j in [2:n] do
-  --  have : 2 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
-  --  extra_renumber_bounds ⟨j,hj.upper⟩
+  hardest_mat_rotation
+
+  for hj : j in [5:n] do
+    have : 5 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
+    cX_bounds ⟨j,this.2⟩
+    col5_incSorted j (by omega)
 
   col5n_sorted n s
