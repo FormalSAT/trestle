@@ -321,79 +321,107 @@ def col5n_sorted (n s) : SRGen n s Unit := do
 
 
 
-/-! ##### Canonical matrices
+/-! ##### Matrix Symmetries
 
-Interpreting the cX indices and columns `j ≥ 2` as a matrix,
-we can do column reorderings and renumberings to eliminate many
-potential color assignments within this matrix.
+Interpreting index `7, 11, 19` and dimension `2,3,4` as a matrix,
+we can reorder columns to get rid of symmetric cases.
 -/
 
-def canonicalMats := SymmBreak.Matrix.matsUpTo 3
+open AllVars in
+/-- First we can get rid of any assignment in which `x7,3,0`,
+by swapping dimension 2/3. -/
+def c7_3_nonzero (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
+  let clause := #[.neg (x 7 ⟨3,by omega⟩ ⟨0,hs⟩)]
+  let true_lits := #[.pos (x 11 ⟨2,by omega⟩ ⟨0,hs⟩), .neg (x 7 ⟨3,by omega⟩ ⟨0,hs⟩)]
+  let substs := reorderSubsts ⟨2,by omega⟩ ⟨3,by omega⟩
+  SRGen.write <|
+    SR.mkLine clause (by simp +zetaDelta) true_lits substs
 
-/-- convert a matrix automorphism (from noncanonical to canononical)
-to a mapping (from canonical to noncanonical).
+section
+local notation "X" => false
+local notation "O" => true
 
-NB the change in direction.
+-- the 5 non-identity permutations of {0,1,2}
+def reverse : Equiv.Perm (Fin 3) := Equiv.setAll [(2,0)] (.refl _)
+def rotL    : Equiv.Perm (Fin 3) := Equiv.setAll [(0,1), (1,2), (2,0)] (.refl _)
+def rotR    : Equiv.Perm (Fin 3) := Equiv.setAll [(0,2), (1,0), (2,1)] (.refl _)
+def swapL   : Equiv.Perm (Fin 3) := Equiv.setAll [(0,1)] (.refl _)
+def swapR   : Equiv.Perm (Fin 3) := Equiv.setAll [(1,2)] (.refl _)
+
+open Vars in
+def mat_to_cube (v : Vector Bool 5) (hn : n ≥ 5) (hs : s > 0) :
+      Cube (Literal (Vars n s)) :=
+  have : NeZero s := ⟨Nat.pos_iff_ne_zero.mp hs⟩
+  let j2 : Fin n := ⟨2,by omega⟩
+  let j3 : Fin n := ⟨3,by omega⟩
+  let j4 : Fin n := ⟨4,by omega⟩
+  #[  .mk (x 11 j2 0) v[0],
+      .mk (x  7 j4 0) v[1],
+      .mk (x 19 j2 0) v[2],
+      .mk (x 11 j4 0) v[3],
+      .mk (x 19 j3 0) v[4], ]
+
+def mat_to_cube_allvars (v : Vector Bool 5) (hn : n ≥ 5) (hs : s > 0) :
+      Cube (Literal (AllVars n s)) :=
+  mat_to_cube v hn hs |>.map _ (fun | .x i j k => .x i j k)
+
+/-- This is a complete list of all the remaining assignments to
+the zero color variables in the matrix.
+Each element of the list is a (starting assignment),
+and an optional pair (equiv assignment, dimension reordering witness).
+
+110  110  110  111  111  111  111
+010  011  011  011  011  010  111
+111  101  111  011  111  111  111
 -/
-def autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → AllVars n s :=
-  match a with
-  | .renumber f =>
-      AllVars.renumber fun j k =>
-        if h' : 2 ≤ j.val ∧ j.val < 2+m then
-          let x := (f ⟨j-2,by omega⟩).symm k
-          if h'' : x < s then
-            ⟨x,h''⟩
-          else
-            have : Inhabited (Fin s) := ⟨k⟩
-            panic! "renumber maps outside s"
-        else
-          k
-  | .reorder p =>
-      AllVars.reorder <|
-        Equiv.Perm.extendDomain (p := fun j => 2 ≤ j.val ∧ j.val < 2+m)
-          p.symm
-          { toFun := (⟨⟨·.val+2,by omega⟩,by simp; omega⟩)
-            invFun := (⟨·.val-2,by omega⟩)
-            left_inv := by intro; simp, right_inv := by rintro ⟨a,b⟩; ext; simp; omega
-          }
-  | .trans a1 a2 =>
-      fun x => x |> autoToMap a2 h |> autoToMap a1 h
-  | .lift a1 =>
-      autoToMap a1 (Nat.le_of_lt h)
+def matList : List (Vector Bool 5 × Option (Vector Bool 5 × Equiv.Perm (Fin 3))) := [
+  (#v[O, O,X, O,X], none),
+  (#v[O, O,X, X,O], none),
+  (#v[O, O,X, X,X], none),
+  (#v[O, X,O, O,X], some (#v[O, O,X, O,X], reverse)),
+  (#v[O, X,O, X,O], some (#v[O, O,X, O,X], rotL)),
+  (#v[O, X,O, X,X], none),
+  (#v[O, X,X, O,X], none),
+  (#v[O, X,X, X,O], some (#v[O, O,X, X,X], rotL)),
+  (#v[O, X,X, X,X], none),
+  (#v[X, O,X, O,X], some (#v[O, X,O, X,X], rotR)),
+  (#v[X, O,X, X,O], some (#v[O, O,X, X,X], rotR)),
+  (#v[X, O,X, X,X], some (#v[O, X,X, X,X], rotR)),
+  (#v[X, X,O, O,X], some (#v[O, O,X, X,X], reverse)),
+  (#v[X, X,O, X,O], some (#v[O, X,X, O,X], rotL)),
+  (#v[X, X,O, X,X], some (#v[O, X,X, X,X], swapR)),
+  (#v[X, X,X, O,X], some (#v[O, X,X, X,X], reverse)),
+  (#v[X, X,X, X,O], some (#v[O, X,X, X,X], rotL)),
+  (#v[X, X,X, X,X], none),
+]
 
-def mat_canonical (matSize : Nat) (h : 2 ≤ matSize ∧ matSize ≤ 3) : SRGen n s Unit := do
-  if h : ¬(2 + matSize ≤ n ∧ s ≥ 2 + matSize) then return else
-  have := not_not.mp h
+end
 
+def mat_canonical (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
   have : NeZero s := ⟨by omega⟩
 
-  for (x,v) in (canonicalMats.get matSize).map do
+  for (m,v) in matList do
     match v with
-    | .canon _ => pure ()
-    | .noncanon canonical auto =>
+    | none => pure ()
+    | some (mCanon, auto) =>
 
-      -- The clause we want to block (negation of `x`)
-      let clause :=
-        Array.finRange matSize |>.flatMap fun row => Array.ofFn (n := matSize) fun col =>
-          Literal.neg <|
-            AllVars.x (cX row.val) ⟨col+2, by omega⟩ (Fin.ofNat' s x.data[row][col])
+      -- The clause we want to block (negation of `m`)
+      let clause : Cube _ := (mat_to_cube_allvars m (by omega) (by omega)).negate
 
       have : clause.size > 0 := by
-        simp [clause, ← Array.sum_eq_sum_toList]; omega
+        simp [clause, mat_to_cube, mat_to_cube_allvars, Cube.map, Cube.negate]
 
       -- Assign all the literals associated with these rows/cols
       -- to their value under the canonical case
-      let true_lits :=
-        (Array.ofFn (n := matSize) fun row =>
-          Array.ofFn (n := matSize) fun col =>
-            Array.ofFn (n := s) fun k =>
-              Literal.mk
-                (AllVars.x (cX row.val) ⟨col+2, by omega⟩ k)
-                (k.val = canonical.data[row][col])
-        ).flatten.flatten
+      let true_lits := mat_to_cube_allvars mCanon (by omega) (by omega)
 
       -- Permute all the other variables based on the given `auto`
-      let subst := substsOfMap <| autoToMap auto (by omega)
+      let subst := substsOfMap (s := s) <| AllVars.reorder (
+        auto.extendDomain (Equiv.ofLeftInverse' (α := Fin 3) (β := Fin n)
+          (f := fun ⟨i,h⟩ => ⟨i+2,by omega⟩)
+          (f_inv := fun ⟨i,h⟩ => if h : i < 5 then ⟨i-2,by omega⟩ else 0)
+          (by rintro ⟨i,h⟩; have : i+2 < 5 := (by omega); simp [*]))
+      )
 
       SRGen.write <|
         SR.mkLine clause ‹_› true_lits subst
@@ -414,7 +442,7 @@ def extra_renumber_bounds (j : Fin n) : SRGen n s Unit := do
       | none => break
 
 open AllVars in
-def hardest_mat_rotation : SRGen n s Unit := do
+def hardest_mat_rotation {n s} : SRGen n s Unit := do
   if h : ¬(n ≥ 5 ∧ s ≥ 2) then return else
   have h := not_not.mp h
 
@@ -449,14 +477,16 @@ def all (n s) : SRGen n s Unit := do
   c3_bounds
   c3_fixed
 
+  if h : ¬(5 ≤ n ∧ s > 0) then return else
+    have := not_not.mp h
+    c7_3_nonzero this.1 this.2
+    mat_canonical this.1 this.2
+
   for hj : j in [2:min 5 n] do
     have : 2 ≤ j ∧ (j < 5 ∧ j < n) := ⟨hj.lower,by simpa using hj.upper⟩
     cX_bounds ⟨j,this.2.2⟩
 
     col234_incSorted j (by omega)
-
-    if h : 3 ≤ j ∧ j < 5 then
-      mat_canonical (j-1) (by omega)
 
   hardest_mat_rotation
 

@@ -40,50 +40,30 @@ def CubeM.toCubing (c : CubeM n s Unit) : Cubing (Literal (Vars n s)) := c.1.toL
 
 open Vars CubeM
 
-def oldMatrixCubes (n s) : Cubing <| Literal (Vars n s) :=
-  if h : n ≥ 5 ∧ s ≥ 4 then
-    let matrixList := (SR.canonicalMats.get 3).canonical.toList
-    let two : Fin n := ⟨2,by omega⟩
-    let three : Fin n := ⟨3,by omega⟩
-    let four : Fin n := ⟨4,by omega⟩
-    have : NeZero s := ⟨by omega⟩
-    matrixList.map fun m =>
-      #[.pos (x 7  three (Fin.ofNat' _ m.data[0][1]))
-      , .pos (x 7  four  (Fin.ofNat' _ m.data[0][2]))
-      , .pos (x 11 two   (Fin.ofNat' _ m.data[1][0]))
-      , .pos (x 11 four  (Fin.ofNat' _ m.data[1][2]))
-      , .pos (x 19 two   (Fin.ofNat' _ m.data[2][0]))
-      , .pos (x 19 three (Fin.ofNat' _ m.data[2][1]))
-      ]
-  else
-    .unit
+def canonMats :=
+  SR.matList.filter (·.snd.isNone)
+  |>.map (·.fst)
+
+/-- info: true -/
+#guard_msgs in
+#eval canonMats = [
+  #v[true, true, false, true, false],
+  #v[true, true, false, false, true],
+  #v[true, true, false, false, false],
+  #v[true, false, true, false, false],
+  #v[true, false, false, true, false],
+  #v[true, false, false, false, false],
+  #v[false, false, false, false, false]
+]
 
 def matrixCubes (n s) :=
   if h : n ≥ 5 ∧ s ≥ 2 then
-    let (easy, med, hard) := ([
-      #v[false,  true,  true,  true, false, false], -- trivial
-    ], [
-      #v[false, false, false, false, false, false],
-      #v[false,  true,  true, false, false, false],
-      #v[false,  true, false,  true, false, false],
-      #v[false,  true, false, false, false, false],
-      #v[false, false, false, false,  true,  true],
-    ], [
-      #v[false,  true,  true, false, false,  true], -- hardest
-    ])
-    let two : Fin n := ⟨2,by omega⟩
-    let three : Fin n := ⟨3,by omega⟩
-    let four : Fin n := ⟨4,by omega⟩
-    have : NeZero s := ⟨by omega⟩
-    let map : Vector Bool 6 → Array (Literal (Vars n s)) := fun m =>
-      #[.mk (x 7  three 0) m[0]
-      , .mk (x 7  four  0) m[1]
-      , .mk (x 11 two   0) m[2]
-      , .mk (x 11 four  0) m[3]
-      , .mk (x 19 two   0) m[4]
-      , .mk (x 19 three 0) m[5]
-      ]
-    (easy.map map, med.map map, hard.map map)
+    let (easy, med, hard) :=
+      ( [canonMats[0]]
+      , [canonMats[2], canonMats[3], canonMats[4], canonMats[5], canonMats[6]]
+      , [canonMats[1]])
+    let toCube := SR.mat_to_cube (n := n) (hn := by omega) (s := s) (hs := by omega)
+    (easy.map toCube, med.map toCube, hard.map toCube)
   else
     (Cubing.unit, Cubing.unit, Cubing.unit)
 
