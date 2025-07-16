@@ -44,8 +44,9 @@ if $USE_CUBES; then
   # check that the cubes negated leads to tautology
   cadical $TAUTO || true
 
-  cadical --forcephase=1 $INC
+  mkdir "$DIR/g${N}_${S}_sb_cube"
+  ./run_par.sh $INC "$DIR/g${N}_${S}_sb_cube"
 else
   # run it without the cubes
-  cadical --forcephase=1 $SB $SB_DRAT
+  cadical --forcephase=1 --scorefactor=500 $SB $SB_DRAT
 fi
