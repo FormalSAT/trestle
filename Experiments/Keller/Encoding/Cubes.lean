@@ -56,16 +56,12 @@ def canonMats :=
   #v[false, false, false, false, false]
 ]
 
-def matrixCubes (n s) :=
+def matrixCubes (n s) : Cubing (Literal (Vars n s)) :=
   if h : n ≥ 5 ∧ s ≥ 2 then
-    let (easy, med, hard) :=
-      ( []
-      , [canonMats[0], canonMats[2], canonMats[3], canonMats[4], canonMats[5], canonMats[6]]
-      , [canonMats[1]])
     let toCube := SR.mat_to_cube (n := n) (hn := by omega) (s := s) (hs := by omega)
-    (easy.map toCube, med.map toCube, hard.map toCube)
+    canonMats.map toCube
   else
-    (Cubing.unit, Cubing.unit, Cubing.unit)
+    Cubing.unit
 
 def lastColsCubes (n s) : Cubing <| Literal (Vars n s) :=
   if h : n = 7 ∧ s > 1 then
@@ -100,12 +96,10 @@ def extraSplits (n s) : Cubing <| Literal (Vars n s) :=
   else .unit
 
 def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=
-  let (easyMats,medMats,hardMats) := matrixCubes n s
+  let matCubes := matrixCubes n s
   let lastColsCubes := lastColsCubes n s
 
-  let allCubes := easyMats
-    ++ (medMats.prod lastColsCubes).prod (extraSplits n s)
-    ++ (hardMats.prod lastColsCubes).prod (extraSplits n s)
+  let allCubes := (matCubes.prod lastColsCubes).prod (extraSplits n s)
 
   allCubes
 
