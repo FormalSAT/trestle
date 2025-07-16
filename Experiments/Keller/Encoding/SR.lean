@@ -36,6 +36,10 @@ def AllVars.renumber (f : Fin n → Fin s → Fin s) : AllVars n s → AllVars n
 
 namespace SR
 
+abbrev SRGen (n s) := ReaderT (SR.Line (Literal (AllVars n s)) → IO Unit) IO
+def SRGen.write (L : SR.Line (Literal (AllVars n s))) : SRGen n s Unit := do
+  let printer ← read
+  printer L
 
 /-- Given a mapping, this returns all the substitutions for all "changed" variables -/
 def substsOfMap (f : AllVars n s → AllVars n s) : Array (AllVars n s × Literal (AllVars n s)) := Id.run do
@@ -72,15 +76,11 @@ def reorderSubsts {s} (j j' : Fin n) :=
 def renumberSubsts (j : Fin n) (perm : Equiv.Perm (Fin s)) := Id.run do
   substsOfMap <| AllVars.renumber (fun j' => if j' = j then perm else Equiv.refl _)
 
+
 /-! ### SR Proof
 
 We can add so many facts!
 -/
-
-abbrev SRGen (n s) := ReaderT (SR.Line (Literal (AllVars n s)) → IO Unit) IO
-def SRGen.write (L : SR.Line (Literal (AllVars n s))) : SRGen n s Unit := do
-  let printer ← read
-  printer L
 
 def bound (idx : BitVec n) (j : Fin n) (ltK : Nat) : SRGen n s Unit := do
   if h : ltK = 0 ∨ ltK > s then
@@ -127,6 +127,12 @@ def c3_fixed : SRGen n s Unit := do
     SRGen.write <| SR.mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
     SRGen.write <| SR.mkLine #[ .pos <| .x 3 four one  ] (true_lits := #[]) (substs := #[])
 
+/-- ##### Bound extra split indices
+
+-/
+def extra_col_bounds (j : Fin n) (next : Nat) : SRGen n s Unit := do
+  for hi : i in [0:3] do
+    bound [2,4,6][i] j (next+i+1)
 
 
 /-! #### cX Constraints
@@ -275,49 +281,42 @@ def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
     SRGen.write <|
       SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
-def col5n_sorted (n s) : SRGen n s Unit := do
+def col67_sorted (n s) ( h : n = 7 ∧ s > 0) : SRGen n s Unit := do
   IO.println s!"  (starting col5n_sorted)"
 
-  if h : n = 7 ∧ _ then
-    -- the substitution is always swapping 5/6
-    let substs := reorderSubsts ⟨5,by omega⟩ ⟨6,by omega⟩
+  have : NeZero s := ⟨Nat.ne_zero_iff_zero_lt.mpr h.2⟩
+  let five := ⟨5,by omega⟩
+  let six := ⟨6,by omega⟩
 
-    let colColorings := col5_colorings s h.2 |>.filterMap (·.getLeft?)
+  -- the substitution is always swapping 5/6
+  let substs := reorderSubsts (n := n) five six
 
-    for hlen : len in [1:4] do
-      have : len < 4 := hlen.upper
-      let biggers := colColorings
-        |>.map (·.take (len+1) |>.cast (m := len+1) (by omega))
-        |>.dedup
+  let idxs : Vector (BitVec n) 4 := #v[3,7,11,19]
 
-      for bigger in biggers do
-        let pref := bigger.take len |>.cast (m := len) (by omega)
-        let lastR := bigger[len]
+  for hlen : len in [0:4] do
+    have : len < 4 := hlen.upper
 
-        for hlastL : lastL in [0:lastR] do
-          let lastL : Fin s := ⟨lastL, have : lastL < lastR := hlastL.upper; by omega⟩
-          -- We want to block the case where both columns 5 and 6 are `pref`,
-          -- and the next element is `k` in 5 and `last` in 6
-          let clause : Clause (Literal <| AllVars n s) :=
-            Array.flatten (Array.ofFn (n := len+1) fun row =>
-              let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-              let left := .neg <| .x idx ⟨5,by omega⟩ (if h : row.val < len then pref[row] else lastL)
-              let right := .neg <| .x idx ⟨6,by omega⟩ (if h : row.val < len then pref[row] else lastR)
-              #[ left, right ]
-            )
+    for hi : i in [0:2^len] do
+      let pref : Vector Bool len := Vector.ofFn (fun r => (i >>> r.val) % 2 = 0)
 
-          -- Assign all the literals in question to match `swapped`
-          let true_lits :=
-            Array.flatten <| Array.flatten <| Array.ofFn (n := len+1) fun row =>
-              let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-              Array.ofFn (n := s) fun k =>
-                #[ Literal.mk (AllVars.x idx ⟨5,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastR)
-                ,  Literal.mk (AllVars.x idx ⟨6,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastL) ]
+      -- We want to block the case where both columns 5 and 6 are `pref`
+      let prefCube : Cube (Literal <| AllVars n s) :=
+        Array.ofFn (n := len) (fun r =>
+          #[.mk (.x idxs[r] five 0) pref[r], .mk (.x idxs[r] six 0) pref[r]])
+        |>.flatten
 
+      -- noncanonical goes 01 in last row, canon goes 10
+      let noncanon : Cube (Literal <| AllVars n s) :=
+        prefCube.and #[.pos (.x idxs[len] five 0), .neg (.x idxs[len] six 0)]
+      let canon : Cube (Literal <| AllVars n s) :=
+        prefCube.and #[.neg (.x idxs[len] five 0), .pos (.x idxs[len] six 0)]
 
-          SRGen.write <|
-            SR.mkLine clause (hc := by simp [clause, ← Array.sum_eq_sum_toList])
-                    true_lits substs
+      let clause := noncanon.negate
+      let true_lits := canon
+
+      SRGen.write <| SR.mkLine clause
+        (hc := by simp [clause, noncanon, prefCube, Cube.and, Cube.negate, Cube.toArray, ← Array.sum_eq_sum_toList])
+        true_lits substs
 
 
 
@@ -474,25 +473,33 @@ def hardest_mat_rotation {n s} : SRGen n s Unit := do
 
 
 def all (n s) : SRGen n s Unit := do
+  -- c3 stuff
   c3_bounds
   c3_fixed
 
-  if h : ¬(5 ≤ n ∧ s > 0) then return else
-    have := not_not.mp h
-    c7_3_nonzero this.1 this.2
-    mat_canonical this.1 this.2
+  -- matrix zeros
+  if h : 5 ≤ n ∧ s > 0 then
+    c7_3_nonzero h.1 h.2
+    mat_canonical h.1 h.2
 
-  for hj : j in [2:min 5 n] do
-    have : 2 ≤ j ∧ (j < 5 ∧ j < n) := ⟨hj.lower,by simpa using hj.upper⟩
-    cX_bounds ⟨j,this.2.2⟩
+  -- dim 6/7 swap
+  if h : n = 7 ∧ s > 0 then
+    col67_sorted n s h
 
-    col234_incSorted j (by omega)
-
+  -- extra symmetry breaking for hardest matrix
   hardest_mat_rotation
 
-  for hj : j in [5:n] do
-    have : 5 ≤ j ∧ j < n := ⟨hj.lower,hj.upper⟩
-    cX_bounds ⟨j,this.2⟩
-    col5_incSorted j (by omega)
+  -- use renumbering bounds in all the columns
+  if h : n ≥ 2 then
+    extra_col_bounds ⟨0,by omega⟩ 1
+    extra_col_bounds ⟨1,by omega⟩ 2
 
-  col5n_sorted n s
+  for hj : j in [2:n] do
+    have : 2 ≤ j := hj.lower
+    have : j < n := hj.upper
+    if _h : j < 5 then
+      cX_bounds ⟨j,this⟩
+      col234_incSorted j (by omega)
+    else
+      cX_bounds ⟨j,this⟩
+      col5_incSorted j (by omega)

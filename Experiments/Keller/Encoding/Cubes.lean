@@ -59,8 +59,8 @@ def canonMats :=
 def matrixCubes (n s) :=
   if h : n ≥ 5 ∧ s ≥ 2 then
     let (easy, med, hard) :=
-      ( [canonMats[0]]
-      , [canonMats[2], canonMats[3], canonMats[4], canonMats[5], canonMats[6]]
+      ( []
+      , [canonMats[0], canonMats[2], canonMats[3], canonMats[4], canonMats[5], canonMats[6]]
       , [canonMats[1]])
     let toCube := SR.mat_to_cube (n := n) (hn := by omega) (s := s) (hs := by omega)
     (easy.map toCube, med.map toCube, hard.map toCube)
@@ -68,12 +68,12 @@ def matrixCubes (n s) :=
     (Cubing.unit, Cubing.unit, Cubing.unit)
 
 def lastColsCubes (n s) : Cubing <| Literal (Vars n s) :=
-  if h : n ≥ 5 ∧ s > 1 then
+  if h : n = 7 ∧ s > 1 then
     have : NeZero s := ⟨by omega⟩
     (show CubeM n s Unit from
-      let rec iter (j : Nat) (start : Nat) := do
+      let rec iter (j : Nat) (last : Nat) := do
         if hj : j < n then
-          for hi : i in [start:16] do
+          for hi : i in [0:last+1] do
             let cube : Cube (Literal (Vars n s)) := #[
               .mk (x  3 ⟨j,hj⟩ 0) (i &&& 8 = 0)
             , .mk (x  7 ⟨j,hj⟩ 0) (i &&& 4 = 0)
@@ -81,7 +81,7 @@ def lastColsCubes (n s) : Cubing <| Literal (Vars n s) :=
             , .mk (x 19 ⟨j,hj⟩ 0) (i &&& 1 = 0)
             ]
             split cube (iter (j+1) i)
-      iter 5 0
+      iter 5 16
     ).toCubing
   else .unit
 
