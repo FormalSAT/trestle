@@ -486,9 +486,6 @@ def all (n s) : SRGen n s Unit := do
   if h : n = 7 ∧ s > 0 then
     col67_sorted n s h
 
-  -- extra symmetry breaking for hardest matrix
-  hardest_mat_rotation
-
   -- use renumbering bounds in all the columns
   if h : n ≥ 2 then
     extra_col_bounds ⟨0,by omega⟩ 1
