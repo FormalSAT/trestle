@@ -21,7 +21,7 @@ theorem Int.exists_nat_of_ge_zero {i : Int} : 0 ≤ i → ∃ (n : Nat), (n : In
 theorem Array.foldlM_nil {m : Type v → Type w} [Monad m] (f : β → α → m β)
     (init : β) (start stop : Nat) :
     Array.foldlM f init { toList := [] } start stop = pure init :=
-  Array.foldlM_empty f init
+  Array.foldlM_empty
 
 @[simp]
 theorem Array.foldlM_trivial {m : Type v → Type w} [Monad m] (f : β → α → m β)
@@ -38,4 +38,4 @@ theorem Array.foldlM_trivial {m : Type v → Type w} [Monad m] (f : β → α �
 theorem Array.foldl_trivial (f : β → α → β)
     (init : β) (as : Array α) (i : Nat) :
     as.foldl f init i i = init := by
-  simp [foldl, Id.run]
+  simp [foldl, Id.run, pure]

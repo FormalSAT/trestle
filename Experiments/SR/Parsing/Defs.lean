@@ -194,7 +194,7 @@ def echoRangeArrayCNF (F : RangeArray ILit) : IO Unit := do
       innerLoop 0
 
       have : F.indexes.size - (i + 1) < F.indexes.size - i := by
-        simp [size] at hi
+        simp [size, RangeArray.size] at hi
         omega
 
       loop (i + 1)

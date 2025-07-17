@@ -195,7 +195,7 @@ def commit : RangeArray α :=
     rcases Nat.eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi)
     · simp only [Array.getElem_push_eq, getIndexFromMarkedIndex_coe]
       exact A.h_size
-    · simp only [Array.getElem_push_lt _ _ _ hi]
+    · simp only [Array.getElem_push_lt hi]
       exact Nat.le_trans (A.h_indexes hi) A.h_size
   h_indexes_inc := by
     simp only [Array.size_push]
@@ -206,11 +206,11 @@ def commit : RangeArray α :=
       simp only [Array.getElem_push_eq, getIndexFromMarkedIndex_coe]
       rcases Nat.eq_or_lt_of_le hij with (rfl | hi)
       · simp only [Array.getElem_push_eq, getIndexFromMarkedIndex_coe, Nat.le_refl]
-      · simp only [Array.getElem_push_lt _ _ _ hi]
+      · simp only [Array.getElem_push_lt hi]
         exact A.h_indexes hi
     · replace hj := succ_lt_succ_iff.mp hj
-      simp only [Array.getElem_push_lt _ _ _ (Nat.lt_of_le_of_lt hij hj),
-        Array.getElem_push_lt _ _ _ hj,
+      simp only [Array.getElem_push_lt (Nat.lt_of_le_of_lt hij hj),
+        Array.getElem_push_lt hj,
         ge_iff_le]
       exact A.h_indexes_inc hij _
 }
@@ -295,12 +295,12 @@ def delete (i : Nat) (hi : i < A.size) : RangeArray α :=
       · simp only [v, hij, Array.getElem_set_self,
           getIndex_markIndex, ne_eq, hjk_eq, not_false_eq_true, Array.getElem_set]
         exact A.h_indexes_inc hjk hk
-      · rw [Array.getElem_set_ne A.indexes i hi _ _ hij]
+      · rw [Array.getElem_set_ne _ _ hij]
         by_cases hik : i = k
         · simp only [hik, Array.getElem_set_self,
             getIndex_markIndex, v]
           exact A.h_indexes_inc hjk hk
-        · rw [Array.getElem_set_ne A.indexes i hi _ _ hik]
+        · rw [Array.getElem_set_ne _ _ hik]
           exact A.h_indexes_inc hjk hk
 }
 
@@ -325,7 +325,7 @@ def commitDeleted : RangeArray α :=
     rcases Nat.eq_or_lt_of_le (le_of_lt_succ hi) with (rfl | hi)
     · simp only [Array.getElem_push_eq, getIndex_markIndex, getIndexFromMarkedIndex_coe]
       exact A.h_size
-    · simp only [Array.getElem_push_lt _ _ _ hi]
+    · simp only [Array.getElem_push_lt hi]
       exact Nat.le_trans (A.h_indexes hi) A.h_size
   h_indexes_inc := by
     simp only [Array.size_push]
@@ -336,12 +336,12 @@ def commitDeleted : RangeArray α :=
       rcases Nat.eq_or_lt_of_le hij with (rfl | hi)
       · simp only [Array.getElem_push_eq, getIndex_markIndex,
           getIndexFromMarkedIndex_coe, Nat.le_refl]
-      · simp only [Array.getElem_push_lt _ _ _ hi, Array.getElem_push_eq,
+      · simp only [Array.getElem_push_lt hi, Array.getElem_push_eq,
           getIndex_markIndex, getIndexFromMarkedIndex_coe]
         exact A.h_indexes hi
     · replace hj := succ_lt_succ_iff.mp hj
-      simp only [Array.getElem_push_lt _ _ _ (Nat.lt_of_le_of_lt hij hj),
-        Array.getElem_push_lt _ _ _ hj,
+      simp only [Array.getElem_push_lt (Nat.lt_of_le_of_lt hij hj),
+        Array.getElem_push_lt hj,
         ge_iff_le]
       exact A.h_indexes_inc hij _
 }

@@ -40,15 +40,15 @@ theorem setF_eq (A : Array α) (v default : α) :
 
 @[simp]
 theorem setF_go_eq (A : Array α) (i : Nat) (v default : α) :
-    setF.go v default i A = (A ++ mkArray i default).push v := by
+    setF.go v default i A = (A ++ replicate i default).push v := by
   induction i generalizing A with
   | zero => rfl
   | succ i ih =>
     rw [setF.go, ih (push A default)]
-    simp only [push_eq_append_singleton, mkArray_succ', append_assoc]
+    simp only [push_eq_append_singleton, replicate_succ', append_assoc]
 
 theorem setF_gt {A : Array α} {i : Nat} (hi : i > A.size) (v default : α) :
-    A.setF i v default = A ++ mkArray (i - A.size) default ++ #[v] := by
+    A.setF i v default = A ++ replicate (i - A.size) default ++ #[v] := by
   simp [setF, Nat.lt_asymm hi, setF_go_eq]
 
 @[simp]
@@ -88,7 +88,7 @@ theorem mem_setF (A : Array α) (i : Nat) (v default : α) {a : α} :
     · exact Or.inl h
     · exact Or.inr <| Or.inr h
   · simp only [setF_gt hi, append_singleton, mem_push,
-      mem_append, mem_mkArray, ne_eq] at ha
+      mem_append, mem_replicate, ne_eq] at ha
     rcases ha with ((h | ⟨_, rfl⟩) | rfl)
     · exact Or.inl h
     · exact Or.inr <| Or.inl rfl
@@ -164,7 +164,7 @@ theorem getElem?_setF (A : Array α) (i j : Nat) (v default : α) :
   split <;> rename_i hij
   · simp [hij]
   split <;> rename_i hi
-  · simp [setF_lt hi, getElem?_set_ne _ _ hi _ hij]
+  · simp [setF_lt hi, getElem?_set_ne hi hij]
   split <;> rename_i hj
   · have : j < (setF A i v default).size := by simp; omega
     simp [getElem?_eq_getElem this, getElem_setF_lt A i v default j hj, hij]
@@ -174,7 +174,7 @@ theorem getElem?_setF (A : Array α) (i j : Nat) (v default : α) :
     · replace hi : i > A.size := by omega
       have : A.size + (i - A.size) = i := by omega
       rw [setF_gt hi, getElem?_append_left (by simp; omega),
-          getElem?_append_right (by omega), getElem?_mkArray]
+          getElem?_append_right (by omega), getElem?_replicate]
       simp; omega
   · by_cases hi_size : i = A.size
     · subst_vars; simp; omega

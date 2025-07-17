@@ -308,7 +308,7 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
         let rec loop (i cachedRatHintIndex bumpCounter : Nat) (τ : PPA) : PPA × Bool :=
           if hi : i < Fsize then
             have : F.indexes.size - (i + 1) < F.indexes.size - i := by
-              simp [Fsize] at hi
+              simp [Fsize, RangeArray.size] at hi
               omega
 
             if h_del : F.isDeleted i hi = true then

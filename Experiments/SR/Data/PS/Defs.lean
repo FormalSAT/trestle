@@ -185,8 +185,8 @@ def litValue (σ : PS) (l : ILit) : PSV :=
   a variable above the initial `maxVar`.
 -/
 def new (n : Nat) : PS where
-  gens := Array.mkArray n 0
-  mappings := Array.mkArray n 0
+  gens := Array.replicate n 0
+  mappings := Array.replicate n 0
   generation := ⟨1, Nat.one_pos⟩
   maxGen := 0
   sizes_eq := by simp

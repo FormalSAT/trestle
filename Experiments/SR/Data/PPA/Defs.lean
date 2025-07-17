@@ -133,10 +133,10 @@ def litValue?_8 (τ : PPA) (l : ILit) : UInt8 :=
   a variable above the initial `maxVar`.
 -/
 def new (maxVar : Nat) : PPA where
-  assignment := Array.mkArray maxVar 0
+  assignment := Array.replicate maxVar 0
   generation := ⟨1, Nat.one_pos⟩
   maxGen := 0
-  le_maxGen i h := by simp_all only [Array.mem_mkArray, ne_eq, Int.natAbs_zero, Nat.le_refl]
+  le_maxGen i h := by simp_all only [Array.mem_replicate, ne_eq, Int.natAbs_zero, Nat.le_refl]
 
 /-- Reset the assignment to an empty one. -/
 def reset (τ : PPA) : PPA :=

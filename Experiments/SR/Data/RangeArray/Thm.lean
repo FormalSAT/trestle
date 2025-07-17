@@ -173,7 +173,7 @@ theorem isDeleted!_delete!_ne {i j : Nat} (hij : i ≠ j) (A : RangeArray α)
     : (A.delete! i).isDeleted! j = A.isDeleted! j := by
   simp only [delete!, Array.length_toList]
   split <;> rename _ => hi <;> try rfl
-  simp only [isDeleted!, delete, Array.length_toList, Array.size_set]
+  simp only [isDeleted!, delete, Array.length_toList, Array.size_set, size]
   split <;> try rfl
   simp only [isDeleted, Array.getElem_set, hij, ↓reduceIte]
 
