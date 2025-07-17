@@ -310,7 +310,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
       case inl h => exact h
       case inr h =>
         exfalso; subst t
-        apply t₁_t₂_disjoint.not_mem_of_mem_left x_step_mem x_step_mem_t
+        apply t₁_t₂_disjoint.notMem_of_mem_left x_step_mem x_step_mem_t
 
   case neg =>
     -- `x + eⱼ` is in `t₂`
@@ -329,7 +329,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
       case inr h => exact h
       case inl h =>
         exfalso; subst t
-        apply t₁_t₂_disjoint.not_mem_of_mem_right x_step_mem x_step_mem_t
+        apply t₁_t₂_disjoint.notMem_of_mem_right x_step_mem x_step_mem_t
 
 /-- BHMN A.3 Fact 1 (roughly) -/
 theorem core_covers_closedcube : ∀ x ∈ ClosedCube 0, ∃! t ∈ core T, x ∈ Cube t := by

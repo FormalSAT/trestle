@@ -191,7 +191,7 @@ private theorem Nat.finset_card_le_max' (S : Finset Nat) (nonempty : S.Nonempty)
     clear lt_max
 
     calc
-      _ = S.card+1  := by rw [Finset.card_insert_of_not_mem max_not_mem]
+      _ = S.card+1  := by rw [Finset.card_insert_of_notMem max_not_mem]
       _ ≤ max + 1   := by omega
       _ = _         := by simp [Finset.max'_insert, max_eq_right_of_lt, *]
 

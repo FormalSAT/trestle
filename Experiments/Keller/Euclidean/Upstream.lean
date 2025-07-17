@@ -45,12 +45,12 @@ def exists_unique : ∀ x ∈ s, ∃! t ∈ p, x ∈ t := by
   · rintro t' ⟨t'_mem_p,x_mem_t'⟩
     by_contra t'_ne
     have := p.disjoint t'_mem_p t_mem_p t'_ne
-    apply this.not_mem_of_mem_left x_mem_t' x_mem_t
+    apply this.notMem_of_mem_left x_mem_t' x_mem_t
 
 def of_exists_unique (s : Set α) (p : Set (Set α)) (subsets : ∀ t ∈ p, t ⊆ s)
         (h : ∀ x ∈ s, ∃! t ∈ p, x ∈ t) : Partition s where
   parts := p \ { ∅ }
-  bot_not_mem' := by simp
+  bot_notMem' := by simp
   sSup_eq' := by
     ext x; constructor
     · rintro ⟨t,⟨t_mem,-⟩,x_mem⟩

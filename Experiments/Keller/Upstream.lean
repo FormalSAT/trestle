@@ -147,18 +147,18 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
 @[simp] theorem BitVec.getElem_ofFn (f : Fin n → Bool) (i : Nat) (h)
   : (BitVec.ofFn f)[i]'h = f ⟨i,h⟩ := by
   unfold ofFn
-  rw [getElem_cast, ← getLsbD_eq_getElem, getLsb_ofBoolListLE]
+  rw [getElem_cast, ← getLsbD_eq_getElem, getLsbD_ofBoolListLE]
   simp [h]
 
 @[simp] theorem BitVec.getLsbD_ofFn (f : Fin n → Bool) (i : Nat) (h)
   : (BitVec.ofFn f).getLsbD i = f ⟨i,h⟩ := by
   unfold ofFn
-  rw [getLsbD_cast, getLsb_ofBoolListLE]
+  rw [getLsbD_cast, getLsbD_ofBoolListLE]
   simp [h]
 
 @[simp] theorem BitVec.getElem_ofBoolListLE (L : List Bool) (i : Nat) (h : i < L.length)
     : (BitVec.ofBoolListLE L)[i] = L[i] := by
-  rw [← getLsbD_eq_getElem, getLsb_ofBoolListLE]
+  rw [← getLsbD_eq_getElem, getLsbD_ofBoolListLE]
   rw [List.getD_eq_getElem?_getD, List.getElem_eq_getElem?_get]
   rw [Option.get_eq_getD]
 
@@ -227,10 +227,6 @@ theorem BitVec.xor_eq_symm (x y z : BitVec n) : x ^^^ y = z ↔ x = z ^^^ y := b
 theorem Fin.val_eq_iff_lt_and_eq (x : Fin n) (y : Nat) : x.val = y ↔ ∃ (h : y < n), x = ⟨y,h⟩ := by
   rcases x; simp; intro; simp_all
 
-theorem Fin.val_ofNat {n} [NeZero n] (x : Nat) : Fin.val (n := n) (no_index (OfNat.ofNat x)) = x % n := rfl
-
-@[simp] theorem Fin.val_ofNat_of_lt {n} [NeZero n] (x : Nat) (h : x < n) : Fin.val (n := n) (no_index (OfNat.ofNat x)) = x :=
-  by rw [Fin.val_ofNat, Nat.mod_eq_of_lt h]
 
 attribute [-simp] lt_add_iff_pos_left
 
@@ -321,7 +317,7 @@ theorem allPerms.mem_aux (m) : ∀ v ∈ aux m, ∀ n : Fin m, n ∈ v := by
       Array.toList_flatten, List.mem_flatten,
       List.mem_map, Array.toList_ofFn, List.mem_ofFn, Set.mem_range] at v_mem_aux
     rcases v_mem_aux with ⟨-,⟨-,⟨ins_idx,rfl⟩,rfl⟩,v_mem_vecs⟩
-    simp only [Array.toList_map, List.mem_map, Array.mem_toList] at v_mem_vecs
+    simp only [Array.toList_map, List.mem_map, Array.mem_toList_iff] at v_mem_vecs
     rcases v_mem_vecs with ⟨prev,prev_mem_aux,rfl⟩
     apply Vector.Mem.mk
     simp only [Array.mem_def, Vector.toArray_ofFn, Array.toList_ofFn, List.mem_ofFn, Set.mem_range]

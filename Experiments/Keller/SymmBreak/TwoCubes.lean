@@ -18,13 +18,13 @@ the Keller conjecture for the previous dimension.
 
 
 def TwoCubes.c0_colors : Vector (Fin (s+2)) (n+2) :=
-  Vector.mkVector (n+2) 0
+  Vector.replicate (n+2) 0
 
 @[simp] theorem TwoCubes.c0_colors_j (j : Nat) (hj : j < (n+2)) : (c0_colors (s := s))[j] = 0 := by
   simp [c0_colors]
 
 def TwoCubes.c1_colors : Vector (Fin (s+2)) (n+2) :=
-  #v[0,1].append (Vector.mkVector n 0)
+  #v[0,1].append (Vector.replicate n 0)
   |>.cast (by omega)
 
 @[simp] theorem TwoCubes.c1_colors_j (j : Nat) (hj : j < (n+2)) :
@@ -184,7 +184,7 @@ theorem auto_v₂ : (auto v₁ v₂).toFun v₂ = ⟨1, c1_colors⟩ := by
   · ext1 j hj
     specialize h j hj
     replace h := h.2
-    unfold auto; simp [KVertex.colors_permColors, Vector.mkVector]
+    unfold auto; simp [KVertex.colors_permColors]
     if hj : j = 1 then
       simp [hj, Array.getElem_append]
       apply Equiv.setAll_eq_of_mem
@@ -265,7 +265,7 @@ def permColumns (f : Equiv.Perm (Fin (n+2)))
       simp only [BitVec.getElem_ofFn, BitVec.getElem_one, decide_eq_decide]
       conv => lhs; rhs; rw [show 0 = Fin.val (n := n+2) 0 by simp]
       rw [← Fin.ext_iff, Equiv.symm_apply_eq, fixed_0, Fin.ext_iff]
-      simp only [Nat.zero_lt_succ, Fin.val_ofNat_of_lt]
+      simp only [Fin.coe_ofNat_eq_mod, Nat.zero_mod]
     -- therefore...
     ext1 j hj
     simp only [KClique.get_map_permColumns, BitVec.ofNat_eq_ofNat, Fin.getElem_fin, Vector.getElem_ofFn]

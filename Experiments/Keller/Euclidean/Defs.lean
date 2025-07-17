@@ -7,8 +7,7 @@ abbrev Point (d : ℕ) : Type := EuclideanSpace ℝ (Fin d)
 
 /-- The unit cube, `[0,1)ᵈ` -/
 def UnitCube (d : ℕ) : Set (Point d) :=
-  fun point =>
-    ∀ j : Fin d, 0 ≤ point j ∧ point j < 1
+  { point | ∀ j : Fin d, 0 ≤ point j ∧ point j < 1 }
 
 /-- The unit cube transposed to `corner`: `[0, 1)ᵈ + corner` -/
 def Cube {d : ℕ} (corner : Point d) : Set (Point d) :=

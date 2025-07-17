@@ -308,7 +308,7 @@ noncomputable def lowerS {s'} (hs' : s' ≥ 2^n) (k : KClique (n+1) s') : KCliqu
       rw [List.mem_iff_getElem]
       simpa [*] using kIdx_lt
 
-  ⟨renumbered.val.image (fun v => {idx := v.idx, color := v.color.map (Fin.ofNat' _ ·.val)})
+  ⟨renumbered.val.image (fun v => {idx := v.idx, color := v.color.map (Fin.ofNat _ ·.val)})
   , by
   clear_value renumbered
   clear perms colSets k

@@ -62,9 +62,9 @@ instance : Ord (Matrix m) where compare := compare
 instance : BEq (Matrix m) := Ord.toBEq inferInstance
 
 instance : LE (Matrix m) := leOfOrd
-instance : DecidableRel (α := Matrix m) (· ≤ ·) := Ord.instDecidableRelLe
+instance : DecidableRel (α := Matrix m) (· ≤ ·) := inferInstance
 instance : LT (Matrix m) := ltOfOrd
-instance : DecidableRel (α := Matrix m) (· < ·) := Ord.instDecidableRelLt
+instance : DecidableRel (α := Matrix m) (· < ·) := inferInstance
 
 nonrec def toString (x : Matrix m) : String :=
   x.data.map (·.map (toString) |>.toList |> String.intercalate " ")
@@ -83,13 +83,12 @@ def extend.lastRows (kBound : Nat) (len : Nat) : Array (Vector Nat len) :=
 
 theorem extend.lastRows_bounded : ∀ v ∈ lastRows kBound len, ∀ x ∈ v, x < kBound := by
   intro v v_mem_lastRows x x_mem_v
-  replace v_mem_lastRows := Array.mem_def.mp v_mem_lastRows
   replace x_mem_v := Array.mem_def.mp x_mem_v.val
   induction len with
   | zero =>
     simp [Vector.mem_iff_getElem] at x_mem_v
   | succ len ih =>
-    simp [lastRows, -Array.mem_toList, List.mem_ofFn] at v_mem_lastRows
+    simp [lastRows, List.mem_ofFn] at v_mem_lastRows
     rcases v_mem_lastRows with ⟨v_pre,v_pre_mem,y,rfl⟩
     specialize ih v_pre v_pre_mem
     clear v_pre_mem
@@ -273,10 +272,10 @@ def CanonicalMats.step (c : CanonicalMats m) : CanonicalMats (m+1) where
   map :=
     have mats := c.canonical.flatMap (·.extend)
     have foundSmaller : Std.HashMap _ _ :=
-      mats.foldl (init := .empty) fun acc m =>
+      mats.foldl (init := .emptyWithCapacity) fun acc m =>
         acc.insert m (findSmaller m c)
     -- just doublecheck that x' is actually smaller...
-    if foundSmaller.toArray.any (fun |(_,.canon _) => .false | (x,.noncanon x' _) => !(x' < x))
+    if foundSmaller.toArray.any (fun | (_,.canon _) => .false | (x,.noncanon x' _) => !(x' < x))
     then panic! "x' isn't actually smaller!!! D:" else
     foundSmaller.map fun _x i =>
       match i with

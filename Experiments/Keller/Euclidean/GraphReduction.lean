@@ -112,7 +112,7 @@ theorem offsets_eq_core_of_periodic {j : Fin n} {T} (h : T.Periodic) :
     use t, t_core
     dsimp
     calc  Int.fract (t j)
-      _ = Int.fract (t j + ↑(2 * off j)) := by rw [Int.fract_add_int]
+      _ = Int.fract (t j + ↑(2 * off j)) := by rw [Int.fract_add_intCast]
       _ = Int.fract (t j + 2 • ↑(off j)) := by simp
   · rintro _ ⟨t,t_core,rfl⟩
     use t; simp; use t, t_core, 0; simp
@@ -254,7 +254,7 @@ noncomputable def tiling_to_clique (T : Tiling (n+1)) (periodic : T.Periodic) (f
       have : z = 0 := by
         rw [sub_eq_iff_eq_add'] at h
         rw [h] at idxs_eq
-        simpa [Int.ceil_add_int] using idxs_eq
+        simpa [Int.ceil_add_intCast] using idxs_eq
       simp [this] at h; linarith
     apply ff_free (x := t₁) (y := t₂) (ht₁ ▸ T.get_mem ..) (ht₂ ▸ T.get_mem ..) ts_ne
     refine ⟨j₁,?_,contra⟩

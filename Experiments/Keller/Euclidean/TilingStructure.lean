@@ -91,7 +91,7 @@ theorem end_not_mem (j : Fin d) (x) :
     rcases mem1 with ⟨α,α_range,rfl⟩
     rcases mem2 with ⟨β,β_range,h⟩
     replace h := congrFun h j
-    simp at h ⊢; rw [← EuclideanSpace.single_zero j, EuclideanSpace.single_inj_iff]
+    simp at h ⊢
     linarith
   · rintro rfl; rfl
 
@@ -337,7 +337,7 @@ theorem starts_gap {a b} (a_mem : a ∈ P.start_coords) (b_mem : b ∈ P.start_c
   simp [mem_start_coords] at a_mem b_mem
   have disjoint := P.partition.disjoint a_mem b_mem (by
     simp [UnitInterval.inj_iff, Point.update_inj]; exact ne)
-  apply disjoint.not_mem_of_mem_right (UnitInterval.start_mem ..)
+  apply disjoint.notMem_of_mem_right (UnitInterval.start_mem ..)
   simp [UnitInterval, Point.update_inj]
   use b - a
   refine ⟨⟨?_,?_⟩,?_⟩ <;> linarith
@@ -391,9 +391,9 @@ def start_coords_IntegralSpaced : IntegralSpaced P.start_coords where
     have subset1 : { a + ↑z | z:ℤ } ⊆ P.start_coords := by
       rintro _ ⟨z,rfl⟩
       induction z using Int.induction_on with
-      | hz => simpa using a_mem
-      | hp i h => simp; convert P.step_forward h using 1; simp; ring
-      | hn i h => convert P.step_backward h using 1; simp; ring
+      | zero => simpa using a_mem
+      | succ i h => convert P.step_forward h using 1; simp; ring
+      | pred i h => convert P.step_backward h using 1; simp; ring
 
     -- so let's prove by double inclusion
     apply subset1.antisymm'
@@ -527,7 +527,7 @@ def line_partition_of_tiling (j : Fin d) (x : Point d) (T : Tiling d) : Line.Uni
       rw [Set.disjoint_iff]; rintro c ⟨c_mem_a,c_mem_b⟩
       have := (T.covers c).unique ⟨a_mem,c_mem_a⟩ ⟨b_mem,c_mem_b⟩
       subst this; simp at ne
-    bot_not_mem' := by simp
+    bot_notMem' := by simp
     sSup_eq' := by
       simp
       apply Set.Subset.antisymm

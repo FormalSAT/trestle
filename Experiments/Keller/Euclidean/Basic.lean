@@ -124,7 +124,7 @@ end IntPoint
 
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
     x ∈ Cube c ↔ ∀ j, c j ≤ x j ∧ x j < c j + 1 := by
-  unfold Cube UnitCube; simp; simp [Set.mem_def]
+  unfold Cube UnitCube; simp
 
 theorem Cube.start_mem (c : Point d) : c ∈ Cube c := by
   simp [mem_iff]
@@ -156,7 +156,7 @@ lemma Cube.exists_gap_of_inter_empty (c1 c2 : Point d) :
     specialize no_gaps j; rw [abs_lt] at no_gaps
     simp [x]; linarith
   clear no_gaps; clear_value x
-  apply Set.not_mem_empty x; rw [← inter_empty]
+  apply Set.notMem_empty x; rw [← inter_empty]
   simp [mem_c1, mem_c2]
 
 theorem Cube.mem_add_iff (c : Point d) (x y) :
