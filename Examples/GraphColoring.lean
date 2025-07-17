@@ -151,7 +151,7 @@ theorem coloringAssignment_exists_of_validColoring {G : Graph n} :
     fin_cases Cu <;> fin_cases Cv <;> simp at *
 
 -- Now generate an actual CNF for a graph object
-def K8 : Graph 8 := completeGraph (Fin 8)
+def K8 : Graph 8 := SimpleGraph.completeGraph (Fin 8)
 
 instance : DecidableRel K8.Adj := by
   unfold DecidableRel
