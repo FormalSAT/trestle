@@ -3,8 +3,20 @@ import Experiments.Keller.Euclidean.TilingStructure
 
 namespace Keller.Euclidean
 
-def Tiling.Periodic (T : Tiling d) : Prop :=
-  ∀ t ∈ T.corners, ∀ x : IntPoint d, t + 2 • x ∈ T.corners
+def Periodic (corners : Set (Point d)) : Prop :=
+  ∀ t ∈ corners, ∀ x : IntPoint d, t + 2 • x ∈ corners
+
+def periodify (corners : Set (Point d)) : Set (Point d) :=
+  { c + 2 • i | (c ∈ corners) (i : IntPoint d) }
+
+theorem periodify_periodic (corners : Set (Point d)) :
+  Periodic (periodify corners) := by
+  rintro _ ⟨c,c_mem,i,rfl⟩ i₂
+  use c, c_mem, i+i₂; simp; abel
+
+nonrec def Tiling.Periodic (T : Tiling d) : Prop :=
+  Periodic T.corners
+
 
 /-- `{0,1}ᵈ` on paper -/
 def CoreIndex (d : Nat) := { i : IntPoint d | ∀ j, i j ∈ ({0,1} : Set ℤ) }
@@ -63,7 +75,7 @@ namespace Hajos
 variable (T : Tiling d)
 
 def core := { t ∈ T.corners | (Cube.index t ∈ CoreIndex d)}
-def corners' := {t + 2 • x | (t ∈ core T) (x : IntPoint d)}
+def corners' := periodify (core T)
 
 theorem core_subset_corners : core T ⊆ T.corners := by
   apply Set.sep_subset

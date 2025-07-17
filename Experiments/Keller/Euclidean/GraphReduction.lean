@@ -302,33 +302,184 @@ theorem vert_to_offset.bounds (v : KVertex n s) :
   simp only [vert_to_offset, Point.app_ofFn]
   constructor <;> linarith
 
+theorem vert_to_offset.ext (h : s > 0) (v₁ v₂ : KVertex n s) (j) :
+    vert_to_offset v₁ j = vert_to_offset v₂ j ↔ v₁.idx[j] = v₂.idx[j] ∧ v₁.color[j] = v₂.color[j] := by
+  simp only [vert_to_offset, Point.app_ofFn]
+  generalize v₁.idx[j] = i₁ at *; generalize v₂.idx[j] = i₂ at *
+  generalize v₁.color[j] = c₁ at *; generalize v₂.color[j] = c₂ at *
+  constructor
+  · by_cases i₁ = i₂
+    case pos =>
+      subst i₂
+      simp [div_eq_div_iff, Nat.ne_zero_of_lt h, Fin.val_eq_val]
+    case neg =>
+      have : (s : ℝ) > 0 := by simp [h]
+      have : 0 ≤ (c₁ : ℝ) / s := by simp [le_div_iff₀, *]
+      have : (c₁ : ℝ) / s < 1 := by simp [div_lt_iff₀, *]
+      have : 0 ≤ (c₂ : ℝ) / s := by simp [le_div_iff₀, *]
+      have : (c₂ : ℝ) / s < 1 := by simp [div_lt_iff₀, *]
+      cases i₁ <;> simp_all <;> linarith
+  · rintro ⟨rfl,rfl⟩; rfl
+
+theorem vert_to_offset.inj (h : s > 0) (v₁ v₂ : KVertex n s) :
+    vert_to_offset v₁ = vert_to_offset v₂ ↔ v₁ = v₂ := by
+  simp_rw [PiLp.ext_iff, vert_to_offset.ext h, KVertex.ext_iff]
+  rw [BitVec.eq_of_getElem_eq_iff, Vector.ext_iff]
+  simp [forall_and, Fin.forall_iff]
+
+theorem vert_to_offset.gap_of_adj (v₁ v₂ : KVertex n s) :
+    KAdj v₁ v₂ → ∃ j, |vert_to_offset v₁ j - vert_to_offset v₂ j| = 1 := by
+  rintro ⟨j₁,is_ne,cs_eq,-⟩
+  use j₁
+  simp only [vert_to_offset, Point.app_ofFn, cs_eq,
+    add_sub_add_right_eq_sub]
+  generalize v₁.idx[j₁] = i₁ at *
+  generalize v₂.idx[j₁] = i₂ at *
+  cases i₁ <;> (
+    simp at is_ne; subst i₂; simp
+  )
+
+theorem vert_to_offset.ff_of_adj (h : s > 0) (v₁ v₂ : KVertex n s) :
+    KAdj v₁ v₂ → ¬ Faceshare (vert_to_offset v₁) (vert_to_offset v₂) := by
+  rintro ⟨j₁,i₁_ne,c₁_eq,j₂,js_ne,diff2⟩ ⟨j,-,nodiff⟩
+
+  simp_rw [vert_to_offset.ext h] at nodiff
+  have : j₁ = j := by
+    specialize nodiff j₁; simp_all
+  subst j
+
+  specialize nodiff j₂ (Ne.symm js_ne)
+  aesop
+
 def clique_to_corners (K : KClique n s) : Set (Point n) :=
-  { vert_to_offset v + 2 • z | (v ∈ K.val) (z : IntPoint n) }
+  periodify { vert_to_offset v | (v ∈ K.val) }
 
 theorem clique_to_corners_disjoint (K : KClique n s) :
     (clique_to_corners K).PairwiseDisjoint Cube := by
   intro t₁ ht₁ t₂ ht₂ ts_ne
   simp [clique_to_corners] at ht₁ ht₂
-  obtain ⟨v₁,v₁_mem,off₁,ht₁⟩ := ht₁
-  obtain ⟨v₂,v₂_mem,off₂,ht₂⟩ := ht₂
+  obtain ⟨_,⟨v₁,v₁_mem,rfl⟩,off₁,ht₁⟩ := ht₁
+  obtain ⟨_,⟨v₂,v₂_mem,rfl⟩,off₂,ht₂⟩ := ht₂
 
-  have := K.isClique v₁_mem v₂_mem
+  rw [Function.onFun, Set.disjoint_iff, Set.subset_empty_iff]
+  apply Cube.inter_empty_of_exists_gap
 
-  rw [Function.onFun, Set.disjoint_iff]
-  
-  rintro x ⟨x_mem_t₁,x_mem_t₂⟩
-  show False
+  by_cases v₁ = v₂
+  case pos =>
+    subst v₂ t₁ t₂
 
-  sorry
+    simp [PiLp.ext_iff] at ts_ne
+    rcases ts_ne with ⟨j,offs_ne⟩
+
+    use j
+    simp [← mul_sub_left_distrib, abs_mul]
+
+    have : |off₁ j - off₂ j| ≥ 1 := by
+      apply Int.one_le_abs
+      omega
+
+    rw [ge_iff_le, ← Int.cast_le (R := ℝ)] at this
+    simp at this
+    linarith
+
+  case neg vs_ne =>
+  clear ts_ne
+
+  have vs_adj := K.isClique v₁_mem v₂_mem vs_ne
+
+  have := vert_to_offset.gap_of_adj _ _ vs_adj
+
+  generalize vert_to_offset v₁ = p₁ at *
+  generalize vert_to_offset v₂ = p₂ at *
+  clear! v₁ v₂
+
+  rcases this with ⟨j,ps_diff_eq_1⟩
+
+  use j; subst t₁ t₂; simp
+
+  by_cases off₁ j = off₂ j
+  case pos h =>
+    simp_all
+  case neg offs_ne =>
+    have : 2 ≤ |2 * (off₁ j : ℝ) - 2 * (off₂ j : ℝ)| := by
+      have : |off₁ j - off₂ j| ≥ 1 := by
+        apply Int.one_le_abs
+        omega
+      simp [ge_iff_le, ← Int.cast_le (R := ℝ)] at this
+
+      simpa [← mul_sub, abs_mul] using this
+
+    rw [add_sub_add_comm]
+    generalize p₁ j - p₂ j = A at *
+    generalize 2 * (off₁ j : ℝ) - _ = B at *
+    rw [abs_eq (by simp)] at ps_diff_eq_1
+    rw [le_abs] at this ⊢
+    cases ps_diff_eq_1 <;> cases this <;>
+      (first | left; linarith | right; linarith)
+
+theorem clique_to_corners_covers (K : KClique n s) (p : Point n) :
+    ∃! c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
+  apply existsUnique_of_exists_of_unique
+  next =>
+    done
+  next =>
+    rintro c₁ c₂ ⟨c₁_mem,p_mem_c₁⟩ ⟨c₂_mem,p_mem_c₂⟩
+    have := clique_to_corners_disjoint K c₁_mem c₂_mem
+    rw [not_imp_comm] at this
+    apply this; clear this
+    simp [Set.disjoint_iff, Set.ext_iff]
+    use p
+
+theorem clique_to_corners_ff (h : s > 0) (K : KClique n s) :
+    ∀ c₁ ∈ clique_to_corners K, ∀ c₂ ∈ clique_to_corners K, ¬ Faceshare c₁ c₂ := by
+  rintro _ ⟨_,⟨v₁,v₁_mem,rfl⟩,i₁,rfl⟩ _ ⟨_,⟨v₂,v₂_mem,rfl⟩,i₂,rfl⟩
+  rintro ⟨j₁,gap,rest⟩
+
+  replace rest : ∀ j2, j2 ≠ j₁ → vert_to_offset v₁ j2 = vert_to_offset v₂ j2 := by
+    intro j2 j2_ne; specialize rest j2 j2_ne
+    simp at rest
+    suffices (-1 : ℤ) < (i₂ j2 - i₁ j2 : ℝ) ∧ (i₂ j2 - i₁ j2 : ℝ) < (1 : ℤ) by
+      simp only [← Int.cast_sub, Int.cast_lt] at this
+      have : i₂ j2 = i₁ j2 := by omega
+      simpa [this] using rest
+
+    simp only [Int.reduceNeg, Int.cast_neg, Int.cast_one]
+    have := vert_to_offset.bounds v₁ j2; have := vert_to_offset.bounds v₂ j2
+    constructor <;> linarith
+
+  simp_rw [vert_to_offset.ext h] at rest
+
+  have : vert_to_offset v₁ j₁ ≠ vert_to_offset v₂ j₁ := by
+    intro h; simp [h] at gap
+    suffices 2 * |i₁ j₁ - i₂ j₁| = 1 by omega
+    rw [← Int.cast_inj (α := ℝ)]
+    simpa [← mul_sub, abs_mul] using gap
+  have vs_ne : v₁ ≠ v₂ := by rintro rfl; simp at this
+  clear this
+
+  obtain ⟨j,is_ne,cs_eq,j₂,j₂_ne,diff2⟩ :=
+    K.isClique v₁_mem v₂_mem vs_ne
+
+  have : j = j₁ := by
+    specialize rest j; simpa [-Fin.getElem_fin, is_ne] using rest
+  subst j
+
+  specialize rest j₂ j₂_ne.symm
+  aesop
 
 
 def clique_to_tiling (K : KClique (n+1) (2^n)) :
           ∃ T : Tiling (n+1), T.Periodic ∧ T.FaceshareFree := by
   use {
     corners := clique_to_corners K
-    covers := sorry
+    covers := clique_to_corners_covers K
   }
-  sorry
+  refine ⟨?periodic,?ff⟩
+  case periodic =>
+    apply periodify_periodic
+  case ff =>
+    rintro c₁ h₁ c₂ h₂ -
+    apply clique_to_corners_ff (by simp) K _ h₁ _ h₂
 
 
 end Graph
