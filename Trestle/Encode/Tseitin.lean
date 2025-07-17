@@ -217,7 +217,10 @@ private def separateLits (A : Array (NegNormForm ν)) : Array (Literal ν) × Ar
 private theorem separateLits_mem_lits_iff {A : Array (NegNormForm ν)} {l : Literal ν}
   : l ∈ (separateLits A).1 ↔ (.lit l) ∈ A := by
   unfold separateLits; simp
-  aesop
+  constructor
+  · rintro ⟨f,f_mem,h⟩
+    split at h <;> simp_all
+  · intro h; refine ⟨_,h,?_⟩; simp
 
 private theorem separateLits_mem_notLits_iff {A : Array (NegNormForm ν)} {a}
   : a ∈ (separateLits A).2 ↔ a ∈ A ∧ (∀ {l}, a ≠ .lit l) := by

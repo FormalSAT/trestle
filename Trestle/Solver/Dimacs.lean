@@ -163,7 +163,7 @@ def parseResult (maxVar : Nat) (s : String) : Except String Solver.Res := do
   | "s UNSATISFIABLE" => return .unsat
   | "s SATISFIABLE" =>
     let assn ←
-      rest.foldlM (fun assn line => parseVLines maxVar assn line) (HashMap.empty)
+      rest.foldlM (fun assn line => parseVLines maxVar assn line) (HashMap.emptyWithCapacity)
     return .sat assn
   | _ => .error  "Expected `s <UNSATISFIABLE|SATISFIABLE>`, got `{first}`"
 

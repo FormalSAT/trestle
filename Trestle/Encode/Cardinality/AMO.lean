@@ -36,7 +36,7 @@ theorem amo_iff (lits : Array (Literal ν)) (τ) :
     have : [Fin.mk i i_range,⟨j,j_range⟩].map (lits[·]) <+ lits := by
       apply List.map_getElem_sublist
       simp [lt]
-    replace this := List.Sublist.countP_le (τ ⊨ LitVar.toPropFun ·) this
+    replace this := @List.Sublist.countP_le _ (τ ⊨ LitVar.toPropFun ·) _ _ this
     simp [*] at this
     omega
   · intro h

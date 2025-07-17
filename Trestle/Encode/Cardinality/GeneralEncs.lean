@@ -65,7 +65,7 @@ def naiveAtLeastK.cond (cond : Clause (Literal ν)) (k : Nat) (lits : Array (Lit
     simp [atMost, atLeast, card]
     apply imp_congr_right; rintro -
     conv => enter [1,1,1]; (calc _ = (fun l => !(τ ⊨ LitVar.toPropFun l)) := by ext l; simp)
-    have := Array.size_eq_countP_add_countP (τ ⊨ LitVar.toPropFun ·) lits
+    have := @Array.size_eq_countP_add_countP _ (τ ⊨ LitVar.toPropFun ·) lits
     simp at this
     generalize Array.countP _ _ = Ts at this ⊢
     generalize Array.countP _ _ = Fs at this ⊢

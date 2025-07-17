@@ -7,7 +7,6 @@ Authors: James Gallicchio
 
 import Trestle.Encode.EncCNF
 import Trestle.Model.PropPred
-import Mathlib.Tactic.LiftLets
 
 /-! ## Verified Encodings
 

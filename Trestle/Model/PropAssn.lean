@@ -149,7 +149,7 @@ theorem agreeOn.subset : X ⊆ Y → agreeOn Y σ₁ σ₂ → agreeOn X σ₁ �
   fun hSub h x hX => h x (hSub hX)
 
 theorem agreeOn_empty (σ₁ σ₂ : PropAssignment ν) : agreeOn ∅ σ₁ σ₂ :=
-  fun _ h => False.elim (Set.not_mem_empty _ h)
+  fun _ h => False.elim (Set.notMem_empty _ h)
 
 theorem agreeOn_set_of_not_mem [DecidableEq ν] {x : ν} {X : Set ν} (σ : PropAssignment ν) (v : Bool)
     : x ∉ X → agreeOn X (σ.set x v) σ := by

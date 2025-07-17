@@ -58,7 +58,7 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
       rcases h with ⟨hd',hd'_mem,h⟩
       · replace hr := hr hd' hd'_mem
         simp [LitVar.satisfies_iff, PropAssignment.set] at hr h
-        use hd, (List.mem_cons_self _ _), hd', (List.mem_cons_of_mem _ hd'_mem)
+        use hd, List.mem_cons_self, hd', (List.mem_cons_of_mem _ hd'_mem)
         split at h
         · ext
           · rw [LawfulLitVar.toVar_negate]; symm; assumption
@@ -259,7 +259,7 @@ theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
       replace hr := hr hd' hd'_mem
       simp [LitVar.satisfies_iff, PropAssignment.set] at hr h
       split at h
-      · use hd, (List.mem_cons_self _ _), hd', (List.mem_cons_of_mem _ hd'_mem)
+      · use hd, List.mem_cons_self, hd', (List.mem_cons_of_mem _ hd'_mem)
         ext
         · rw [LawfulLitVar.toVar_negate]; symm; assumption
         · rw [LawfulLitVar.polarity_negate, Bool.eq_not]; assumption

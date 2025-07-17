@@ -349,7 +349,7 @@ theorem setMany_satisfies_iff_inter_semVars (τ : PropAssignment ν) (vs τ' φ)
     simp [setMany_union]; apply ih
   else
   simp [Finset.insert_eq, Finset.union_inter_distrib_right
-      , Finset.singleton_inter_of_not_mem h
+      , Finset.singleton_inter_of_notMem h
       , setMany_union]
   rw [← ih _, ← τ.set_setMany_comm _ _ _ _ hx]
   rw [not_mem_semVars] at h

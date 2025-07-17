@@ -134,18 +134,8 @@ def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
     none
 
 theorem Array.mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
-    Array.mkArray (n + 1) a = #[a] ++ (Array.mkArray n a) := by
+    Array.replicate (n + 1) a = #[a] ++ (Array.replicate n a) := by
   apply Array.ext'; simp; rfl
-
-@[simp]
-theorem Array.foldl_empty (f : β → α → β) (init : β) (start stop : Nat) :
-    Array.foldl f init #[] start stop = init := by
-  simp [foldl, foldlM, Id.run]
-
-@[simp]
-theorem Array.foldl_nil (f : β → α → β) (init : β) (start stop : Nat) :
-    Array.foldl f init { toList := [] } start stop = init :=
-  Array.foldl_empty f init start stop
 
 @[simp]
 theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List α) :

@@ -213,7 +213,7 @@ instance instLawfulLitVar : LawfulLitVar ILit IVar where
     apply Subtype.ext
     apply Int.natAbs_neg
   toVar_mkPos x :=
-    Subtype.ext (Int.natAbs_ofNat x.val)
+    Subtype.ext (Int.natAbs_natCast x.val)
   toVar_mkNeg x := by
     apply Subtype.ext
     simp [toVar, mkNeg]
@@ -228,7 +228,6 @@ instance instLawfulLitVar : LawfulLitVar ILit IVar where
   polarity_mkNeg l := by
     cases l
     simp [polarity, mkNeg]
-    omega
   ext l₁ l₂ := by
     /- Strip type alias. -/
     suffices ∀ {l₁ l₂ : Int}, l₁.natAbs = l₂.natAbs → (0 < l₁ ↔ 0 < l₂) → l₁ = l₂ by

@@ -20,7 +20,7 @@ namespace HashAssn
 
 variable {L : Type u} {ν : Type v} [LitVar L ν] [BEq ν] [Hashable ν]
 
-def empty : HashAssn L := Std.HashMap.empty
+def empty : HashAssn L := Std.HashMap.emptyWithCapacity
 
 variable (self : HashAssn L)
 
