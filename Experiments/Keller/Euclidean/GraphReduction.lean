@@ -286,39 +286,59 @@ noncomputable def tiling_to_clique (T : Tiling (n+1)) (periodic : T.Periodic) (f
 /-! ### Clique to Tiling -/
 
 noncomputable def vert_to_offset (v : KVertex n s) : Point n :=
-  Point.ofFn fun j => v.idx[j].toInt + v.color[j] / s
+  Point.ofFn fun j => -1 + v.idx[j].toInt + ((v.color[j]+1 : ℕ) : ℝ) / s
 
 theorem vert_to_offset.bounds (v : KVertex n s) :
-    ∀ j, 0 ≤ vert_to_offset v j ∧ vert_to_offset v j < 2 := by
+    ∀ j, -1 < vert_to_offset v j ∧ vert_to_offset v j ≤ 1 := by
   intro j
-  have : 0 ≤ (v.idx[j].toInt: ℝ) ∧ (v.idx[j].toInt: ℝ) ≤ 1 := by
-    cases v.idx[j] <;> simp
-  have : 0 ≤ (v.color[j] / s: ℝ) ∧ (v.color[j]: ℝ) / s < 1 := by
-    have hs : (s : ℝ) > 0 := by
-      simp [Nat.pos_iff_ne_zero]; rintro rfl; apply Fin.elim0 v.color[j]
-    rw [le_div_iff₀ hs, div_lt_iff₀ hs]
-    simp
-
   simp only [vert_to_offset, Point.app_ofFn]
+
+  have idx_bounds : 0 ≤ (v.idx[j].toInt: ℝ) ∧ (v.idx[j].toInt: ℝ) ≤ 1 := by
+    norm_cast
+    cases v.idx[j] <;> simp
+
+  have hs : 0 < (s : ℝ) := by
+    simp [Nat.pos_iff_ne_zero]; rintro rfl; apply Fin.elim0 v.color[j]
+  have color_lb : 0 < ((v.color[j] + 1 : ℕ) : ℝ) / s := by
+    rw [lt_div_iff₀ hs]
+    norm_cast; simp
+  have : ((v.color[j] + 1 : ℕ): ℝ) / s ≤ 1 := by
+    rw [div_le_iff₀ hs]
+    norm_cast; omega
+
   constructor <;> linarith
 
 theorem vert_to_offset.ext (h : s > 0) (v₁ v₂ : KVertex n s) (j) :
-    vert_to_offset v₁ j = vert_to_offset v₂ j ↔ v₁.idx[j] = v₂.idx[j] ∧ v₁.color[j] = v₂.color[j] := by
+    vert_to_offset v₁ j = vert_to_offset v₂ j ↔
+    v₁.idx[j] = v₂.idx[j] ∧ v₁.color[j] = v₂.color[j] := by
   simp only [vert_to_offset, Point.app_ofFn]
   generalize v₁.idx[j] = i₁ at *; generalize v₂.idx[j] = i₂ at *
+  have : 0 < v₁.color[j].val + 1 ∧ v₁.color[j].val + 1 ≤ s := by
+    constructor <;> omega
+  have : 0 < v₂.color[j].val + 1 ∧ v₂.color[j].val + 1 ≤ s := by
+    constructor <;> omega
   generalize v₁.color[j] = c₁ at *; generalize v₂.color[j] = c₂ at *
   constructor
-  · by_cases i₁ = i₂
+  · wlog i1_le : i₁ ≤ i₂ generalizing i₁ i₂ c₁ c₂
+    · rw [not_le] at i1_le
+      specialize this i₂ i₁ c₂ ‹_› c₁ ‹_› (le_of_lt i1_le)
+      rw [eq_comm, eq_comm (a := i₂), eq_comm (a := c₂)] at this
+      exact this
+    by_cases i₁ = i₂
     case pos =>
       subst i₂
       simp [div_eq_div_iff, Nat.ne_zero_of_lt h, Fin.val_eq_val]
-    case neg =>
-      have : (s : ℝ) > 0 := by simp [h]
-      have : 0 ≤ (c₁ : ℝ) / s := by simp [le_div_iff₀, *]
-      have : (c₁ : ℝ) / s < 1 := by simp [div_lt_iff₀, *]
-      have : 0 ≤ (c₂ : ℝ) / s := by simp [le_div_iff₀, *]
-      have : (c₂ : ℝ) / s < 1 := by simp [div_lt_iff₀, *]
-      cases i₁ <;> simp_all <;> linarith
+    case neg i_eq =>
+      have := lt_of_le_of_ne i1_le i_eq
+      clear i1_le i_eq
+      rw [Bool.lt_iff] at this
+      rcases this with ⟨rfl,rfl⟩
+      simp only [Bool.toInt_false, Int.cast_zero, add_zero, Bool.toInt_true, Int.cast_one,
+        neg_add_cancel, zero_add, Bool.false_eq_true, false_and, imp_false, ne_eq]
+
+      have hs : (s : ℝ) ≠ 0 := by norm_cast; omega
+      rw [eq_comm, div_eq_iff hs, add_mul, div_mul_cancel₀ _ hs]
+      norm_cast; omega
   · rintro ⟨rfl,rfl⟩; rfl
 
 theorem vert_to_offset.inj (h : s > 0) (v₁ v₂ : KVertex n s) :
@@ -350,6 +370,22 @@ theorem vert_to_offset.ff_of_adj (h : s > 0) (v₁ v₂ : KVertex n s) :
 
   specialize nodiff j₂ (Ne.symm js_ne)
   aesop
+
+theorem vert_to_offset.cube_index_is_vertex_index (h : s > 0) (v : KVertex n s) :
+    Cube.index (vert_to_offset v) = coreidx_eqv_bitvec.symm v.idx := by
+  ext j
+  simp only [Cube.index, vert_to_offset, Point.app_ofFn,
+    coreidx_eqv_bitvec, Equiv.coe_fn_symm_mk]
+
+  have hs : 0 < (s : ℝ) := by norm_cast
+  have : 0 < ((v.color[j].val + 1 : ℕ) : ℝ) / s := by
+    rw [lt_div_iff₀ hs]; norm_cast; omega
+  have : ((v.color[j].val + 1 : ℕ) : ℝ) / s ≤ 1 := by
+    rw [div_le_iff₀ hs]; norm_cast; omega
+
+  generalize ((v.color[j].val + 1 : ℕ) : ℝ) / s = x at *
+  rw [Int.ceil_eq_iff]
+  constructor <;> linarith
 
 def clique_to_corners (K : KClique n s) : Set (Point n) :=
   periodify { vert_to_offset v | (v ∈ K.val) }
@@ -417,18 +453,33 @@ theorem clique_to_corners_disjoint (K : KClique n s) :
     cases ps_diff_eq_1 <;> cases this <;>
       (first | left; linarith | right; linarith)
 
+theorem clique_to_corners_covers.cube (K : KClique n s) (p : Point n)
+      (p_in_region : ∀ j, 0 ≤ p j ∧ p j < 2) :
+    ∃ c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
+  sorry
+
 theorem clique_to_corners_covers (K : KClique n s) (p : Point n) :
-    ∃! c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
-  apply existsUnique_of_exists_of_unique
-  next =>
-    done
-  next =>
-    rintro c₁ c₂ ⟨c₁_mem,p_mem_c₁⟩ ⟨c₂_mem,p_mem_c₂⟩
-    have := clique_to_corners_disjoint K c₁_mem c₂_mem
-    rw [not_imp_comm] at this
-    apply this; clear this
-    simp [Set.disjoint_iff, Set.ext_iff]
-    use p
+    ∃ c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
+  let p_fract : Point n := Point.ofFn fun j => Int.fract (p j / 2) * 2
+  let p_off : IntPoint n := fun j => ⌊p j / 2⌋
+  have : p_fract + 2 • p_off = p := by
+    ext j
+    have : ⌊p j / 2⌋ + Int.fract (p j / 2) = p j / 2 := Int.floor_add_fract ..
+    rw [eq_comm, add_comm, div_eq_iff (by simp), add_mul] at this
+    simp [p_fract, p_off]; linarith
+
+  obtain ⟨t,t_mem,p'_mem⟩ :=
+    clique_to_corners_covers.cube K p_fract (by
+      simp [p_fract, Int.fract_lt_one])
+
+  unfold clique_to_corners at t_mem
+  rcases t_mem with ⟨t,t_mem,off,rfl⟩
+  use t + 2 • (off + p_off).toPoint
+  constructor
+  · use t, t_mem; simp [-IntPoint.toPoint_add]
+  · rw [← this, IntPoint.toPoint_add, smul_add, ← add_assoc, Cube.mem_add_iff,
+      add_sub_cancel_right]
+    exact p'_mem
 
 theorem clique_to_corners_ff (h : s > 0) (K : KClique n s) :
     ∀ c₁ ∈ clique_to_corners K, ∀ c₂ ∈ clique_to_corners K, ¬ Faceshare c₁ c₂ := by
@@ -472,7 +523,16 @@ def clique_to_tiling (K : KClique (n+1) (2^n)) :
           ∃ T : Tiling (n+1), T.Periodic ∧ T.FaceshareFree := by
   use {
     corners := clique_to_corners K
-    covers := clique_to_corners_covers K
+    covers := by
+      intro p
+      apply existsUnique_of_exists_of_unique
+      · apply clique_to_corners_covers K
+      · rintro c₁ c₂ ⟨c₁_mem,p_mem_c₁⟩ ⟨c₂_mem,p_mem_c₂⟩
+        have := clique_to_corners_disjoint K c₁_mem c₂_mem
+        rw [not_imp_comm] at this
+        apply this; clear this
+        simp [Set.disjoint_iff, Set.ext_iff]
+        use p
   }
   refine ⟨?periodic,?ff⟩
   case periodic =>
