@@ -1,5 +1,5 @@
-N=6
-S=32
+N=7
+S=6
 
 DIR="$PWD/cnfs/g${N}_${S}"
 
@@ -15,6 +15,7 @@ CNF_SB="$DIR/keller_sb.cnf"
 ICNF="$DIR/keller_sb_cubes.icnf"
 TAUTO="$DIR/keller_sb_cubes_tauto.cnf"
 
+SOLVER_LOG="$DIR/keller_sb.log"
 DRAT_SB="$DIR/keller_sb_proof.drat"
 DRAT_SB_OPT="$DIR/keller_sb_proof_opt.drat"
 
@@ -34,7 +35,7 @@ keller cnf $N $S --cnf $CNF --dsr $SB_DSR --cube $CUBES
 #gcc Keller-encode.c && ./a.out $N $S > $CNF
 
 # check the SR proof
-time dsr-trim -f $CNF $SB_DSR $SB_LSR
+#time dsr-trim -f $CNF $SB_DSR $SB_LSR
 #lsr-check $CNF $LSR
 #srcheck $CNF $LSR
 
@@ -44,16 +45,24 @@ keller append-sr-clauses --cnf $CNF --sr $SB_DSR --out $CNF_SB
 
 USE_CUBES=true
 if $USE_CUBES; then
+  # check tautology first
+  keller negate-cubes --cnf $CNF_SB --cubes $CUBES --out $TAUTO
+  cadical $TAUTO || (
+    if [ $? -ne 20 ]; then
+      false
+    fi
+  )
+
   # combine CNF with cubes
   (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
 
-  icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB \
+  (icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
     || true
   #mkdir "$DIR/g${N}_${S}_sb_cube"
   #./run_par.sh $INC "$DIR/g${N}_${S}_sb_cube"
 else
   # run it without the cubes
-  cadical --forcephase=1 --scorefactor=500 $CNF_SB $DRAT_SB
+  cadical --forcephase=1 --scorefactor=500 $CNF_SB $DRAT_SB > $SOLVER_LOG
 fi
 
 drat-trim $CNF_SB $DRAT_SB -l $DRAT_SB_OPT
