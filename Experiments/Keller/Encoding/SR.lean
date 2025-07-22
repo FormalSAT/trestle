@@ -34,6 +34,38 @@ def AllVars.renumber (f : Fin n → Fin s → Fin s) : AllVars n s → AllVars n
 | .y i i' j => .y i i' j
 | .z i i' j => .z i i' j
 
+/-- convert a matrix automorphism (from noncanonical to canononical)
+to a mapping (from canonical to noncanonical).
+
+NB the change in direction.
+-/
+def AllVars.autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → AllVars n s :=
+  match a with
+  | .renumber f =>
+      AllVars.renumber fun j k =>
+        if h' : 2 ≤ j.val ∧ j.val < 2+m then
+          let x := (f ⟨j-2,by omega⟩).symm k
+          if h'' : x < s then
+            ⟨x,h''⟩
+          else
+            have : Inhabited (Fin s) := ⟨k⟩
+            panic! "renumber maps outside s"
+        else
+          k
+  | .reorder p =>
+      AllVars.reorder <|
+        Equiv.Perm.extendDomain (p := fun j => 2 ≤ j.val ∧ j.val < 2+m)
+          p.symm
+          { toFun := (⟨⟨·.val+2,by omega⟩,by simp; omega⟩)
+            invFun := (⟨·.val-2,by omega⟩)
+            left_inv := by intro; simp, right_inv := by rintro ⟨a,b⟩; ext; simp; omega
+          }
+  | .trans a1 a2 =>
+      fun x => x |> autoToMap a2 h |> autoToMap a1 h
+  | .lift a1 =>
+      autoToMap a1 (Nat.le_of_lt h)
+
+
 namespace SR
 
 abbrev SRGen (n s) := ReaderT (SR.Line (Literal (AllVars n s)) → IO Unit) IO
@@ -127,199 +159,6 @@ def c3_fixed : SRGen n s Unit := do
     SRGen.write <| SR.mkLine #[ .neg <| .x 11 two one,  .pos <| .x 3 four one ] (true_lits := #[]) (substs := #[])
     SRGen.write <| SR.mkLine #[ .pos <| .x 3 four one  ] (true_lits := #[]) (substs := #[])
 
-/-- ##### Bound extra split indices
-
--/
-def extra_col_bounds (j : Fin n) (next : Nat) : SRGen n s Unit := do
-  for hi : i in [0:3] do
-    bound [2,4,6][i] j (next+i+1)
-
-
-/-! #### cX Constraints
-
-Now we look at the special `cX` indices
-(for `n=7`, these are `i=7, 11, 19, 35, 67`).
--/
-
-def cX (row : Nat) (h : n ≥ 2 ∧ row + 2 < n := by omega) : BitVec n :=
-  SymmBreak.C3Zeros.X (n := n-2) (row+2) (by omega)
-  |>.cast (by omega)
-
-/-- ##### Bound `cX`
-
-In every column `j`, the `r`'th special index `cX[r]`
-can be bounded below `3+r`
--/
-def cX_bounds (j : Fin n) : SRGen n s Unit := do
-  for hi : row in [0:min 3 (n-2)] do
-    have : row < n-2 := by
-      have : _ < min _ _ := hi.upper
-      omega
-    let idx : BitVec n := cX row
-
-    bound idx j (row+3)
-
-
-/-! ##### Increment Sorted Columns
-
-Each column `2 ≤ j` can be constrained to be inc-sorted
-on the `cX`s by renumbering.
-We iterate over all non-inc-sorted colorings of the column,
-blocking each one by mapping to its canonical version.
--/
-
-def generateColorVecs (hdLt : Nat) (len : Nat) : List (Vector (Fin s) len) :=
-  match len with
-  | 0 => [#v[]]
-  | len+1 =>
-    let pres := generateColorVecs hdLt len
-    let lasts : List (Fin s) :=
-      List.range (min s (hdLt+len))
-      |>.pmap (⟨·,·⟩) (by simp; omega)
-    pres.flatMap fun pre =>
-      lasts.map fun last =>
-        pre.push last
-
-/-- all the ways we can color the cX indices for columns 2/3/4 -/
-def col234_colorings :=
-  let colorings := generateColorVecs (hdLt := 3) (len := 3)
-  colorings.map fun coloring =>
-    let perm := renumberIncr' (s := 5) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
-      (by simp)
-    let renumbered := coloring.map perm
-    if coloring == renumbered then
-      Sum.inl coloring
-    else
-      Sum.inr (coloring, perm, renumbered)
-
-/-- all the ways we can color *c3 and cX* indices for columns 5+ -/
-def col5_colorings (s) (h : s ≥ 2) :=
-  let colorings := generateColorVecs (hdLt := 2) (len := 4)
-  colorings.map fun coloring =>
-    let perm := renumberIncr' (s := s) (L := 0 :: (coloring.map (·.val) |>.toList))
-      (by simp; omega)
-    let renumbered := coloring.map perm
-    if coloring == renumbered then
-      Sum.inl coloring
-    else
-      Sum.inr (coloring, perm, renumbered)
-
-/-- all the ways to color columns 5+,
-but with column permutations. -/
-def col5n_colorings (s) (h : s ≥ 2) :=
-  let colorings := col5_colorings s h |>.filterMap (·.getLeft?)
-  let vec_colorings : List (Vector (Vector (Fin s) 4) 2) :=
-    colorings.flatMap fun a => colorings.map fun b => #v[a,b]
-  vec_colorings.filterMap fun coloring =>
-    if coloring[0][0].val = 0 ∧ coloring[1][0].val = 1 then none
-    else some <|
-    if coloring[0] ≥ coloring[1] then
-      Sum.inl coloring
-    else
-      Sum.inr (coloring, #v[coloring[1],coloring[0]])
-
-def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Unit := do
-  if h : n < 5 ∨ s < 5 then return else
-
-  let j : Fin n := ⟨j, by omega⟩
-  have : j.val < 5 := by simp_all [j]
-
-  for (coloring,perm,renumbered) in
-      col234_colorings.filterMap (·.getRight?) do
-
-    -- The diagonal element is always 1, so skip assns where that doesn't hold
-    if coloring[j.val-2]'(by omega) ≠ 1 then continue
-
-    -- The clause we want to block (negation of `coloring`)
-    let clause : Clause (Literal <| AllVars n s) :=
-      Array.ofFn (n := 3) fun row =>
-        .neg <| .x (cX row) j (coloring[row].castLE (by omega))
-
-    -- Assign all the literals associated with these 3 `(idx,j)` pairs
-    let true_lits :=
-      Array.flatten <|
-      Array.ofFn (n := 3) fun row =>
-        Array.ofFn (n := s) fun k =>
-          Literal.mk (AllVars.x (cX row) j k) (k.val = renumbered[row].val)
-
-    -- substitute everything else via perm
-    let substs := renumberSubsts j (
-      (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
-
-    SRGen.write <| SR.mkLine clause (hc := by simp [clause]) true_lits substs
-
-def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
-  if h : n < 5 ∨ s < 5 then return else
-
-  let j : Fin n := ⟨j, by omega⟩
-  have : j.val ≥ 5 := by simp_all [j]
-
-  for (coloring,perm,renumbered) in
-      (col5_colorings s (by omega)).filterMap (·.getRight?) do
-
-    -- The s-gap between c3 and cX[j-2] is always in column `j`,
-    -- so skip any colorings where they are unequal
-    -- if coloring[0].val ≠ coloring[1+j.val-2]'(by omega) then continue
-
-    -- The clause we want to block (negation of `coloring`)
-    let clause : Clause (Literal <| AllVars n s) :=
-      Array.ofFn (n := 4) fun row =>
-        let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-        .neg <| .x idx j (coloring[row].castLE (by omega))
-
-    -- Assign all the literals associated with these 3 `(idx,j)` pairs
-    let true_lits :=
-      Array.flatten <|
-      Array.ofFn (n := 4) fun row =>
-        let idx : BitVec n := if row.val = 0 then 3 else cX (row-1)
-        Array.ofFn (n := s) fun k =>
-          Literal.mk (AllVars.x idx j k) (k.val = renumbered[row].val)
-
-    -- substitute everything else via perm
-    let substs := renumberSubsts j perm.symm
-
-    SRGen.write <|
-      SR.mkLine clause (hc := by simp [clause]) true_lits substs
-
-def col67_sorted (n s) ( h : n = 7 ∧ s > 0) : SRGen n s Unit := do
-  IO.println s!"  (starting col5n_sorted)"
-
-  have : NeZero s := ⟨Nat.ne_zero_iff_zero_lt.mpr h.2⟩
-  let five := ⟨5,by omega⟩
-  let six := ⟨6,by omega⟩
-
-  -- the substitution is always swapping 5/6
-  let substs := reorderSubsts (n := n) five six
-
-  let idxs : Vector (BitVec n) 4 := #v[3,7,11,19]
-
-  for hlen : len in [0:4] do
-    have : len < 4 := hlen.upper
-
-    for hi : i in [0:2^len] do
-      let pref : Vector Bool len := Vector.ofFn (fun r => (i >>> r.val) % 2 = 0)
-
-      -- We want to block the case where both columns 5 and 6 are `pref`
-      let prefCube : Cube (Literal <| AllVars n s) :=
-        Array.ofFn (n := len) (fun r =>
-          #[.mk (.x idxs[r] five 0) pref[r], .mk (.x idxs[r] six 0) pref[r]])
-        |>.flatten
-
-      -- noncanonical goes 01 in last row, canon goes 10
-      let noncanon : Cube (Literal <| AllVars n s) :=
-        prefCube.and #[.pos (.x idxs[len] five 0), .neg (.x idxs[len] six 0)]
-      let canon : Cube (Literal <| AllVars n s) :=
-        prefCube.and #[.neg (.x idxs[len] five 0), .pos (.x idxs[len] six 0)]
-
-      let clause := noncanon.negate
-      let true_lits := canon
-
-      SRGen.write <| SR.mkLine clause
-        (hc := by simp [clause, noncanon, prefCube, Cube.and, Cube.negate, Cube.toArray, ← Array.sum_eq_sum_toList])
-        true_lits substs
-
-
-
 /-! ##### Matrix Symmetries
 
 Interpreting index `7, 11, 19` and dimension `2,3,4` as a matrix,
@@ -396,7 +235,7 @@ def matList : List (Vector Bool 5 × Option (Vector Bool 5 × Equiv.Perm (Fin 3)
 
 end
 
-def mat_canonical (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
+def mat_zeros_canonical (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
   have : NeZero s := ⟨by omega⟩
 
   for (m,v) in matList do
@@ -424,6 +263,263 @@ def mat_canonical (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
 
       SRGen.write <|
         SR.mkLine clause ‹_› true_lits subst
+
+def canonicalMats := SymmBreak.Matrix.matsUpTo 3
+
+set_option maxHeartbeats 1000000 in
+def mat_canonical (hn : n ≥ 5) (hs : s ≥ 5): SRGen n s Unit := do
+  have : NeZero s := ⟨by omega⟩
+
+  for (x,v) in (canonicalMats.get 3).map do
+    match v with
+    | .canon _ => pure ()
+    | .noncanon canonical auto =>
+
+      -- The clause we want to block (negation of `x`)
+      let clause :=
+        Array.finRange 3 |>.flatMap fun row => Array.ofFn (n := 3) fun col =>
+          Literal.neg <|
+            AllVars.x #[(7 : BitVec n),11,19][row] ⟨col+2, by omega⟩ (Fin.ofNat s x.data[row][col])
+
+      have : clause.size > 0 := by
+        simp [clause, ← Array.sum_eq_sum_toList]
+
+      -- Assign all the literals associated with these rows/cols
+      -- to their value under the canonical case
+      let true_lits :=
+        (Array.ofFn (n := 3) fun row =>
+          Array.ofFn (n := 3) fun col =>
+            Array.ofFn (n := s) fun k =>
+              Literal.mk
+                (AllVars.x #[(7 : BitVec n),11,19][row] ⟨col+2, by omega⟩ k)
+                (k.val = canonical.data[row][col])
+        ).flatten.flatten
+
+      -- Permute all the other variables based on the given `auto`
+      let subst := substsOfMap <| AllVars.autoToMap auto (by omega)
+
+      SRGen.write <|
+        SR.mkLine clause this true_lits subst
+
+
+
+/-- ##### Bound matrix rows
+
+In every column `j`, the matrix elements can be bounded below `3,4,5`
+-/
+def mat_rows_bound (j : Fin n) : SRGen n s Unit := do
+  bound  7 j 3
+  bound 11 j 4
+  bound 19 j 5
+
+
+/-! ##### Increment Sorted Columns
+
+Each column `2 ≤ j` can be constrained to be inc-sorted
+on the `cX`s by renumbering.
+We iterate over all non-inc-sorted colorings of the column,
+blocking each one by mapping to its canonical version.
+-/
+
+def generateColorVecs (hdLt : Nat) (len : Nat) : List (Vector (Fin s) len) :=
+  match len with
+  | 0 => [#v[]]
+  | len+1 =>
+    let pres := generateColorVecs hdLt len
+    let lasts : List (Fin s) :=
+      List.range (min s (hdLt+len))
+      |>.pmap (⟨·,·⟩) (by simp; omega)
+    pres.flatMap fun pre =>
+      lasts.map fun last =>
+        pre.push last
+
+/-- all the ways we can color the cX indices for columns 2/3/4 -/
+def col234_colorings :=
+  let colorings := generateColorVecs (hdLt := 3) (len := 3)
+  colorings.map fun coloring =>
+    let perm := renumberIncr' (s := 5) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
+      (by simp)
+    let renumbered := coloring.map perm
+    if coloring == renumbered then
+      Sum.inl coloring
+    else
+      Sum.inr (coloring, perm, renumbered)
+
+/-- all the ways we can color *c3 and cX* indices for columns 5+ -/
+def col5_colorings (s) (h : s ≥ 2) :=
+  let colorings := generateColorVecs (hdLt := 2) (len := 4)
+  colorings.map fun coloring =>
+    let perm := renumberIncr' (s := s) (L := 0 :: (coloring.map (·.val) |>.toList))
+      (by simp; omega)
+    let renumbered := coloring.map perm
+    if coloring == renumbered then
+      Sum.inl coloring
+    else
+      Sum.inr (coloring, perm, renumbered)
+
+/-- all the ways to color columns 5,6,
+but with column permutations. -/
+def col56_colorings (s) (h : s ≥ 2) :=
+  let colorings := col5_colorings s h |>.filterMap (·.getLeft?)
+  let vec_colorings : List (Vector (Vector (Fin s) 4) 2) :=
+    colorings.flatMap fun a => colorings.map fun b => #v[a,b]
+  vec_colorings.filterMap fun coloring =>
+    if coloring[0][0].val = 0 ∧ coloring[1][0].val = 1 then none
+    else some <|
+    if coloring[0] ≥ coloring[1] then
+      Sum.inl coloring
+    else
+      Sum.inr (coloring, #v[coloring[1],coloring[0]])
+
+def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Unit := do
+  if h : n < 5 ∨ s < 5 then return else
+
+  let j : Fin n := ⟨j, by omega⟩
+  have : j.val < 5 := by simp_all [j]
+
+  for (coloring,perm,renumbered) in
+      col234_colorings.filterMap (·.getRight?) do
+
+    -- The diagonal element is always 1, so skip assns where that doesn't hold
+    if coloring[j.val-2]'(by omega) ≠ 1 then continue
+
+    -- The clause we want to block (negation of `coloring`)
+    let clause : Clause (Literal <| AllVars n s) :=
+      Array.ofFn (n := 3) fun row =>
+        .neg <| .x #[7,11,19][row] j (coloring[row].castLE (by omega))
+
+    -- Assign all the literals associated with these 3 `(idx,j)` pairs
+    let true_lits :=
+      Array.flatten <|
+      Array.ofFn (n := 3) fun row =>
+        Array.ofFn (n := s) fun k =>
+          Literal.mk (AllVars.x #[7,11,19][row] j k) (k.val = renumbered[row].val)
+
+    -- substitute everything else via perm
+    let substs := renumberSubsts j (
+      (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
+
+    SRGen.write <| SR.mkLine clause (hc := by simp [clause]) true_lits substs
+
+def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
+  if h : n < 5 ∨ s < 5 then return else
+
+  let j : Fin n := ⟨j, by omega⟩
+  have : j.val ≥ 5 := by simp_all [j]
+
+  for (coloring,perm,renumbered) in
+      (col5_colorings s (by omega)).filterMap (·.getRight?) do
+
+    -- The s-gap between c3 and cX[j-2] is always in column `j`,
+    -- so skip any colorings where they are unequal
+    -- if coloring[0].val ≠ coloring[1+j.val-2]'(by omega) then continue
+
+    -- The clause we want to block (negation of `coloring`)
+    let clause : Clause (Literal <| AllVars n s) :=
+      Array.ofFn (n := 4) fun row =>
+        let idx : BitVec n := #[3,7,11,19][row]
+        .neg <| .x idx j (coloring[row].castLE (by omega))
+
+    -- Assign all the literals associated with these 3 `(idx,j)` pairs
+    let true_lits :=
+      Array.flatten <|
+      Array.ofFn (n := 4) fun row =>
+        let idx : BitVec n := #[3,7,11,19][row]
+        Array.ofFn (n := s) fun k =>
+          Literal.mk (AllVars.x idx j k) (k.val = renumbered[row].val)
+
+    -- substitute everything else via perm
+    let substs := renumberSubsts j perm.symm
+
+    SRGen.write <|
+      SR.mkLine clause (hc := by simp [clause]) true_lits substs
+
+def col56_zeros_sorted (n s) ( h : n = 7 ∧ s > 0) : SRGen n s Unit := do
+  IO.println s!"  (starting col56_zeros_sorted)"
+
+  have : NeZero s := ⟨Nat.ne_zero_iff_zero_lt.mpr h.2⟩
+  let five := ⟨5,by omega⟩
+  let six := ⟨6,by omega⟩
+
+  -- the substitution is always swapping 5/6
+  let substs := reorderSubsts (n := n) five six
+
+  let idxs : Vector (BitVec n) 4 := #v[3,7,11,19]
+
+  for hlen : len in [0:4] do
+    have : len < 4 := hlen.upper
+
+    for hi : i in [0:2^len] do
+      let pref : Vector Bool len := Vector.ofFn (fun r => (i >>> r.val) % 2 = 0)
+
+      -- We want to block the case where both columns 5 and 6 are `pref`
+      let prefCube : Cube (Literal <| AllVars n s) :=
+        Array.ofFn (n := len) (fun r =>
+          #[.mk (.x idxs[r] five 0) pref[r], .mk (.x idxs[r] six 0) pref[r]])
+        |>.flatten
+
+      -- noncanonical goes 01 in last row, canon goes 10
+      let noncanon : Cube (Literal <| AllVars n s) :=
+        prefCube.and #[.pos (.x idxs[len] five 0), .neg (.x idxs[len] six 0)]
+      let canon : Cube (Literal <| AllVars n s) :=
+        prefCube.and #[.neg (.x idxs[len] five 0), .pos (.x idxs[len] six 0)]
+
+      let clause := noncanon.negate
+      let true_lits := canon
+
+      SRGen.write <| SR.mkLine clause
+        (hc := by simp [clause, noncanon, prefCube, Cube.and, Cube.negate, Cube.toArray, ← Array.sum_eq_sum_toList])
+        true_lits substs
+
+def col56_sorted (n s) (h : n = 7 ∧ s ≥ 2): SRGen n s Unit := do
+  IO.println s!"  (starting col56_sorted)"
+
+  -- the substitution is always swapping 5/6
+  let substs := reorderSubsts ⟨5,by omega⟩ ⟨6,by omega⟩
+
+  -- rather than iterate over all ~70 blocked assignments to 3,7,11,19,
+  -- we optimize by blocking assignments to idxs 3,7 then 3,7,11 then 3,7,11,19
+
+  let colColorings := col5_colorings s h.2 |>.filterMap (·.getLeft?)
+
+  for hlen : len in [1:4] do
+    have : len < 4 := hlen.upper
+    let biggers := colColorings
+      |>.map (·.take (len+1) |>.cast (m := len+1) (by omega))
+      |>.dedup
+
+    for bigger in biggers do
+      let pref := bigger.take len |>.cast (m := len) (by omega)
+      let lastR := bigger[len]
+
+      for hlastL : lastL in [0:lastR] do
+        let lastL : Fin s := ⟨lastL, have : lastL < lastR := hlastL.upper; by omega⟩
+        -- We want to block the case where both columns 5 and 6 are `pref`,
+        -- and the next element is `k` in 5 and `last` in 6
+        let clause : Clause (Literal <| AllVars n s) :=
+          Array.flatten (Array.ofFn (n := len+1) fun row =>
+            let idx : BitVec n := #[3,7,11,19][row]
+            let left := .neg <| .x idx ⟨5,by omega⟩ (if h : row.val < len then pref[row] else lastL)
+            let right := .neg <| .x idx ⟨6,by omega⟩ (if h : row.val < len then pref[row] else lastR)
+            #[ left, right ]
+          )
+
+        -- Assign all the literals in question to match `swapped`
+        let true_lits :=
+          Array.flatten <| Array.flatten <| Array.ofFn (n := len+1) fun row =>
+            let idx : BitVec n := #[3,7,11,19][row]
+            Array.ofFn (n := s) fun k =>
+              #[ Literal.mk (AllVars.x idx ⟨5,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastR)
+              ,  Literal.mk (AllVars.x idx ⟨6,by omega⟩ k) (k.val = if h : row.val < len then pref[row] else lastL) ]
+
+
+        SRGen.write <|
+          SR.mkLine clause (hc := by simp [clause, ← Array.sum_eq_sum_toList])
+                  true_lits substs
+
+
+
+/-! ### Extra / unhelpful symmetry breaking -/
 
 def extra_renumber_bounds (j : Fin n) : SRGen n s Unit := do
   if h : ¬(s > 6) then return else
@@ -473,30 +569,26 @@ def hardest_mat_rotation {n s} : SRGen n s Unit := do
 
 
 def all (n s) : SRGen n s Unit := do
+  if hs : s > 0 then
   -- c3 stuff
   c3_bounds
   c3_fixed
 
   -- matrix zeros
-  if h : 5 ≤ n ∧ s > 0 then
-    c7_3_nonzero h.1 h.2
-    mat_canonical h.1 h.2
-
-  -- dim 6/7 swap
-  if h : n = 7 ∧ s > 0 then
-    col67_sorted n s h
-
-  -- use renumbering bounds in all the columns
-  if h : n ≥ 2 then
-    extra_col_bounds ⟨0,by omega⟩ 1
-    extra_col_bounds ⟨1,by omega⟩ 2
+  if hn : 5 ≤ n then
+    c7_3_nonzero hn hs
+    mat_zeros_canonical hn hs
 
   for hj : j in [2:n] do
     have : 2 ≤ j := hj.lower
     have : j < n := hj.upper
     if _h : j < 5 then
-      cX_bounds ⟨j,this⟩
+      mat_rows_bound ⟨j,this⟩
       col234_incSorted j (by omega)
     else
-      cX_bounds ⟨j,this⟩
+      mat_rows_bound ⟨j,this⟩
       col5_incSorted j (by omega)
+
+  -- dim 5/6 swap
+  if h : n = 7 ∧ s ≥ 2 then
+    col56_sorted n s (by omega)

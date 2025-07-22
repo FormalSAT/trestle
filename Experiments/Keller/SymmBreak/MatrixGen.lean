@@ -227,7 +227,7 @@ def extendPerm (e : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (m+n)) := {
   right_inv := by intro i; simp; split <;> simp_all
 }
 
-def tryReorder (x : Matrix (m+1)) (c : CanonicalMats m): CanonInfo (m+1) := Id.run do
+def tryReorder (x : Matrix (m+1)) : CanonInfo (m+1) := Id.run do
   -- if we find non-id idempotent permutations, they go here
   let mut eqPerms := #[]
 
@@ -250,14 +250,14 @@ def tryReorder (x : Matrix (m+1)) (c : CanonicalMats m): CanonInfo (m+1) := Id.r
 
 
 
-def findSmaller (x : Matrix (m+1)) (c : CanonicalMats m) : CanonInfo (m+1) :=
+def findSmaller (x : Matrix (m+1)) : CanonInfo (m+1) :=
   let colorPerm := renumber x
   let res := (Auto.renumber colorPerm).toFun x
   match compare res x with
   | .lt =>
     .noncanon res (.renumber colorPerm)
   | .eq =>
-    tryReorder res c
+    tryReorder res
   | .gt =>
     panic! "findSmaller renumber is gt??"
 
@@ -273,7 +273,7 @@ def CanonicalMats.step (c : CanonicalMats m) : CanonicalMats (m+1) where
     have mats := c.canonical.flatMap (·.extend)
     have foundSmaller : Std.HashMap _ _ :=
       mats.foldl (init := .emptyWithCapacity) fun acc m =>
-        acc.insert m (findSmaller m c)
+        acc.insert m (findSmaller m)
     -- just doublecheck that x' is actually smaller...
     if foundSmaller.toArray.any (fun | (_,.canon _) => .false | (x,.noncanon x' _) => !(x' < x))
     then panic! "x' isn't actually smaller!!! D:" else
