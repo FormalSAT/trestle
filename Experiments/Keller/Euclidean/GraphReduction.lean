@@ -453,10 +453,132 @@ theorem clique_to_corners_disjoint (K : KClique n s) :
     cases ps_diff_eq_1 <;> cases this <;>
       (first | left; linarith | right; linarith)
 
-theorem clique_to_corners_covers.cube (K : KClique n s) (p : Point n)
-      (p_in_region : ∀ j, 0 ≤ p j ∧ p j < 2) :
+theorem clique_to_corners_covers.cube.ih (K : KClique n s) (j₀ : Nat)
+    (p : Point n) (p_range_1 : ∀ j, j₀ ≤ j.val → p j ∈ show Set ℝ from {0,1})
+    (p_range_2 : ∀ j, j.val < j₀ → 0 ≤ p j ∧ p j < 2) :
     ∃ c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
-  sorry
+  match j₀ with
+  | 0 =>
+    simp at p_range_1 p_range_2
+    let i : BitVec n := BitVec.ofFn fun j => p j = 1
+    let v := vert_to_offset ⟨i, K.get i⟩
+    use v, ⟨v,⟨_,K.get_mem _,rfl⟩,0,by simp⟩
+    have : p = Cube.index v := by
+      ext j
+      unfold v
+      rw [vert_to_offset.cube_index_is_vertex_index]
+      · cases p_range_1 j <;>
+        next h => simp [coreidx_eqv_bitvec, i, h]
+      · have := (K.get 0)[0]'(j.pos); exact this.pos
+    rw [this]
+    apply Cube.index_mem
+  | j+1 =>
+  clear j₀
+  by_cases j < n
+  case neg =>
+    apply ih K n
+    · simp
+    · rintro j -; apply p_range_2; omega
+  case pos j₀h =>
+    -- replace j with `j₀ : Fin n`
+    have : j = (⟨j,j₀h⟩ : Fin n).val := rfl
+    generalize (⟨j,j₀h⟩ : Fin n) = j₀ at this; subst j
+    clear j₀h
+    have p_range := p_range_2 j₀ (by simp)
+    -- apply IH to two points in a line with `p`
+    let p₀ := p.update j₀ 0
+    let p₁ := p.update j₀ 1
+    have p₀_covered := ih K j₀ p₀
+      (by intro j j_range
+          if hj : j = j₀ then subst j; simp [p₀]
+          else simp [p₀,hj]; simp [Fin.ext_iff] at hj; apply p_range_1; omega)
+      (by intro j j_range
+          have : j ≠ j₀ := (by simp [Fin.ext_iff]; omega)
+          simp [p₀, this]; apply p_range_2; omega)
+    have p₁_covered := ih K j₀ p₁
+      (by intro j j_range
+          if hj : j = j₀ then subst j; simp [p₁]
+          else simp [p₁,hj]; simp [Fin.ext_iff] at hj; apply p_range_1; omega)
+      (by intro j j_range
+          have : j ≠ j₀ := (by simp [Fin.ext_iff]; omega)
+          simp [p₁, this]; apply p_range_2; omega)
+    clear p_range_1 p_range_2
+
+    obtain ⟨t₀,t₀_mem,p₀_mem⟩ := p₀_covered
+    obtain ⟨t₁,t₁_mem,p₁_mem⟩ := p₁_covered
+
+    -- t₀ and t₁ have ranges on their `j₀` coordinate
+    have t₀_range := (Cube.mem_iff _ _).mp p₀_mem j₀
+    simp [p₀] at t₀_range
+    have t₁_range := (Cube.mem_iff _ _).mp p₁_mem j₀
+    simp [p₁] at t₁_range
+
+    -- define `t₂` as `t₀` but offset by 2e_{j₀}
+    let t₂ := t₀ + EuclideanSpace.single j₀ 2
+    have t₂_mem : t₂ ∈ clique_to_corners K := by
+      obtain ⟨t₀,t₀_mem,off,rfl⟩ := t₀_mem
+      use t₀, t₀_mem,(off + .single j₀ 1)
+      simp [t₂,add_assoc]
+
+    -- in fact, they are next to each other
+    have : t₀ j₀ + 1 = t₁ j₀ := by
+      have disjoint01 := clique_to_corners_disjoint K t₀_mem t₁_mem
+        (by intro h; have := congrFun h j₀; linarith)
+      have disjoint12 := clique_to_corners_disjoint K t₁_mem t₂_mem
+        (by intro h; have := congrFun h j₀; simp [t₂] at this; linarith)
+      rw [Function.onFun, Set.disjoint_right] at disjoint01 disjoint12
+      specialize @disjoint01 (p₁.update j₀ (t₁ j₀)) (by
+        apply Cube.update_mem_of_mem p₁_mem; simp)
+      specialize @disjoint12 ((p₀+.single j₀ 2).update j₀ (t₂ j₀)) (by
+        apply Cube.update_mem_of_mem
+        · simp [t₂, Cube.mem_add_iff]; exact p₀_mem
+        · simp)
+      rw [Cube.mem_iff] at disjoint01 disjoint12
+      replace disjoint01 : ¬ (t₀ j₀ ≤ t₁ j₀ ∧ t₁ j₀ < t₀ j₀ + 1) := by
+        intro h; apply disjoint01; intro j
+        if hj : j = j₀ then
+          subst hj; simpa using h
+        else
+          simpa [hj, p₀, p₁] using (Cube.mem_iff _ _).mp p₀_mem j
+      replace disjoint12 : ¬ (t₁ j₀ ≤ t₂ j₀ ∧ t₂ j₀ < t₁ j₀ + 1) := by
+        intro h; apply disjoint12; intro j
+        if hj : j = j₀ then
+          subst hj; simpa using h
+        else
+          simpa [hj, p₀, p₁] using (Cube.mem_iff _ _).mp p₁_mem j
+      push_neg at disjoint01 disjoint12
+      simp [t₂] at disjoint12
+      specialize disjoint01 (by linarith)
+      specialize disjoint12 (by linarith)
+      linarith
+
+    -- no matter where `p` is on the line between `p₀` and `p₁`,
+    -- it is covered
+    if p j₀ < t₁ j₀ then
+      use t₀, t₀_mem
+      have := Cube.update_mem_of_mem (j := j₀) (y := p j₀) p₀_mem
+        (by constructor <;> linarith)
+      simpa [p₀] using this
+    else if p j₀ < t₁ j₀ + 1 then
+      use t₁, t₁_mem
+      have := Cube.update_mem_of_mem (j := j₀) (y := p j₀) p₁_mem
+        (by constructor <;> linarith)
+      simpa [p₁] using this
+    else
+      use t₂, t₂_mem
+      rw [Cube.mem_add_iff, sub_eq_add_neg,
+        ← EuclideanSpace.single_neg, Point.add_single_eq_update]
+      have := Cube.update_mem_of_mem (j := j₀) (y := p j₀ - 2) p₀_mem
+        (by constructor <;> linarith)
+      simpa [p₀] using this
+
+
+theorem clique_to_corners_covers.cube (K : KClique n s) (p : Point n)
+      (p_range : ∀ j, 0 ≤ p j ∧ p j < 2) :
+    ∃ c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
+  apply clique_to_corners_covers.cube.ih K n
+  · simp
+  · simp [p_range]
 
 theorem clique_to_corners_covers (K : KClique n s) (p : Point n) :
     ∃ c, c ∈ clique_to_corners K ∧ p ∈ Cube c := by
@@ -546,21 +668,20 @@ end Graph
 
 open Graph
 
-theorem graphConjecture_implies_euclideanConjecture (h : Keller.conjectureIn n) :
-      Euclidean.conjectureIn n := by
+theorem euclideanConjecture_iff_graphConjecture :
+      Euclidean.conjectureIn (n+1) ↔ Keller.conjectureIn (n+1) := by
   rw [conjecture_iff_periodic]
-  rintro ⟨T,T_per,T_ff⟩
-  apply h.false; clear h
-  match n with
-  | 0 => simp [KClique]; use {default}, default
-  | n+1 =>
-  apply Graph.tiling_to_clique T T_per T_ff
+  constructor
+  · intro h; constructor; intro K
+    apply h
+    exact clique_to_tiling K
+  · rintro h ⟨T,T_per,T_ff⟩
+    apply h.false; clear h
+    apply Graph.tiling_to_clique T T_per T_ff
 
 
 /--
-info: 'Keller.Euclidean.graphConjecture_implies_euclideanConjecture' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
+info: 'Keller.Euclidean.euclideanConjecture_iff_graphConjecture' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms graphConjecture_implies_euclideanConjecture
+#print axioms euclideanConjecture_iff_graphConjecture
