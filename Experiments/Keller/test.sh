@@ -1,5 +1,5 @@
-N=6
-S=32
+N=7
+S=6
 
 DIR="$PWD/cnfs/g${N}_${S}"
 

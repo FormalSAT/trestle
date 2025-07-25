@@ -548,17 +548,28 @@ def hardest_lastcol_swap {n s} (hn : n = 7) (hs : s > 0) : SRGen n s Unit := do
   let j5 : Fin n := ⟨5, by omega⟩
   let j6 : Fin n := ⟨6, by omega⟩
 
+  let substs := substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j5 j6
+
   -- 3,7,11,19 all zero in col5/6
-  let cond : Array (Literal (AllVars n s)) :=
-    Array.map Literal.neg #[
+  let cond : Array (AllVars n s) := #[
       x 03 j5 z, x 07 j5 z, x 11 j5 z, x 19 j5 z,
       x 03 j6 z, x 07 j6 z, x 11 j6 z, x 19 j6 z, ]
 
-  let substs := substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j5 j6
-
-  SRGen.write <| SR.mkLine (cond ++ #[.neg (x 2 j5 z), .pos (x 2 j6 z)]) (by simp +zetaDelta)
-    ( #[.pos (x 2 j5 z), .neg (x 2 j6 z)] )
+  -- x2,5,0 -> x2,6,0
+  SRGen.write <| SR.mkLine
+    (c := cond.map .neg ++ #[.neg (x 2 j5 z), .pos (x 2 j6 z)])
+    (hc := by simp +zetaDelta)
+    (true_lits := cond.map .pos ++ #[.neg (x 2 j5 z), .pos (x 2 j6 z)])
     substs
+
+  -- x2,5,1 -> x2,6,0 ∨ x2,6,1
+  if h : s > 1 then
+    let o : Fin s := ⟨1,h⟩
+    SRGen.write <| SR.mkLine
+      (c := cond.map .neg ++ #[.neg (x 2 j5 o), .pos (x 2 j6 z), .pos (x 2 j6 o)])
+      (hc := by simp +zetaDelta)
+      (true_lits := cond.map .pos ++ #[.pos (x 2 j6 o)])
+      substs
 
 
 def calculatedRenumbers (hn : n ≥ 5) : SRGen n s Unit := do
