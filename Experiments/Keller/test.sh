@@ -1,5 +1,5 @@
-N=7
-S=6
+N=6
+S=32
 
 DIR="$PWD/cnfs/g${N}_${S}"
 
@@ -31,43 +31,35 @@ PATH="$PWD/../../.lake/build/bin:$PATH"
 # generate the CNF, the DSR proof, and the cubes
 keller cnf $N $S --cnf $CNF --dsr $SB_DSR --cube $CUBES
 
-# can also use the C encoder to generate CNF
-#gcc Keller-encode.c && ./a.out $N $S > $CNF
-
 # check the SR proof
-#time dsr-trim -f $CNF $SB_DSR $SB_LSR
-#lsr-check $CNF $LSR
+time dsr-trim -f $CNF $SB_DSR $SB_LSR
+lsr-check $CNF $SB_LSR
 #srcheck $CNF $LSR
 
 # append the SR proven clauses
 keller append-sr-clauses --cnf $CNF --sr $SB_DSR --out $CNF_SB
 
 
-USE_CUBES=true
-if $USE_CUBES; then
-  # check tautology first
-  keller negate-cubes --cnf $CNF_SB --cubes $CUBES --out $TAUTO
-  cadical $TAUTO || (
-    if [ $? -ne 20 ]; then
-      false
-    fi
-  )
-
-  # combine CNF with cubes
-  (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
-
-  (icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
-    || true
-  #mkdir "$DIR/g${N}_${S}_sb_cube"
-  #./run_par.sh $INC "$DIR/g${N}_${S}_sb_cube"
-else
-  # run it without the cubes
-  cadical --forcephase=1 --scorefactor=500 $CNF_SB $DRAT_SB > $SOLVER_LOG
-fi
+# check tautology first
+keller negate-cubes --cnf $CNF_SB --cubes $CUBES --out $TAUTO
+cadical $TAUTO || (
+  if [ $? -ne 20 ]; then
+    false
+  fi
+)
+# combine CNF with cubes
+(echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
+(icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
+  || true
+#mkdir "$DIR/g${N}_${S}_sb_cube"
+#./run_par.sh $INC "$DIR/g${N}_${S}_sb_cube"
 
 drat-trim $CNF_SB $DRAT_SB -l $DRAT_SB_OPT
 
-(cat $SB_DSR $DRAT_SB_OPT | grep -v "^c" | grep -v "^d") > $DSR_FULL
+# currently this last bit does not work because dsr-trim has a bug (feature?)
+exit
+
+(cat $SB_DSR $DRAT_SB_OPT | grep -v "^c") > $DSR_FULL
 
 dsr-trim $CNF $DSR_FULL $LSR_FULL
 lsr-check $CNF $LSR_FULL

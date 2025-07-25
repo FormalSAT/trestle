@@ -519,22 +519,7 @@ def col56_sorted (n s) (h : n = 7 ∧ s ≥ 2): SRGen n s Unit := do
 
 
 
-/-! ### Extra / unhelpful symmetry breaking -/
-
-def extra_renumber_bounds (j : Fin n) : SRGen n s Unit := do
-  if h : ¬(s > 6) then return else
-  have := not_not.mp h
-
-  let mut ltK : Fin s := ⟨6,this⟩
-  for idx in allBitVecs n do
-    if idx ∈ [0,1,3,7,11,19] then
-      continue
-
-    if idx[1]! = true then
-      bound idx j ltK
-      match ltK.succ? with
-      | some next => ltK := next
-      | none => break
+/-! ### Hardest cases symmetry breaking -/
 
 open AllVars in
 def hardest_mat_rotation {n s} (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
@@ -560,6 +545,47 @@ def hardest_mat_rotation {n s} (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := d
   SRGen.write <| SR.mkLine (cond ++ #[.neg (x 2 j3 z), .pos (x 2 j4 z)]) (by simp +zetaDelta)
     #[.pos (x 2 j4 z), .neg (x 2 j2 z),] substs
 
+open AllVars in
+def hardest_lastcol_swap {n s} (hn : n = 7) (hs : s > 0) : SRGen n s Unit := do
+  let z : Fin s := ⟨0,by omega⟩
+
+  let j5 : Fin n := ⟨5, by omega⟩
+  let j6 : Fin n := ⟨6, by omega⟩
+
+  -- 3,7,11,19 all zero in col5/6
+  let cond : Array (Literal (AllVars n s)) :=
+    Array.map Literal.neg #[
+      x 03 j5 z, x 07 j5 z, x 11 j5 z, x 19 j5 z,
+      x 03 j6 z, x 07 j6 z, x 11 j6 z, x 19 j6 z, ]
+
+  let substs := substsOfMap (s := s) <| AllVars.reorder <| Equiv.swap j5 j6
+
+  SRGen.write <| SR.mkLine (cond ++ #[.neg (x 2 j5 z), .pos (x 2 j6 z)]) (by simp +zetaDelta)
+    ( #[.pos (x 2 j5 z), .neg (x 2 j6 z)] )
+    substs
+
+
+def calculatedRenumbers (hn : n ≥ 5) : SRGen n s Unit := do
+  -- col 0 is symmetric for k ≥ 1
+  for (idx,k) in [23, 41, 50, 52].zipIdx 2 do
+    bound idx ⟨0,by omega⟩ k
+
+  -- col 1 is symmetric for k ≥ 2
+  for (idx,k) in [15, 21, 23, 24, 31, 45, 48, 49, 57].zipIdx 3 do
+    bound idx ⟨1,by omega⟩ k
+
+  -- col 2 is symmetric for k ≥ 4
+  for (idx,k) in [6].zipIdx 5 do
+    bound idx ⟨2,by omega⟩ k
+
+  -- col 4 is symmetric for k ≥ 4
+  for (idx,k) in [20, 31, 51].zipIdx 5 do
+    bound idx ⟨4,by omega⟩ k
+
+  for hj: j in [5:n] do
+    for (idx,k) in [2, 5, 23, 27, 41, 49, 50, 55].zipIdx 6 do
+      bound idx ⟨j,hj.upper⟩ k
+
 
 def all (n s) : SRGen n s Unit := do
   if hs : s > 0 then
@@ -584,5 +610,10 @@ def all (n s) : SRGen n s Unit := do
       col5_incSorted j (by omega)
 
   -- dim 5/6 swap
-  if h : n = 7 ∧ s ≥ 2 then
-    col56_sorted n s (by omega)
+  if h : n = 7 then
+    if h : s ≥ 2 then
+      col56_sorted n s (by omega)
+    hardest_lastcol_swap h (by omega)
+
+  if hn : 5 ≤ n then
+    calculatedRenumbers hn
