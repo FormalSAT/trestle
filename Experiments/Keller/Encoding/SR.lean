@@ -39,11 +39,11 @@ to a mapping (from canonical to noncanonical).
 
 NB the change in direction.
 -/
-def AllVars.autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n s → AllVars n s :=
+def AllVars.autoToMap (a : SymmBreak.Matrix.Auto) (h : 5 ≤ n) : AllVars n s → AllVars n s :=
   match a with
   | .renumber f =>
       AllVars.renumber fun j k =>
-        if h' : 2 ≤ j.val ∧ j.val < 2+m then
+        if h' : 2 ≤ j.val ∧ j.val < 5 then
           let x := (f ⟨j-2,by omega⟩).symm k
           if h'' : x < s then
             ⟨x,h''⟩
@@ -54,7 +54,7 @@ def AllVars.autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n 
           k
   | .reorder p =>
       AllVars.reorder <|
-        Equiv.Perm.extendDomain (p := fun j => 2 ≤ j.val ∧ j.val < 2+m)
+        Equiv.Perm.extendDomain (p := fun j => 2 ≤ j.val ∧ j.val < 5)
           p.symm
           { toFun := (⟨⟨·.val+2,by omega⟩,by simp; omega⟩)
             invFun := (⟨·.val-2,by omega⟩)
@@ -62,8 +62,6 @@ def AllVars.autoToMap (a : SymmBreak.Matrix.Auto m) (h : 2+m ≤ n) : AllVars n 
           }
   | .trans a1 a2 =>
       fun x => x |> autoToMap a2 h |> autoToMap a1 h
-  | .lift a1 =>
-      autoToMap a1 (Nat.le_of_lt h)
 
 
 namespace SR
@@ -264,13 +262,11 @@ def mat_zeros_canonical (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
       SRGen.write <|
         SR.mkLine clause ‹_› true_lits subst
 
-def canonicalMats := SymmBreak.Matrix.matsUpTo 3
-
 set_option maxHeartbeats 1000000 in
-def mat_canonical (hn : n ≥ 5) (hs : s ≥ 5): SRGen n s Unit := do
+def mat_canonical (hn : n ≥ 5) (hs : s ≥ 4): SRGen n s Unit := do
   have : NeZero s := ⟨by omega⟩
 
-  for (x,v) in (canonicalMats.get 3).map do
+  for (x,v) in SymmBreak.Matrix.canonicalMats.map do
     match v with
     | .canon _ => pure ()
     | .noncanon canonical auto =>
@@ -599,15 +595,23 @@ def all (n s) : SRGen n s Unit := do
     mat_zeros_canonical hn hs
     hardest_mat_rotation hn hs
 
-  for hj : j in [2:n] do
+  for hj : j in [2:min 5 n] do
     have : 2 ≤ j := hj.lower
+    have : j < 5 ∧ j < n := by simpa using hj.upper
+
+    mat_rows_bound ⟨j,by omega⟩
+    col234_incSorted j (by omega)
+
+  -- add various other matrix symmetries beyond the zero symmetries
+  -- (e.g. in the all non-zero case many of the matrices can be eliminated)
+  if hn : 5 ≤ n ∧ s ≥ 4 then
+    mat_canonical (by omega) (by omega)
+
+  for hj : j in [5:n] do
+    have : 5 ≤ j := hj.lower
     have : j < n := hj.upper
-    if _h : j < 5 then
-      mat_rows_bound ⟨j,this⟩
-      col234_incSorted j (by omega)
-    else
-      mat_rows_bound ⟨j,this⟩
-      col5_incSorted j (by omega)
+    mat_rows_bound ⟨j,this⟩
+    col5_incSorted j (by omega)
 
   -- dim 5/6 swap
   if h : n = 7 then

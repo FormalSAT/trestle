@@ -83,7 +83,7 @@ def lastColsCubes_just_zeros (n s) : Cubing <| Literal (Vars n s) :=
 
 def matrixCubes (n s) : Cubing <| Literal (Vars n s) :=
   if h : n ≥ 5 ∧ s ≥ 4 then
-    let matrixList := (SR.canonicalMats.get 3).canonical.toList
+    let matrixList := SymmBreak.Matrix.canonicalMats.canonical.toList
     let idxs := #[7, 11, 19]
     let two : Fin n := ⟨2,by omega⟩
     let three : Fin n := ⟨3,by omega⟩

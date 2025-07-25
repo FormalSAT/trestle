@@ -29,189 +29,115 @@ using the automorphism as the SR witness.
 -/
 
 @[ext]
-structure Matrix (m : Nat) where
-  data : Vector (Vector Nat m) m
+structure Matrix where
+  data : Vector (Vector Nat 3) 3
 deriving Inhabited, DecidableEq, Repr, Hashable
 
 namespace Matrix
 
-nonrec def compare (x y : Matrix m) : Ordering := Id.run do
-  for hs : step in [1:m] do
-    let step : Fin m := ⟨step, hs.upper⟩
-    -- check `col = step`
-    for hr : row in [0:step] do
-      let row : Fin m := ⟨row, Nat.lt_trans hr.upper step.isLt⟩
-      let ord := aux x.data[row][step] y.data[row][step]
-      if ord ≠ .eq then return ord
+nonrec def compare (x y : Matrix) : Ordering :=
+  match (x.data[0][1] == 1, y.data[0][1] == 1) with
+  | (true, false) => .lt
+  | (false, true) => .gt
+  | (true, true) | (false, false) =>
+  compare (x.data[1][0]) (y.data[1][0])
+  |>.then (compare (x.data[0][2]) (y.data[0][2]))
+  |>.then (compare (x.data[2][0]) (y.data[2][0]))
+  |>.then (compare (x.data[1][2]) (y.data[1][2]))
+  |>.then (compare (x.data[2][1]) (y.data[2][1]))
 
-    -- check `row = step`
-    for hc : col in [0:step] do
-      let col : Fin m := ⟨col, Nat.lt_trans hc.upper step.isLt⟩
-      let ord := aux x.data[step][col] y.data[step][col]
-      if ord ≠ .eq then return ord
+instance : Ord (Matrix) where compare := compare
 
-  return .eq
-where aux (a b : Nat) : Ordering :=
-  if a = b then .eq else
-  if a = 1 then .lt else
-  if b = 1 then .gt else
-  compare a b
+instance : BEq (Matrix) := Ord.toBEq inferInstance
 
-instance : Ord (Matrix m) where compare := compare
+instance : LE (Matrix) := leOfOrd
+instance : DecidableRel (α := Matrix) (· ≤ ·) := inferInstance
+instance : LT (Matrix) := ltOfOrd
+instance : DecidableRel (α := Matrix) (· < ·) := inferInstance
 
-instance : BEq (Matrix m) := Ord.toBEq inferInstance
-
-instance : LE (Matrix m) := leOfOrd
-instance : DecidableRel (α := Matrix m) (· ≤ ·) := inferInstance
-instance : LT (Matrix m) := ltOfOrd
-instance : DecidableRel (α := Matrix m) (· < ·) := inferInstance
-
-nonrec def toString (x : Matrix m) : String :=
+nonrec def toString (x : Matrix) : String :=
   x.data.map (·.map (toString) |>.toList |> String.intercalate " ")
   |>.toList |> String.intercalate "\n"
 
-instance : ToString (Matrix m) := { toString }
+instance : ToString (Matrix) := { toString }
 
-/-- Generate all possible values for the last row of the matrix extension.
-`kBound` is the (exclusive) upper bound for elements. -/
-def extend.lastRows (kBound : Nat) (len : Nat) : Array (Vector Nat len) :=
-  match len with
-  | 0 => #[#v[]]
-  | len+1 =>
-  extend.lastRows kBound len |>.flatMap (fun prefixArr =>
-    Array.ofFn (n := kBound) fun i => prefixArr.push i)
 
-theorem extend.lastRows_bounded : ∀ v ∈ lastRows kBound len, ∀ x ∈ v, x < kBound := by
-  intro v v_mem_lastRows x x_mem_v
-  replace x_mem_v := Array.mem_def.mp x_mem_v.val
-  induction len with
-  | zero =>
-    simp [Vector.mem_iff_getElem] at x_mem_v
-  | succ len ih =>
-    simp [lastRows, List.mem_ofFn] at v_mem_lastRows
-    rcases v_mem_lastRows with ⟨v_pre,v_pre_mem,y,rfl⟩
-    specialize ih v_pre v_pre_mem
-    clear v_pre_mem
-    simp at x_mem_v
-    aesop
+def allMats : Array Matrix := Id.run do
+  let mut res := #[]
+  for _10 in [0:3] do
+    for _02 in [0:3] do
+      for _20 in (if _02 == 1 then [0:(max 1 _10)+2] else [1:2]) do
+        for _12 in [0:(max 1 _02)+2] do
+          for _21 in (if _12 == 1 then [0:3] else [1:2]) do
+            res := res.push ⟨#v[#v[1,1,_02],#v[_10,1,_12],#v[_20,_21,1]]⟩
+  return res
 
-/-- Given matrix `x` and extending last row `lastRow`,
-returns array of possible values for row `row` extending `x`.
-The notable complexity here is that when `lastRow[row] ≠ 1`,
-we are forced to put a `1` in this row.
--/
-def extend.fillRow (x : Matrix m) (lastRow : Vector Nat m) (row : Fin m) :
-      Array (Vector Nat (m+1)) :=
-  if lastRow[row] = 1 then
-    Array.ofFn (n := row+3) fun lastVal =>
-      x.data[row].push lastVal
-  else
-    #[ x.data[row].push 1 ]
+--#eval allMats.size
+--#eval show IO Unit from do
+--  for i in [0:allMats.size] do
+--    for j in [0:allMats.size] do
+--      if compare allMats[i]! allMats[j]! ≠ Ord.compare i j then
+--        IO.println s!"{i} {j}"
+--  IO.println "boop!"
 
-def extend.fillLastCols (x : Matrix m) (lastRow : Vector Nat m)
-      (upTo : Nat) (upTo_bound : upTo ≤ m) :
-      Array <| Vector (Vector Nat (m+1)) upTo :=
-  match upTo with
-  | 0 => #[#v[]]
-  | upTo+1 =>
-    let prevs := fillLastCols x lastRow upTo (Nat.le_of_lt upTo_bound)
-    let thisRow := extend.fillRow x lastRow ⟨upTo, upTo_bound⟩
-    -- combine each `prev` possibility with each `thisRow` possibility
-    prevs.flatMap (fun prev =>
-      thisRow.map (prev.push)
-    )
-
-/-- Given a matrix `x` and an extending last row `lastRow`,
-generate all viable matrices by filling in the last column.
-
-Notably, in order to maintain the `transpose_one` invariant,
-we check whether the last row's corresponding element is *not* one,
-in which case we are forced to place a one in the last column instead.
--/
-def extend.withLastRow (x : Matrix m) (lastRow : Vector Nat m) : Array (Matrix (m+1)) :=
-  let allButLastRow := fillLastCols x lastRow m (Nat.le_refl _)
-  let datas := allButLastRow.map (·.push (lastRow.push 1))
-  datas.map (fun data => {
-    data
-  })
-
-def extend (x : Matrix m) : Array (Matrix (m+1)) :=
-  let lastRows : Array (Vector Nat m) := extend.lastRows (2+m) m
-  lastRows.flatMap (extend.withLastRow x)
-
-def shrink (x : Matrix (m+1)) : Matrix m := {
-  data := Vector.ofFn fun row => Vector.ofFn fun col => x.data[row][col]
-}
 
 /-- Matrix automorphisms. Used in the encoding to reconstruct SR witnesses. -/
-inductive Auto : Nat → Type
-| renumber (f : Fin m → Equiv.Perm Nat) : Auto m
-| reorder (p : Equiv.Perm (Fin m)) : Auto m
-| trans (a1 a2 : Auto m) : Auto m
-| lift (a : Auto m) : Auto (m+1)
+inductive Auto
+| renumber (f : Fin 3 → Equiv.Perm Nat) : Auto
+| reorder (p : Equiv.Perm (Fin 3)) : Auto
+| trans (a1 a2 : Auto) : Auto
 
 namespace Auto
 
-instance : Inhabited (Auto m) := ⟨.renumber default⟩
+instance : Inhabited Auto := ⟨.renumber default⟩
 
-partial def toFun (a : Auto m) (x : Matrix m) : Matrix m :=
-  aux (Nat.le_refl _) a x
-where aux {m1 m2} (h : m1 ≤ m2) (a : Auto m1) (x : Matrix m2) : Matrix m2 :=
+partial def toFun (a : Auto) (x : Matrix) : Matrix :=
   match a with
   | renumber f =>
-    ⟨ Vector.ofFn fun row => Vector.ofFn fun col =>
-        if h' : col.val < m1 then
-          f ⟨col.val,h'⟩ x.data[row][col]
-        else
-          x.data[row][col]
-      ⟩
+    ⟨ Vector.ofFn fun row => Vector.ofFn fun col => f col x.data[row][col] ⟩
   | reorder p =>
     ⟨ Vector.ofFn fun row => Vector.ofFn fun col =>
-        let row' := if h' : row.val < m1 then (p.symm ⟨row,h'⟩).castLE h else row
-        let col' := if h' : col.val < m1 then (p.symm ⟨col,h'⟩).castLE h else col
+        let row' := (p.symm row)
+        let col' := (p.symm col)
         x.data[row'][col']
       ⟩
   | trans a1 a2 =>
-      x |> aux h a1 |> aux h a2
-  | lift a =>
-      aux (Nat.le_of_lt h) a x
+      x |> toFun a1 |> toFun a2
 
-def reprPrec (a : Auto m) (prec : Nat) : Std.Format :=
+def reprPrec (a : Auto) (prec : Nat) : Std.Format :=
   match a with
-  | .renumber f => .join [".renumber ", .line, "⋯"]
+  | .renumber _f => .join [".renumber ", .line, "⋯"]
   | .reorder p =>
     let vec := Array.finRange _ |>.map p
     .join [".reorder ", Repr.reprPrec vec prec]
   | .trans a1 a2 =>
     .nestD <| .join [".trans ", .line, reprPrec a1 prec, .line, reprPrec a2 prec]
-  | .lift a1 =>
-    .join [".lift ", reprPrec a1 prec]
 
-instance : Repr (Auto m) := { reprPrec }
+instance : Repr Auto := { reprPrec }
 
 end Auto
 
 
-inductive CanonInfo (m : Nat)
+inductive CanonInfo
 /-- All equiv matrices are greater than us.
 `eqPerms` is the column reorderings which are not identity but are idempotent. -/
-| canon (eqPerms : Array <| Equiv.Perm (Fin m))
+| canon (eqPerms : Array <| Equiv.Perm (Fin 3))
 /-- There is a smaller equiv matrix `mat` which can be reached via automorphism `auto`. -/
-| noncanon (mat : Matrix m) (auto : Auto m)
+| noncanon (mat : Matrix) (auto : Auto)
 deriving Inhabited
 
-/-- Canonicity info for all matrices of that size -/
-structure CanonicalMats (m) where
-  map : Std.HashMap (Matrix m) (CanonInfo m)
-  canonical : Array (Matrix m) :=
+/-- Canonicity info for all matrices -/
+structure CanonicalMats where
+  map : Std.HashMap Matrix CanonInfo
+  canonical : Array Matrix :=
     map.fold (init := #[]) fun acc k v =>
       match v with
       | .canon _ => acc.push k
       | .noncanon _ _ => acc
 
-def renumber (x : Matrix m) :=
-  let vec := Vector.ofFn (n := m) fun col =>
-    renumberIncr (0 :: 1 :: List.ofFn (n := m) (x.data[·][col]))
+def renumber (x : Matrix) :=
+  let vec := Vector.ofFn (n := 3) fun col =>
+    renumberIncr (0 :: 1 :: List.ofFn (n := 3) (x.data[·][col]))
   (vec[·] : Fin _ → _)
 
 def extendPerm (e : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (m+n)) := {
@@ -227,11 +153,11 @@ def extendPerm (e : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (m+n)) := {
   right_inv := by intro i; simp; split <;> simp_all
 }
 
-def tryReorder (x : Matrix (m+1)) : CanonInfo (m+1) := Id.run do
+def tryReorder (x : Matrix) : CanonInfo := Id.run do
   -- if we find non-id idempotent permutations, they go here
   let mut eqPerms := #[]
 
-  for perm in Equiv.allPerms (m+1) do
+  for perm in Equiv.allPerms 3 do
     let res := (Auto.reorder perm).toFun x
     let a := Auto.reorder perm
 
@@ -250,7 +176,7 @@ def tryReorder (x : Matrix (m+1)) : CanonInfo (m+1) := Id.run do
 
 
 
-def findSmaller (x : Matrix (m+1)) : CanonInfo (m+1) :=
+def findSmaller (x : Matrix) : CanonInfo :=
   let colorPerm := renumber x
   let res := (Auto.renumber colorPerm).toFun x
   match compare res x with
@@ -261,16 +187,9 @@ def findSmaller (x : Matrix (m+1)) : CanonInfo (m+1) :=
   | .gt =>
     panic! "findSmaller renumber is gt??"
 
-
-def CanonicalMats.zero : CanonicalMats 0 where
-  map := Std.HashMap.ofList [(
-    ⟨#v[]⟩,
-    .canon #[]
-  )]
-
-def CanonicalMats.step (c : CanonicalMats m) : CanonicalMats (m+1) where
+def canonicalMats : CanonicalMats where
   map :=
-    have mats := c.canonical.flatMap (·.extend)
+    have mats := allMats
     have foundSmaller : Std.HashMap _ _ :=
       mats.foldl (init := .emptyWithCapacity) fun acc m =>
         acc.insert m (findSmaller m)
@@ -281,11 +200,11 @@ def CanonicalMats.step (c : CanonicalMats m) : CanonicalMats (m+1) where
       match i with
       | .canon eqPerms => .canon eqPerms
       | .noncanon x' a =>
-        let (x',a) := chaseInfo foundSmaller x' a (foundSmaller.size)
+        let (x',a) := chaseInfo foundSmaller _x x' a (foundSmaller.size)
         .noncanon x' a
 where
-  chaseInfo (map : Std.HashMap (Matrix (m+1)) (CanonInfo (m+1)))
-    (x : Matrix (m+1)) (a : Auto (m+1)) (fuel : Nat) :=
+  chaseInfo (map : Std.HashMap Matrix CanonInfo) (start : Matrix)
+    (x : Matrix) (a : Auto) (fuel : Nat) :=
   match fuel with
   | 0 => panic! "out of fuel"
   | fuel+1 =>
@@ -293,35 +212,43 @@ where
   | some (.canon _) =>
       (x,a)
   | some (.noncanon x' a') =>
-      chaseInfo map x' (a.trans a') fuel
+      chaseInfo map start x' (a.trans a') fuel
   | none =>
-      panic! "missing matrix in map"
+      panic! s!"missing matrix in map:\ncurrent: {start}\nnew: {x}"
 
-structure CanonicalMatsUpTo (m : Nat) where
-  data : Vector (Σ i, CanonicalMats i) (m+1)
-  idx_eq : ∀ (i : Nat) (h : i ≤ m), data[i].fst = i
-
-def CanonicalMatsUpTo.get (i) (hi : i ≤ m := by get_elem_tactic) (u : CanonicalMatsUpTo m) : CanonicalMats i :=
-  (u.idx_eq i hi) ▸ u.data[i].snd
-
-def matsUpTo (m : Nat) : CanonicalMatsUpTo m :=
-  match m with
-  | 0 =>
-    { data := #v[⟨0,CanonicalMats.zero⟩]
-      idx_eq := by simp }
-  | m+1 =>
-    let u := matsUpTo m
-    let prev := u.get m (Nat.le_refl _)
-    let next := prev.step
-    let {data, idx_eq} := u
-    { data := data.push ⟨m+1,next⟩
-      idx_eq := by
-        intro i h
-        cases h.eq_or_lt
-        · subst i; simp
-        · rw [Vector.getElem_push_lt (by omega)]
-          apply idx_eq
-          omega }
+--#eval canonicalMats.map.filter (fun | _, .canon _ => false | _,_ => true)
+--  |>.toList.map (·.1) |>.mergeSort |>.map (·.data.toArray.map (·.toArray))
 
 
+/-
+[[1, 1, 0], [0, 1, 0], [1, 1, 1]]
+[[1, 1, 0], [0, 1, 1], [1, 0, 1]]
+[[1, 1, 0], [0, 1, 1], [1, 1, 1]]
+[[1, 1, 0], [0, 1, 1], [1, 2, 1]]
+[[1, 1, 0], [0, 1, 2], [1, 1, 1]]
+[[1, 1, 1], [0, 1, 1], [0, 1, 1]]
+[[1, 1, 1], [0, 1, 1], [0, 2, 1]]
+[[1, 1, 1], [0, 1, 0], [1, 1, 1]]
+[[1, 1, 1], [0, 1, 0], [2, 1, 1]]
+[[1, 1, 1], [0, 1, 1], [1, 1, 1]]
+[[1, 1, 1], [0, 1, 1], [1, 2, 1]]
+[[1, 1, 1], [0, 1, 2], [1, 1, 1]]
+[[1, 1, 1], [0, 1, 1], [2, 1, 1]]
+[[1, 1, 1], [0, 1, 1], [2, 2, 1]]
+[[1, 1, 1], [0, 1, 2], [2, 1, 1]]
+[[1, 1, 2], [0, 1, 1], [1, 1, 1]]
+[[1, 1, 2], [0, 1, 1], [1, 2, 1]]
+[[1, 1, 2], [0, 1, 2], [1, 1, 1]]
+[[1, 1, 2], [0, 1, 3], [1, 1, 1]]
+[[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+[[1, 1, 1], [1, 1, 1], [1, 2, 1]]
+[[1, 1, 1], [1, 1, 1], [2, 2, 1]]
+[[1, 1, 1], [1, 1, 2], [2, 1, 1]]
+[[1, 1, 2], [1, 1, 2], [1, 1, 1]]
+[[1, 1, 2], [1, 1, 3], [1, 1, 1]]
+[[1, 1, 1], [2, 1, 1], [2, 2, 1]]
+[[1, 1, 1], [2, 1, 1], [3, 2, 1]]
+[[1, 1, 2], [2, 1, 1], [1, 2, 1]]
+
+-/
 end Matrix
