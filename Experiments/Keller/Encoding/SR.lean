@@ -537,12 +537,8 @@ def extra_renumber_bounds (j : Fin n) : SRGen n s Unit := do
       | none => break
 
 open AllVars in
-def hardest_mat_rotation {n s} : SRGen n s Unit := do
-  if h : ¬(n ≥ 5 ∧ s ≥ 2) then return else
-  have h := not_not.mp h
-
+def hardest_mat_rotation {n s} (hn : n ≥ 5) (hs : s > 0) : SRGen n s Unit := do
   let z : Fin s := ⟨0,by omega⟩
-  let o : Fin s := ⟨1,by omega⟩
 
   let j2 : Fin n := ⟨2, by omega⟩
   let j3 : Fin n := ⟨3, by omega⟩
@@ -552,10 +548,7 @@ def hardest_mat_rotation {n s} : SRGen n s Unit := do
   -- 0 1 1
   -- 1 0 1
   let cond : Array (Literal (AllVars n s)) :=
-    Array.map Literal.neg #[
-               x 07 j3 o, x 07 j4 z,
-    x 11 j2 z,            x 11 j4 o,
-    x 19 j2 o, x 19 j3 z                 ]
+    Array.map Literal.neg #[ x 07 j4 z, x 11 j2 z, x 19 j3 z ]
 
   let substs := substsOfMap (s := s) <| AllVars.reorder <|
     ((Equiv.swap j2 j3).trans (Equiv.swap j3 j4))
@@ -578,6 +571,7 @@ def all (n s) : SRGen n s Unit := do
   if hn : 5 ≤ n then
     c7_3_nonzero hn hs
     mat_zeros_canonical hn hs
+    hardest_mat_rotation hn hs
 
   for hj : j in [2:n] do
     have : 2 ≤ j := hj.lower
