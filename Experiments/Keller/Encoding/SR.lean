@@ -368,7 +368,7 @@ def col56_colorings (s) (h : s ≥ 2) :=
       Sum.inr (coloring, #v[coloring[1],coloring[0]])
 
 def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Unit := do
-  if h : n < 5 ∨ s < 5 then return else
+  if h : s < 5 then return else
 
   let j : Fin n := ⟨j, by omega⟩
   have : j.val < 5 := by simp_all [j]
@@ -398,7 +398,7 @@ def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Un
     SRGen.write <| SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
 def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
-  if h : n < 5 ∨ s < 5 then return else
+  if h : s < 5 then return else
 
   let j : Fin n := ⟨j, by omega⟩
   have : j.val ≥ 5 := by simp_all [j]
@@ -578,7 +578,7 @@ def calculatedRenumbers (hn : n ≥ 5) : SRGen n s Unit := do
     bound idx ⟨0,by omega⟩ k
 
   -- col 1 is symmetric for k ≥ 2
-  for (idx,k) in [15, 21, 23, 24, 31, 45, 48, 49, 57].zipIdx 3 do
+  for (idx,k) in [15, 24, 31, 45].zipIdx 3 do
     bound idx ⟨1,by omega⟩ k
 
   -- col 2 is symmetric for k ≥ 4
@@ -590,7 +590,7 @@ def calculatedRenumbers (hn : n ≥ 5) : SRGen n s Unit := do
     bound idx ⟨4,by omega⟩ k
 
   for hj: j in [5:n] do
-    for (idx,k) in [2, 5, 23, 27, 41, 49, 50, 55].zipIdx 6 do
+    for (idx,k) in [2, 23, 55].zipIdx 6 do
       bound idx ⟨j,hj.upper⟩ k
 
 

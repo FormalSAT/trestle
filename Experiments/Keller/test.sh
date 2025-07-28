@@ -1,5 +1,5 @@
 N=7
-S=6
+S=2
 
 DIR="$PWD/cnfs/g${N}_${S}"
 
@@ -16,8 +16,10 @@ ICNF="$DIR/keller_sb_cubes.icnf"
 TAUTO="$DIR/keller_sb_cubes_tauto.cnf"
 
 SOLVER_LOG="$DIR/keller_sb.log"
-DRAT_SB="$DIR/keller_sb_proof.drat"
-DRAT_SB_OPT="$DIR/keller_sb_proof_opt.drat"
+DRAT_SB="$DIR/keller_sb.drat"
+LRAT_SB="$DIR/keller_sb.lrat"
+
+SKEL="$DIR/keller_sb.skel"
 
 DSR_FULL="$DIR/proof.dsr"
 LSR_FULL="$DIR/proof.lsr"
@@ -32,31 +34,62 @@ PATH="$PWD/../../.lake/build/bin:$PATH"
 keller cnf $N $S --cnf $CNF --dsr $SB_DSR --cube $CUBES
 
 # check the SR proof
-time dsr-trim -f $CNF $SB_DSR $SB_LSR
-lsr-check $CNF $SB_LSR
-#srcheck $CNF $LSR
+CHECK_SR=true
+if [ $CHECK_SR ]; then
+  time dsr-trim -f $CNF $SB_DSR $SB_LSR
+  lsr-check $CNF $SB_LSR
+  #srcheck $CNF $LSR
+fi
 
 # append the SR proven clauses
 keller append-sr-clauses --cnf $CNF --sr $SB_DSR --out $CNF_SB
 
+# 0 = lean cubing, 1 = proofix, 2 = skeleton
+CUBE_SRC=1
+if [ -eq $CUBE_SRC 1 ]; then
+  python ../../../proofix/main.py \
+    --cnf $CNF_SB \
+    --icnf $CUBES \
+    --cube-size 10 \
+    --cutoff 500000 \
+    --log $DIR/proofix.log \
+    --cube-only --dynamic-depth 0
+fi
+if [ -eq $CUBE_SRC 2 ]; then
+  # turn skeleton into cubes
+  grep -v "^c" $SKEL | \
+    sed 's/ 0 .*$//' | sed 's/^/a -/' | sed 's/ / -/g' | sed 's/--//g' | sed 's/$/ 0/' \
+    > $CUBES
+fi
 
-# check tautology first
+# check cube tautology first
 keller negate-cubes --cnf $CNF_SB --cubes $CUBES --out $TAUTO
-cadical $TAUTO || (
+cadical --quiet $TAUTO || (
   if [ $? -ne 20 ]; then
     false
   fi
 )
+
 # combine CNF with cubes
 (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
-(icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
-  || true
-#mkdir "$DIR/g${N}_${S}_sb_cube"
-#./run_par.sh $INC "$DIR/g${N}_${S}_sb_cube"
 
-drat-trim $CNF_SB $DRAT_SB -l $DRAT_SB_OPT
+RUN_PAR=false
+if [ $RUN_PAR ]; then
+  mkdir "$DIR/cubes"
+  ./run_par.sh $INC "$DIR/cube"
+else
+  (icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
+    || true
+fi
 
-# currently this last bit does not work because dsr-trim has a bug (feature?)
+drat-trim $CNF_SB $DRAT_SB -L $LRAT_SB
+
+# proof skeleton compression
+lrat-skel -proof $LRAT_SB -nFormula $(  ) -nDRAT $( ) --from-LRAT \
+  -nRatio 100 --write-seleton > $SKEL
+
+# Combine into a single finalized proof
+# does not work because dsr-trim has a bug (feature?)
 exit
 
 (cat $SB_DSR $DRAT_SB_OPT | grep -v "^c") > $DSR_FULL

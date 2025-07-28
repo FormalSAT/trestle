@@ -132,8 +132,9 @@ def extraSplits (n s) : Cubing <| Literal (Vars n s) :=
 def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=
   let matCubes : Cubing _ := matrixCubes_just_zeros n s
   let lastColsCubes := lastColsCubes n s
+  let extraSplits := extraSplits n s
 
-  let allCubes := (matCubes.prod lastColsCubes).prod (extraSplits n s)
+  let allCubes := matCubes |>.prod lastColsCubes |>.prod extraSplits
 
   allCubes
 
