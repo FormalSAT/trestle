@@ -34,8 +34,8 @@ PATH="$PWD/../../.lake/build/bin:$PATH"
 keller cnf $N $S --cnf $CNF --dsr $SB_DSR --cube $CUBES
 
 # check the SR proof
-CHECK_SR=true
-if [ $CHECK_SR ]; then
+CHECK_SR=false
+if [ "$CHECK_SR" = true ]; then
   time dsr-trim -f $CNF $SB_DSR $SB_LSR
   lsr-check $CNF $SB_LSR
   #srcheck $CNF $LSR
@@ -45,8 +45,8 @@ fi
 keller append-sr-clauses --cnf $CNF --sr $SB_DSR --out $CNF_SB
 
 # 0 = lean cubing, 1 = proofix, 2 = skeleton
-CUBE_SRC=1
-if [ -eq $CUBE_SRC 1 ]; then
+CUBE_SRC=0
+if [ $CUBE_SRC -eq 1 ]; then
   python ../../../proofix/main.py \
     --cnf $CNF_SB \
     --icnf $CUBES \
@@ -55,7 +55,7 @@ if [ -eq $CUBE_SRC 1 ]; then
     --log $DIR/proofix.log \
     --cube-only --dynamic-depth 0
 fi
-if [ -eq $CUBE_SRC 2 ]; then
+if [ $CUBE_SRC -eq 2 ]; then
   # turn skeleton into cubes
   grep -v "^c" $SKEL | \
     sed 's/ 0 .*$//' | sed 's/^/a -/' | sed 's/ / -/g' | sed 's/--//g' | sed 's/$/ 0/' \
@@ -73,15 +73,16 @@ cadical --quiet $TAUTO || (
 # combine CNF with cubes
 (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
 
-RUN_PAR=false
-if [ $RUN_PAR ]; then
+RUN_PAR=true
+if [ "$RUN_PAR" = true ]; then
   mkdir "$DIR/cubes"
-  ./run_par.sh $INC "$DIR/cube"
+  ./run_par.sh $ICNF "$DIR/cubes"
 else
   (icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
     || true
 fi
 
+exit
 drat-trim $CNF_SB $DRAT_SB -L $LRAT_SB
 
 # proof skeleton compression
@@ -90,7 +91,6 @@ lrat-skel -proof $LRAT_SB -nFormula $(  ) -nDRAT $( ) --from-LRAT \
 
 # Combine into a single finalized proof
 # does not work because dsr-trim has a bug (feature?)
-exit
 
 (cat $SB_DSR $DRAT_SB_OPT | grep -v "^c") > $DSR_FULL
 

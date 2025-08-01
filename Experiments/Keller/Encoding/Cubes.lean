@@ -119,12 +119,10 @@ def extraSplits (n s) : Cubing <| Literal (Vars n s) :=
   if h : n = 7 ∧ s > 0 then
     have : NeZero s := ⟨by omega⟩
     let vars : List (Vars n s) := [
-      (x 2 ⟨3,by omega⟩ 0),
-      (x 2 ⟨4,by omega⟩ 0),
-      (x 4 ⟨3,by omega⟩ 0),
-      (x 4 ⟨4,by omega⟩ 0),
-      (x 6 ⟨3,by omega⟩ 0),
-      (x 6 ⟨4,by omega⟩ 0),
+      (x 31 ⟨5,by omega⟩ 0),
+      (x 31 ⟨6,by omega⟩ 0),
+      (x 22 ⟨0,by omega⟩ 0),
+      (x 21 ⟨1,by omega⟩ 0),
     ]
     vars.foldr (fun v => .prod [#[.pos v], #[.neg v]]) .unit
   else .unit
@@ -134,8 +132,9 @@ def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=
   let lastColsCubes := lastColsCubes n s
   let extraSplits := extraSplits n s
 
-  let allCubes := matCubes |>.prod lastColsCubes |>.prod extraSplits
+  let allCubes := matCubes |>.prod lastColsCubes
 
   allCubes
+
 
 end Cubes
