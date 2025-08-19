@@ -330,11 +330,11 @@ def generateColorVecs (hdLt : Nat) (len : Nat) : List (Vector (Fin s) len) :=
         pre.push last
 
 /-- all the ways we can color the cX indices for columns 2/3/4 -/
-def col234_colorings :=
-  let colorings := generateColorVecs (hdLt := 3) (len := 3)
+def col234_colorings (hs : s ≥ 2) :=
+  let colorings := generateColorVecs (s := s) (hdLt := 3) (len := 3)
   colorings.map fun coloring =>
-    let perm := renumberIncr' (s := 5) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
-      (by simp)
+    let perm := renumberIncr' (s := s) (L := 0 :: 1 :: (coloring.map (·.val) |>.toList))
+      (by simp; omega)
     let renumbered := coloring.map perm
     if coloring == renumbered then
       Sum.inl coloring
@@ -367,17 +367,15 @@ def col56_colorings (s) (h : s ≥ 2) :=
     else
       Sum.inr (coloring, #v[coloring[1],coloring[0]])
 
-def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Unit := do
-  if h : s < 5 then return else
-
+def col234_incSorted (hs : s ≥ 2) (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Unit := do
   let j : Fin n := ⟨j, by omega⟩
   have : j.val < 5 := by simp_all [j]
 
   for (coloring,perm,renumbered) in
-      col234_colorings.filterMap (·.getRight?) do
+      (col234_colorings hs).filterMap (·.getRight?) do
 
     -- The diagonal element is always 1, so skip assns where that doesn't hold
-    if coloring[j.val-2]'(by omega) ≠ 1 then continue
+    if (coloring[j.val-2]'(by omega)).val ≠ 1 then continue
 
     -- The clause we want to block (negation of `coloring`)
     let clause : Clause (Literal <| AllVars n s) :=
@@ -392,14 +390,11 @@ def col234_incSorted (j : Nat) (hj : 2 ≤ j ∧ j < 5 ∧ j < n) : SRGen n s Un
           Literal.mk (AllVars.x #[7,11,19][row] j k) (k.val = renumbered[row].val)
 
     -- substitute everything else via perm
-    let substs := renumberSubsts j (
-      (show 5+(s-5) = s by omega) ▸ SymmBreak.Matrix.extendPerm perm.symm (n := s-5))
+    let substs := renumberSubsts j perm.symm
 
     SRGen.write <| SR.mkLine clause (hc := by simp [clause]) true_lits substs
 
-def col5_incSorted (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
-  if h : s < 5 then return else
-
+def col5_incSorted (hs : s ≥ 2) (j : Nat) (hj : 5 ≤ j ∧ j < n) : SRGen n s Unit := do
   let j : Fin n := ⟨j, by omega⟩
   have : j.val ≥ 5 := by simp_all [j]
 
@@ -595,23 +590,23 @@ def calculatedRenumbers (hn : n ≥ 5) : SRGen n s Unit := do
 
 
 def all (n s) : SRGen n s Unit := do
-  if hs : s > 0 then
+  if hs : s ≥ 2 then
   -- c3 stuff
   c3_bounds
   c3_fixed
 
   -- matrix zeros
   if hn : 5 ≤ n then
-    c7_3_nonzero hn hs
-    mat_zeros_canonical hn hs
-    hardest_mat_rotation hn hs
+    c7_3_nonzero hn (by omega)
+    mat_zeros_canonical hn (by omega)
+    hardest_mat_rotation hn (by omega)
 
   for hj : j in [2:min 5 n] do
     have : 2 ≤ j := hj.lower
     have : j < 5 ∧ j < n := by simpa using hj.upper
 
     mat_rows_bound ⟨j,by omega⟩
-    col234_incSorted j (by omega)
+    col234_incSorted (by omega) j (by omega)
 
   -- add various other matrix symmetries beyond the zero symmetries
   -- (e.g. in the all non-zero case many of the matrices can be eliminated)
@@ -622,7 +617,7 @@ def all (n s) : SRGen n s Unit := do
     have : 5 ≤ j := hj.lower
     have : j < n := hj.upper
     mat_rows_bound ⟨j,this⟩
-    col5_incSorted j (by omega)
+    col5_incSorted (by omega) j (by omega)
 
   -- dim 5/6 swap
   if h : n = 7 then
