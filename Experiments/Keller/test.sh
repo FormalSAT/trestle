@@ -47,6 +47,7 @@ keller append-sr-clauses --cnf $CNF --sr $SB_DSR --out $CNF_SB
 # 0 = lean cubing, 1 = proofix, 2 = skeleton
 CUBE_SRC=0
 if [ $CUBE_SRC -eq 1 ]; then
+  if [[ -f $CUBES ]]; then rm $CUBES; fi
   python ../../../proofix/main.py \
     --cnf $CNF_SB \
     --icnf $CUBES \
@@ -70,14 +71,19 @@ cadical --quiet $TAUTO || (
   fi
 )
 
-# combine CNF with cubes
-(echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
 
 RUN_PAR=true
 if [ "$RUN_PAR" = true ]; then
-  mkdir "$DIR/cubes"
-  ./run_par.sh $ICNF "$DIR/cubes"
+  # combine CNF with cubes
+  (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES) > $ICNF
+  if [[ -d "$DIR/logs" ]]; then rm -r "$DIR/logs"; fi
+  mkdir "$DIR/logs"
+  if [[ -d "$DIR/proofs" ]]; then rm -r "$DIR/proofs"; fi
+  mkdir "$DIR/proofs"
+  ./run_par.sh $ICNF "$DIR/logs" "$DIR/proofs"
 else
+  # combine CNF with cubes
+  (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
   (icadical --no-binary --skeletonIncremental $ICNF $DRAT_SB > $SOLVER_LOG) \
     || true
 fi

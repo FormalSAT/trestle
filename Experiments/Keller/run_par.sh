@@ -1,24 +1,32 @@
 INCCNF=$1
-OUT=$2
+LOGS=$2
+PROOFS=$3
 
-JOBS=8
+JOBS=$(( $(nproc) - 1 ))
 
 TOT_CUBES=$(cat $INCCNF | grep "^a " | wc -l)
-LINES_PER_JOB=$(( ($TOT_CUBES+$JOBS-1) / $JOBS ))
 
-echo "$TOT_CUBES cubes, $LINES_PER_JOB per job"
+for i in $(seq 1 $TOT_CUBES); do
+    (
+        cadical \
+            <( (cat $INCCNF | grep -v "^a ")
+               (cat $INCCNF | grep "^a " | tail -n+$i | head -n 1 | sed "s/a \|0$//g" | sed "s/ / 0 /g") ) \
+            "$PROOFS/$i.drat" \
+            > "$LOGS/$i.log"
+    ) &
 
-for j in $(seq 0 $(($JOBS-1))); do {
-    START_IDX=$(( $LINES_PER_JOB * $j + 1))
-    echo "job $j starts at $START_IDX"
+    echo -ne "\rStarted job $i/$TOT_CUBES"
 
-    if [[ "$START_IDX" -lt "$TOT_CUBES" ]]; then
-        (
-            (cat $INCCNF | grep -v "^a ")
-            (cat $INCCNF | grep "^a " | tail -n+$START_IDX | head -n $LINES_PER_JOB)
-        ) | cadical > "$OUT/job_$j.log"
+    # allow to execute up to jobs in parallel
+    if [[ $(jobs -r -p | wc -l) -ge $JOBS ]]; then
+        # now there are $N jobs already running, so wait here for any job
+        # to be finished so there is a place to start next one.
+        wait -n
     fi
-} &
 done
 
+# no more jobs to be started but wait for pending jobs
+# (all need to be finished)
 wait
+
+echo "\nall done"
