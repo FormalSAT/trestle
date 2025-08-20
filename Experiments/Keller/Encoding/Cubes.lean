@@ -63,6 +63,13 @@ def matrixCubes_just_zeros (n s) : Cubing (Literal (Vars n s)) :=
   else
     Cubing.unit
 
+def c19_3_split (n s) : Cubing (Literal (Vars n s)) :=
+  if h : n ≥ 5 ∧ s ≥ 2 then
+    let v := (.x 19 ⟨3,by omega⟩ ⟨0,by omega⟩)
+    [#[.pos v], #[.neg v]]
+  else
+    .unit
+
 def lastColsCubes_just_zeros (n s) : Cubing <| Literal (Vars n s) :=
   if h : n = 7 ∧ s > 1 then
     have : NeZero s := ⟨by omega⟩
@@ -119,20 +126,20 @@ def extraSplits (n s) : Cubing <| Literal (Vars n s) :=
   if h : n = 7 ∧ s > 0 then
     have : NeZero s := ⟨by omega⟩
     let vars : List (Vars n s) := [
-      (x 31 ⟨5,by omega⟩ 0),
-      (x 31 ⟨6,by omega⟩ 0),
-      (x 22 ⟨0,by omega⟩ 0),
       (x 21 ⟨1,by omega⟩ 0),
+      (x 14 ⟨0,by omega⟩ 0),
+      (x 26 ⟨0,by omega⟩ 0),
+      (x 25 ⟨1,by omega⟩ 0),
     ]
     vars.foldr (fun v => .prod [#[.pos v], #[.neg v]]) .unit
   else .unit
 
 def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=
-  let matCubes : Cubing _ := matrixCubes_just_zeros n s
+  let matCubes : Cubing _ := c19_3_split n s
   let lastColsCubes := lastColsCubes n s
   let extraSplits := extraSplits n s
 
-  let allCubes := matCubes |>.prod lastColsCubes
+  let allCubes := matCubes.prod lastColsCubes
 
   allCubes
 

@@ -1,5 +1,12 @@
-N=7
-S=2
+N=$1
+S=$2
+
+if [ $N -ge 2 -a $S -ge 2 ]; then
+  echo "Testing pipeline for $N dimensions, $S colors"
+else
+  echo "Expected arguments <N> <S>"
+  exit
+fi
 
 DIR="$PWD/cnfs/g${N}_${S}"
 
@@ -81,6 +88,7 @@ if [ "$RUN_PAR" = true ]; then
   if [[ -d "$DIR/proofs" ]]; then rm -r "$DIR/proofs"; fi
   mkdir "$DIR/proofs"
   ./run_par.sh $ICNF "$DIR/logs" "$DIR/proofs"
+  ./analysis.sh $DIR
 else
   # combine CNF with cubes
   (echo "p inccnf"; grep -v "^p" $CNF_SB; cat $CUBES; echo "a 0") > $ICNF
