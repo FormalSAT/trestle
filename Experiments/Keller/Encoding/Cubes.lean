@@ -122,14 +122,15 @@ def lastColsCubes (n s) : Cubing <| Literal (Vars n s) :=
       else .unit
   else .unit
 
+/-- splits applied to the hardest cube to keep its sequential runtime low -/
 def extraSplits (n s) : Cubing <| Literal (Vars n s) :=
   if h : n = 7 ∧ s > 0 then
     have : NeZero s := ⟨by omega⟩
     let vars : List (Vars n s) := [
-      (x 21 ⟨1,by omega⟩ 0),
-      (x 14 ⟨0,by omega⟩ 0),
+      (x 15 ⟨5,by omega⟩ 0),
       (x 26 ⟨0,by omega⟩ 0),
-      (x 25 ⟨1,by omega⟩ 0),
+      (x 23 ⟨6,by omega⟩ 0),
+      (x 22 ⟨0,by omega⟩ 0),
     ]
     vars.foldr (fun v => .prod [#[.pos v], #[.neg v]]) .unit
   else .unit
@@ -137,11 +138,12 @@ def extraSplits (n s) : Cubing <| Literal (Vars n s) :=
 def allCubes (n s) : List (Clause <| Literal <| Vars n s) :=
   let matCubes : Cubing _ := c19_3_split n s
   let lastColsCubes := lastColsCubes n s
+  let bigSplit := (matCubes.prod lastColsCubes)
+
   let extraSplits := extraSplits n s
 
-  let allCubes := matCubes.prod lastColsCubes
+  let (hardCubes, easyCubes) := bigSplit.splitAt 1
 
-  allCubes
-
+  (Cubing.prod hardCubes extraSplits) ++ easyCubes
 
 end Cubes
