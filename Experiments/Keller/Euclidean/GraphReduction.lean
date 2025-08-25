@@ -126,7 +126,7 @@ theorem offsets_eq_half_core_of_periodic {j : Fin n} {T} (h : T.Periodic) :
     if h : Cube.index t j = 0 then use t
     else
     replace h : Cube.index t j = 1 := by simpa [h] using t_core.2 j
-    let t' := T.get (Cube.index t + .single j (-1)).toPoint
+    let t' := T.get (Cube.index t + Pi.single j (-1)).toPoint
     have t'_core : t' ∈ Hajos.core T := by
       constructor
       · apply T.get_mem
@@ -137,7 +137,8 @@ theorem offsets_eq_half_core_of_periodic {j : Fin n} {T} (h : T.Periodic) :
     have t'_j : t' j + 1 = t j := by
       apply Tiling.cube_adj_of_adj_points _ t'_core.1 t_core.1
       · apply Cube.index_mem
-      · rw [Tiling.index_get]; simp [add_assoc]
+      · rw [Tiling.index_get]
+        simp [add_assoc, ← Pi.single_add]
         apply Cube.index_mem
     use t', t'_core, t'_idx_0
     simp [← t'_j]
@@ -343,7 +344,7 @@ theorem vert_to_offset.ext (h : s > 0) (v₁ v₂ : KVertex n s) (j) :
 
 theorem vert_to_offset.inj (h : s > 0) (v₁ v₂ : KVertex n s) :
     vert_to_offset v₁ = vert_to_offset v₂ ↔ v₁ = v₂ := by
-  simp_rw [PiLp.ext_iff, vert_to_offset.ext h, KVertex.ext_iff]
+  simp_rw [funext_iff, vert_to_offset.ext h, KVertex.ext_iff]
   rw [BitVec.eq_of_getElem_eq_iff, Vector.ext_iff]
   simp [forall_and, Fin.forall_iff]
 
@@ -404,7 +405,7 @@ theorem clique_to_corners_disjoint (K : KClique n s) :
   case pos =>
     subst v₂ t₁ t₂
 
-    simp [PiLp.ext_iff] at ts_ne
+    simp [funext_iff] at ts_ne
     rcases ts_ne with ⟨j,offs_ne⟩
 
     use j
@@ -514,10 +515,12 @@ theorem clique_to_corners_covers.cube.ih (K : KClique n s) (j₀ : Nat)
     simp [p₁] at t₁_range
 
     -- define `t₂` as `t₀` but offset by 2e_{j₀}
-    let t₂ := t₀ + EuclideanSpace.single j₀ 2
+    let t₂ := t₀ + Pi.single j₀ 2
     have t₂_mem : t₂ ∈ clique_to_corners K := by
       obtain ⟨t₀,t₀_mem,off,rfl⟩ := t₀_mem
-      use t₀, t₀_mem,(off + .single j₀ 1)
+      use t₀, t₀_mem,(off + Pi.single j₀ 1)
+      rw [IntPoint.toPoint_add, IntPoint.toPoint_single, nsmul_add,
+        ← Pi.single_smul]
       simp [t₂,add_assoc]
 
     -- in fact, they are next to each other
@@ -529,7 +532,7 @@ theorem clique_to_corners_covers.cube.ih (K : KClique n s) (j₀ : Nat)
       rw [Function.onFun, Set.disjoint_right] at disjoint01 disjoint12
       specialize @disjoint01 (p₁.update j₀ (t₁ j₀)) (by
         apply Cube.update_mem_of_mem p₁_mem; simp)
-      specialize @disjoint12 ((p₀+.single j₀ 2).update j₀ (t₂ j₀)) (by
+      specialize @disjoint12 ((p₀+Pi.single j₀ 2).update j₀ (t₂ j₀)) (by
         apply Cube.update_mem_of_mem
         · simp [t₂, Cube.mem_add_iff]; exact p₀_mem
         · simp)
@@ -567,7 +570,7 @@ theorem clique_to_corners_covers.cube.ih (K : KClique n s) (j₀ : Nat)
     else
       use t₂, t₂_mem
       rw [Cube.mem_add_iff, sub_eq_add_neg,
-        ← EuclideanSpace.single_neg, Point.add_single_eq_update]
+        ← Pi.single_neg, Point.add_single_eq_update]
       have := Cube.update_mem_of_mem (j := j₀) (y := p j₀ - 2) p₀_mem
         (by constructor <;> linarith)
       simpa [p₀] using this

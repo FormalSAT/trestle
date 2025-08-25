@@ -1,32 +1,30 @@
-import Mathlib.Analysis.InnerProductSpace.PiL2
+import Mathlib.Data.Real.Basic
 
 namespace Keller.Euclidean
 
-/-- This is the equivalent to `ℝᵈ` in math -/
-abbrev Point (d : ℕ) : Type := EuclideanSpace ℝ (Fin d)
+/-- Equivalent to ℝ^n on paper -/
+abbrev Point (n) := Fin n → ℝ
 
-/-- The unit cube, `[0,1)ᵈ` -/
-def UnitCube (d : ℕ) : Set (Point d) :=
-  { point | ∀ j : Fin d, 0 ≤ point j ∧ point j < 1 }
+/-- The unit cube [0,1)^n -/
+def UnitCube (n) : Set (Point n) := { p | ∀ d, 0 ≤ p d ∧ p d < 1 }
 
-/-- The unit cube transposed to `corner`: `[0, 1)ᵈ + corner` -/
-def Cube {d : ℕ} (corner : Point d) : Set (Point d) :=
-  (corner + ·) '' (UnitCube d)
+/-- A transposed unit cube, corner + [0, 1)^n -/
+def Cube (corner : Point n) := (corner + ·) '' (UnitCube n)
 
-/-- Two cubes faceshare if their corners are 1 apart in one dimension and equal in every other. -/
-def Faceshare (c1 c2 : Point d) : Prop :=
-  ∃ j, |c1 j - c2 j| = 1 ∧ ∀ j2 ≠ j, c1 j2 = c2 j2
+/-- A tiling is a set of corners such that all points
+    are covered by exactly one cube. -/
+structure Tiling (n : ℕ) where
+  corners : Set (Point n)
+  covers : ∀ p : Point n, ∃! c ∈ corners, p ∈ Cube c
 
-/-- A tiling is a set of cubes such that all points in `ℝᵈ`
-    are covered by exactly one cube.
-    We represent the set of cubes as a set of their corners. -/
-structure Tiling (d : ℕ) where
-  corners : Set (Point d)
-  covers : ∀ p : Point d, ∃! c ∈ corners, p ∈ Cube c
+/-- Cubes faceshare when the corners differ by 1 in some dimension,
+    and are equal in all other dimensions. -/
+def Faceshare (c₁ c₂ : Point n) :=
+  ∃ d, |c₁ d - c₂ d| = 1 ∧ ∀ d' ≠ d, c₁ d' = c₂ d'
 
 /-- A tiling is faceshare-free when every pair of cubes does not faceshare. -/
-def Tiling.FaceshareFree (T : Tiling d) : Prop :=
+def Tiling.FaceshareFree (T : Tiling n) :=
   T.corners.Pairwise (¬ Faceshare · ·)
 
-/-- Keller's conjecture in `d` dimensions: there is no faceshare-free tiling. -/
-def conjectureIn (d : ℕ) : Prop := ¬ ∃ T : Tiling d, T.FaceshareFree
+/-- Keller's conjecture in `n` dimensions. -/
+def conjectureIn (n) := ¬ ∃ T : Tiling n, T.FaceshareFree

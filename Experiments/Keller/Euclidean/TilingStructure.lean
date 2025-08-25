@@ -52,13 +52,13 @@ theorem update_mem_iff {j : Fin d} {x y z} :
     simp
 
 theorem add_single_mem_iff {j : Fin d} {x y α} :
-    y + EuclideanSpace.single j α ∈ Line j x ↔ y ∈ Line j x := by
+    y + Pi.single j α ∈ Line j x ↔ y ∈ Line j x := by
   simp [Point.add_single_eq_update, update_mem_iff]
 
 end Line
 
 def UnitInterval (j : Fin d) (x : Point d) : Set (Point d) :=
-  { x + EuclideanSpace.single j α | (α : ℝ) (_ : 0 ≤ α ∧ α < 1) }
+  { x + Pi.single j α | (α : ℝ) (_ : 0 ≤ α ∧ α < 1) }
 
 namespace UnitInterval
 
@@ -72,8 +72,8 @@ theorem range_of_mem (a_mem : a ∈ UnitInterval j x) :
   use 0; simp
 
 theorem end_not_mem (j : Fin d) (x) :
-      x + unitVec j ∉ UnitInterval j x := by
-  simp [unitVec, UnitInterval]
+      x + Pi.single j 1 ∉ UnitInterval j x := by
+  simp [UnitInterval]
 
 @[simp] theorem Nonempty (j : Fin d) (x) : (UnitInterval j x).Nonempty := by
   use x; apply start_mem
@@ -625,7 +625,7 @@ def replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
   /- for corners that are integer offset from a, we shift by b.
     other corners stay in place -/
   corners :=
-    { t ∈ L.corners | ∃ z : ℤ, a + z = t j }.image (· + EuclideanSpace.single j b)
+    { t ∈ L.corners | ∃ z : ℤ, a + z = t j }.image (· + Pi.single j b)
     ∪ { t ∈ L.corners | ¬ ∃ z : ℤ, a + z = t j }
   inter_line_IntegralSpaced := by
     intro x
@@ -636,7 +636,7 @@ def replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
       simp [Cube.inter_line_nonempty_iff_start_mem]
       rw [Cube.mem_add_iff,
           sub_eq_add_neg,
-          ← EuclideanSpace.single_neg]
+          ← Pi.single_neg]
       simp
 
     generalize ucdef : setOf _ = updated_corners
@@ -691,7 +691,7 @@ theorem Tiling.corners_replace {j : Fin d} {a b : ℝ} (T : Tiling d) :
 
 /-- Proof of BHMN A.2.4 -/
 theorem Tiling.cube_adj_of_adj_points (T : Tiling d) {x j} :
-      t₁ ∈ T.corners → t₂ ∈ T.corners → x ∈ Cube t₁ → x + .single j 1 ∈ Cube t₂ →
+      t₁ ∈ T.corners → t₂ ∈ T.corners → x ∈ Cube t₁ → x + Pi.single j 1 ∈ Cube t₂ →
       t₁ j + 1 = t₂ j := by
   intro t1_corner t2_corner x_mem_t1 x'_mem_t2
 
@@ -718,7 +718,7 @@ theorem Tiling.cube_adj_of_adj_points (T : Tiling d) {x j} :
 
 /-- BHMN A.2.4 -/
 theorem Tiling.get_add_single (T : Tiling d) {x j} :
-      T.get (x + .single j 1) j = T.get x j + 1 := by
+      T.get (x + Pi.single j 1) j = T.get x j + 1 := by
   rw [eq_comm]
   apply T.cube_adj_of_adj_points
     (T.get_mem _) (T.get_mem _)

@@ -5,8 +5,6 @@ namespace Keller.Euclidean
 
 /-! #### Helper Defs/Lemmas -/
 
-abbrev unitVec [DecidableEq ι] [RCLike 𝕜] (i : ι) := EuclideanSpace.single (𝕜 := 𝕜) i 1
-
 
 namespace Point
 
@@ -33,7 +31,7 @@ theorem update_inj {x} {j : Fin d} {a b} :
   · rintro rfl; rfl
 
 theorem add_single_eq_update {x : Point d} {j α} :
-      x + EuclideanSpace.single j α = x.update j (x j + α) := by
+      x + Pi.single j α = x.update j (x j + α) := by
   ext j'
   if j' = j then
     subst j'; simp
@@ -45,7 +43,7 @@ theorem add_single_eq_update {x : Point d} {j α} :
   simp [Point.update]
 
 @[simp] theorem update_add_single {x : Point d} {j y α} :
-      x.update j y + EuclideanSpace.single j α = x.update j (y + α) := by
+      x.update j y + Pi.single j α = x.update j (y + α) := by
   rw [add_single_eq_update]; simp
 
 @[simp] theorem nsmul_single (n : ℕ) (j : Fin d) (x : ℝ) :
@@ -58,7 +56,7 @@ theorem add_single_eq_update {x : Point d} {j α} :
 end Point
 
 
-def IntPoint (d : ℕ) : Type := Fin d → ℤ
+abbrev IntPoint (d : ℕ) : Type := Fin d → ℤ
 
 namespace IntPoint
 
@@ -77,13 +75,16 @@ noncomputable def toPoint {d : ℕ} (p : IntPoint d) : Point d :=
 noncomputable instance : Coe (IntPoint d) (Point d) where
   coe := IntPoint.toPoint
 
+@[simp] theorem apply_toPoint (j : Fin d) (p : IntPoint d) :
+      p.toPoint j = p j := rfl
+
 @[simp] theorem toPoint_add (p1 p2 : IntPoint d) :
     (p1 + p2).toPoint = p1.toPoint + p2.toPoint := by
   ext j; simp [toPoint]
 
 @[simp] theorem toPoint_neg (p : IntPoint d) :
     (-p).toPoint = -p.toPoint := by
-  ext j; simp [toPoint, ← Int.cast_neg]; rfl
+  ext j; simp [toPoint]
 
 @[simp] theorem toPoint_nsmul (n : ℕ) (b : IntPoint d) :
     (n • b).toPoint = n • b.toPoint := by
@@ -96,29 +97,12 @@ noncomputable instance : Coe (IntPoint d) (Point d) where
 @[simp] theorem toPoint_zero : IntPoint.toPoint (d := d) 0 = 0 := by
   ext j; simp [toPoint]
 
-@[simp] theorem apply_toPoint (j : Fin d) (p : IntPoint d) :
-      p.toPoint j = p j := rfl
+@[simp] theorem toPoint_single : IntPoint.toPoint (Pi.single j z) = Pi.single j z := by
+  ext j'
+  by_cases h : j' = j
+  · subst j'; simp
+  · simp [h]
 
-def single (j : Fin d) (z : ℤ) : IntPoint d := fun j' => if j' = j then z else 0
-
-@[simp] theorem apply_single_eq (j : Fin d) (z : ℤ) :
-      single j z j = z := by simp [single]
-
-@[simp] theorem apply_single_ne (j : Fin d) (z : ℤ) {j' : Fin d} (h : j' ≠ j) :
-      single j z j' = 0 := by simp [single, h]
-
-@[simp] theorem toPoint_single : IntPoint.toPoint (IntPoint.single j z) = EuclideanSpace.single j (↑z) := by
-  ext j'; by_cases j' = j <;> simp [*]
-
-@[simp] theorem nsmul_single (n : ℕ) (i : ℤ) : n • IntPoint.single j i = .single j (n * i) := by
-  ext j'; by_cases j' = j <;> simp_all
-
-@[simp] theorem zsmul_single (z : ℕ) (i : ℤ) : z • IntPoint.single j i = .single j (z * i) := by
-  ext j'; by_cases j' = j <;> simp_all
-
-@[simp] theorem single_add_single (j : Fin d) (x y : ℤ) :
-      IntPoint.single j x + .single j y = .single j (x + y) := by
-  ext j'; by_cases j' = j <;> simp [*]
 
 end IntPoint
 
@@ -288,7 +272,7 @@ theorem Tiling.exists_gap (T : Tiling d) (h₁ : t₁ ∈ T.corners) (h₂ : t�
 /-- Proposition 5 in BHMN -/
 theorem Tiling.FaceshareFree.of_neighbors {T : Tiling d}
     (h : ∀ (x : IntPoint d) (j : Fin d),
-      ¬ (T.get x) + EuclideanSpace.single j 1 = (T.get (x + IntPoint.single j 1).toPoint))
+      ¬ (T.get x) + Pi.single j 1 = (T.get (x + Pi.single j 1).toPoint))
     : T.FaceshareFree := by
   rintro t₁ t₁_corner t₂ t₂_corner - ts_faceshare
   obtain ⟨j,diff_one,others_eq⟩ := ts_faceshare
@@ -302,7 +286,7 @@ theorem Tiling.FaceshareFree.of_neighbors {T : Tiling d}
   rw [abs_of_nonpos t₁_smaller] at diff_one
   clear t₁_smaller
   -- now we know the relation between t₁ and t₂
-  have : t₁ + EuclideanSpace.single j 1 = t₂ := by
+  have : t₁ + Pi.single j 1 = t₂ := by
     ext j'
     if hj : j' = j then subst j'; simp; linarith
     else simp [hj,others_eq]

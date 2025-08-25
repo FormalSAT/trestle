@@ -118,8 +118,9 @@ theorem corners'_uniquely_closed_even_addition (x : Point d) (h : ∃! t ∈ cor
     -- TODO this is such an awful proof script
     rintro y ⟨L,R⟩
     specialize uniq (y - 2 • z) (by
-      simp [sub_eq_add_neg,Cube.mem_add_iff,R]
-      simpa using corners'_closed_even_addition T _ L (-z)
+      simp; constructor
+      · simpa using corners'_closed_even_addition T _ L (-z)
+      · simpa [sub_eq_add_neg,Cube.mem_add_iff] using R
     )
     simp at uniq ⊢
     abel_nf at uniq ⊢
@@ -129,8 +130,8 @@ theorem corners'_uniquely_closed_even_addition (x : Point d) (h : ∃! t ∈ cor
 /-- SUPER important lemma: if a set of cubes uniquely covers an interval,
 then the cubes containing the endpoints of the interval must be adjacent. -/
 theorem cubes_adjacent_of_uniquely_covers_interval (corners : Set (Point d)) (j : Fin d) (x : Point d) :
-      (∀ α, 0 ≤ α ∧ α ≤ 1 → ∃! t ∈ corners, x + .single j α ∈ Cube t) →
-      t1 ∈ corners → x ∈ Cube t1 → t2 ∈ corners → x + .single j 1 ∈ Cube t2 →
+      (∀ α, 0 ≤ α ∧ α ≤ 1 → ∃! t ∈ corners, x + Pi.single j α ∈ Cube t) →
+      t1 ∈ corners → x ∈ Cube t1 → t2 ∈ corners → x + Pi.single j 1 ∈ Cube t2 →
       t1 j + 1 = t2 j := by
   intro h t1_mem mem_t1 t2_mem mem_t2
 
@@ -203,7 +204,7 @@ theorem cubes_adjacent_of_uniquely_covers_interval (corners : Set (Point d)) (j 
 set_option maxHeartbeats 1000000 in
 theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
     (h : ∀ x ∈ ClosedCube c, ∃! t ∈ corners' T, x ∈ Cube t)
-    : ∀ x ∈ ClosedCube c, ∃! t ∈ corners' T, x + .single j 1 ∈ Cube t := by
+    : ∀ x ∈ ClosedCube c, ∃! t ∈ corners' T, x + Pi.single j 1 ∈ Cube t := by
   intro x x_mem_c
 
   -- We have 3 points of interest
@@ -212,7 +213,10 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
   let x₁ := x.update j (c j + 1)
   let x₂ := x.update j (c j + 2)
 
-  have x₂_eq : x₂ = x₀ + 2 • (IntPoint.single j 1).toPoint := by simp [x₀, x₂]
+  have x₂_eq : x₂ = x₀ + 2 • IntPoint.toPoint (Pi.single j 1) := by
+    simp only [x₀, x₂, IntPoint.toPoint_single, ← Pi.single_smul,
+      Point.update_add_single]
+    simp
 
   -- x₀ and x₁ are uniquely covered because they are in `c`
   have x₀_mem_c : x₀ ∈ ClosedCube c := by
@@ -228,7 +232,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
 
   -- x₂ is uniquely covered because it is even offset away from x₀
   have x₂_uniquely_covered := by
-    have := corners'_uniquely_closed_even_addition T x₀ x₀_uniquely_covered (.single j 1)
+    have := corners'_uniquely_closed_even_addition T x₀ x₀_uniquely_covered (Pi.single j 1)
     rw [← x₂_eq] at this
     exact this
 
@@ -250,7 +254,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
     simp [*, x_mem_c j']
 
   -- also `t₂` must be `t₀ + 2eⱼ`
-  have t₂_eq : t₂ = t₀ + 2 • IntPoint.single j 1 := by
+  have t₂_eq : t₂ = t₀ + 2 • IntPoint.toPoint (Pi.single j 1) := by
     rw [eq_comm];
     apply t₂_uniq _ ⟨?_, ?_⟩
     apply corners'_closed_even_addition T _ t₀_corner
@@ -261,7 +265,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
     subst t₂; simp [← t₀_step_t₁]; ring
 
   -- every cube containing `x + eⱼ` must also contain either `x₁` or `x₂`,
-  have must_contain_x1_x2 : ∀ t, x + .single j 1 ∈ Cube t → x₁ ∈ Cube t ∨ x₂ ∈ Cube t := by
+  have must_contain_x1_x2 : ∀ t, x + Pi.single j 1 ∈ Cube t → x₁ ∈ Cube t ∨ x₂ ∈ Cube t := by
     intro t x_step_mem
     have := x_mem_c j
     have := (Cube.mem_iff _ _).mp x_step_mem j; simp at this
@@ -277,7 +281,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
       simpa [Point.add_single_eq_update] using this
 
   -- and, if `t` is a corner, it must equal either `t₁` or `t₂`
-  have eq_t1_or_t2 : ∀ t ∈ corners' T, x + .single j 1 ∈ Cube t → t = t₁ ∨ t = t₂ := by
+  have eq_t1_or_t2 : ∀ t ∈ corners' T, x + Pi.single j 1 ∈ Cube t → t = t₁ ∨ t = t₂ := by
     intro t t_corner x_step_mem
     cases must_contain_x1_x2 t x_step_mem
     case inl =>
@@ -295,7 +299,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
   by_cases comparison : x j < t₀ j + 1
   case pos =>
     -- `x + eⱼ` is in `t₁`
-    have x_step_mem : x + .single j 1 ∈ Cube t₁ := by
+    have x_step_mem : x + Pi.single j 1 ∈ Cube t₁ := by
       have : t₀ j ≤ x₀ j := (Cube.mem_iff _ _).mp x₀_mem_t₀ j |>.1
       have : x₀ j = c j := by simp +zetaDelta
       have : c j ≤ x j := x_mem_c j |>.1
@@ -314,7 +318,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
 
   case neg =>
     -- `x + eⱼ` is in `t₂`
-    have x_step_mem : x + .single j 1 ∈ Cube t₂ := by
+    have x_step_mem : x + Pi.single j 1 ∈ Cube t₂ := by
       have : x j ≤ c j + 1 := x_mem_c j |>.2
       have : x₁ j = c j + 1 := by simp +zetaDelta
       have : x₁ j < t₁ j + 1 := (Cube.mem_iff _ _).mp x₁_mem_t₁ j |>.2
@@ -419,7 +423,7 @@ theorem corners'_covers.step (doneDims : Nat) (doneDims_lt : doneDims < d) :
   case inl x_int_even =>
     rcases x_int_even with ⟨x_int,rfl⟩
     convert corners'_uniquely_closed_even_addition T
-        x_prev x_prev_uniq_covered (.single ⟨doneDims,doneDims_lt⟩ x_int)
+        x_prev x_prev_uniq_covered (Pi.single ⟨doneDims,doneDims_lt⟩ x_int)
     ext j
     by_cases hj : j.val = doneDims
     · subst hj; simp [x_prev, x_eq_sum]; ring
@@ -463,7 +467,7 @@ theorem corners'_covers.step (doneDims : Nat) (doneDims_lt : doneDims < d) :
     -- and then step by 2 • x_int to get back to x
     specialize this x_prev x_prev_mem_corner
     have := corners'_uniquely_closed_even_addition T _ this
-      (.single ⟨doneDims, doneDims_lt⟩ x_int)
+      (Pi.single ⟨doneDims, doneDims_lt⟩ x_int)
     convert this
 
     ext j
@@ -492,7 +496,7 @@ def T' : Tiling d where
 
 theorem T'_periodic : (T' T).Periodic := by
   intro t t_corner off
-  simp [T'] at t_corner ⊢
+  simp only [T'] at t_corner ⊢
   apply corners'_closed_even_addition _ _ t_corner
 
 theorem T'_get_add_even_integer (x : Point d) (z : IntPoint d) :
@@ -523,21 +527,22 @@ theorem T'_ff (T_ff : T.FaceshareFree) : (T' T).FaceshareFree := by
   -- split x into a core index and an even integer offset
   obtain ⟨x',x'_core,y,x_eq⟩ := CoreIndex.decompose_intpoint x
 
-  have : T'.get x' + IntPoint.single j 1 = T'.get (x' + IntPoint.single j 1).toPoint := by
+  have : T'.get x' + Pi.single j 1 = T'.get (x' + Pi.single j 1).toPoint := by
     calc
-      _ = T'.get (x' + 2 • y + 2 • (-y).toPoint) + .single j 1 := by simp
-      _ = T'.get (x' + 2 • y) + 2 • (-y).toPoint + .single j 1 := by rw [T'_get_add_even_integer, IntPoint.toPoint_neg]
-      _ = T'.get x + 2 • (-y).toPoint + .single j 1            := by rw [x_eq]; simp
-      _ = T'.get x + .single j 1 + 2 • (-y).toPoint            := by rw [add_right_comm]
-      _ = T'.get (x + IntPoint.single j 1) + 2 • (-y).toPoint  := by rw [h, IntPoint.toPoint_add]
-      _ = T'.get (x + IntPoint.single j 1 + 2 • (-y).toPoint)  := by rw [T'_get_add_even_integer]
-      _ = T'.get (x + 2 • (-y).toPoint + IntPoint.single j 1)  := by rw [add_right_comm]
-      _ = T'.get (x' + IntPoint.single j 1).toPoint := by rw [x_eq]; simp
+      _ = T'.get (x' + 2 • y.toPoint + 2 • (-y).toPoint) + Pi.single j 1 := by simp
+      _ = T'.get (x' + 2 • y.toPoint) + 2 • (-y).toPoint + Pi.single j 1 := by rw [T'_get_add_even_integer, IntPoint.toPoint_neg]
+      _ = T'.get x + 2 • (-y).toPoint + Pi.single j 1                    := by rw [x_eq]; simp [-nsmul_eq_mul]
+      _ = T'.get x + Pi.single j 1 + 2 • (-y).toPoint                    := by rw [add_right_comm]
+      _ = T'.get (x + Pi.single j 1).toPoint + 2 • (-y).toPoint          := by rw [h, IntPoint.toPoint_add, IntPoint.toPoint_single]
+      _ = T'.get ((x + Pi.single j 1).toPoint + 2 • (-y).toPoint)        := by rw [T'_get_add_even_integer]
+      _ = T'.get ((x + 2 • (-y)).toPoint + Pi.single j 1)                := by simp [-nsmul_eq_mul]; rw [add_right_comm]
+      _ = T'.get (x' + Pi.single j 1).toPoint := by rw [x_eq]; simp
+    rfl
 
   have := x'_core j; simp at this
   cases this
   next x'_j_zero =>
-    apply T_ff (T.get_mem x') (T.get_mem (x' + .single j 1).toPoint)
+    apply T_ff (T.get_mem x') (T.get_mem (x' + Pi.single j 1).toPoint)
       (by intro h; have := T.get_inj h |> congrArg (· j); simp at this)
     rw [T'_get_eq_T_get_of_core_idx _ _ x'_core,
         T'_get_eq_T_get_of_core_idx _ _ ?x'_step_core] at this
@@ -548,23 +553,26 @@ theorem T'_ff (T_ff : T.FaceshareFree) : (T' T).FaceshareFree := by
       else
         simpa [*] using x'_core j'
 
-    use j; rw [← this]; simp
+    use j; rw [← this]; aesop
 
   next x'_j_one =>
-    replace this : T'.get x' + IntPoint.single j (-1) = T'.get (x' + IntPoint.single j (-1)).toPoint := by
+    replace this : T'.get x' + Pi.single j (-1) = T'.get (x' + Pi.single j (-1)).toPoint := by
       calc
-        _ = T'.get x' + (IntPoint.single j 1 + (2 : ℕ) • IntPoint.single j (-1)).toPoint := by
-          congr 1; apply congrArg; simp
-        _ = T'.get x' + IntPoint.single j 1 + _ := by rw [IntPoint.toPoint_add, add_assoc]
-        _ = T'.get (x' + IntPoint.single j 1).toPoint + _ := by rw [this]
-        _ = T'.get (x' + IntPoint.single j 1).toPoint + 2 • IntPoint.single j (-1) := by simp
-        _ = T'.get _ := by rw [← T'_get_add_even_integer, ← IntPoint.toPoint_nsmul, ← IntPoint.toPoint_add]
-        _ = T'.get (x' + IntPoint.single j (-1)).toPoint := by
-          rw [add_assoc]
-          apply congrArg; apply congrArg; congr
-          simp
+        _ = T'.get x' + Pi.single j (1 + (2 : ℕ) • (-1) : ℤ) := by
+          congr 3; simp
+        _ = T'.get x' + Pi.single j 1 + 2 • Pi.single j (-1) := by
+          rw [Int.cast_add, Pi.single_add, nsmul_eq_mul, Int.cast_mul,
+              Int.cast_natCast, ← nsmul_eq_mul, Pi.single_smul']
+          simp [add_assoc]
+        _ = T'.get (x' + Pi.single j 1).toPoint + _ := by rw [this]
+        _ = T'.get (x' + Pi.single j 1).toPoint + 2 • IntPoint.toPoint (Pi.single j (-1)) := by simp
+        _ = T'.get (x' + _ + _).toPoint            := by rw [← T'_get_add_even_integer, ← IntPoint.toPoint_nsmul, ← IntPoint.toPoint_add]
+        _ = T'.get (x' + Pi.single j (1 + (2 : ℕ) • (-1))).toPoint := by
+          rw [Pi.single_add, Pi.single_smul, add_assoc]
+        _ = T'.get (x' + Pi.single j (-1)).toPoint := by simp
+      rfl
 
-    apply T_ff (T.get_mem x') (T.get_mem (x' + .single j (-1)).toPoint)
+    apply T_ff (T.get_mem x') (T.get_mem (x' + Pi.single j (-1)).toPoint)
       (by intro h; have := T.get_inj h |> congrArg (· j); simp at this)
     rw [T'_get_eq_T_get_of_core_idx _ _ x'_core,
         T'_get_eq_T_get_of_core_idx _ _ ?x'_step_core] at this
@@ -575,7 +583,7 @@ theorem T'_ff (T_ff : T.FaceshareFree) : (T' T).FaceshareFree := by
       else
         simpa [*] using x'_core j'
 
-    use j; rw [← this]; simp
+    use j; rw [← this]; simp +contextual
 
 end Hajos
 
