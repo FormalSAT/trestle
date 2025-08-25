@@ -599,27 +599,27 @@ def fromTiling (T : Tiling d) (j : Fin d) : ILattice d j where
       simp
 
 
-/-- Every `x` is contained by a unique cube -/
-theorem covers (L : ILattice d j) (x : Point d) :
-    ∃! t ∈ L.corners, x ∈ Cube t := by
-  -- The `j`-line through `x` is integral spaced
-  have := L.inter_line_IntegralSpaced x
-  -- so there is a unique corner where x is in range.
-  replace this := this.exists_unique_range (x j)
-  simp [mem_inter_line, and_assoc] at this
-  -- this condition is the same as our desired condition
-  convert this using 3; clear this; next t =>
-  constructor
-  · intro h
-    refine ⟨⟨x,h,Line.start_mem ..⟩,?_⟩
-    exact (Cube.mem_iff _ _).mp h j
-  · rintro ⟨inter_ne,x_j_range⟩
-    have := Cube.update_mem_of_inter_line_nonempty (x j) inter_ne x_j_range
-    simpa using this
+--/-- Every `x` is contained by a unique cube -/
+--theorem covers (L : ILattice d j) (x : Point d) :
+--    ∃! t ∈ L.corners, x ∈ Cube t := by
+--  -- The `j`-line through `x` is integral spaced
+--  have := L.inter_line_IntegralSpaced x
+--  -- so there is a unique corner where x is in range.
+--  replace this := this.exists_unique_range (x j)
+--  simp [mem_inter_line, and_assoc] at this
+--  -- this condition is the same as our desired condition
+--  convert this using 3; clear this; next t =>
+--  constructor
+--  · intro h
+--    refine ⟨⟨x,h,Line.start_mem ..⟩,?_⟩
+--    exact (Cube.mem_iff _ _).mp h j
+--  · rintro ⟨inter_ne,x_j_range⟩
+--    have := Cube.update_mem_of_inter_line_nonempty (x j) inter_ne x_j_range
+--    simpa using this
 
-def toTiling (L : ILattice d j) : Tiling d where
-  corners := L.corners
-  covers := L.covers
+--def toTiling (L : ILattice d j) : Tiling d where
+--  corners := L.corners
+--  covers := L.covers
 
 
 end ILattice
@@ -651,10 +651,10 @@ theorem Tiling.cube_adj_of_adj_points (T : Tiling d) {x j} :
   rw [← Int.cast_one, Int.cast_inj]
   omega
 
-/-- BHMN A.2.4 -/
-theorem Tiling.get_add_single (T : Tiling d) {x j} :
-      T.get (x + Pi.single j 1) j = T.get x j + 1 := by
-  rw [eq_comm]
-  apply T.cube_adj_of_adj_points
-    (T.get_mem _) (T.get_mem _)
-    (T.mem_get _) (T.mem_get _)
+-- /-- BHMN A.2.4 -/
+-- theorem Tiling.get_add_single (T : Tiling d) {x j} :
+--       T.get (x + Pi.single j 1) j = T.get x j + 1 := by
+--   rw [eq_comm]
+--   apply T.cube_adj_of_adj_points
+--     (T.get_mem _) (T.get_mem _)
+--     (T.mem_get _) (T.mem_get _)
