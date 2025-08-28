@@ -520,7 +520,7 @@ theorem clique_to_corners_covers.cube.ih (K : KClique n s) (j₀ : Nat)
       obtain ⟨t₀,t₀_mem,off,rfl⟩ := t₀_mem
       use t₀, t₀_mem,(off + Pi.single j₀ 1)
       rw [IntPoint.toPoint_add, IntPoint.toPoint_single, nsmul_add,
-        ← Pi.single_smul]
+        ← Pi.single_nsmul]
       simp [t₂,add_assoc]
 
     -- in fact, they are next to each other
@@ -602,7 +602,7 @@ theorem clique_to_corners_covers (K : KClique n s) (p : Point n) :
   use t + 2 • (off + p_off).toPoint
   constructor
   · use t, t_mem; simp [-IntPoint.toPoint_add]
-  · rw [← this, IntPoint.toPoint_add, smul_add, ← add_assoc, Cube.mem_add_iff,
+  · rw [← this, IntPoint.toPoint_add, nsmul_add, ← add_assoc, Cube.mem_add_iff,
       add_sub_cancel_right]
     exact p'_mem
 

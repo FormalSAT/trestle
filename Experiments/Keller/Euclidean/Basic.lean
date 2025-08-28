@@ -1,3 +1,8 @@
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Ring
+import Mathlib.Algebra.Order.Floor.Defs
+import Mathlib.Data.Real.Archimedean
+
 import Experiments.Keller.Euclidean.Upstream
 import Experiments.Keller.Euclidean.Defs
 
@@ -8,7 +13,7 @@ namespace Keller.Euclidean
 
 namespace Point
 
-noncomputable def ofFn (f : Fin d → ℝ) : Point d := (EuclideanSpace.equiv _ _).symm f
+noncomputable def ofFn (f : Fin d → ℝ) : Point d := f
 @[simp] theorem app_ofFn (x) (f : Fin d → ℝ) : (Point.ofFn f) x = f x := rfl
 @[simp] theorem ofFn_point (x : Point d) : Point.ofFn x = x := rfl
 
@@ -47,11 +52,11 @@ theorem add_single_eq_update {x : Point d} {j α} :
   rw [add_single_eq_update]; simp
 
 @[simp] theorem nsmul_single (n : ℕ) (j : Fin d) (x : ℝ) :
-    n • EuclideanSpace.single j x = EuclideanSpace.single j (n * x) := by
-  ext j'; by_cases j' = j <;> simp_all
+    n • (Pi.single j x : Point d) = Pi.single j (n * x) := by
+  ext j'; by_cases j' = j <;> simp [← nsmul_eq_mul, Pi.single_nsmul]
 
-@[simp] theorem single_add (j : Fin d) (a b : ℝ) : EuclideanSpace.single j a + .single j b = .single j (a + b) := by
-  ext j'; aesop
+@[simp] theorem single_add (j : Fin d) (a b : ℝ) : (Pi.single j a : Point d) + Pi.single j b = Pi.single j (a + b) := by
+  ext j'; simp [Pi.single_add]
 
 end Point
 
@@ -108,7 +113,9 @@ end IntPoint
 
 theorem Cube.mem_iff (x : Point d) (c : Point d) :
     x ∈ Cube c ↔ ∀ j, c j ≤ x j ∧ x j < c j + 1 := by
-  unfold Cube UnitCube; simp
+  unfold Cube UnitCube
+  simp only [Set.image_add_left, Set.preimage_setOf_eq, Pi.add_apply,
+    Pi.neg_apply, le_neg_add_iff_add_le, add_zero, neg_add_lt_iff_lt_add, Set.mem_setOf_eq]
 
 theorem Cube.start_mem (c : Point d) : c ∈ Cube c := by
   simp [mem_iff]
@@ -145,7 +152,8 @@ lemma Cube.exists_gap_of_inter_empty (c1 c2 : Point d) :
 
 theorem Cube.mem_add_iff (c : Point d) (x y) :
     x ∈ Cube (c + y) ↔ x - y ∈ Cube c := by
-  simp [Cube, sub_eq_add_neg]; apply iff_of_eq; congr 1; abel
+  simp [mem_iff, sub_eq_add_neg]
+  ring_nf
 
 lemma Cube.inter_empty_of_exists_gap (c1 c2 : Point d) :
       (∃ j : Fin d, |c1 j - c2 j| ≥ 1) → (Cube c1 ∩ Cube c2 = ∅) := by

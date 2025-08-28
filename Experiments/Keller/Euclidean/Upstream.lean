@@ -1,30 +1,4 @@
-import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Order.Partition.Basic
-
-/-! ### EuclideanSpace -/
-
-namespace EuclideanSpace
-
-@[simp] theorem single_zero [DecidableEq ι] [RCLike 𝕜] (i : ι) :
-  EuclideanSpace.single (𝕜 := 𝕜) i 0 = 0 := by ext; simp
-
-theorem single_neg [DecidableEq ι] [RCLike 𝕜] (i : ι) (k : 𝕜):
-    EuclideanSpace.single i (-k) = -EuclideanSpace.single i k := by
-  ext i'; by_cases i' = i <;> simp_all
-
-theorem single_inj [DecidableEq ι] [RCLike 𝕜] (i : ι) (k₁ k₂ : 𝕜)
-    : EuclideanSpace.single i k₁ = EuclideanSpace.single i k₂ → k₁ = k₂ := by
-  intro h
-  replace h := congrFun h i
-  simpa using h
-
-@[simp] theorem single_inj_iff [DecidableEq ι] [RCLike 𝕜] (i : ι) (k₁ k₂ : 𝕜) :
-    EuclideanSpace.single i k₁ = EuclideanSpace.single i k₂ ↔ k₁ = k₂ := by
-  constructor
-  · apply single_inj
-  · rintro rfl; rfl
-
-end EuclideanSpace
 
 
 /-! ### Partition -/

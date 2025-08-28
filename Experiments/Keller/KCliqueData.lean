@@ -43,7 +43,6 @@ def KCliqueData.toKClique (kc : KCliqueData n s) (h : kc.check = true) : KClique
         apply this; exact Ne.symm hne; omega
       specialize h xi yi hlt
       convert h using 1
-        <;> simp [getEmbedding, BitVec.ofNat]
     · simp⟩
 
 theorem KCliqueData.check_implies_not_conjecture (kc : KCliqueData n s) (h : s ≤ 2^(n-1))

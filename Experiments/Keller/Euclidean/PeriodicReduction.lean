@@ -12,7 +12,7 @@ def periodify (corners : Set (Point d)) : Set (Point d) :=
 theorem periodify_periodic (corners : Set (Point d)) :
   Periodic (periodify corners) := by
   rintro _ ⟨c,c_mem,i,rfl⟩ i₂
-  use c, c_mem, i+i₂; simp; abel
+  use c, c_mem, i+i₂; simp [mul_add]; abel
 
 nonrec def Tiling.Periodic (T : Tiling d) : Prop :=
   Periodic T.corners
@@ -99,7 +99,7 @@ theorem corners'_closed_even_addition (t) (ht : t ∈ corners' T) (z : IntPoint 
     t + 2 • z ∈ corners' T := by
   obtain ⟨t,t_core,off,rfl⟩ := ht
   use t, t_core, off + z
-  simp [add_assoc]
+  simp [mul_add, add_assoc]
 
 theorem corners'_uniquely_closed_even_addition (x : Point d) (h : ∃! t ∈ corners' T, x ∈ Cube t)
   : ∀ z : IntPoint d, ∃! t ∈ corners' T, x + 2 • z ∈ Cube t := by
@@ -113,7 +113,7 @@ theorem corners'_uniquely_closed_even_addition (x : Point d) (h : ∃! t ∈ cor
   case mem =>
     rw [Cube.mem_add_iff] at x_mem_t ⊢
     convert x_mem_t using 1
-    simp
+    simp [mul_add]
   case uniq =>
     -- TODO this is such an awful proof script
     rintro y ⟨L,R⟩
@@ -122,7 +122,7 @@ theorem corners'_uniquely_closed_even_addition (x : Point d) (h : ∃! t ∈ cor
       · simpa using corners'_closed_even_addition T _ L (-z)
       · simpa [sub_eq_add_neg,Cube.mem_add_iff] using R
     )
-    simp at uniq ⊢
+    simp [mul_add] at uniq ⊢
     abel_nf at uniq ⊢
     rw [← uniq]; abel
 
@@ -214,7 +214,7 @@ theorem corners'_step_closed_cube (c : Point d) (j : Fin d)
   let x₂ := x.update j (c j + 2)
 
   have x₂_eq : x₂ = x₀ + 2 • IntPoint.toPoint (Pi.single j 1) := by
-    simp only [x₀, x₂, IntPoint.toPoint_single, ← Pi.single_smul,
+    simp only [x₀, x₂, IntPoint.toPoint_single, ← Pi.single_nsmul,
       Point.update_add_single]
     simp
 
@@ -562,13 +562,13 @@ theorem T'_ff (T_ff : T.FaceshareFree) : (T' T).FaceshareFree := by
           congr 3; simp
         _ = T'.get x' + Pi.single j 1 + 2 • Pi.single j (-1) := by
           rw [Int.cast_add, Pi.single_add, nsmul_eq_mul, Int.cast_mul,
-              Int.cast_natCast, ← nsmul_eq_mul, Pi.single_smul']
+              Int.cast_natCast, ← nsmul_eq_mul, Pi.single_nsmul]
           simp [add_assoc]
         _ = T'.get (x' + Pi.single j 1).toPoint + _ := by rw [this]
         _ = T'.get (x' + Pi.single j 1).toPoint + 2 • IntPoint.toPoint (Pi.single j (-1)) := by simp
         _ = T'.get (x' + _ + _).toPoint            := by rw [← T'_get_add_even_integer, ← IntPoint.toPoint_nsmul, ← IntPoint.toPoint_add]
         _ = T'.get (x' + Pi.single j (1 + (2 : ℕ) • (-1))).toPoint := by
-          rw [Pi.single_add, Pi.single_smul, add_assoc]
+          rw [Pi.single_add, Pi.single_nsmul, add_assoc]
         _ = T'.get (x' + Pi.single j (-1)).toPoint := by simp
       rfl
 

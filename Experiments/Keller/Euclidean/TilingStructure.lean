@@ -621,73 +621,8 @@ def toTiling (L : ILattice d j) : Tiling d where
   corners := L.corners
   covers := L.covers
 
-def replace (a b : ℝ) (L : ILattice d j) : ILattice d j where
-  /- for corners that are integer offset from a, we shift by b.
-    other corners stay in place -/
-  corners :=
-    { t ∈ L.corners | ∃ z : ℤ, a + z = t j }.image (· + Pi.single j b)
-    ∪ { t ∈ L.corners | ¬ ∃ z : ℤ, a + z = t j }
-  inter_line_IntegralSpaced := by
-    intro x
-
-    rw [inter_line.union, inter_line.image ?h, inter_line.filter, inter_line.filter]
-    case h =>
-      intro t
-      simp [Cube.inter_line_nonempty_iff_start_mem]
-      rw [Cube.mem_add_iff,
-          sub_eq_add_neg,
-          ← Pi.single_neg]
-      simp
-
-    generalize ucdef : setOf _ = updated_corners
-    generalize scdef : setOf _ = same_corners
-
-    -- the line through x is integral spaced
-    have line_IS := L.inter_line_IntegralSpaced x
-
-    -- either all are equal to `a` modulo 1 or none are
-    by_cases h : ∃ t ∈ inter_line L.corners j x, a = t j
-    · suffices ∀ t ∈ inter_line L.corners j x, ∃ z : ℤ, a + z = t j by
-        have sub1 : same_corners = ∅ := by
-          ext t; subst same_corners; simp; exact this t
-        have sub2 : updated_corners = inter_line L.corners j x := by
-          ext t; subst updated_corners; simp; exact this t
-        subst sub1 sub2; rw [Set.union_empty]
-        apply line_IS.image_linear
-      clear! updated_corners same_corners
-      rcases h with ⟨t,h,rfl⟩
-      intro t' t'_mem
-      apply line_IS.integral_spaced.eq_add_of_mem_of_mem
-        <;> aesop
-
-    · suffices ∀ t ∈ inter_line L.corners j x, ¬∃ z : ℤ, a + z = t j by
-        have sub1 : same_corners = inter_line L.corners j x := by
-          ext t; specialize this t; subst same_corners; simpa using this
-        have sub2 : updated_corners = ∅ := by
-          ext t; specialize this t; subst updated_corners; simpa using this
-        subst sub1 sub2; rw [Set.image_empty, Set.empty_union]
-        exact line_IS
-      clear! updated_corners same_corners
-
-      push_neg at h ⊢
-      intro t t_mem z t_j
-
-      have := line_IS.integral_spaced.add_mem (x := t j) (by aesop) (-z)
-      simp [← t_j] at this
-      obtain ⟨w, w_mem, rfl⟩ := this
-      apply h _ w_mem rfl
 
 end ILattice
-
-/-- The replacement lemma! -/
-def Tiling.replace (j : Fin d) (a b : ℝ) (T : Tiling d) : Tiling d :=
-  ILattice.fromTiling T j |>.replace a b |>.toTiling
-
-theorem Tiling.corners_replace {j : Fin d} {a b : ℝ} (T : Tiling d) :
-    (T.replace j a b).corners =
-    { t ∈ T.corners | ∃ z : ℤ, a + z = t j }.image (· + EuclideanSpace.single j b)
-    ∪ { t ∈ T.corners | ¬ ∃ z : ℤ, a + z = t j }
-:= by rfl
 
 /-- Proof of BHMN A.2.4 -/
 theorem Tiling.cube_adj_of_adj_points (T : Tiling d) {x j} :
