@@ -44,13 +44,13 @@ def mkReflectionProof (cert : LratCert) (cfg : TacticContext)
   let certType := toTypeExpr LratCert
 
   withTraceNode `Trestle.Solver.Builtin (fun _ => return "Compiling proof certificate term") do
-    mkAuxDecl cfg.certDef (toExpr cert) certType
+    LratCert.toReflectionProof.mkAuxDecl cfg.certDef (toExpr cert) certType
 
   let certExpr := mkConst cfg.certDef
 
   withTraceNode `Trestle.Solver.Builtin (fun _ => return "Compiling reflection proof term") do
     let auxValue := mkApp2 (mkConst verifier) reflectedExpr certExpr
-    mkAuxDecl cfg.reflectionDef auxValue (mkConst ``Bool)
+    LratCert.toReflectionProof.mkAuxDecl cfg.reflectionDef auxValue (mkConst ``Bool)
 
   let auxType ← mkEq (mkConst cfg.reflectionDef) (toExpr true)
   let auxProof :=
