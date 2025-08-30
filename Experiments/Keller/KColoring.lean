@@ -33,6 +33,9 @@ private theorem cons_hdtl (v : BitVec (n+1)) : BitVec.cons (bvhd v) (bvtl v) = v
 def adjacent (i j : BitVec n) : Prop :=
   ∃ d : Fin n, i[d] ≠ j[d] ∧ ∀ d' ≠ d, i[d'] = j[d']
 
+theorem ne_of_adjacent (h : adjacent (n := n) i j) : i ≠ j := by
+  rintro rfl; simp [adjacent] at h
+
 private theorem adjacent_bvhd_eq {i j : BitVec (n+1)} (adj : adjacent i j)
     (h : bvhd i = bvhd j) : adjacent (bvtl i) (bvtl j) := by
   rcases adj with ⟨⟨d,hd⟩,is_ne,cs_eq⟩
@@ -60,7 +63,7 @@ private theorem adjacent_bvhd_ne {i j : BitVec (n+1)} (adj : adjacent i j)
 
 structure KColoring (n s : Nat) where
   data : BitVec n → Vector (Fin s) n
-  same : ∀ i j : BitVec n, ∃ d : Fin n,
+  same : ∀ i j : BitVec n, i ≠ j → ∃ d : Fin n,
     i[d] ≠ j[d] ∧ (data i)[d] = (data j)[d]
   diff : ∀ i j : BitVec n, adjacent i j → ∃ d : Fin n,
     (data i)[d] ≠ (data j)[d]
@@ -71,8 +74,8 @@ namespace KColoring
 def liftS (C : KColoring n s) (h : s ≤ s') : KColoring n s' where
   data := fun i => (C.data i).map (·.castLE h)
   same := by
-    intro i j
-    obtain ⟨d,is_ne,cs_eq⟩ := C.same i j
+    intro i j ne
+    obtain ⟨d,is_ne,cs_eq⟩ := C.same i j ne
     use d
     simp_all
   diff := by
@@ -92,13 +95,16 @@ def stepN (C : KColoring n s) (hn : n > 0) (hs : s > 1) : KColoring (n+1) s wher
     else
       (C.data (bvtl i))).push ⟨0,by omega⟩
   same := by
-    intro i j
+    intro i j ne
     by_cases bvhd i = bvhd j
     case neg h =>
       use ⟨n,by omega⟩, h
       simp
     case pos h =>
-      obtain ⟨d,is_ne,cs_eq⟩ := C.same (bvtl i) (bvtl j)
+      have : (bvtl i) ≠ (bvtl j) := by
+        intro eq; apply ne
+        rw [← cons_hdtl i, ← cons_hdtl j, h, eq]
+      obtain ⟨d,is_ne,cs_eq⟩ := C.same (bvtl i) (bvtl j) this
       use d.castSucc
       constructor
       · simpa [bvtl] using is_ne
