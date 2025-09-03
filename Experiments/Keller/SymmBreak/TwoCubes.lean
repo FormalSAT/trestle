@@ -5,7 +5,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Experiments.Keller.Autos
+import Experiments.Keller.SymmBreak.Autos
 
 namespace Keller.SymmBreak
 

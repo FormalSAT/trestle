@@ -5,13 +5,13 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Experiments.Keller.KCliqueData
+import Experiments.Keller.G8.ColoringData
 
 namespace Keller
 
 set_option maxRecDepth 800 in
-def G8_clique: KCliqueData 8 2 :=
-  KCliqueData.mk <| #v[
+def G8_clique: ColoringData 8 2 :=
+  .mk <| #v[
   v 0 0 0 0 0 0 0 0, v 0 0 1 0 0 0 0 0, v 1 0 1 0 1 1 0 1, v 1 0 1 0 1 0 1 1,
   v 0 0 0 1 1 0 1 1, v 0 1 1 1 1 1 0 1, v 0 0 1 0 0 0 0 0, v 0 1 1 0 0 0 0 0,
   v 0 1 0 0 0 0 0 0, v 0 1 1 0 0 0 0 0, v 1 1 0 0 1 0 1 1, v 1 1 0 0 1 1 0 1,

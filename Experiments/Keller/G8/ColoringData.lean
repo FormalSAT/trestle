@@ -9,28 +9,28 @@ import Experiments.Keller.KColoring
 
 namespace Keller
 
-structure KCliqueData (n s : Nat) where
+structure ColoringData (n s : Nat) where
   vertices : Vector (Vector (Fin s) n) (2^n)
 deriving Repr
 
-instance : Fintype (KCliqueData n s) :=
+instance : Fintype (ColoringData n s) :=
   Fintype.ofEquiv (Vector (Vector (Fin s) n) (2^n))
-    { toFun := KCliqueData.mk, invFun := KCliqueData.vertices,
+    { toFun := ColoringData.mk, invFun := ColoringData.vertices,
       left_inv := by intro; simp, right_inv := by intro; simp }
 
-instance : ToString (KCliqueData n s) where
+instance : ToString (ColoringData n s) where
   toString := fun kc => toString <| kc.vertices.toArray.map (·.toArray)
 
-def KCliqueData.get (i : BitVec n) (kc : KCliqueData n s): Vector (Fin s) n :=
+def ColoringData.get (i : BitVec n) (kc : ColoringData n s): Vector (Fin s) n :=
   kc.vertices[i.toFin]
 
-def KCliqueData.check (kc : KCliqueData n s) : Bool :=
+def ColoringData.check (kc : ColoringData n s) : Bool :=
   decide (∀ i i' : BitVec n, i < i' →
     (∃ d : Fin n, i[d] ≠ i'[d] ∧ (kc.get i)[d] = (kc.get i')[d]) ∧
     (adjacent i i' → ∃ d : Fin n, (kc.get i)[d] ≠ (kc.get i')[d])
   )
 
-def KCliqueData.toKClique (kc : KCliqueData n s) (h : kc.check = true) : KColoring n s where
+def ColoringData.toKClique (kc : ColoringData n s) (h : kc.check = true) : KColoring n s where
   data := kc.get
   same := by
     intro i j ij_ne

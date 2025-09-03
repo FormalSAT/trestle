@@ -7,7 +7,7 @@ Authors: James Gallicchio
 
 import Experiments.Keller.Encoding.CNF
 import Experiments.Keller.Euclidean.GraphReduction
-import Experiments.Keller.G8_Clique
+import Experiments.Keller.G8.G8_Coloring
 
 import Experiments.Solver.Builtin
 
@@ -78,15 +78,13 @@ info: 'Keller.conjectureIn_6' depends on axioms: [propext, sorryAx, Classical.ch
 #guard_msgs in
 #print axioms conjectureIn_6
 
-theorem conjectureIn_7 : Euclidean.conjectureIn 7 := sorry
+theorem conjectureIn_7 : Euclidean.conjectureIn 7 := by
+  apply conjectureIn_of_cnf_unsat (by decide) conjectureIn_6
+  sorry
+
+/-! ## Negative Results -/
 
 def coloring8 : KColoring 8 2 := G8_clique.toKClique (by native_decide)
-
-/--
-info: 'Keller.coloring8' depends on axioms: [propext, Classical.choice, Lean.ofReduceBool, Quot.sound]
--/
-#guard_msgs in
-#print axioms coloring8
 
 theorem conjectureIn_ge_8 (hn : n ≥ 8) : ¬ Euclidean.conjectureIn n := by
   match n with
