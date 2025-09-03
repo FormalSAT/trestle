@@ -51,12 +51,18 @@ theorem adjacentAt_iff_xor_eq_oneAt :
       rw [ne_eq, eq_comm, Fin.ext_iff] at d'_ne
       simpa [d'_ne] using is_xor
 
+theorem adjacentAt_symm : adjacentAt i j d ↔ adjacentAt j i d := by
+  aesop
+
 def adjacent (i j : BitVec n) : Prop :=
   ∃ d : Fin n, adjacentAt i j d
 
 instance : Decidable (adjacent i j) := by
   unfold adjacent adjacentAt
   infer_instance
+
+theorem adjacent_symm : adjacent i j ↔ adjacent j i := by
+  unfold adjacent; simp_rw [adjacentAt_symm]
 
 theorem ne_of_adjacent (h : adjacent (n := n) i j) : i ≠ j := by
   rintro rfl; simp [adjacent] at h
@@ -140,22 +146,78 @@ theorem diff_adjAt (K : KColoring n s) (i j : BitVec n) (adj : adjacentAt i j d)
     rintro rfl; apply cs_ne; apply same_adjAt K adj
   use d2, this, cs_ne
 
-def liftS (C : KColoring n s) (h : s ≤ s') : KColoring n s' where
-  data := fun i => (C.data i).map (·.castLE h)
-  same := by
-    intro i j ne
-    obtain ⟨d,is_ne,cs_eq⟩ := C.same i j ne
-    use d
-    simp_all
-  diff := by
-    intro i j adj
-    obtain ⟨d,ne⟩ := C.diff i j adj
-    use d
-    simp only [Fin.getElem_fin, Vector.getElem_map] at ne ⊢
-    generalize (C.data i)[d.val] = id at ne ⊢
-    generalize (C.data j)[d.val] = jd at ne ⊢
-    cases id; cases jd
-    simp_all
+private theorem bv_oneBit_fixed_card (j : Fin (n+1)) :
+    (Finset.univ |>.filter (α := BitVec (n+1)) (·[j])).card = 2^n := by
+  let trues := Finset.filter (α := BitVec (n+1)) (fun x => x[j] = true) Finset.univ
+  let falses := Finset.filter (α := BitVec (n+1)) (fun x => x[j] = false) Finset.univ
+  refold_let trues
+
+  have : trues.card = falses.card := by
+    apply Finset.card_bijective (e := (· ^^^ .oneAt j))
+    case he =>
+      apply Function.Involutive.bijective
+      intro x; simp [BitVec.xor_assoc]
+    case hst =>
+      simp +zetaDelta
+
+  have : trues.card + falses.card = 2^(n+1) := by
+    have disj : Disjoint trues falses := by
+      rw [Finset.disjoint_iff_ne]; intro a a_mem b b_mem
+      simp +zetaDelta at a_mem b_mem
+      rintro rfl; simp_all
+    have : trues.disjUnion falses disj = Finset.univ := by
+      ext v; simp +zetaDelta
+    rw [← Finset.card_disjUnion, this]; simp
+
+  omega
+
+private def colorsInCol_lt {n} (c : KColoring (n+1) s) (j : Fin (n+1)) :
+    Finset.card {(c.data i)[j] | (i) } ≤ 2^n := by
+  let S :=
+    Finset.univ |>.filter (α := BitVec (n+1)) (·[j])
+    |>.image (fun i => (c.data i)[j])
+  calc
+    _ = S.card := by
+      congr 1
+      ext k
+      simp [S]
+      constructor
+      · rintro ⟨i,rfl⟩
+        if h : i[j] then
+          use i, h
+        else
+          let i' := i ^^^ .oneAt j
+          have : i'[j] := by unfold i'; simp_all
+          use i', this
+          apply c.same_adjAt (i := i') (j := i) (d := j)
+          simp +contextual [i', Fin.ext_iff, eq_comm]
+      · rintro ⟨i,_,h⟩
+        exact ⟨i,h⟩
+    _ ≤ (Finset.filter _ Finset.univ).card :=
+      Finset.card_image_le
+    _ = 2^n := bv_oneBit_fixed_card j
+
+def normS (C : KColoring (n + 1) s) : Nonempty (KColoring (n+1) (2^n)) := by
+  have : ∀ d : Fin (n+1), {(C.data i)[d] | (i) } ↪ Fin (2^n) :=
+    fun d =>
+      have set_to_fincard := Finset.equivFin { (C.data i)[d] | (i) }
+      .trans (Equiv.toEmbedding <| by simp; apply Equiv.refl)
+        (.trans set_to_fincard.toEmbedding
+          (Fin.castLEOrderEmb (colorsInCol_lt C d)).toEmbedding)
+  exact ⟨{
+    data := fun i => Vector.ofFn fun d => this d ⟨(C.data i)[d],_,rfl⟩
+    same := by
+      intro i j ne
+      obtain ⟨d,is_ne,cs_eq⟩ := C.same i j ne
+      use d
+      simp_all
+    diff := by
+      intro i j adj
+      obtain ⟨d,ne⟩ := C.diff i j adj
+      use d
+      simp_all
+  }⟩
+
 
 def stepN (C : KColoring n s) (hn : n > 0) (hs : s > 1) : KColoring (n+1) s where
   data := fun i =>

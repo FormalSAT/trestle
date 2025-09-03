@@ -25,56 +25,35 @@ def KCliqueData.get (i : BitVec n) (kc : KCliqueData n s): Vector (Fin s) n :=
   kc.vertices[i.toFin]
 
 def KCliqueData.check (kc : KCliqueData n s) : Bool :=
-  decide (∀ i i' : Fin (2^n), i < i' →
-    (∃ d : Fin n, (BitVec.ofFin i)[d] ≠ (BitVec.ofFin i')[d] ∧ (kc.get i)[d] = (kc.get i')[d]) ∧
-    (adjacent (BitVec.ofFin i) (BitVec.ofFin i') → kc.get i ≠ kc.get i')
+  decide (∀ i i' : BitVec n, i < i' →
+    (∃ d : Fin n, i[d] ≠ i'[d] ∧ (kc.get i)[d] = (kc.get i')[d]) ∧
+    (adjacent i i' → ∃ d : Fin n, (kc.get i)[d] ≠ (kc.get i')[d])
   )
 
 def KCliqueData.toKClique (kc : KCliqueData n s) (h : kc.check = true) : KColoring n s where
   data := kc.get
-  same := by sorry
-  diff := by sorry
-    --constructor
-    --· intro x hx y hy hne; simp at hx hy
-    --  rcases hx with ⟨⟨xi⟩,rfl⟩
-    --  rcases hy with ⟨⟨yi⟩,rfl⟩
-    --  simp at hne
-    --  wlog hlt : xi < yi generalizing xi yi
-    --  · apply SimpleGraph.adj_symm
-    --    apply this; exact Ne.symm hne; omega
-    --  specialize h xi yi hlt
-    --  convert h using 1
-    --· simp⟩
+  same := by
+    intro i j ij_ne
+    wlog iltj : i < j generalizing i j
+    · specialize this j i ij_ne.symm (by
+        simp [BitVec.toNat_eq, BitVec.le_def, BitVec.lt_def] at *
+        omega
+      )
+      convert this using 3 <;> simp [eq_comm]
 
-theorem KCliqueData.check_implies_not_conjecture (kc : KCliqueData n s) (h : s ≤ 2^(n-1))
-  : kc.check = true → ¬ conjectureIn n := by
-  intro h2
-  simp [conjectureIn]
-  exact ⟨kc.toKClique h2 |>.liftS h⟩
+    simp [check] at h
+    exact (h _ _ iltj).1
+  diff := by
+    intro i j ij_adj
+    wlog iltj : i < j generalizing i j
+    · rw [adjacent_symm] at ij_adj
+      conv => enter [1,_]; rw [ne_eq,eq_comm,← ne_eq]
+      specialize this j i ij_adj (by
+        have := ne_of_adjacent ij_adj
+        simp [BitVec.toNat_eq, BitVec.le_def, BitVec.lt_def] at *
+        omega
+      )
+      exact this
 
-def KCliqueData.fromKClique (k : KClique n s) : KCliqueData n s :=
-  ⟨Vector.ofFn fun i => k.get <| BitVec.ofFin i⟩
-
-theorem KCliqueData.check_fromKClique (k : KClique n s) : (fromKClique k).check = true := by
-  simp [check]
-  intro a b h
-  have := k.isClique (k.get_mem a) (k.get_mem b) ?diff
-  case diff => simp [BitVec.ofNat, Fin.ne_of_lt h]
-  simp [fromKClique, get, BitVec.ofNat]
-  simp [BitVec.ofNat] at this
-  exact this
-
-/-- It is theoretically computable now to check all the potential cliques.
-However, it is ill-advised to run this function for anything beyond n=2 s=2. -/
-def KCliqueData.checkAll (n s : Nat) : Bool :=
-  decide (∀ kc : KCliqueData n s, kc.check = false)
-
-theorem KCliqueData.checkAll_iff_isempty_kclique (n s : Nat) :
-    KCliqueData.checkAll n s = true ↔ IsEmpty (KClique n s) := by
-  rw [← not_iff_not, isEmpty_iff]; simp [checkAll]
-  constructor
-  · rintro ⟨x,h⟩
-    exact ⟨x.toKClique h⟩
-  · rintro ⟨x⟩
-    use fromKClique x
-    apply check_fromKClique
+    simp [check] at h
+    exact (h _ _ iltj).2 ij_adj
