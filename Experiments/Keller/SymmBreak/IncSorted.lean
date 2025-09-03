@@ -8,6 +8,7 @@ Authors: James Gallicchio
 import Experiments.Keller.Autos
 
 import Mathlib.Logic.Equiv.Basic
+import Mathlib.Data.Finset.Max
 
 /-! ## Increment Sorted
 

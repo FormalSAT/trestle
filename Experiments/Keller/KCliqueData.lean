@@ -5,7 +5,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Experiments.Keller.KellerGraph
+import Experiments.Keller.KColoring
 
 namespace Keller
 
@@ -21,29 +21,30 @@ instance : Fintype (KCliqueData n s) :=
 instance : ToString (KCliqueData n s) where
   toString := fun kc => toString <| kc.vertices.toArray.map (·.toArray)
 
-def KCliqueData.get (i : BitVec n) (kc : KCliqueData n s): KVertex n s :=
-  { idx := i, color := kc.vertices[i.toFin] }
-
-def KCliqueData.getEmbedding (kc : KCliqueData n s) : BitVec n ↪ KVertex n s :=
-  ⟨kc.get, by intro a; simp [get]⟩
+def KCliqueData.get (i : BitVec n) (kc : KCliqueData n s): Vector (Fin s) n :=
+  kc.vertices[i.toFin]
 
 def KCliqueData.check (kc : KCliqueData n s) : Bool :=
-  decide (∀ i i' : Fin (2^n), i < i' → KAdj (kc.get i) (kc.get i'))
+  decide (∀ i i' : Fin (2^n), i < i' →
+    (∃ d : Fin n, (BitVec.ofFin i)[d] ≠ (BitVec.ofFin i')[d] ∧ (kc.get i)[d] = (kc.get i')[d]) ∧
+    (adjacent (BitVec.ofFin i) (BitVec.ofFin i') → kc.get i ≠ kc.get i')
+  )
 
-def KCliqueData.toKClique (kc : KCliqueData n s) (h : kc.check = true) : KClique n s :=
-  ⟨ Finset.univ.map kc.getEmbedding, by
-    simp [check] at h
-    constructor
-    · intro x hx y hy hne; simp at hx hy
-      rcases hx with ⟨⟨xi⟩,rfl⟩
-      rcases hy with ⟨⟨yi⟩,rfl⟩
-      simp at hne
-      wlog hlt : xi < yi generalizing xi yi
-      · apply SimpleGraph.adj_symm
-        apply this; exact Ne.symm hne; omega
-      specialize h xi yi hlt
-      convert h using 1
-    · simp⟩
+def KCliqueData.toKClique (kc : KCliqueData n s) (h : kc.check = true) : KColoring n s where
+  data := kc.get
+  same := by sorry
+  diff := by sorry
+    --constructor
+    --· intro x hx y hy hne; simp at hx hy
+    --  rcases hx with ⟨⟨xi⟩,rfl⟩
+    --  rcases hy with ⟨⟨yi⟩,rfl⟩
+    --  simp at hne
+    --  wlog hlt : xi < yi generalizing xi yi
+    --  · apply SimpleGraph.adj_symm
+    --    apply this; exact Ne.symm hne; omega
+    --  specialize h xi yi hlt
+    --  convert h using 1
+    --· simp⟩
 
 theorem KCliqueData.check_implies_not_conjecture (kc : KCliqueData n s) (h : s ≤ 2^(n-1))
   : kc.check = true → ¬ conjectureIn n := by

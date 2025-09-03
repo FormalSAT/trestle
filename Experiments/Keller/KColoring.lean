@@ -35,8 +35,28 @@ theorem cons_hdtl (v : BitVec (n+1)) : BitVec.cons (bvhd v) (bvtl v) = v := by
 @[simp] abbrev adjacentAt (i j : BitVec n) (d : Fin n) : Prop :=
   i[d] ≠ j[d] ∧ ∀ d' ≠ d, i[d'] = j[d']
 
+theorem adjacentAt_iff_xor_eq_oneAt :
+    adjacentAt i j d ↔ i ^^^ j = .oneAt d := by
+  constructor
+  · rintro ⟨ne,eq⟩
+    ext d' d'_range
+    specialize eq ⟨d',d'_range⟩
+    by_cases d' = d <;> simp_all [Fin.ext_iff, eq_comm (a := d')]
+  · intro h
+    constructor
+    · replace is_xor := congrArg (·[d]) h
+      simpa using is_xor
+    · intro d' d'_ne
+      replace is_xor := congrArg (·[d']) h
+      rw [ne_eq, eq_comm, Fin.ext_iff] at d'_ne
+      simpa [d'_ne] using is_xor
+
 def adjacent (i j : BitVec n) : Prop :=
   ∃ d : Fin n, adjacentAt i j d
+
+instance : Decidable (adjacent i j) := by
+  unfold adjacent adjacentAt
+  infer_instance
 
 theorem ne_of_adjacent (h : adjacent (n := n) i j) : i ≠ j := by
   rintro rfl; simp [adjacent] at h
