@@ -162,6 +162,11 @@ def BitVec.ofFn (f : Fin n → Bool) : BitVec n :=
   rw [List.getD_eq_getElem?_getD, List.getElem_eq_getElem?_get]
   rw [Option.get_eq_getD]
 
+@[simp] theorem BitVec.ofFn_getElem (i : BitVec n) :
+    BitVec.ofFn (i[·.val]) = i := by
+  ext j; simp
+
+
 attribute [bv_toNat] BitVec.getElem_eq_testBit_toNat
 
 theorem BitVec.getElem_ofNat (n i : Nat) (hj : j < n)
@@ -181,6 +186,11 @@ def BitVec.oneAt (i : Fin n) : BitVec n :=
   rw [Nat.mod_eq_iff_lt]
   · apply Nat.pow_lt_pow_right (by decide) i.isLt
   · apply Nat.ne_of_lt'; apply Nat.pow_pos; decide
+
+@[simp] theorem BitVec.oneAt_ne_zero (i : Fin n) : oneAt i ≠ 0#_ := by
+  intro h
+  replace h := congrArg (·[i]) h
+  simp at h
 
 theorem BitVec.ofNat_eq_of_width_ge (minWidth : Nat) (hwidth : n ≥ minWidth) (hi : i < 2^minWidth)
   : BitVec.ofNat n i = ⟨i, Nat.lt_of_lt_of_le hi (Nat.pow_le_pow_right (by decide) hwidth)⟩ := by

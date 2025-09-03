@@ -85,8 +85,8 @@ structure C3MinZero (n s) extends TwoCubes n s where
   c3_min_zero :
     ∀ (i : BitVec (n+2)),
       i[1] = true →
-      (∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (kclique.get i)[j] ≠ 0) →
-      count (kclique.get 3#_) ≤ count (kclique.get i)
+      (∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (data i)[j] ≠ 0) →
+      count (data 3#_) ≤ count (data i)
 
 
 namespace C3MinZero
@@ -113,7 +113,7 @@ But it is bounded above by `n`, the number of columns, so the argument must term
 theorem setCol0 (tc : TwoCubes n s) (i : BitVec (n+2)) (i1_true : i[1] = true)
     : ∃ tc' : TwoCubes n s, ∃ i' : BitVec (n+2), i'[0] = true ∧ i'[1] = true ∧
           (∀ j (h : 2 ≤ j ∧ j < n+2),
-            i'[j] = i[j] ∧ (tc'.kclique.get i')[j] = (tc.kclique.get i)[j]) := by
+            i'[j] = i[j] ∧ (tc'.data i')[j] = (tc.data i)[j]) := by
   if i0_true : i[0] = true then
     use tc, i
     simp [*]
@@ -124,13 +124,13 @@ theorem setCol0 (tc : TwoCubes n s) (i : BitVec (n+2)) (i1_true : i[1] = true)
     constructor
     · omega
     · have : ¬j = 1 := by omega
-      simp [TwoCubes.flip0, KClique.get_map_permColors, KClique.get_map_flip,
+      simp [TwoCubes.flip0, KAuto.permColors, KColoring.permColors, KAuto.flip, KColoring.flip,
         BitVec.xor_assoc, this]
 
 theorem flipAtHighBits (tc : TwoCubes n s) (j : Nat) (i : BitVec (n+2))
     (i_bits_high : i[0] = true ∧ i[1] = true) (i_bits_low : ∀ j' (h : j ≤ j' ∧ j' < n+2), i[j'] = false)
-    (high_bits_nz : ∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (tc.kclique.get i)[j] ≠ 0)
-  : ∃ tc' : TwoCubes n s, tc.kclique.get i = tc'.kclique.get 3 := by
+    (high_bits_nz : ∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (tc.data i)[j] ≠ 0)
+  : ∃ tc' : TwoCubes n s, tc.data i = tc'.data 3 := by
   if j > n+2 then
     exact flipAtHighBits tc (n+2) i i_bits_high (by simp) high_bits_nz
   else if j ≤ 2 then
@@ -153,14 +153,15 @@ theorem flipAtHighBits (tc : TwoCubes n s) (j : Nat) (i : BitVec (n+2))
         apply i_bits_low
         omega
     else
-      let tc' := tc.flipAt ⟨j,by omega⟩ (tc.kclique.get i)[j]
+      let tc' := tc.condFlip ⟨j,by omega⟩ (tc.data i)[j]
             (by simp; omega)
             (high_bits_nz j (by omega) (by simp [*]))
       let i' := i ^^^ BitVec.oneAt ⟨j,by omega⟩
-      have tc'_i'_eq : (tc.kclique.get i) = (tc'.kclique.get i') := by
-        simp [tc', i', KClique.get_map_flipAt, BitVec.xor_assoc]
-        rw [KClique.get_xor_oneAt (h := by simp)]
-        simp
+      have tc'_i'_eq : (tc.data i) = (tc'.data i') := by
+        simp [tc', i', TwoCubes.condFlip, KColoring.condFlip, BitVec.xor_assoc]
+        rw [KColoring.condFlipB, KColoring.condFlipA_T]
+        · simp [BitVec.xor_assoc]
+        · apply KColoring.oneAt_eq
       rw [tc'_i'_eq]
       apply flipAtHighBits (j := j)
       case i_bits_high =>
@@ -175,9 +176,9 @@ theorem flipAtHighBits (tc : TwoCubes n s) (j : Nat) (i : BitVec (n+2))
         simpa [i', j_ne_j'] using i'_j'
 
 theorem swapToC3 (tc : TwoCubes n s) (i : BitVec (n+2)) (i1_true : i[1] = true)
-          (high_bits_nz : ∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (tc.kclique.get i)[j] ≠ 0)
+          (high_bits_nz : ∀ j (h : 2 ≤ j ∧ j < n+2), i[j] = true → (tc.data i)[j] ≠ 0)
     : ∃ tc' : TwoCubes n s, ∀ j (h : 2 ≤ j ∧ j < n+2),
-          (tc'.kclique.get 3)[j] = (tc.kclique.get i)[j] := by
+          (tc'.data 3)[j] = (tc.data i)[j] := by
   have := setCol0 tc i i1_true
   rcases this with ⟨tc',i',i'0_true,i'1_true,h⟩
   have := flipAtHighBits tc' (n+2) i' (i_bits_high := by simp [*])
@@ -203,21 +204,21 @@ theorem ofTwoCubes (tc : TwoCubes n s) : Nonempty (C3MinZero n s) :=
   have ⟨tc',h⟩ := swapToC3 tc i i1_true high_bits_nz
   clear high_bits_nz
   replace h : ∀ j : Fin _,
-      2 ≤ j.val ∧ (tc'.kclique.get 3#_)[j.val] = 0 ↔
-      2 ≤ j.val ∧ (tc.kclique.get i)[j] = 0   := by
+      2 ≤ j.val ∧ (tc'.data 3#_)[j.val] = 0 ↔
+      2 ≤ j.val ∧ (tc.data i)[j] = 0   := by
     simp; intro j hj; specialize h j (by omega); simp at h
     simp [h]
-  have : count (tc'.kclique.get 3#(n + 2)) < count (tc.kclique.get 3#(n + 2)) := by
+  have : count (tc'.data 3#(n + 2)) < count (tc.data 3#(n + 2)) := by
     unfold count
     simp [h]
     simpa using count_lt
   exact ofTwoCubes tc'
-termination_by count (tc.kclique.get 3)
+termination_by count (tc.data 3)
 
 end C3MinZero
 
 structure C3MinZeroSorted (n s) extends C3MinZero n s where
-  c3_sorted : ∀ j (h : 2 ≤ j ∧ j + 1 < n+2), (kclique.get 3)[j] = 0 → (kclique.get 3)[j+1] = 0
+  c3_sorted : ∀ j (h : 2 ≤ j ∧ j + 1 < n+2), (data 3)[j] = 0 → (data 3)[j+1] = 0
 
 namespace C3MinZeroSorted
 
@@ -253,18 +254,21 @@ theorem idxMap_get_1 : (idxMap j₁ j₁_range j₂ j₂_range i)[1] = i[1] := b
   unfold idxMap swap
   simp; congr; rw [Equiv.swap_apply_of_ne_of_ne] <;> simp <;> omega
 
-theorem kclique_map_get_eq_get_idxMap (kc : KClique _ s) {i} {j} (j_range)
-  : (kc.map (KAuto.permColumns (swap j₁ j₁_range j₂ j₂_range)) |>.get i)[j]'j_range =
-    (kc.get (idxMap j₁ j₁_range j₂ j₂_range i))[(swap j₁ j₁_range j₂ j₂_range) ⟨j,by omega⟩] := by
-  rw [KClique.get_map_permColumns]
+theorem kclique_map_get_eq_get_idxMap (kc : KColoring _ s) {i} {j} (j_range)
+  : ((KAuto.permDims (swap j₁ j₁_range j₂ j₂_range)) kc |>.data i)[j]'j_range =
+    (kc.data (idxMap j₁ j₁_range j₂ j₂_range i))[(swap j₁ j₁_range j₂ j₂_range) ⟨j,by omega⟩] := by
+  simp [KAuto.permDims]
+  rw (occs := .pos [1]) [Equiv.coe_fn_mk]
+  simp [KColoring.permDims]
   unfold idxMap
   simp
 
-theorem kclique_map_swap_get (kc : KClique _ s) {i}
-  : (kc.map (KAuto.permColumns (swap j₁ j₁_range j₂ j₂_range))).get i =
-    Vector.ofFn fun j => (kc.get (idxMap j₁ j₁_range j₂ j₂_range i))[(swap j₁ j₁_range j₂ j₂_range) j] := by
+theorem kclique_map_swap_get (kc : KColoring (n+2) s) {i}
+  : ((KAuto.permDims (swap j₁ j₁_range j₂ j₂_range)) kc).data i =
+    Vector.ofFn fun j => (kc.data (idxMap j₁ j₁_range j₂ j₂_range i))[(swap j₁ j₁_range j₂ j₂_range) j] := by
   ext j j_range
-  simp [kclique_map_get_eq_get_idxMap]
+  rw [kclique_map_get_eq_get_idxMap]
+  simp
 
 end
 
@@ -281,11 +285,11 @@ theorem count_perm_eq (p : Equiv.Perm (Fin (n+2))) (h : ∀ j, (p.symm j).val < 
 
 -- start from c3[j'] = 0 for j' > j and reduce `j` inductively until c3 is sorted
 theorem reorderZero (tc : C3MinZero n s) (j) (j_range : j < n+2)
-    (h_zeros : ∀ j' (h : j < j' ∧ j' < n+2), (tc.kclique.get 3#_)[j'] = 0)
+    (h_zeros : ∀ j' (h : j < j' ∧ j' < n+2), (tc.data 3#_)[j'] = 0)
   : Nonempty (C3MinZeroSorted n s) := by
   induction j using Nat.strong_induction_on generalizing tc
   next j₁ ih =>
-  if h_nonzeros : ∀ j' (h : 2 ≤ j' ∧ j' < j₁), (tc.kclique.get 3)[j'] ≠ 0 then
+  if h_nonzeros : ∀ j' (h : 2 ≤ j' ∧ j' < j₁), (tc.data 3)[j'] ≠ 0 then
     refine ⟨{toC3MinZero := tc, c3_sorted := ?_}⟩
     rintro j' j'_range j'_is_zero
     have : j' ≥ j₁ := by by_contra; apply h_nonzeros _ _ j'_is_zero; omega
@@ -293,7 +297,7 @@ theorem reorderZero (tc : C3MinZero n s) (j) (j_range : j < n+2)
   else
     push_neg at h_nonzeros
     rcases h_nonzeros with ⟨j₂,hj₂,j₂_zero⟩
-    let tc' := tc.permColumns (swap j₁ (by omega) j₂ (by omega)) ?fix0 ?fix1
+    let tc' := tc.permDims (swap j₁ (by omega) j₂ (by omega)) ?fix0 ?fix1
     case fix0 | fix1 =>
       apply Equiv.swap_apply_of_ne_of_ne <;> (simp; omega)
     let min' : C3MinZero n s := { tc' with c3_min_zero := ?c3_min_zero }
@@ -308,15 +312,16 @@ theorem reorderZero (tc : C3MinZero n s) (j) (j_range : j < n+2)
         simp [idxMap] at ij_true
         specialize high_bits_nz _ ?_ ij_true
         · simp; rw [← swap_ge_2, Equiv.apply_symm_apply]; simp; omega
-        simpa [tc', kclique_map_get_eq_get_idxMap] using high_bits_nz
-      · rw [kclique_map_swap_get, idxMap_three, count_perm_eq]
+        simp [tc', TwoCubes.permDims, KColoring.permDims] at high_bits_nz
+        simpa using high_bits_nz
+      · rw [TwoCubes.permDims, kclique_map_swap_get, idxMap_three, count_perm_eq]
         · intro j; rw [← swap_lt_2, Equiv.apply_symm_apply]
-      · rw [kclique_map_swap_get, count_perm_eq]
+      · rw [TwoCubes.permDims, kclique_map_swap_get, count_perm_eq]
         · intro j; rw [← swap_lt_2, Equiv.apply_symm_apply]
     apply ih (j₁-1) (by omega) min' (by omega)
     intro j j_range
     simp [min', tc']
-    rw [kclique_map_get_eq_get_idxMap, idxMap_three]
+    rw [TwoCubes.permDims, kclique_map_get_eq_get_idxMap, idxMap_three]
     if j = j₁ then
       subst j; simp [swap]; exact j₂_zero
     else
@@ -330,7 +335,7 @@ theorem ofC3MinZero (tc : C3MinZero n s) : Nonempty (C3MinZeroSorted n s) := by
 
 
 theorem c3_zeroSuffix (tc : C3MinZeroSorted n s) (j) (hj : 2 ≤ j ∧ j < n+2) :
-  (tc.kclique.get 3#_)[j] = 0 → ∀ j' (_: j ≤ j' ∧ j' < n+2), (tc.kclique.get 3#_)[j'] = 0 := by
+  (tc.data 3#_)[j] = 0 → ∀ j' (_: j ≤ j' ∧ j' < n+2), (tc.data 3#_)[j'] = 0 := by
   intro zeroAtJ j' j'_range
   induction j' using Nat.strongRecOn
   next j' ih =>
@@ -342,7 +347,7 @@ theorem c3_zeroSuffix (tc : C3MinZeroSorted n s) (j) (hj : 2 ≤ j ∧ j < n+2) 
     convert this; omega
 
 theorem c3_nzPrefix (tc : C3MinZeroSorted n s) (j) (hj : 2 ≤ j ∧ j < n+2) :
-  (tc.kclique.get 3#_)[j] ≠ 0 → ∀ j' (_: 2 ≤ j' ∧ j' ≤ j), (tc.kclique.get 3#_)[j'] ≠ 0 := by
+  (tc.data 3#_)[j] ≠ 0 → ∀ j' (_: 2 ≤ j' ∧ j' ≤ j), (tc.data 3#_)[j'] ≠ 0 := by
   intro nzAtJ j' j'_range
   intro contra
   have := c3_zeroSuffix _ _ (by omega) contra j (by omega)

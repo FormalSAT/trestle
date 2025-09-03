@@ -5,106 +5,159 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: James Gallicchio
 -/
 
-import Experiments.Keller.KellerGraph
 import Mathlib.Tactic.Basic
+
+import Experiments.Keller.KColoring
+import Experiments.Keller.Upstream
 
 namespace Keller
 
-def KAuto (n s) := SimpleGraph.Iso (KGraph n s) (KGraph n s)
+def KAuto (n s) := Equiv.Perm (KColoring n s)
 
-def KClique.map (a : KAuto n s) (k : KClique n s) : KClique n s :=
-  ⟨(k.val.map a.toEmbedding.toEmbedding), by
-  have ⟨vs,{card_eq, isClique}⟩ := k
-  simp only [KClique, SimpleGraph.isNClique_iff,
-    Finset.card_map, card_eq, and_true]
-  clear card_eq
-  generalize hvs' : vs.map _ = vs'
-  simp [Finset.ext_iff] at hvs'
-  intro v₁ hv₁ v₂ hv₂ hne
-  simp [← hvs'] at hv₁ hv₂; clear hvs'
-  rcases hv₁ with ⟨v₁,hv₁,rfl⟩; rcases hv₂ with ⟨v₂,hv₂,rfl⟩
-  apply a.map_adj_iff.mpr
-  simp [SimpleGraph.isClique_iff]
-  replace hne : v₁ ≠ v₂ := fun h => hne (congrArg a.toFun h)
-  apply isClique ?_ ?_ hne <;> simp [hv₁, hv₂]
-  ⟩
+namespace KColoring
+
+def flip (mask : BitVec n) (K : KColoring n s) : KColoring n s where
+  data := fun i => K.data (i ^^^ mask)
+  same := by
+    intro i j ne
+    have := K.same (i ^^^ mask) (j ^^^ mask) (by simpa)
+    simpa using this
+  diff := by
+    intro i j adj
+    have := K.diff (i ^^^ mask) (j ^^^ mask) (by simpa [adjacent] using adj)
+    exact this
+
+@[simp] theorem flip_flip (mask : BitVec n) {K : KColoring n s} :
+    (K.flip mask).flip mask = K := by
+  ext; simp [flip, BitVec.xor_assoc]
 
 
-namespace KVertex
+section variable [Decidable P]
 
-def flip (mask : BitVec n) (v : KVertex n s) : KVertex n s :=
-  { idx := v.idx ^^^ mask, color := v.color }
+def condFlipA (P : Prop) [Decidable P] (d : Fin n) (idx : BitVec n) :=
+  if P then idx ^^^ BitVec.oneAt d else idx
 
-theorem idx_flip (mask) {v : KVertex n s} : (flip mask v).idx = v.idx ^^^ mask := rfl
-@[simp] theorem colors_flip (mask) {v : KVertex n s} : (flip mask v).color = v.color := rfl
+@[simp] theorem condFlipA_T (d : Fin n) (idx) :
+    P → condFlipA P d idx = idx ^^^ BitVec.oneAt d := by
+  unfold condFlipA; simp +contextual
 
-@[simp] theorem flip_flip (mask : BitVec n) {v : KVertex n s} : (v.flip mask).flip mask = v := by
-  simp [flip, BitVec.xor_assoc]
+@[simp] theorem condFlipA_F (d : Fin n) (idx) :
+    ¬P → condFlipA P d idx = idx := by
+  unfold condFlipA; simp +contextual
+
+@[simp] theorem condFlipA_condFlipA (d : Fin n) (idx) :
+    condFlipA P d (condFlipA P d idx) = idx := by
+  by_cases P <;> simp [*, BitVec.xor_assoc]
+
+theorem condFlipA_getElem (d) (i : BitVec n) (d2 : Fin n) :
+    (condFlipA P d i)[d2] = (i[d2] ^^ decide (P ∧ d2 = d)) := by
+  by_cases P <;> simp [*, eq_comm, Fin.ext_iff]
+
+end
+
+def condFlipB (d : Fin n) (c : Fin s) (K : KColoring n s) (idx : BitVec n) :=
+  condFlipA ((K.data idx)[d] = c) d idx
+
+theorem condFlipB_color_eq (d c) (K : KColoring n s) (i) :
+    (K.data (condFlipB d c K i))[d] = (K.data i)[d] := by
+  unfold condFlipB condFlipA
+  split
+  · rw [K.oneAt_eq]
+  · rfl
+
+@[simp] theorem condFlipB.Involutive {K : KColoring n s} :
+    (condFlipB d c K).Involutive := by
+  intro
+  rw [condFlipB, condFlipB_color_eq, condFlipB]
+  apply condFlipA_condFlipA
+
+@[simp] theorem condFlipB_condFlipB (d c) (K : KColoring n s) (i) :
+    condFlipB d c K (condFlipB d c K i) = i := by
+  apply condFlipB.Involutive
+
+theorem condFlipB_getElem_inj (d c) (K : KColoring n s) (i₁ i₂) (d2 : Fin n)
+    (h : d2 = d → (K.data i₁)[d] = (K.data i₂)[d]) :
+    (condFlipB d c K i₁)[d2] = (condFlipB d c K i₂)[d2] ↔ i₁[d2] = i₂[d2] := by
+  unfold condFlipB
+  simp_rw [condFlipA_getElem]
+  if d2 = d then
+    subst d2; simp_all
+  else
+    simp_all
+
 
 /--
-Actually *super* non-obvious that this is an automorphism!!!!
-The justification is basically that if an s gap occurs at j, it still occurs there,
+Actually *super* non-obvious that this is an automorphism!!
+The justification is basically that if an s gap occurs at d, it still occurs there,
 while the colors never change so other inequalities are preserved
 
 I don't think this is an SR clausal symmetry?
 This would require something stronger, like fully general substitutions.
 -/
-def flipAt (j : Fin n) (k : Fin s) (v : KVertex n s) : KVertex n s :=
-  if v.color[j] = k then
-    { idx := v.idx ^^^ BitVec.oneAt j
-    , color := v.color }
-  else
-    v
+def condFlip (d : Fin n) (c : Fin s) (K : KColoring n s) : KColoring n s where
+  data i := K.data (condFlipB d c K i)
+  same := by
+    intro i₁ i₂ ne
 
-@[simp] theorem idx_flipAt_of_eq {j k} {v : KVertex n s} (h : v.color[j] = k) :
-    (flipAt j k v).idx = v.idx ^^^ BitVec.oneAt j := by
-  unfold flipAt; simp only [h, ↓reduceIte]
+    generalize hpi₁ : condFlipB d c K i₁ = pi₁ at *
+    generalize hpi₂ : condFlipB d c K i₂ = pi₂ at *
+    rw [condFlipB.Involutive.eq_iff] at hpi₁ hpi₂
+    subst i₁ i₂
 
-@[simp] theorem idx_flipAt_of_ne {j k} {v : KVertex n s} (h : v.color[j] ≠ k) :
-    (flipAt j k v).idx = v.idx := by
-  unfold flipAt; simp only [h, ↓reduceIte]
+    obtain ⟨d',is_ne,cs_eq⟩ := K.same pi₁ pi₂ (by
+      simp_all [condFlipB.Involutive.injective.eq_iff])
+    clear ne
 
-@[simp] theorem getElem_idx_flipAt_eq_of {j k} {v : KVertex n s} {j2} {h : j2 < n} :
-    (j.val = j2 → v.color[j] ≠ k) → (flipAt j k v).idx[j2] = v.idx[j2] := by
-  unfold flipAt; split <;> simp_all
+    refine ⟨d',?_,cs_eq⟩
+
+    rw [ne_eq, condFlipB_getElem_inj]
+    · exact is_ne
+    · rintro rfl; cc
+
+  diff := by
+    intro i₁ i₂ adj
+
+    generalize hpi₁ : condFlipB d c K i₁ = pi₁ at *
+    generalize hpi₂ : condFlipB d c K i₂ = pi₂ at *
+    rw [condFlipB.Involutive.eq_iff] at hpi₁ hpi₂
+    subst i₁ i₂
+
+    if adjacent pi₁ pi₂ then
+      exact K.diff pi₁ pi₂ ‹_›
+    else
+
+    have : (K.data pi₁)[d] ≠ (K.data pi₂)[d] := by
+      intro h
+      by_cases (K.data pi₂)[d] = c <;>
+        simp_all [condFlipB, ← adjacent_iff_xors_adjacent]
+
+    use d
+
+theorem condFlip.Involutive {d : Fin n} {c : Fin s} :
+    (condFlip d c).Involutive := by
+  intro K; ext1; ext1 i; simp [condFlip]
+  rw (occs := .pos [2]) [condFlipB]
+  rw [condFlipB_color_eq, ← condFlipB, condFlipB_condFlipB]
+
+@[simp] theorem condFlip_condFlip {d c} {K : KColoring n s} :
+    (K.condFlip d c).condFlip d c = K :=
+  condFlip.Involutive ..
+
+@[simp] theorem flipAt_inj_iff {j k} : condFlip j k a = condFlip j k b ↔ a = b :=
+  condFlip.Involutive.injective.eq_iff
 
 
-@[simp] theorem colors_flipAt {j k} {v : KVertex n s} : (flipAt j k v).color = v.color := by
-  unfold flipAt; split <;> rfl
 
-@[simp] theorem flipAt_flipAt {j k} {v : KVertex n s} : (v.flipAt j k).flipAt j k = v := by
-  by_cases h : v.color[j] = k
-  · ext1
-    · simp [h, BitVec.xor_assoc]
-    · simp
-  · have : (v.flipAt j k) = v := by
-      ext1; {apply idx_flipAt_of_ne h}; {simp}
-    rw [this, this]
+def permColors (f : Fin n → Fin s ≃ Fin s) (K : KColoring n s) : KColoring n s where
+  data i := Vector.ofFn fun d => (f d) (K.data i)[d]
+  same := by
+    intro i j ne
+    simpa using K.same i j ne
+  diff := by
+    intro i j adj
+    simpa using K.diff i j adj
 
-@[simp] theorem flipAt_inj_iff {j k} : flipAt j k a = flipAt j k b ↔ a = b := by
-  constructor
-  · intro h; simpa using congrArg (flipAt j k) h
-  · rintro rfl; rfl
-
-@[simp] theorem idx_flipAt_eq_iff_idx_eq {j : Fin n} {j2 : Nat} {hj2 : j2 < n} {k}
-      (h : a.color[j2] = b.color[j2])
-    : (flipAt j k a).idx[j2] = (flipAt j k b).idx[j2] ↔ a.idx[j2] = b.idx[j2] := by
-  -- the only case that is interesting
-  if h2 : j.val = j2 ∧ a.color[j.val] = k then
-    rcases h2 with ⟨rfl,rfl⟩
-    unfold flipAt
-    simp [h]
-  else
-    push_neg at h2
-    apply iff_of_eq; congr 1 <;> (
-      apply getElem_idx_flipAt_eq_of
-      simp_all
-    )
-
-def permColors (f : Fin n → Fin s → Fin s) (v : KVertex n s) : KVertex n s :=
-  { idx := v.idx
-  , color := Vector.ofFn (fun j => (f j) v.color[j]) }
-
+/-
 @[simp] theorem idx_permColors (f) {v : KVertex n s} : (permColors f v).idx = v.idx := rfl
 
 theorem colors_permColors (f) (v : KVertex n s) {j h} :
@@ -121,12 +174,37 @@ theorem permColors_permColors (f₁ f₂ : Fin n → Fin s → Fin s) {v} :
   congr
   ext i hi
   simp
+  -/
 
 
-def permColumns (f : Fin n → Fin n) (v : KVertex n s) : KVertex n s :=
-  { idx := BitVec.ofFn (v.idx[f ·])
-  , color := Vector.ofFn (v.color[f ·]) }
+def permDims (f : Fin n ≃ Fin n) (K : KColoring n s) : KColoring n s where
+  data i :=
+    let i' := BitVec.ofFn (i[f.symm ·])
+    Vector.ofFn fun d => (K.data i')[f d]
+  same i j ne := by
+    lift_lets; intro i' j'
+    replace ne : i' ≠ j' := by
+      intro h; apply ne
+      ext d hd
+      simpa +zetaDelta using congrArg (·[f ⟨d,hd⟩]) h
 
+    obtain ⟨d,is_ne,cs_eq⟩ := K.same i' j' ne
+    simp
+    use f.symm d, (by simpa +zetaDelta using is_ne)
+    simpa using cs_eq
+  diff i j adj := by
+    lift_lets; intro i' j'
+    replace adj : adjacent i' j' := by
+      obtain ⟨d,is,cs⟩ := adj
+      use f d, (by simpa +zetaDelta using is)
+      intro d'; specialize cs (f.symm d')
+      simpa +zetaDelta [Equiv.symm_apply_eq] using cs
+
+    obtain ⟨d,diff⟩ := K.diff i' j' adj
+    use f.symm d
+    simpa using diff
+
+/-
 theorem idx_permColumns (f : Fin n → Fin n) (v : KVertex n s) {j hj} :
     (v.permColumns f).idx[j]'hj = v.idx[f ⟨j,hj⟩] := by
   simp [permColumns]
@@ -141,217 +219,54 @@ theorem permColumns_comp (f₁ f₂ : Fin n → Fin n) (v : KVertex n s)
 
 @[simp] theorem permColumns_id (v : KVertex n s) : permColumns id v = v := by
   ext <;> simp [permColumns, BitVec.getLsbD_eq_getElem, *]
+-/
 
-end KVertex
+end KColoring
 
 
 namespace KAuto
 
-def id : KAuto n s := RelIso.refl _
+instance : FunLike (KAuto n s) (KColoring n s) (KColoring n s) := by
+  unfold KAuto; infer_instance
 
-def flip (mask : BitVec n) : KAuto n s :=
-  RelIso.mk ({
-    toFun := KVertex.flip mask
-    invFun := KVertex.flip mask
+def id : KAuto n s := Equiv.refl _
+
+def flip (mask : BitVec n) : KAuto n s := {
+    toFun   := KColoring.flip mask
+    invFun  := KColoring.flip mask
     left_inv  := by intro; simp
     right_inv := by intro; simp
-  }) (by
-    simp [KAdj, KVertex.idx_flip]
-  )
+  }
 
-@[simp] theorem toFun_flip {x : KVertex _ _ } :
-  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
-    (flip (n := n) (s := s) mask) x = KVertex.flip mask x := rfl
-
-def flipAt (j : Fin n) (k : Fin s) : KAuto n s :=
-  RelIso.mk ({
-    toFun := KVertex.flipAt j k
-    invFun := KVertex.flipAt j k
+def condFlip (d : Fin n) (c : Fin s) : KAuto n s := {
+    toFun   := KColoring.condFlip d c
+    invFun  := KColoring.condFlip d c
     left_inv  := by intro; simp
     right_inv := by intro; simp
-  }) (by
-    intro a b
-    simp [KAdj]
-    constructor
-    · rintro ⟨j1,idx_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
-      use j1
-      rw [KVertex.idx_flipAt_eq_iff_idx_eq cs_eq_j1] at idx_ne_j1
-      use idx_ne_j1, cs_eq_j1, j2, js_ne
-      by_cases a.color[j2.val] = b.color[j2.val] <;> simp_all
-    · rintro ⟨j1,idx_ne_j1,cs_eq_j1,j2,js_ne,ne_j2⟩
-      use j1
-      rw [KVertex.idx_flipAt_eq_iff_idx_eq cs_eq_j1]
-      use idx_ne_j1, cs_eq_j1, j2, js_ne
-      by_cases a.color[j2.val] = b.color[j2.val] <;> simp_all
-  )
+  }
 
-@[simp] theorem toFun_flipAt {x : KVertex _ _ } :
-  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
-    (flipAt (n := n) (s := s) j k) x = KVertex.flipAt j k x := rfl
+def permColors (f : Fin n → Fin s ≃ Fin s) : KAuto n s := {
+    toFun   := KColoring.permColors f
+    invFun  := KColoring.permColors (fun j => (f j).symm)
+    left_inv  := by intro; ext; simp [KColoring.permColors]
+    right_inv := by intro; ext; simp [KColoring.permColors]
+  }
 
+def permDims (f : Fin n ≃ Fin n) : KAuto n s := {
+    toFun   := KColoring.permDims f
+    invFun  := KColoring.permDims f.symm
+    left_inv  := by intro; ext; simp [KColoring.permDims]
+    right_inv := by intro; ext; simp [KColoring.permDims]
+  }
 
-def permColors (f : Fin n → Fin s ≃ Fin s) : KAuto n s :=
-  RelIso.mk ({
-    toFun := KVertex.permColors (fun j => f j)
-    invFun := KVertex.permColors (fun j => (f j).symm)
-    left_inv  := by intro; simp [KVertex.permColors_permColors]
-    right_inv := by intro; simp [KVertex.permColors_permColors]
-  }) (by
-    intro v₁ v₂
-    simp [KAdj, KVertex.colors_permColors])
+variable (K : KColoring n s)
 
-@[simp] theorem toFun_permColors {x : KVertex _ _ } :
-  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
-    (permColors (n := n) (s := s) f) x = KVertex.permColors (fun j => f j) x := rfl
+@[simp] theorem apply_flip : (flip mask) K = K.flip mask := rfl
 
-def permColumns (f : Fin n ≃ Fin n) : KAuto n s :=
-  RelIso.mk {
-    toFun := KVertex.permColumns f
-    invFun := KVertex.permColumns f.invFun
-    left_inv := by intro; simp [KVertex.permColumns_comp]
-    right_inv := by intro; simp [KVertex.permColumns_comp]
-  } (by
-    intro a b
-    simp [KAdj, KVertex.permColumns]
-    constructor
-    · rintro ⟨j₁,hbv₁,hc1,j₂,hne,h⟩
-      use f j₁, hbv₁, hc1, f j₂
-      rw [EmbeddingLike.apply_eq_iff_eq]
-      simp [hne, h]
-    · rintro ⟨j₁,hbv₁,hc1,j₂,hne,h⟩
-      use f.symm j₁; simp
-      use hbv₁, hc1, f.symm j₂
-      rw [EmbeddingLike.apply_eq_iff_eq]
-      simp [hne, h]
-  )
+@[simp] theorem apply_condFlip : (condFlip d c) K = K.condFlip d c := rfl
 
-@[simp] theorem toFun_permColumns {x : KVertex _ _ } :
-  DFunLike.coe (F := KAdj ≃r KAdj) (α := KVertex n s) (β := fun _ => KVertex n s)
-    (permColumns (n := n) (s := s) f) x = KVertex.permColumns (fun j => f j) x := rfl
+@[simp] theorem apply_permColors : (permColors f) K = K.permColors f := rfl
+
+@[simp] theorem apply_permDims : (permDims f) K = K.permDims f := rfl
 
 end KAuto
-
-namespace KClique
-
-@[simp] theorem get_map_trans {klique : KClique n s} {a b}
-  : klique.map (RelIso.trans a b) = (klique.map a).map b := by
-  apply Subtype.ext; simp [map, Finset.map]
-
-theorem get_map_flip {klique : KClique n s} (mask : BitVec n)
-  : (klique.map (KAuto.flip mask)).get i = klique.get (i ^^^ mask) := by
-  simp [map, get_eq_iff_mem, KVertex.flip]
-  refine ⟨_, klique.get_mem (i ^^^ mask), ?_⟩
-  simp [BitVec.xor_assoc]
-
-theorem get_map_flipAt {klique : KClique n s} {j k i}
-  : ((klique.map (KAuto.flipAt j k)).get i) = klique.get (if (klique.get i)[j.val] = k then i ^^^ BitVec.oneAt j else i) := by
-  simp [map, get_eq_iff_mem]
-  refine ⟨⟨if (klique.get i)[j.val] = k then i ^^^ BitVec.oneAt j else i,_⟩, klique.get_mem _, ?_⟩
-  split
-  · have := klique.get_adj_one_diff (i₁ := i) (i₂ := i ^^^ BitVec.oneAt j) (j₁ := j)
-      (by simp [bv_toNat])
-      (by intro j h; simp [bv_toNat] at h; rw [eq_comm] at h; simp [Nat.testBit_one_eq_true_iff_self_eq_zero] at h; omega)
-    replace this := this.1.symm; simp at this
-    simp [KVertex.flipAt, BitVec.xor_assoc, *]
-  · simp [KVertex.flipAt, *]
-
-theorem get_map_permColors {k : KClique n s} {f} {i}
-  : (k.map (KAuto.permColors f)).get i = Vector.ofFn fun j => (f j) (k.get i)[j] := by
-  simp [get_eq_iff_mem, map]
-  refine ⟨⟨i,_⟩, k.get_mem _, ?_⟩
-  simp [KVertex.permColors]
-
-theorem get_map_permColumns {k : KClique n s} {f} {i}
-  : (k.map (KAuto.permColumns f)).get i = Vector.ofFn fun j => (k.get (BitVec.ofFn fun j => i[f.symm j]))[f j] := by
-  simp [get_eq_iff_mem, map]
-  refine ⟨_, k.get_mem (BitVec.ofFn fun j => i[f.symm j]), ?_⟩
-  simp [KVertex.permColumns]
-  ext; simp [BitVec.getLsbD_eq_getElem, *]
-
-noncomputable def lowerS {s'} (hs' : s' ≥ 2^n) (k : KClique (n+1) s') : KClique (n+1) (2^n) :=
-  let colSets : Fin (n+1) → Finset (Fin s') := fun j =>
-    k.val.image (fun v => v.color[j])
-  let perms : Fin (n+1) → Fin s' ≃ Fin s' := fun j =>
-    Equiv.Perm.setAll <| (colSets j |>.toList).zip (List.finRange s')
-  let renumbered := k.map (KAuto.permColors perms)
-  have renumbered_lt : ∀ (i : BitVec (n+1)) (j : Fin (n+1)), (renumbered.get i)[j].val < 2^n := by
-    intro i j
-    have mem_colSets : (k.get i)[j] ∈ colSets j := by
-      simp [colSets]; refine ⟨_, k.get_mem i, ?_⟩
-      rfl
-    rw [← Finset.mem_toList, List.mem_iff_getElem] at mem_colSets
-    rcases mem_colSets with ⟨kIdx,kIdx_lt,kIdx_eq⟩
-
-    replace kIdx_lt_pown : kIdx < 2^n := by
-      simp [colSets] at kIdx_lt
-      calc kIdx < _     := kIdx_lt
-        _ ≤ 2^n         := by simpa using k.colorsInCol_lt j
-    have kIdx_lt_s' : kIdx < s' := by
-      calc kIdx < _     := kIdx_lt_pown
-        _ ≤ s'          := hs'
-
-    simp [renumbered, get_map_permColors]; unfold perms
-    rw [Equiv.Perm.setAll_eq_of_mem (o := ⟨kIdx,kIdx_lt_s'⟩)]
-    exact kIdx_lt_pown
-
-    case is_distinct =>
-      rw [List.pairwise_iff_get]
-      intro x y x_lt_y
-      simp; rw [List.Nodup.getElem_inj_iff]; omega
-      case h =>
-      apply Finset.nodup_toList
-    case os_distinct =>
-      rw [List.pairwise_iff_get]
-      intro x y x_lt_y
-      simp; omega
-    case pair_mem =>
-      rw [List.mem_iff_getElem]
-      simpa [*] using kIdx_lt
-
-  ⟨renumbered.val.image (fun v => {idx := v.idx, color := v.color.map (Fin.ofNat _ ·.val)})
-  , by
-  clear_value renumbered
-  clear perms colSets k
-  have renumbered_cast_eq : ∀ i (j) (hj : j < (n+1)),
-        (renumbered.get i)[j].val % (2^n) =
-          (renumbered.get i)[j].val := by
-    intro i j hj; apply Nat.mod_eq_of_lt; simpa using renumbered_lt i ⟨j,hj⟩
-  simp only at renumbered_cast_eq
-
-  constructor
-  · intro a a_mem b b_mem ne
-    simp at a_mem b_mem
-    rcases a_mem with ⟨⟨ai,ac⟩,a_mem,rfl⟩; rcases b_mem with ⟨⟨bi,bc⟩,b_mem,rfl⟩
-    dsimp at ne ⊢
-    simp [← KClique.get_eq_iff_mem] at a_mem b_mem
-    subst ac bc
-    replace ne : ai ≠ bi := by
-      rintro rfl; simp at ne
-    have := renumbered.isClique (KClique.get_mem _ ai) (KClique.get_mem _ bi) (by simp [ne])
-    simpa [KAdj, Fin.ext_iff, renumbered_cast_eq] using this
-  · rw [Finset.card_image_of_injOn ?H]; apply renumbered.card_eq
-    case H =>
-    rintro ⟨ai,ac⟩ a_mem ⟨bi,bc⟩ b_mem
-    simp [← KClique.get_eq_iff_mem] at a_mem b_mem
-    subst ac bc
-    simp +contextual
-    ⟩
-
-end KClique
-
-theorem conjectureIn_iff_forall_isEmpty (n : Nat) : conjectureIn n ↔ ∀ s, IsEmpty (KClique n s) := by
-  unfold conjectureIn
-  constructor
-  · intro h s
-    constructor; intro contra; apply h.false
-    if s ≤ 2^(n-1) then
-      exact contra.liftS ‹_›
-    else
-      match n with
-      | 0 =>
-        use {⟨0,#v[]⟩}
-        simp
-      | n+1 =>
-        apply contra.lowerS
-        simp_all; omega
-  · intro h; apply h

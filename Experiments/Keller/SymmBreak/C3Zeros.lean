@@ -29,7 +29,7 @@ the nonzero elements of `c3` occur *before* the zero elements:
 Furthermore, we relate `c3` to certain special vertices.
 For n=7 these vertices are `c7`, `c11`, `c19`, `c35`, `c67`.
 These are special because we can flip one bit in their index
-to swap them with `c3` (see the `flipAt` automorphism for details).
+to swap them with `c3` (see the `condFlip` automorphism for details).
 
 It will help later on to have more nonzero elements in `c3`.
 So, if `c3` is nonzero up to `j`, and zero starting at `j+1`,
@@ -83,18 +83,18 @@ def C3Zeros.X (row : Nat) (range : 2 ≤ row ∧ row < n+2) : BitVec (n+2) :=
 structure C3Zeros (n s) extends TwoCubes n s where
   /-- `c3` should have all its zeros at the end. -/
   c3_zeros_sorted : ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n+2),
-      (kclique.get 3)[j] = 0 → (kclique.get 3)[j+1] = 0
+      (data 3)[j] = 0 → (data 3)[j+1] = 0
   /-- if `c3` is nonzero up to `j`, then for the `cX` up to `j`,
       either there is a zero element at or before `j`,
       or *all* the elements after `j` are zero. -/
   c3_more_nonzero :
     ∀ (j : Nat) (range : 2 ≤ j ∧ j + 1 < n + 2),
-      (kclique.get 3)[j] ≠ 0 ∧ (kclique.get 3)[j+1] = 0 →
+      (data 3)[j] ≠ 0 ∧ (data 3)[j+1] = 0 →
       ∀ (row : Nat) (cr : 2 ≤ row ∧ row ≤ j),
       (∀ (_j : Nat) (range : 2 ≤ _j ∧ _j ≤ j),
-        (kclique.get (C3Zeros.X row (by omega)))[_j] ≠ 0)
+        (data (C3Zeros.X row (by omega)))[_j] ≠ 0)
       → (∀ (_j : Nat) (range : j < _j ∧ _j < n + 2),
-        (kclique.get (C3Zeros.X row (by omega)))[_j] = 0)
+        (data (C3Zeros.X row (by omega)))[_j] = 0)
 
 
 namespace C3Zeros
@@ -118,25 +118,25 @@ def ofC3MinZeros (tc : C3MinZeroSorted n s) : C3Zeros n s where
       subst j'
       apply X_nz; omega
 
-    have upperBound3 : C3MinZero.count (tc.kclique.get 3#_) ≤ n-(j-1) :=
+    have upperBound3 : C3MinZero.count (tc.data 3#_) ≤ n-(j-1) :=
       C3MinZero.count_le_of_nz_prefix _ _ (by omega) (by
         intro j' j'_range
         exact tc.c3_nzPrefix j (by omega) c3_nz j' (by omega)
       )
-    have lowerBound3 : C3MinZero.count (tc.kclique.get 3#_) ≥ n-(j-1) :=
+    have lowerBound3 : C3MinZero.count (tc.data 3#_) ≥ n-(j-1) :=
       C3MinZero.count_ge_of_z_suffix _ _ (by omega) (by
         intro j' j'_range
         exact tc.c3_zeroSuffix (j+1) (by omega) c3_z j' (by omega)
       )
 
-    have : C3MinZero.count (tc.kclique.get 3#_) = n-(j-1) := by omega
+    have : C3MinZero.count (tc.data 3#_) = n-(j-1) := by omega
     rw [this] at c3_le_X; clear upperBound3 lowerBound3 this c3_nz c3_z
 
-    let NZSet : Finset (Fin (n+2)) := { j' | 2 ≤ j'.val ∧ (tc.kclique.get (X row (by omega)))[j'.val] ≠ 0}
+    let NZSet : Finset (Fin (n+2)) := { j' | 2 ≤ j'.val ∧ (tc.data (X row (by omega)))[j'.val] ≠ 0}
 
     unfold C3MinZero.count at c3_le_X
     generalize def_ZeroSet :
-      Finset.filter (fun j' : Fin (n+2) => 2 ≤ j'.val ∧ (tc.kclique.get (X row _))[j'.val] = 0) _
+      Finset.filter (fun j' : Fin (n+2) => 2 ≤ j'.val ∧ (tc.data (X row _))[j'.val] = 0) _
         = ZeroSet at c3_le_X
 
 
@@ -200,10 +200,12 @@ def ofC3MinZeros (tc : C3MinZeroSorted n s) : C3Zeros n s where
 
 
 def X_get_col_eq_3_get_col (tc : TwoCubes n s) (row) (h) :
-  (tc.kclique.get (X row h))[row] = (tc.kclique.get 3)[row] := by
-  have := tc.kclique.get_adj_of_eq_xor (i₁ := 3) (i₂ := X row h) ⟨row,by omega⟩
-  specialize this (by simp [X])
-  exact this.1.symm
+  (tc.data (X row h))[row] = (tc.data 3)[row] := by
+  have h := tc.same_adjAt (i := 3) (j := X row h) (d := ⟨row, h.2⟩)
+    (by constructor
+        · simp [X]
+        · simp +contextual [eq_comm, Fin.ext_iff, X])
+  exact h.symm
 
 /-! ### Sketch of proof
 
@@ -230,7 +232,7 @@ There are basically 4 cases:
 
 /-- asserts that `c3[2:2+numNz] ≠ 0`. -/
 def hasNumNz (tc : TwoCubes n s) (numNz : Nat) (h : numNz ≤ n) : Prop :=
-  ∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.kclique.get 3)[j] ≠ 0
+  ∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.data 3)[j] ≠ 0
 
 /-- all cliques can have `numNz = 0`. -/
 theorem hasNumNz_zero (tc : TwoCubes n s) : hasNumNz tc 0 (Nat.zero_le _) := by
@@ -261,19 +263,19 @@ theorem of_hasNumNz_n (tc : TwoCubes n s) (h : hasNumNz tc n (Nat.le_refl _)) :
 theorem hasNumNz_succ_of_c3_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
       (hasNum : hasNumNz tc numNz (Nat.le_of_lt numNz_lt))
       (exists_nonzero : ∃ (j : Nat) (range : 2 + numNz ≤ j ∧ j < n+2),
-          (tc.kclique.get 3)[j] ≠ 0)
+          (tc.data 3)[j] ≠ 0)
       : ∃ tc : TwoCubes n s, hasNumNz tc (numNz+1) numNz_lt := by
   rcases exists_nonzero with ⟨j, range, j_nonzero⟩
 
-  use tc.permColumns (Equiv.swap ⟨j,by omega⟩ ⟨2+numNz,by omega⟩) ?fix0 ?fix1
+  use tc.permDims (Equiv.swap ⟨j,by omega⟩ ⟨2+numNz,by omega⟩) ?fix0 ?fix1
   case fix0 | fix1 =>
     apply Equiv.swap_apply_of_ne_of_ne <;> simp [Fin.ext_iff] <;> omega
 
   intro j' range'
-  rw [TwoCubes.kclique_permColumns, KClique.get_map_permColumns, Vector.getElem_ofFn]
+  simp only [TwoCubes.permDims, KAuto.apply_permDims, KColoring.permDims, Vector.getElem_ofFn]
 
   -- rewrite the bitvec to be 3 again (it's just 3)
-  suffices (tc.kclique.get 3)[(Equiv.swap (α := Fin (n+2)) ⟨j, _⟩ ⟨2 + numNz, by omega⟩) ⟨j', by omega⟩] ≠ 0 by
+  suffices (tc.data 3)[(Equiv.swap (α := Fin (n+2)) ⟨j, _⟩ ⟨2 + numNz, by omega⟩) ⟨j', by omega⟩] ≠ 0 by
     convert this
     apply BitVec.eq_of_getElem_eq; intro i hi
     simp only [BitVec.getElem_ofFn, Equiv.symm_swap, Fin.getElem_fin]
@@ -314,15 +316,15 @@ theorem hasNumNz_succ_of_c3_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
 theorem hasNumNz_succ_of_cX_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
     (hasNum : hasNumNz tc numNz (Nat.le_of_lt numNz_lt))
     (exists_nonzero : ∃ (row : Nat) (crange : 2 ≤ row ∧ row < 2+numNz),
-      (∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.kclique.get (X row (by omega)))[j] ≠ 0) ∧
+      (∀ (j) (range : 2 ≤ j ∧ j < 2+numNz), (tc.data (X row (by omega)))[j] ≠ 0) ∧
       ∃ (j : Nat) (range : 2 + numNz ≤ j ∧ j < n+2),
-      (tc.kclique.get (X row (by omega)))[j] ≠ 0)
+      (tc.data (X row (by omega)))[j] ≠ 0)
     : ∃ tc : TwoCubes n s, hasNumNz tc (numNz+1) numNz_lt := by
 
   rcases exists_nonzero with ⟨row,crange,cX_nz,j,range,j_nonzero⟩
 
   -- swap cX to c3
-  let tc' := tc.flipAt ⟨row,by omega⟩ (tc.kclique.get (X row (by omega)))[row]
+  let tc' := tc.condFlip ⟨row,by omega⟩ (tc.data (X row (by omega)))[row]
     (j_ge := by simp; omega)
     (k_ne_0 := by rw [X_get_col_eq_3_get_col]; apply hasNum; omega)
 
@@ -332,12 +334,12 @@ theorem hasNumNz_succ_of_cX_nonzero (tc : TwoCubes n s) (numNz_lt : numNz < n)
 
   case hasNum =>
     intro j' range'
-    simp [tc', KClique.get_map_flipAt, X_get_col_eq_3_get_col]
+    simp [tc', TwoCubes.condFlip, KColoring.condFlip, KColoring.condFlipB, X_get_col_eq_3_get_col]
     exact cX_nz j' range'
 
   case exists_nonzero =>
     use j, range
-    simp [tc', KClique.get_map_flipAt, X_get_col_eq_3_get_col]
+    simp [tc', TwoCubes.condFlip, KColoring.condFlip, KColoring.condFlipB, X_get_col_eq_3_get_col]
     exact j_nonzero
 
 

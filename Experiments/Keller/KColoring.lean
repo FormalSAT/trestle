@@ -7,36 +7,61 @@ import Mathlib.Data.Fin.Basic
 import Mathlib.Algebra.Group.Basic
 import Mathlib.Algebra.Group.Fin.Basic
 
+import Experiments.Keller.Upstream
+
 namespace Keller
 
 /-! ##### BitVec utilities -/
 
-private def bvhd (b : BitVec (n+1)) : Bool := b[n]
-private def bvtl (b : BitVec (n+1)) : BitVec n := b.extractLsb' 0 n
+def bvhd (b : BitVec (n+1)) : Bool := b[n]
+def bvtl (b : BitVec (n+1)) : BitVec n := b.extractLsb' 0 n
 
-private theorem bvhd_cons (b) (v : BitVec n) : bvhd (v.cons b) = b := by
+theorem bvhd_cons (b) (v : BitVec n) : bvhd (v.cons b) = b := by
   unfold bvhd
   simp [BitVec.getElem_cons]
 
-private theorem bvtl_cons (b) (v : BitVec n) : bvtl (v.cons b) = v := by
+theorem bvtl_cons (b) (v : BitVec n) : bvtl (v.cons b) = v := by
   unfold bvtl
   ext i hi
   simp [BitVec.getLsbD_cons, hi, Nat.ne_of_lt]
 
-private theorem cons_hdtl (v : BitVec (n+1)) : BitVec.cons (bvhd v) (bvtl v) = v := by
+theorem cons_hdtl (v : BitVec (n+1)) : BitVec.cons (bvhd v) (bvtl v) = v := by
   ext i hi
   if eq : i = n then
     simp [BitVec.getElem_cons, eq, bvhd]
   else
     simp [BitVec.getElem_cons, eq, bvtl, hi]
 
+@[simp] abbrev adjacentAt (i j : BitVec n) (d : Fin n) : Prop :=
+  i[d] ≠ j[d] ∧ ∀ d' ≠ d, i[d'] = j[d']
+
 def adjacent (i j : BitVec n) : Prop :=
-  ∃ d : Fin n, i[d] ≠ j[d] ∧ ∀ d' ≠ d, i[d'] = j[d']
+  ∃ d : Fin n, adjacentAt i j d
 
 theorem ne_of_adjacent (h : adjacent (n := n) i j) : i ≠ j := by
   rintro rfl; simp [adjacent] at h
 
-private theorem adjacent_bvhd_eq {i j : BitVec (n+1)} (adj : adjacent i j)
+theorem adjacent_xor_oneAt (i : BitVec n) (d : Fin n) : adjacent i (i ^^^ BitVec.oneAt d) := by
+  use d; simp +contextual [@eq_comm _ _ d, Fin.ext_iff]
+
+theorem adjacent_iff_xors_adjacent (i₁ i₂ mask : BitVec n) :
+    adjacent i₁ i₂ ↔ adjacent (i₁ ^^^ mask) (i₂ ^^^ mask) := by
+  unfold adjacent; simp
+
+theorem adjacent_cons {i j : BitVec n} (b) (adj : adjacent i j) : adjacent (i.cons b) (j.cons b) := by
+  obtain ⟨d,ne,eq⟩ := adj
+  use d.castSucc
+  constructor
+  · simpa [BitVec.cons, BitVec.getElem_append] using ne
+  · rintro ⟨d',d'lt⟩ d'_ne
+    if d' = n then
+      subst d'; simp [BitVec.cons, BitVec.getElem_append]
+    else
+      replace d'lt: d' < n := by omega
+      specialize eq ⟨d',d'lt⟩ (by simpa [Fin.ext_iff] using d'_ne)
+      simpa [d'lt, BitVec.cons, BitVec.getElem_append] using eq
+
+theorem adjacent_bvhd_eq {i j : BitVec (n+1)} (adj : adjacent i j)
     (h : bvhd i = bvhd j) : adjacent (bvtl i) (bvtl j) := by
   rcases adj with ⟨⟨d,hd⟩,is_ne,cs_eq⟩
   have : d ≠ n := by rintro rfl; apply is_ne; simpa [bvhd] using h
@@ -47,7 +72,7 @@ private theorem adjacent_bvhd_eq {i j : BitVec (n+1)} (adj : adjacent i j)
     simpa [bvtl] using cs_eq d'.castSucc
                         (by simpa [Fin.ext_iff] using d'_ne)
 
-private theorem adjacent_bvhd_ne {i j : BitVec (n+1)} (adj : adjacent i j)
+theorem adjacent_bvhd_ne {i j : BitVec (n+1)} (adj : adjacent i j)
     (h : bvhd i ≠ bvhd j) : (bvtl i) = (bvtl j) := by
   simp [bvhd] at h
   rcases adj with ⟨⟨d,hd⟩,-,cs_eq⟩
@@ -58,9 +83,9 @@ private theorem adjacent_bvhd_ne {i j : BitVec (n+1)} (adj : adjacent i j)
   simpa [bvtl] using cs_eq ⟨d,by omega⟩ (by simp [Nat.ne_of_lt hd])
 
 
-
 /-! #### Keller Colorings -/
 
+@[ext]
 structure KColoring (n s : Nat) where
   data : BitVec n → Vector (Fin s) n
   same : ∀ i j : BitVec n, i ≠ j → ∃ d : Fin n,
@@ -70,6 +95,30 @@ structure KColoring (n s : Nat) where
 
 
 namespace KColoring
+
+theorem oneAt_eq (K : KColoring n s) (i : BitVec n) (d : Fin n) :
+    (K.data (i ^^^ .oneAt d))[d] = (K.data i)[d] := by
+  obtain ⟨ds,h⟩ := K.same i (i ^^^ .oneAt d) (by
+    apply ne_of_adjacent
+    apply adjacent_xor_oneAt)
+  rw [ne_eq, eq_comm] at h
+  simp_all
+
+theorem same_adjAt (K : KColoring n s) (adj : adjacentAt i j d) :
+    (K.data i)[d] = (K.data j)[d] := by
+  obtain ⟨d', hd'⟩ := K.same i j (ne_of_adjacent ⟨d,adj⟩)
+  if d' = d then
+    subst d'; exact hd'.2
+  else
+    exfalso
+    apply hd'.1 <| adj.2 d' ‹_›
+
+theorem diff_adjAt (K : KColoring n s) (i j : BitVec n) (adj : adjacentAt i j d) :
+    ∃ d2 : Fin n, d2 ≠ d ∧ (K.data i)[d2] ≠ (K.data j)[d2] := by
+  obtain ⟨d2,cs_ne⟩ := K.diff i j ⟨d,adj⟩
+  have : d2 ≠ d := by
+    rintro rfl; apply cs_ne; apply same_adjAt K adj
+  use d2, this, cs_ne
 
 def liftS (C : KColoring n s) (h : s ≤ s') : KColoring n s' where
   data := fun i => (C.data i).map (·.castLE h)
