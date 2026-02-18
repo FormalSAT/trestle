@@ -6,6 +6,7 @@ Authors: James Gallicchio
 -/
 
 import Experiments.Keller.SymmBreak.TwoCubes
+import Experiments.Keller.SymmBreak.C3Zeros
 
 namespace Keller.SymmBreak
 
@@ -352,3 +353,103 @@ theorem c3_nzPrefix (tc : C3MinZeroSorted n s) (j) (hj : 2 ≤ j ∧ j < n+2) :
   intro contra
   have := c3_zeroSuffix _ _ (by omega) contra j (by omega)
   contradiction
+
+
+def toC3Zeros (tc : C3MinZeroSorted n s) : C3Zeros n s where
+  toTwoCubes := tc.toTwoCubes
+  c3_zeros_sorted := tc.c3_sorted
+  c3_more_nonzero := by
+    rintro j j_range ⟨c3_nz, c3_z⟩ row row_range X_nz
+    have c3_le_X := tc.c3_min_zero (C3Zeros.X row (by omega)) ?i1_true ?high_bits_nz
+    case i1_true =>
+      simp [C3Zeros.X, bv_toNat]; rw [Bool.eq_iff_iff, Nat.testBit_three]
+      simp; omega
+    case high_bits_nz =>
+      intro j' j'_range j'_eq_row
+      replace j'_eq_row : j' = row := by
+        simp [C3Zeros.X, bv_toNat, j'_range] at j'_eq_row
+        rw [Bool.eq_iff_iff, Nat.testBit_three] at j'_eq_row
+        simp [j'_range.1] at j'_eq_row
+        omega
+      subst j'
+      apply X_nz; omega
+
+    have upperBound3 : C3MinZero.count (tc.data 3#_) ≤ n-(j-1) :=
+      C3MinZero.count_le_of_nz_prefix _ _ (by omega) (by
+        intro j' j'_range
+        exact tc.c3_nzPrefix j (by omega) c3_nz j' (by omega)
+      )
+    have lowerBound3 : C3MinZero.count (tc.data 3#_) ≥ n-(j-1) :=
+      C3MinZero.count_ge_of_z_suffix _ _ (by omega) (by
+        intro j' j'_range
+        exact tc.c3_zeroSuffix (j+1) (by omega) c3_z j' (by omega)
+      )
+
+    have : C3MinZero.count (tc.data 3#_) = n-(j-1) := by omega
+    rw [this] at c3_le_X; clear upperBound3 lowerBound3 this c3_nz c3_z
+
+    let NZSet : Finset (Fin (n+2)) := { j' | 2 ≤ j'.val ∧ (tc.data (C3Zeros.X row (by omega)))[j'.val] ≠ 0}
+
+    unfold C3MinZero.count at c3_le_X
+    generalize def_ZeroSet :
+      Finset.filter (fun j' : Fin (n+2) => 2 ≤ j'.val ∧ (tc.data (C3Zeros.X row _))[j'.val] = 0) _
+        = ZeroSet at c3_le_X
+
+
+    have disj : Disjoint ZeroSet NZSet := by
+      rw [Finset.disjoint_left]
+      intro x; simp +contextual [← def_ZeroSet, NZSet]
+
+    have union_card : (ZeroSet ∪ NZSet).card = n := by
+      trans Finset.card {j : Fin (n+2) | 2 ≤ j.val}
+      · congr 1; ext x
+        simp [← def_ZeroSet, NZSet]
+        rw [← and_or_left, and_iff_left_iff_imp]
+        intro; apply Classical.em
+
+      apply Finset.card_eq_of_bijective (f := fun i h => ⟨i+2,by omega⟩)
+        <;> simp [Fin.forall_iff]
+      intro i; intros; use i-2; omega
+
+    rw [Finset.card_union_of_disjoint disj] at union_card
+
+    have nzset_le : NZSet.card ≤ j-1 := by omega
+    clear union_card disj def_ZeroSet c3_le_X ZeroSet
+
+    let AlrNZ : Finset (Fin (n+2)) := { j' | 2 ≤ j'.val ∧ j'.val ≤ j }
+
+    have alrnz_subset : AlrNZ ⊆ NZSet := by
+      intro x
+      simp +zetaDelta
+      intros
+      constructor
+      · assumption
+      · apply X_nz; omega
+
+    have alrnz_card : AlrNZ.card = j - 1 := by
+      simp +zetaDelta
+      apply Finset.card_eq_of_bijective (f := fun i h => ⟨i+2,by omega⟩)
+        <;> simp [Fin.forall_iff]
+      · intro i; intros; use i-2; omega
+      · omega
+
+    have nzset_ge : NZSet.card ≥ j-1 := by
+      rw [← alrnz_card]; apply Finset.card_le_card; assumption
+
+    have nzset_card : NZSet.card = j-1 := by omega
+    clear nzset_le nzset_ge
+
+    have sets_eq : AlrNZ = NZSet := by
+      apply Finset.eq_of_subset_of_card_le alrnz_subset; omega
+
+    clear alrnz_subset nzset_card alrnz_card
+
+    intro j' j'_range
+    by_contra j'_nz
+
+    have mem_nzset : ⟨j',by omega⟩ ∈ NZSet := by
+      simp [NZSet,j'_nz]; omega
+
+    have mem_alrnz : ⟨j',by omega⟩ ∈ AlrNZ := by rw [sets_eq]; assumption
+
+    simp [AlrNZ] at mem_alrnz; omega
