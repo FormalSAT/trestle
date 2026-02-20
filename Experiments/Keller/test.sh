@@ -101,7 +101,7 @@ drat-trim $CNF_SB $DRAT_SB -L $LRAT_SB
 
 # proof skeleton compression
 lrat-skel -proof $LRAT_SB -nFormula $(  ) -nDRAT $( ) --from-LRAT \
-  -nRatio 100 --write-seleton > $SKEL
+  -nRatio 100 --write-skeleton > $SKEL
 
 # Combine into a single finalized proof
 # does not work because dsr-trim has a bug (feature?)

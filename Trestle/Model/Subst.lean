@@ -201,6 +201,13 @@ theorem satisfies_substL {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂} :
   simp [substL]
   rw [satisfies_mk, satisfies_mk, PropForm.satisfies_subst]
 
+theorem substL_le_of_le {φ₁ φ₂ : PropFun ν₁}
+    : φ₁ ≤ φ₂ → ∀ (f : ν₁ → PropForm ν₂), substL φ₁ f ≤ substL φ₂ f := by
+  intro h f
+  refine entails_ext.mpr fun τ' hτ' => ?_
+  simp at hτ' ⊢
+  exact entails_ext.mp h _ hτ'
+
 end substL /- section -/
 
 noncomputable
@@ -236,6 +243,13 @@ theorem satisfies_subst {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
   have := Quotient.sound (hq x)
   simp at this
   exact this.symm
+
+theorem subst_le_of_le {φ₁ φ₂ : PropFun ν₁}
+    : φ₁ ≤ φ₂ → ∀ (f : ν₁ → PropFun ν₂), subst φ₁ f ≤ subst φ₂ f := by
+  intro h f
+  refine entails_ext.mpr fun τ' hτ' => ?_
+  simp at hτ' ⊢
+  exact entails_ext.mp h _ hτ'
 
 -- CC: Unsure how to prove for fancy `subst`.
 @[simp] theorem subst_distrib : subst ⟦v⟧ f = f v := by

@@ -38,8 +38,8 @@ namespace RangeArray
   Returns the updated `PPA` otherwise.
 -/
 def assumeNegatedCandidateFor (F : RangeArray ILit) (τ : PPA) (bumps : Nat) : Except PPA PPA :=
-  let e := F.data.size
   let s := F.dsize
+  let e := F.data.size
   let rec loop (i : Nat) (τ : PPA) : Except PPA PPA :=
     if hi : i < e then
       let l := F.get i hi
@@ -67,11 +67,7 @@ def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ
      we calculate it directly. For whatever reason, this is faster.
      The performance improvement is about 8%. -/
   let s := F.index idx h_idx
-  let e :=
-    if h_index : idx + 1 < F.size then
-      F.index (idx + 1) h_index
-    else
-      F.dsize
+  let e := F.index! (idx + 1)
 
   let rec loop (i : Nat) (τ : PPA) : Except PPA PPA :=
     if hi : i < e then
@@ -80,10 +76,10 @@ def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ
 
       let lit := F.get i (by
         simp only [e, index_eq_index!] at hi
-        split at hi
-        · have := Nat.lt_of_lt_of_le hi (F.index!_le_dataSize (idx + 1))
-          exact Nat.lt_of_lt_of_le this F.h_size
-        · exact Nat.lt_of_lt_of_le hi F.h_size)
+        have := index!_le_dsize F (idx + 1)
+        have := F.h_size
+        omega
+      )
 
       let sv := σ.litValue_Nat lit
       if sv = PS.MAPPED_TRUE then
@@ -101,11 +97,7 @@ def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ
           .error τ
     else -- i ≥ e
       .ok τ
-  termination_by
-    (if h_index : idx + 1 < F.size then
-      F.index (idx + 1) h_index
-    else F.dsize) - i
-
+  termination_by (F.index! (idx + 1)) - i
   loop s τ
 
 
@@ -114,11 +106,7 @@ def unitProp (τ : PPA) (F : RangeArray ILit) (hint : Nat) (h_hint : hint < F.si
      we calculate it directly. For whatever reason, this is faster.
      The performance improvement is about 8%. -/
   let s := F.index hint h_hint
-  let e :=
-    if h_index : hint + 1 < F.size then
-      F.index (hint + 1) h_index
-    else
-      F.dsize
+  let e := F.index! (hint + 1)
 
   -- We store the unit in `unit`. If it's unmapped, it is `0`.
   let rec loop (i : Nat) (unit : Int) : PPA.UPResult :=
@@ -127,10 +115,10 @@ def unitProp (τ : PPA) (F : RangeArray ILit) (hint : Nat) (h_hint : hint < F.si
 
       let ⟨lit, h_lit⟩ := F.get i (by
         simp [e, index_eq_index!] at h
-        split at h
-        · have := Nat.lt_of_lt_of_le h (F.index!_le_dataSize (hint + 1))
-          exact Nat.lt_of_lt_of_le this F.h_size
-        · exact Nat.lt_of_lt_of_le h F.h_size)
+        have := index!_le_dsize F (hint + 1)
+        have := F.h_size
+        omega
+      )
 
       let lv := τ.litValue?_8 ⟨lit, h_lit⟩
       if lv = PPA.UNASSIGNED then
@@ -150,12 +138,7 @@ def unitProp (τ : PPA) (F : RangeArray ILit) (hint : Nat) (h_hint : hint < F.si
         .falsified
       else
         .unit ⟨unit, by omega⟩
-  termination_by
-    (if h_index : hint + 1 < F.size then
-      F.index (hint + 1) h_index
-    else
-      F.dsize) - i
-
+  termination_by (F.index! (hint + 1)) - i
   loop s 0
 
 
@@ -201,11 +184,9 @@ def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : P
   /- Instead of calculating `rsize` and then subtracting off `s`,
      we compute the ending manually as the start of the next index.
      The performance improvement is about ~8-10%.  -/
-  let e :=
-    if h_index : idx + 1 < F.size then
-      F.index (idx + 1) h_index
-    else
-      F.dsize
+  let e := F.index! (idx + 1)
+
+  let ⟨mappings, gens, generation, maxGen, sizes_eq, _⟩ := σ
 
   let rec loop (i : Nat) (reduced? : Bool) : PS.ReductionResult :=
     if h : i < e then
@@ -213,15 +194,15 @@ def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : P
 
       let lit := F.get i (by
         simp [e, index_eq_index!] at h
-        split at h
-        · have := Nat.lt_of_lt_of_le h (F.index!_le_dataSize (idx + 1))
-          exact Nat.lt_of_lt_of_le this F.h_size
-        · exact Nat.lt_of_lt_of_le h F.h_size)
+        have := index!_le_dsize F (idx + 1)
+        have := F.h_size
+        omega
+      )
 
-      if hlit : lit.index < σ.gens.size then
-        let gen := σ.gens[lit.index]'hlit
-        if gen ≥ σ.generation then
-          let n := σ.mappings[lit.index]'(by rw [σ.sizes_eq] at hlit; exact hlit)
+      if hlit : lit.index < gens.size then
+        let gen := gens[lit.index]'hlit
+        if gen ≥ generation then
+          let n := mappings[lit.index]'(by rw [← sizes_eq] at hlit; exact hlit)
           match n with
           | 0 =>
             if lit.polarity then .satisfied
@@ -238,12 +219,7 @@ def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : P
       else loop (i + 1) reduced?
     else -- i ≥ e
       if reduced? then .reduced else .notReduced
-  termination_by
-    (if h_index : idx + 1 < F.size then
-      F.index (idx + 1) h_index
-     else
-      F.dsize) - i
-
+  termination_by F.index! (idx + 1) - i
   loop s false
 
 end RangeArray

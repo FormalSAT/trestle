@@ -406,6 +406,9 @@ theorem biImpl_bot_right (φ : PropFun ν) : (φ ⇔ ⊥) = φᶜ := by
 theorem inf_le_iff_compl_sup {φ₁ φ₂ φ₃ : PropFun ν} : φ₁ ⊓ φ₂ ≤ φ₃ ↔ φ₁ ≤ φ₂ᶜ ⊔ φ₃ :=
   BooleanAlgebra.inf_le_iff_le_compl_sup
 
+theorem inf_compl_le_iff_le_sup {φ₁ φ₂ φ₃ : PropFun ν} : φ₁ ⊓ φ₂ᶜ ≤ φ₃ ↔ φ₁ ≤ φ₂ ⊔ φ₃ :=
+  BooleanAlgebra.inf_compl_le_iff_le_sup
+
 theorem le_iff_inf_compl_le_bot {φ₁ φ₂ : PropFun ν} : φ₁ ≤ φ₂ ↔ φ₁ ⊓ φ₂ᶜ ≤ ⊥ :=
   BooleanAlgebra.le_iff_inf_compl_le_bot
 
@@ -522,6 +525,15 @@ theorem all_zero : all (0 : Multiset (PropFun ν)) = ⊤ := by
 @[simp]
 theorem all_empty : all (∅ : Multiset (PropFun ν)) = ⊤ := by
   simp only [Multiset.empty_eq_zero, all_zero]
+
+@[simp]
+theorem all_ofList_nil : all (Multiset.ofList ([] : List (PropFun ν))) = ⊤ := by
+  simp only [all, Multiset.inf_coe, List.foldr_nil]
+
+@[simp]
+theorem all_ofList_cons (l : PropFun ν) (ls : List (PropFun ν))
+    : all (l :: ls) = l ⊓ all ls := by
+  simp only [all, Multiset.inf_coe, List.foldr_cons]
 
 /-! # Satisfiable and Equisatisfiable -/
 

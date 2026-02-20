@@ -98,6 +98,45 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
 theorem toPropFun_cons (l : L) (C : List L)
   : Clause.toPropFun { toList := l :: C } = LitVar.toPropFun l ⊔ Clause.toPropFun { toList := C } := rfl
 
+theorem toPropFun_mem_le {l : L} {C : Clause L} : l ∈ C → LitVar.toPropFun l ≤ Clause.toPropFun C := by
+  intro h
+  refine PropFun.entails_ext.mpr fun τ hτ => ?_
+  rw [Clause.satisfies_iff]
+  exact ⟨l, h, hτ⟩
+
+theorem toPropFun_mem_list_le {l : L} {C : List L} : l ∈ C → LitVar.toPropFun l ≤ Clause.toPropFun { toList := C } := by
+  intro h
+  refine PropFun.entails_ext.mpr fun τ hτ => ?_
+  rw [Clause.satisfies_iff]
+  simp only [Array.mem_toArray]
+  exact ⟨l, h, hτ⟩
+
+@[simp]
+theorem toPropFun_le_drop (C : List L) (n : Nat)
+    : Clause.toPropFun { toList := C.drop n } ≤ Clause.toPropFun { toList := C } := by
+  refine PropFun.entails_ext.mpr fun τ hτ => ?_
+  rw [Clause.satisfies_iff] at hτ ⊢
+  rcases hτ with ⟨l, hl, h⟩
+  simp at hl ⊢
+  exact ⟨l, List.mem_of_mem_drop hl, h⟩
+
+theorem toPropFun_drop_le_drop_of_ge (C : List L) {n₁ n₂ : Nat}
+    : n₂ ≤ n₁ → Clause.toPropFun { toList := C.drop n₁ } ≤ Clause.toPropFun { toList := C.drop n₂ } := by
+  intro hn
+  refine PropFun.entails_ext.mpr fun τ hτ => ?_
+  rw [Clause.satisfies_iff] at hτ ⊢
+  rcases hτ with ⟨l, hl, h⟩
+  simp [List.mem_drop_iff_getElem] at hl ⊢
+  rcases hl with ⟨i, hi, rfl⟩
+  use C[n₁ + i]
+  constructor
+  · use (n₁ - n₂ + i)
+    have : n₁ - n₂ + i + n₂ < C.length := by omega
+    use this
+    have : n₂ + (n₁ - n₂ + i) = n₁ + i := by omega
+    simp [this]
+  · exact h
+
 end Clause
 
 /-! ### CNF -/
@@ -108,6 +147,15 @@ variable {L : Type u} {ν : Type v} [LitVar L ν]
 
 def toPropFun (φ : Cnf L) : PropFun ν :=
   .all (φ.toList.map Clause.toPropFun)
+
+@[simp]
+theorem toPropFun_ofList_nil : toPropFun { toList := ([] : List (Clause L)) } = ⊤ :=
+  rfl
+
+@[simp]
+theorem toPropFun_ofList_cons (C : Clause L) (φ : List (Clause L)) :
+  toPropFun { toList := C :: φ } = Clause.toPropFun C ⊓ toPropFun { toList := φ } := by
+  simp only [toPropFun, PropFun.all, List.map, Multiset.inf_coe, List.foldr_cons]
 
 theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
   : v ∈ (toPropFun F).semVars → ∃ C, C ∈ F ∧ ∃ l, l ∈ C ∧ LitVar.toVar l = v := by
@@ -179,7 +227,7 @@ theorem toPropFun_and (f1 f2 : Cnf L)
     · exact h₂ _ hC
 
 @[simp]
-theorem toPropFun_not (c : Clause L) [LawfulLitVar L ν]
+theorem toPropFun_not [LawfulLitVar L ν] (c : Clause L)
     : (not c).toPropFun = (c.toPropFun)ᶜ := by
   have ⟨c⟩ := c
   ext τ

@@ -83,13 +83,12 @@ export UInt32 (EOF)
 namespace USize
 
 protected theorem succ_le_of_lt {a b : USize} : a < b → a + 1 ≤ b := by
-  simp [USize.lt_def, USize.le_def, Fin.lt_def, Fin.le_def]
-  intro h
+  simp [USize.lt_iff_toBitVec_lt, USize.le_iff_toBitVec_le, Fin.lt_def, Fin.le_def]
   stop
+  intro h
   have h_lt₁ := Nat.le_of_lt h
   have h_le := Nat.succ_le_of_lt h
-  have : (a + 1).val ≤ b.val := by sorry
-  simp only [USize.lt_def, Fin.lt]
+  have : (a + 1).toFin ≤ b.toFin := by sorry
   done
 
 theorem toNat_add_one_of_lt {a b : USize} : a < b → (a + 1).toNat = a.toNat + 1 := by
@@ -101,8 +100,8 @@ protected theorem sub_succ_lt_self {a b : USize} : a < b → b - (a + 1) < b - a
   intro h
   have h_lt₁ := Nat.le_of_lt h
   have h_le := Nat.succ_le_of_lt h
-  have : (a + 1).val ≤ b.val := by sorry
-  simp only [USize.sub_def, USize.lt_def, Fin.lt_def]
+  have : (a + 1).toFin ≤ b.toFin := by sorry
+  simp only [USize.sub_def, USize.lt_iff_toBitVec_lt, Fin.lt_def]
   stop
   rw [Fin.sub_val_of_le h_lt₁]
   rw [Fin.sub_val_of_le this]

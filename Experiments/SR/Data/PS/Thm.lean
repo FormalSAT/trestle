@@ -132,7 +132,7 @@ theorem fromMappedNat_ILitToMappedNat (l : ILit)
       simp only [succ_eq_add_one] at h
       have : n % 2 = 0 := by omega
       simp only [this, ↓reduceIte, mkPos, ne_eq, Int.ofNat_eq_coe, cast_add,
-        Int.ofNat_ediv, cast_ofNat, cast_one, Sum.inl.injEq]
+        Int.natCast_ediv, cast_ofNat, cast_one, Sum.inl.injEq]
       congr
       simp only [polarity, decide_eq_true_eq] at hpol
       omega
@@ -146,7 +146,7 @@ theorem fromMappedNat_ILitToMappedNat (l : ILit)
       simp only [succ_eq_add_one, Nat.add_left_inj] at h
       have : n % 2 = 1 := by omega
       simp only [this, one_ne_zero, ↓reduceIte, mkNeg, ne_eq,
-        Int.ofNat_eq_coe, cast_add, Int.ofNat_ediv, cast_ofNat,
+        Int.ofNat_eq_coe, cast_add, Int.natCast_ediv, cast_ofNat,
         cast_one, neg_add_rev, Int.reduceNeg, Sum.inl.injEq]
       congr
       simp only [polarity, decide_eq_true_eq, not_lt] at hpol
@@ -157,6 +157,41 @@ theorem fromMappedNat_toMappedNat (p : PSV)
     : PSV.fromMappedNat (PSV.toMappedNat p) = p := by
   match p with
   | .inl l | .inr true | .inr false => simp [PSV.toMappedNat]
+
+@[simp]
+theorem ILitFromMappedNat_ILitToMappedNat (l : ILit)
+    : ILitFromMappedNat (ILitToMappedNat l) = l := by
+  simp [ILitFromMappedNat, ILitToMappedNat]
+  by_cases hpol : polarity l
+  <;> simp [hpol]
+  · split <;> try omega
+    · have ⟨l, hl⟩ := l
+      rename_i h
+      simp only [_root_.mul_eq_zero, Int.natAbs_eq_zero, OfNat.ofNat_ne_zero, or_false] at h
+      exact absurd h hl
+    · rename_i n h
+      simp only [succ_eq_add_one] at h
+      have : n % 2 = 0 := by omega
+      simp only [this, ↓reduceIte, mkPos, ne_eq, Int.ofNat_eq_coe, cast_add,
+        Int.natCast_ediv, cast_ofNat, cast_one, Sum.inl.injEq]
+      congr
+      simp only [polarity, decide_eq_true_eq] at hpol
+      omega
+  · have ⟨l, hl⟩ := l
+    split <;> try omega
+    · rename_i h
+      simp only [Nat.add_eq_right, _root_.mul_eq_zero, Int.natAbs_eq_zero,
+        OfNat.ofNat_ne_zero, or_false] at h
+      exact absurd h hl
+    · rename_i n h
+      simp only [succ_eq_add_one, Nat.add_left_inj] at h
+      have : n % 2 = 1 := by omega
+      simp only [this, one_ne_zero, ↓reduceIte, mkNeg, ne_eq,
+        Int.ofNat_eq_coe, cast_add, Int.natCast_ediv, cast_ofNat,
+        cast_one, neg_add_rev, Int.reduceNeg, Sum.inl.injEq]
+      congr
+      simp only [polarity, decide_eq_true_eq, not_lt] at hpol
+      omega
 
 /-! # negate -/
 
@@ -177,6 +212,46 @@ theorem negateMappedNat_negateMappedNat (n : ℕ)
 theorem litValue_Nat_negate (σ : PS) (l : ILit)
     : σ.litValue_Nat (-l) = negateMappedNat (σ.litValue_Nat l) := by
   cases hpol : polarity l <;> simp [hpol, litValue_Nat]
+
+@[simp]
+theorem varValue_Nat_eq (σ : PS) (v : IVar)
+    : σ.varValue_Nat v = PSV.fromMappedNat (σ.varValue v) := by
+  simp only [varValue_Nat, ge_iff_le, toMappedNat_fromMappedNat, varValue]
+
+@[simp]
+theorem litValue_Nat_eq (σ : PS) (l : ILit)
+    : σ.litValue_Nat l = PSV.fromMappedNat (σ.litValue l) := by
+  simp only [litValue_Nat, varValue_Nat_eq, fromMappedNat_toMappedNat, litValue,
+    toMappedNat_fromMappedNat]
+
+@[simp] theorem fromMappedNat_zero : PSV.fromMappedNat 0 = .inr true := rfl
+@[simp] theorem fromMappedNat_true : PSV.fromMappedNat MAPPED_TRUE = .inr true := rfl
+@[simp] theorem fromMappedNat_one : PSV.fromMappedNat 1 = .inr false := rfl
+@[simp] theorem fromMappedNat_false : PSV.fromMappedNat MAPPED_FALSE = .inr false := rfl
+
+@[simp] theorem toMappedNat_inr_true : PSV.toMappedNat (.inr true) = MAPPED_TRUE := rfl
+@[simp] theorem toMappedNat_inr_false : PSV.toMappedNat (.inr false) = MAPPED_FALSE := rfl
+
+@[simp] theorem TRUE_ne_FALSE : MAPPED_TRUE ≠ MAPPED_FALSE := by trivial
+@[simp] theorem FALSE_ne_TRUE : MAPPED_FALSE ≠ MAPPED_TRUE := by trivial
+@[simp] theorem TRUE_ne_ILitToMappedNat (l : ILit) : MAPPED_TRUE ≠ ILitToMappedNat l := by
+  have := l.property
+  have : (l.val).natAbs > 0 := by omega
+  cases h_pol : polarity l <;> simp [ILitToMappedNat, h_pol, MAPPED_TRUE, MAPPED_FALSE]
+  · omega
+
+@[simp] theorem FALSE_ne_ILitToMappedNat (l : ILit) : MAPPED_FALSE ≠ ILitToMappedNat l := by
+  have := l.property
+  have : (l.val).natAbs > 0 := by omega
+  cases h_pol : polarity l <;> simp [ILitToMappedNat, h_pol, MAPPED_TRUE, MAPPED_FALSE]
+  · omega
+  · omega
+
+@[simp] theorem ILitToMappedNat_ne_TRUE (l : ILit) : ILitToMappedNat l ≠ MAPPED_TRUE := by
+ exact Ne.symm (TRUE_ne_ILitToMappedNat l)
+
+@[simp] theorem ILitToMappedNat_ne_FALSE (l : ILit) : ILitToMappedNat l ≠ MAPPED_FALSE := by
+  exact Ne.symm (FALSE_ne_ILitToMappedNat l)
 
 theorem PSV.negate_eq_iff_eq_negate {p₁ p₂ : PSV}
     : PSV.negate p₁ = p₂ ↔ p₁ = PSV.negate p₂ := by
@@ -384,18 +459,16 @@ theorem setLit_size (σ : PS) (l : ILit)
 
 @[simp]
 theorem litValue_setLit_self (σ : PS) (l : ILit) : (σ.setLit l).litValue l = .inr true := by
-  simp only [litValue, litValue_Nat, varValue_Nat, toVar_index, setLit,
-    Array.length_toList, Array.size_setF, lt_sup_iff, lt_add_iff_pos_right,
-    lt_one_iff, pos_of_gt, or_true, ↓reduceDIte, Array.getElem_setF_self,
-    ge_iff_le, _root_.le_refl, ↓reduceIte, toMappedNat_fromMappedNat]
+  simp only [litValue, litValue_Nat, varValue_Nat, toVar_index, setLit, Array.getElem_setF_self,
+    ge_iff_le, _root_.le_refl, ↓reduceIte, toMappedNat_fromMappedNat, dite_eq_ite]
   by_cases hl : l.index < σ.size
   <;> by_cases hpol : polarity l
-  <;> simp [hpol]
+  <;> simp [hpol, size]
 
 @[simp]
 theorem litValue_setLit_of_ne {l₁ l₂ : ILit} (h_ne : toVar l₁ ≠ toVar l₂) (σ : PS) :
     (σ.setLit l₁).litValue l₂ = σ.litValue l₂ := by
-  simp [setLit, litValue, litValue_Nat, varValue_Nat]
+  simp [setLit, litValue, litValue_Nat, varValue_Nat, size]
   congr 1
   congr 1
   · by_cases hl₂ : l₂.index < σ.size
@@ -433,16 +506,15 @@ theorem setVarToLit_size (σ : PS) (v : IVar) (l : ILit)
 @[simp]
 theorem varValue_setVarToLit_self (σ : PS) (v : IVar) (l : ILit)
     : (σ.setVarToLit v l).varValue v = .inl l := by
-  simp only [varValue, varValue_Nat, setVarToLit, Array.length_toList,
-    Array.size_setF, lt_sup_iff, lt_add_iff_pos_right, lt_one_iff, pos_of_gt,
-    or_true, ↓reduceDIte, Array.getElem_setF_self, ge_iff_le, _root_.le_refl,
-    ↓reduceIte, fromMappedNat_toMappedNat]
+  simp only [varValue, varValue_Nat, size, setVarToLit, Array.size_setF, lt_sup_iff,
+    lt_add_iff_pos_right, lt_one_iff, pos_of_gt, or_true, ↓reduceDIte,
+    Array.getElem_setF_self, ge_iff_le, _root_.le_refl, ↓reduceIte, fromMappedNat_toMappedNat]
 
 -- CC: Somewhat duplicated proof from `litValue_setLit_of_ne`
 @[simp]
 theorem varValue_setVarToLit_ne (σ : PS) {v₁ v₂ : IVar} (h : v₁ ≠ v₂) (l : ILit)
     : (σ.setVarToLit v₁ l).varValue v₂ = σ.varValue v₂ := by
-  simp [setVarToLit, varValue, varValue_Nat]
+  simp [setVarToLit, varValue, varValue_Nat, size]
   congr 1
   by_cases hv₂ : v₂.index < σ.size
   <;> simp [hv₂]

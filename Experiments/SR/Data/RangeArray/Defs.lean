@@ -95,8 +95,8 @@ structure RangeArray (α : Type u) where
   indexes : Array Int
 
   /-- The (logical) size of the `data` array. Uncommitted elements will increase
-        `data.size`, but will leave `dataSize` unchanged. -/
-  dataSize : Nat
+        `data.size`, but will leave `dsize` unchanged. -/
+  dsize : Nat
 
   -- CC: An alternate formulation of `indexes`, using LeanColls
   -- size : Nat
@@ -107,12 +107,12 @@ structure RangeArray (α : Type u) where
 
   /- Invariants -/
 
-  h_size : dataSize ≤ data.size
-  h_dataSize_empty : indexes.size = 0 → dataSize = 0
+  h_size : dsize ≤ data.size
+  h_dsize_empty : indexes.size = 0 → dsize = 0
 
-  -- No index exceeds `dataSize`
+  -- No index exceeds `dsize`
   h_indexes : ∀ {i : Nat} (hi : i < indexes.size),
-    RangeArray.getIndexFromMarkedIndex (indexes[i]'hi) ≤ dataSize
+    RangeArray.getIndexFromMarkedIndex (indexes[i]'hi) ≤ dsize
 
   -- The indexes are monotonically increasing in (unmarked) value
   h_indexes_inc : ∀ {i j : Nat} (hij : i ≤ j) (hj : j < indexes.size),
@@ -127,9 +127,6 @@ variable {α : Type u} (A : RangeArray α) (v : α)
 
 /-- The number of indexes, or containers, in the `data` array. -/
 abbrev size : Nat := A.indexes.size
-
-/-- The total size of the committed containers in the `data` array. -/
-abbrev dsize : Nat := A.dataSize
 
 /-- The number of elements added via `push` but not yet committed. -/
 abbrev usize : Nat := A.data.size - A.dsize
@@ -150,10 +147,10 @@ abbrev usize : Nat := A.data.size - A.dsize
 def empty (size : Nat := 100) : RangeArray α := {
   data := Array.mkEmpty size
   indexes := Array.mkEmpty size
-  dataSize := 0
+  dsize := 0
   deletedSize := 0
   h_size := by simp
-  h_dataSize_empty := by simp
+  h_dsize_empty := by simp
   h_indexes := by simp
   h_indexes_inc := by simp
 }
@@ -186,9 +183,9 @@ def commit : RangeArray α :=
   let dataSize := A.data.size
   { A with
   indexes := A.indexes.push (dsize' : Int)
-  dataSize := dataSize
+  dsize := dataSize
   h_size := le.refl
-  h_dataSize_empty := by simp only [Array.size_push, add_one_ne_zero, false_implies]
+  h_dsize_empty := by simp only [Array.size_push, add_one_ne_zero, false_implies]
   h_indexes := by
     simp only [Array.size_push]
     intro i hi
@@ -220,12 +217,12 @@ def commit : RangeArray α :=
 def index (i : Nat) (hi : i < A.size) : Nat :=
   getIndexFromMarkedIndex (A.indexes[i]'hi)
 
-/-- Indexes outside `A.size` are 0. -/
+/-- Indexes outside `A.size` are `A.dsize`, the end. -/
 --@[inline, always_inline]
 def index! (i : Nat) : Nat :=
   if hi : i < A.size then
     index A i hi
-  else 0
+  else A.dsize
 
 /-- Checks whether the ith container is deleted. -/
 --@[inline, always_inline]
@@ -252,10 +249,7 @@ def isDeleted! (i : Nat) : Bool :=
 -/
 --@[inline, always_inline]
 def rsize (i : Nat) (hi : i < A.size) : Nat :=
-  if hi_succ : i + 1 < A.size then
-    A.index (i + 1) hi_succ - A.index i hi
-  else --if i + 1 = A.size then
-    A.dsize - A.index i hi
+  A.index! (i + 1) - A.index i hi
 
 /--
   Gets the size of the container under the provided index.
@@ -274,9 +268,9 @@ def delete (i : Nat) (hi : i < A.size) : RangeArray α :=
   { A with
   indexes := A.indexes.set i v
   deletedSize := dSize + rSize
-  h_dataSize_empty := by
+  h_dsize_empty := by
     simp only [Array.size_set, List.length_eq_zero_iff]
-    have := A.h_dataSize_empty
+    have := A.h_dsize_empty
     intro h
     simp only [List.length_eq_zero_iff, h, true_implies] at this
     exact this
@@ -316,9 +310,9 @@ def commitDeleted : RangeArray α :=
   let dSize := A.dsize
   { A with
   indexes := A.indexes.push (markIndexAsDeleted dSize)
-  dataSize := dataSize
+  dsize := dataSize
   h_size := le.refl
-  h_dataSize_empty := by simp
+  h_dsize_empty := by simp
   h_indexes := by
     simp only [Array.size_push]
     intro i hi
@@ -371,7 +365,7 @@ def get! [Inhabited α] (i : Nat) : α :=
 
 theorem index_add_rsize_le_size {A : RangeArray α} {i : Nat} (hi : i < A.size) :
     A.index i hi + A.rsize i hi ≤ A.data.size := by
-  simp only [index, rsize]
+  simp only [index, rsize, index!]
   split <;> rename _ => hi'
   · rw [← Nat.add_sub_assoc, Nat.add_comm, Nat.add_sub_cancel]
     exact Nat.le_trans (A.h_indexes hi') A.h_size

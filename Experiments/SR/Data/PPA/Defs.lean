@@ -101,6 +101,11 @@ protected def UNASSIGNED : UInt8 := 0
 protected def TRUE : UInt8 := 1
 protected def FALSE : UInt8 := 2
 
+def conv8 : Option Bool → UInt8
+  | none => PPA.UNASSIGNED
+  | some true => PPA.TRUE
+  | some false => PPA.FALSE
+
 --@[inline, always_inline]
 protected def negate (v : UInt8) : UInt8 :=
   if v = PPA.TRUE then PPA.FALSE else

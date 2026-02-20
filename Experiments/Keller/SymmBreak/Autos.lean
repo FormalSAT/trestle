@@ -24,8 +24,7 @@ def flip (mask : BitVec n) (K : KColoring n s) : KColoring n s where
     simpa using this
   diff := by
     intro i j adj
-    have := K.diff (i ^^^ mask) (j ^^^ mask) (by simpa [adjacent] using adj)
-    exact this
+    exact K.diff (i ^^^ mask) (j ^^^ mask) (by simpa [adjacent] using adj)
 
 @[simp] theorem flip_flip (mask : BitVec n) {K : KColoring n s} :
     (K.flip mask).flip mask = K := by

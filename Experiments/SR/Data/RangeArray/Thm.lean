@@ -26,15 +26,26 @@ theorem index_eq_index! {A : RangeArray α} {i : Nat} (hi : i < A.size)
   simp only [index!, hi, reduceDIte]
 
 @[simp]
-theorem index!_le_dataSize (i : Nat) : A.index! i ≤ A.dsize := by
+theorem index!_le_dsize (i : Nat) : A.index! i ≤ A.dsize := by
   by_cases hi : i < A.size
-  <;> simp only [index!, hi, reduceDIte, zero_le]
+  <;> simp [index!, hi, ↓reduceDIte, Nat.le_refl]
   exact A.h_indexes hi
 
-theorem index_le_index_of_le {A : RangeArray α} {i j : Nat} (hij : i ≤ j) (hj : j < A.size)
+theorem index!_of_ge_size {A : RangeArray α} {i : Nat} (hi : i ≥ A.size)
+    : A.index! i = A.dsize := by
+  simp only [index!, Array.length_toList, hi, Nat.not_lt_of_ge hi, ↓reduceDIte]
+
+@[simp]
+theorem index!_size : A.index! A.size = A.dsize := by
+  exact index!_of_ge_size (Nat.le_refl _)
+
+theorem index_le_index_of_le {A : RangeArray α} {i j : Nat} (hij : i ≤ j)
     : A.index! i ≤ A.index! j := by
-  simp only [index!, Nat.lt_of_le_of_lt hij hj, reduceDIte, hj]
-  exact A.h_indexes_inc hij hj
+  by_cases hj : j < A.size
+  · simp[index!, hj, Nat.lt_of_le_of_lt hij hj]
+    exact A.h_indexes_inc hij hj
+  · rw [index!_of_ge_size (Nat.ge_of_not_lt hj)]
+    exact index!_le_dsize A i
 
 theorem isDeleted_eq_isDeleted! {A : RangeArray α} {i : Nat} (hi : i < A.size)
     : A.isDeleted i hi = A.isDeleted! i := by
@@ -141,11 +152,19 @@ theorem rsize!_delete!_ne {i j : Nat} (hij : i ≠ j) (A : RangeArray α)
     : (A.delete! i).rsize! j = A.rsize! j := by
   simp only [delete!, Array.length_toList]
   split <;> rename _ => hi <;> try rfl
-  simp only [rsize!, rsize, size, delete, Array.size_set]
+  simp [rsize!, rsize, size, delete, Array.size_set]
   split <;> rename _ => hj <;> try rfl
-  simp only [index, Array.getElem_set, hij, ↓reduceIte]
-  split <;> rename _ => hj' <;> try rfl
-  split <;> rename _ => hij' <;> simp [hij']
+  simp [index, Array.getElem_set, hij, ↓reduceIte]
+  rcases Nat.eq_or_lt_of_le (Nat.succ_le_of_lt hj) with (h | h)
+  · rw [Nat.succ_eq_add_one] at h
+    simp [h, index!, size]
+  · rw [Nat.succ_eq_add_one] at h
+    simp [index!, h, size]
+    simp [index]
+    by_cases hij'' : i = j + 1
+    · simp [hij'']
+    · simp [getIndexFromMarkedIndex, markIndexAsDeleted]
+      simp [Array.getElem_set, hij'']
 
 theorem rsize_delete_ne {A : RangeArray α} {i j : Nat}
       (hi : i < A.size) (hj : j < A.size) (hij : i ≠ j)
@@ -245,18 +264,22 @@ theorem index_commit_eq : (A.commit).index A.size (by simp) = A.dsize :=
   index_eq_index! .. ▸ index!_commit_eq ..
 
 theorem index!_commit_gt {A : RangeArray α} {i : Nat} (hi : i > A.size)
-    : (A.commit).index! i = 0 := by
+    : (A.commit).index! i = A.dsize + A.usize := by
   rw [size] at hi
-  simp only [index!, size, commit, Array.size_push, dite_eq_right_iff]
-  intro
-  omega
+  simp [index!, size, commit, Array.size_push, dite_eq_right_iff]
+  split
+  · omega
+  · simp [usize]
+    have := A.h_size
+    omega
 
 theorem rsize!_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size)
     : (A.commit).rsize! i = A.rsize! i := by
   rw [size] at hi
-  simp only [rsize!, size, commit, Array.size_push, hi, Nat.lt_succ_of_lt hi,
-    ↓reduceDIte, rsize, Nat.add_lt_add_iff_right, index, Array.getElem_push]
-  split <;> rfl
+  simp [rsize!, rsize, hi, Nat.lt_succ_of_lt hi, commit, index!, size]
+  have hi' : i + 1 ≤ A.indexes.size := Nat.succ_le_of_lt hi
+  rcases Nat.eq_or_lt_of_le hi' with (hi' | hi')
+  <;> simp [hi', index, Array.getElem_push, hi]
 
 @[simp]
 theorem rsize_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size)
@@ -266,9 +289,8 @@ theorem rsize_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size)
 
 @[simp]
 theorem rsize!_commit_eq : (A.commit).rsize! A.size = A.usize := by
-  simp only [rsize!, size, commit, dsize, Array.size_push, Nat.lt_add_one,
-    ↓reduceDIte, rsize, Nat.lt_irrefl, index, Array.getElem_push_eq,
-    getIndexFromMarkedIndex_coe, usize]
+  simp only [rsize!, size, commit, Array.size_push, Nat.lt_add_one, ↓reduceDIte, rsize, index!,
+    Nat.lt_irrefl, index, Array.getElem_push_eq, getIndexFromMarkedIndex_coe]
 
 @[simp]
 theorem rsize_commit_eq : (A.commit).rsize A.size (by simp) = A.usize :=
