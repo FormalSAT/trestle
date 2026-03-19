@@ -26,6 +26,7 @@ Authors: James Gallicchio
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.ProxyType
+import Mathlib.Data.Finset.Dedup
 
 
 @[inline]
@@ -34,7 +35,7 @@ def Fin.pair (x : Fin m) (y : Fin n) : Fin (m * n) :=
     rcases x with ⟨x,hx⟩; rcases y with ⟨y,hy⟩
     simp
     calc
-      _ < x * n + n := by simp [hx,hy]
+      _ < x * n + n := by simp [hy]
       _ ≤ (x+1) * n := by rw [Nat.succ_mul]
       _ ≤ m * n := Nat.mul_le_mul_right _ hx⟩
 
@@ -201,7 +202,7 @@ instance : IndexType Unit where
 
 instance : LawfulIndexType Unit where
   leftInv := by intro; rfl
-  rightInv := by rintro ⟨i,h⟩; simp [card] at h; subst h; simp [fromFin, toFin]
+  rightInv := by rintro ⟨i,h⟩; simp [card] at h; subst h; simp [toFin]
 
 /-! #### Fin n -/
 
@@ -228,7 +229,7 @@ instance : IndexType.{max u v} (α × β) where
 
 instance : LawfulIndexType.{max u v} (α × β) where
   rightInv := by
-    rintro ⟨i,hi⟩; simp [toFin, fromFin]
+    rintro ⟨i,hi⟩; simp [toFin]
   leftInv := by
     rintro ⟨a,b⟩; simp [toFin, fromFin]
 
@@ -263,7 +264,7 @@ instance : IndexType.{max u v} (α ⊕ β) where
 instance : LawfulIndexType (α ⊕ β) where
   leftInv := by
     rintro (a|b)
-      <;> simp [toFin, fromFin]
+      <;> simp [fromFin]
   rightInv := by
     rintro ⟨i,hi⟩
     simp [toFin, fromFin]

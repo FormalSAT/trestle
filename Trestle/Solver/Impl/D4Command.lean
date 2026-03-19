@@ -37,7 +37,7 @@ def D4Command.ModelCount
     let res ← IO.ofExcept do
       let lines :=
         outputStr.splitOn "\n"
-        |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
+        |>.filter (fun line => !line.startsWith "c" && line.any (fun c : Char => !c.isWhitespace))
       match ←(lines.expectNonempty fun () => s!"Expected result, got `{outputStr}`") with
       | ⟨first, _⟩ =>
       match first.take 2 with

@@ -199,7 +199,7 @@ theorem satisfies_neg {τ : PropAssignment ν} {l : L} :
 omit [LawfulLitVar L ν] in
 theorem satisfies_set [DecidableEq ν] (τ : PropAssignment ν) (l : L) :
     τ.set (toVar l) (polarity l) ⊨ toPropFun l := by
-  simp [satisfies_iff, τ.set_get]
+  simp [satisfies_iff]
 
 theorem eq_of_flip [DecidableEq ν] {τ : PropAssignment ν} {l : L} {x : ν} {p : Bool} :
     τ ⊭ toPropFun l → τ.set x p ⊨ toPropFun l → l = mkLit L x p := by

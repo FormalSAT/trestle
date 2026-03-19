@@ -11,13 +11,13 @@ namespace Trestle.Solver.Dimacs
 
 def parseCube (maxVar : Nat) (s : String) : Except String ICube := do
   if s.startsWith "a " then
-    parseClause maxVar <| s.drop 2
+    parseClause maxVar <| String.Slice.copy <| (s.drop 2)
   else
     .error s!"expected cube, but does not start with `a `: {s}"
 
 def parseCubes (maxVar : Nat) (s : String) : Except String (List ICube) :=
   s.splitOn "\n"
-  |>.map (·.trim)
+  |>.map (·.trimAscii.copy)
   |>.filter (!·.isEmpty)
   |>.mapM (parseCube maxVar)
 

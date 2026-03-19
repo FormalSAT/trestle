@@ -111,22 +111,6 @@ theorem Fintype.elim_elems_eq_forall [Fintype V] (f : (L : List V) → _ → _ �
 
 end Quotients
 
-theorem Finset.biUnion_union [DecidableEq α] [DecidableEq β] (s1 s2 : Finset α) (f : α → Finset β)
-  : Finset.biUnion (s1 ∪ s2) f = ((Finset.biUnion s1 f) ∪ Finset.biUnion s2 f)
-  := by
-  ext b
-  simp only [mem_biUnion, mem_union]
-  constructor
-  · rintro ⟨a,b|b⟩
-    · refine Or.inl ⟨a,?_⟩
-      simp only [and_self, *]
-    · refine Or.inr ⟨a,?_⟩
-      simp only [and_self, *]
-  · rintro (⟨a,b,c⟩|⟨a,b,c⟩)
-      <;> refine ⟨a, ?_⟩
-    · simp only [and_self, true_or, *]
-    · simp only [and_self, or_true, *]
-
 def Finset.getUnique (xs : Finset α) (h : ∃ x, xs = {x}) : α :=
   xs.elim (fun L _hL =>
     match L with
@@ -206,22 +190,10 @@ instance [sa : Setoid α] [sb : Setoid β] : HasEquiv (α × β) where
   constructor <;> exact id
 
 def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) :=
-  q1.lift
-    (fun a1 => q2.lift (fun a2 => ⟦(a1,a2)⟧) (by
-      intro a b hab
-      simp only
-      rw [eq]
-      apply Setoid.prod.pair.mpr
-      exact ⟨by rfl, hab⟩
-    ))
-    (by
-      have ⟨q1,hq1⟩ := q1.exists_rep; cases hq1
-      have ⟨q2,hq2⟩ := q2.exists_rep; cases hq2
-      intro a b hab
-      simp [hab]
-      apply Setoid.prod.pair.mpr
-      exact ⟨hab, by rfl⟩
-    )
+  Quotient.liftOn₂ q1 q2 (fun a b => Quotient.mk (s := s1.prod s2) (a, b)) (by
+    intro a1 b1 a2 b2 h1 h2
+    exact Quotient.sound (Setoid.prod.pair.mpr ⟨h1, h2⟩)
+  )
 
 @[simp] theorem Quotient.prod_mk [sa : Setoid α] [sb : Setoid β] (a : α) (b : β)
   : Quotient.prod ⟦ a ⟧ ⟦ b ⟧ = Quotient.mk (s := sa.prod sb) (a,b) := by
@@ -232,7 +204,15 @@ def Quotient.prod (q1 : Quotient s1) (q2 : Quotient s2) : Quotient (s1.prod s2) 
   : Quotient.prod aa bb = Quotient.mk (s := sa.prod sb) (a,b) ↔ aa = ⟦ a ⟧ ∧ bb = ⟦ b ⟧ := by
   rcases aa.exists_rep with ⟨a',rfl⟩
   rcases bb.exists_rep with ⟨b',rfl⟩
-  simp [Setoid.prod]
+  constructor
+  · intro h
+    have h' : (a', b') ≈ (a, b) := Quotient.exact h
+    rcases Setoid.prod.pair.mp h' with ⟨ha, hb⟩
+    exact ⟨Quotient.sound ha, Quotient.sound hb⟩
+  · rintro ⟨ha, hb⟩
+    have ha' : a' ≈ a := Quotient.exact ha
+    have hb' : b' ≈ b := Quotient.exact hb
+    exact Quotient.sound (Setoid.prod.pair.mpr ⟨ha', hb'⟩)
 
 def Finset.mapEquiv [DecidableEq α'] (s : Finset α) (f : α ↪ α') : s ≃ s.map f where
   toFun := fun ⟨x,hx⟩ => ⟨f x, by simp [hx]⟩
@@ -321,9 +301,7 @@ theorem Fintype.invFun_eq_invFun [Fintype α] [DecidableEq α'] (f f' : α ↪ �
   | ⟨_+1,_⟩ => simp
 
 @[simp] theorem Array.finRange_data (n) : (Array.finRange n).toList = List.finRange n := by
-  induction n with
-  | zero => rfl
-  | succ n ih => simp [Array.finRange, List.finRange, ih]
+  simp only [Array.finRange, toList_ofFn, List.finRange]
 
 @[simp] theorem top : ⊤ := by trivial
 
@@ -341,7 +319,7 @@ theorem inf_le_iff_le_compl_sup : a ⊓ b ≤ c ↔ a ≤ bᶜ ⊔ c := by
   · intro h
     have : bᶜ ⊔ (a ⊓ b) ≤ bᶜ ⊔ c := sup_le_sup_left h bᶜ
     replace := le_trans le_sup_inf this
-    simp only [compl_sup_eq_top, ge_iff_le, le_top, inf_of_le_left, sup_le_iff, le_sup_left,
+    simp only [compl_sup_eq_top, le_top, inf_of_le_left, sup_le_iff, le_sup_left,
       true_and] at this
     exact this
   · intro h
@@ -364,6 +342,3 @@ theorem le_iff_inf_compl_eq_bot : a ≤ b ↔ a ⊓ bᶜ = ⊥ := by
   rw [← le_bot_iff]; exact le_iff_inf_compl_le_bot
 
 end BooleanAlgebra
-
-@[simp]
-theorem Function.Embedding.coe_refl {α} : ⇑(Function.Embedding.refl α) = id := rfl

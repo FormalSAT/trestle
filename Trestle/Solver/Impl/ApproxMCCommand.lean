@@ -42,7 +42,7 @@ where
   parseOutput (s : String) : Except String Nat := do
     let lines :=
       s.splitOn "\n"
-      |>.filter (fun line => !line.startsWith "c" && line.any (!·.isWhitespace))
+      |>.filter (fun line => !line.startsWith "c" && line.any (fun c : Char => !c.isWhitespace))
     match lines with
     | [] => .error s!"Expected outcome, got `{s}`"
     | satRes :: rest =>
@@ -57,6 +57,6 @@ where
       if !res.startsWith "s mc " then
         .error s!"Expected `s mc <count>`, got `{s}`"
       else
-      let number := res.drop 5 |>.trim
+      let number := res.drop 5 |>.trimAscii
       return ← (number.toNat?.expectSome fun () => s!"Expected number, got {number}")
     | _ => .error s!"Expected `s [UN]SATISFIABLE`, got {satRes}"

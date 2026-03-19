@@ -62,7 +62,7 @@ def naiveAtLeastK.cond (cond : Clause (Literal ν)) (k : Nat) (lits : Array (Lit
   naiveLtK.cond cond (lits.size + 1 - k) (lits.map (LitVar.negate))
   |>.mapProp (by
     ext τ
-    simp [atMost, atLeast, card]
+    simp [atLeast, card]
     apply imp_congr_right; rintro -
     conv => enter [1,1,1]; (calc _ = (fun l => !(τ ⊨ LitVar.toPropFun l)) := by ext l; simp)
     have := @Array.size_eq_countP_add_countP _ (τ ⊨ LitVar.toPropFun ·) lits

@@ -44,7 +44,7 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
     rcases C with ⟨lits⟩
     simp_all [toPropFun, Array.mem_def]
     induction lits with
-    | nil => rw [PropFun.ext_iff] at h; simp [Array.mem_def] at h
+    | nil => rw [PropFun.ext_iff] at h; simp at h
     | cons hd tl ih =>
     classical
     refine if hr : any _ = ⊤ then have := ih hr; ?_ else ?_
@@ -54,16 +54,16 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
       simp at hr h
       rcases hr with ⟨τ,hr⟩
       replace h := h (τ.set (LitVar.toVar hd) (!LitVar.polarity hd))
-      simp [LitVar.satisfies_iff, Bool.not_ne_self] at h
+      simp [LitVar.satisfies_iff] at h
       rcases h with ⟨hd',hd'_mem,h⟩
       · replace hr := hr hd' hd'_mem
         simp [LitVar.satisfies_iff, PropAssignment.set] at hr h
-        use hd, List.mem_cons_self, hd', (List.mem_cons_of_mem _ hd'_mem)
         split at h
-        · ext
-          · rw [LawfulLitVar.toVar_negate]; symm; assumption
-          · rw [LawfulLitVar.polarity_negate]; exact Bool.not_eq_eq_eq_not.mp h
-        · exact absurd h hr
+        · rename_i h_var
+          rcases LitVar.toVar_eq_iff.mp h_var with (rfl | rfl)
+          · simp at h
+          · use hd, List.mem_cons_of_mem _ hd'_mem, List.mem_cons_self
+        · exact False.elim (hr h)
   · rintro ⟨_,hl1,l,hl2,rfl⟩
     ext τ; simp [satisfies_iff]
     by_cases τ ⊨ LitVar.toPropFun l <;> aesop
@@ -108,7 +108,7 @@ theorem toPropFun_mem_list_le {l : L} {C : List L} : l ∈ C → LitVar.toPropFu
   intro h
   refine PropFun.entails_ext.mpr fun τ hτ => ?_
   rw [Clause.satisfies_iff]
-  simp only [Array.mem_toArray]
+  simp only [List.mem_toArray]
   exact ⟨l, h, hτ⟩
 
 @[simp]
@@ -128,14 +128,11 @@ theorem toPropFun_drop_le_drop_of_ge (C : List L) {n₁ n₂ : Nat}
   rcases hτ with ⟨l, hl, h⟩
   simp [List.mem_drop_iff_getElem] at hl ⊢
   rcases hl with ⟨i, hi, rfl⟩
-  use C[n₁ + i]
-  constructor
-  · use (n₁ - n₂ + i)
-    have : n₁ - n₂ + i + n₂ < C.length := by omega
-    use this
-    have : n₂ + (n₁ - n₂ + i) = n₁ + i := by omega
-    simp [this]
-  · exact h
+  refine ⟨n₁ - n₂ + i, ?_, ?_⟩
+  · have : n₁ - n₂ + i + n₂ < C.length := by omega
+    simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using this
+  · have : n₂ + (n₁ - n₂ + i) = n₁ + i := by omega
+    simpa [this] using h
 
 end Clause
 
@@ -291,7 +288,7 @@ theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
     rcases C with ⟨lits⟩
     simp_all [toPropFun, Array.mem_def]
     induction lits with
-    | nil => rw [PropFun.ext_iff] at h; simp [Array.mem_def] at h
+    | nil => rw [PropFun.ext_iff] at h; simp at h
     | cons hd tl ih =>
     classical
     refine if hr : all _ = ⊥ then have := ih hr; ?_ else ?_
@@ -307,11 +304,18 @@ theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
       replace hr := hr hd' hd'_mem
       simp [LitVar.satisfies_iff, PropAssignment.set] at hr h
       split at h
-      · use hd, List.mem_cons_self, hd', (List.mem_cons_of_mem _ hd'_mem)
-        ext
-        · rw [LawfulLitVar.toVar_negate]; symm; assumption
-        · rw [LawfulLitVar.polarity_negate, Bool.eq_not]; assumption
-      · exact absurd hr h
+      · have hEq : hd = -hd' := by
+          ext
+          · rw [LawfulLitVar.toVar_negate]
+            symm
+            assumption
+          · rw [LawfulLitVar.polarity_negate, Bool.eq_not]
+            assumption
+        refine ⟨hd', ?_⟩
+        constructor
+        · simp [hEq]
+        · exact List.mem_cons_of_mem _ hd'_mem
+      · exact False.elim (h hr)
   · rintro ⟨_,hl1,l,hl2,rfl⟩
     ext τ; simp [satisfies_iff]
     by_cases τ ⊨ LitVar.toPropFun l <;> aesop

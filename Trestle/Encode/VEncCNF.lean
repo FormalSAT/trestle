@@ -48,7 +48,6 @@ theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
   clear hls' hls
   simp_rw [← h3]
   simp [LawfulState.interp]
-  aesop
 
 attribute [aesop unsafe apply] le_trans
 
@@ -145,8 +144,8 @@ def addClause (C : Clause (Literal ν)) : VEncCNF ν Unit C :=
     intro s
     generalize he : (EncCNF.addClause C).1 s = e
     rcases e with ⟨_,s'⟩
-    simp [EncCNF.addClause, dbgTraceIfShared] at he; cases he
-    simp; simp [SemanticEntails.entails, himp, compl, LawfulState.addClause, dbgTraceIfShared, State.addClause]
+    simp [EncCNF.addClause] at he; cases he
+    simp; simp [LawfulState.addClause, dbgTraceIfShared, State.addClause]
     ⟩
 
 def unit (l : Literal ν) : VEncCNF ν Unit l :=
@@ -224,7 +223,7 @@ def for_all (arr : Array α) {P : α → PropPred ν} (f : (a : α) → VEncCNF 
   ⟨ arr.foldlM (fun () x => f x) (),
     by
     rcases arr with ⟨L⟩
-    simp only [List.foldlM_toArray', Array.mem_toArray]
+    simp only [List.foldlM_toArray']
     induction L with
     | nil   => simp; apply encodesProp_pure
     | cons hd tl ih =>
@@ -264,7 +263,7 @@ def andImplyOr (hyps : Array (Literal ν)) (conc : Array (Literal ν))
   addClause (hyps.map LitVar.negate ++ conc)
   |> mapProp (by
     ext τ
-    simp [Clause.satisfies_iff, PropPred.satisfies_def]
+    simp [Clause.satisfies_iff]
     constructor
     · aesop
     · intro h
@@ -275,39 +274,32 @@ def andImplyOr (hyps : Array (Literal ν)) (conc : Array (Literal ν))
 def andImply (hyps : Array (Literal ν)) (conc : Literal ν)
   : VEncCNF ν Unit (fun τ => (∀ h ∈ hyps, τ ⊨ ↑h) → τ ⊨ ↑conc) :=
   andImplyOr hyps #[conc]
-  |> mapProp (by simp [any])
+  |> mapProp (by simp)
 
 def implyOr (hyp : Literal ν) (conc : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑hyp → ∃ c ∈ conc, τ ⊨ ↑c) :=
   andImplyOr #[hyp] conc
-  |> mapProp (by simp [all])
+  |> mapProp (by simp)
 
 def orImplyOr (hyps : Array (Literal ν)) (conc : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => (∃ h ∈ hyps, τ ⊨ ↑h) → (∃ c ∈ conc, τ ⊨ ↑c)) :=
   for_all hyps (fun hyp => andImplyOr #[hyp] conc)
-  |> mapProp (by
-    ext τ
-    simp [Clause.satisfies_iff]
-  )
+  |> mapProp (by ext τ; simp)
 
 def orImply (hyps : Array (Literal ν)) (conc : Literal ν)
   : VEncCNF ν Unit (fun τ => (∃ h ∈ hyps, τ ⊨ ↑h) → τ ⊨ ↑conc) :=
   orImplyOr hyps #[conc]
-  |> mapProp (by simp [any])
+  |> mapProp (by simp)
 
 def andImplyAnd (hyps : Array (Literal ν)) (concs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => (∀ h ∈ hyps, τ ⊨ ↑h) → (∀ c ∈ concs, τ ⊨ ↑c)) :=
   for_all concs (fun conc => andImplyOr hyps #[conc])
-  |> mapProp (by
-    ext τ
-    simp [Clause.satisfies_iff]
-    aesop
-  )
+  |> mapProp (by ext τ; simp; grind)
 
 def implyAnd (hyp : Literal ν) (concs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑hyp → (∀ c ∈ concs, τ ⊨ ↑c)) :=
   andImplyAnd #[hyp] concs
-  |> mapProp (by simp [all])
+  |> mapProp (by simp)
 
 def orImplyAnd (hyps : Array (Literal ν)) (concs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => (∃ h ∈ hyps, τ ⊨ ↑h) → (∀ c ∈ concs, τ ⊨ ↑c)) :=
@@ -318,14 +310,14 @@ def orImplyAnd (hyps : Array (Literal ν)) (concs : Array (Literal ν))
   )
   |> mapProp (by
     ext τ
-    simp [Clause.satisfies_iff]
-    aesop
+    simp
+    grind
   )
 
 def imply (v1 v2 : Literal ν)
   : VEncCNF ν Unit (· ⊨ ↑v1 ⇨ ↑v2) :=
   andImplyOr #[v1] #[v2]
-  |> mapProp (by simp [all,any])
+  |> mapProp (by simp)
 
 def biImpl (v1 v2 : Literal ν)
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑v1 ↔ τ ⊨ ↑v2) :=
@@ -335,12 +327,12 @@ def biImpl (v1 v2 : Literal ν)
 def defConj (v : Literal ν) (vs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑v ↔ (∀ v ∈ vs, τ ⊨ ↑v)) :=
   seq (implyAnd v vs) (andImply vs v)
-  |> mapProp (by aesop)
+  |> mapProp (by grind)
 
 def defDisj (v : Literal ν) (vs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑v ↔ (∃ v ∈ vs, τ ⊨ ↑v)) :=
   seq (implyOr v vs) (orImply vs v)
-  |> mapProp (by aesop)
+  |> mapProp (by grind)
 
 
 def castVar (h : ν₁ = ν₂) (ve : VEncCNF ν₁ α P) : VEncCNF ν₂ α (h ▸ P) :=

@@ -32,9 +32,9 @@ where aux (rem : List V) (passn : (v : V) → ¬ v ∈ rem → Bool) : PropForm 
   | v::vs =>
     disj
       (conj (var v) (aux vs fun v' h' =>
-        if h : v' = v then true  else passn v' (by simp [*, h'])))
+        if h : v' = v then true  else passn v' (by simp [*])))
       (conj (neg <| var v) (aux vs fun v' h' =>
-        if h : v' = v then false else passn v' (by simp [*, h'])))
+        if h : v' = v then false else passn v' (by simp [*])))
 
 @[simp]
 theorem eval_ofFun [DecidableEq V] {L : List V} {hc}
@@ -65,7 +65,7 @@ def ofFun {V : Type u} [DecidableEq V] [Fintype V]
   Fintype.elim_elems (fun L h1 _ => ⟦ PropForm.ofFun p L h1 ⟧) (by
     intro L1 L2 h1 _ h2 _
     simp; ext; rw [satisfies_mk, satisfies_mk]
-    simp [SemanticEntails.entails, PropForm.satisfies]
+    simp only [PropForm.entails_ofFun]
   )
 
 @[simp]

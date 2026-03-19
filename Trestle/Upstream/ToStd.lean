@@ -69,22 +69,23 @@ def Fin.succ? : {n : Nat} → Fin n → Option (Fin n)
 theorem Fin.foldl_induction (n) (f : α → Fin n → α) (init : α) (P : α → Fin (n+1) → Prop)
     (hInit : P init 0)
     (hSucc : ∀ a (i : Fin n), P a ⟨i.val, Nat.lt_succ_of_lt i.is_lt⟩ → P (f a i) ⟨i.val+1, Nat.succ_lt_succ i.is_lt⟩) :
-    P (Fin.foldl n f init) ⟨n, Nat.lt_succ_self n⟩ :=
-  loop init 0 hInit
-where
-  loop (x : α) (i : Fin (n+1)) (h : P x i) : P (Fin.foldl.loop n f x i.val) ⟨n, Nat.lt_succ_self n⟩ := by
-    unfold foldl.loop
-    split
-    next h =>
-      have := loop (f x ⟨i.val, h⟩) ⟨i.val+1, Nat.succ_lt_succ h⟩
-      apply this
-      apply hSucc
-      assumption
-    next h =>
-      have : i.val = n := Nat.eq_of_le_of_lt_succ (by omega) i.is_lt
-      conv => enter [2,1]; rw [← this]
-      assumption
-  termination_by n - i
+    P (Fin.foldl n f init) ⟨n, Nat.lt_succ_self n⟩ := by
+  induction n generalizing init with
+  | zero =>
+    simpa using hInit
+  | succ n ih =>
+    let f' : α → Fin n → α := fun a i => f a i.succ
+    let P' : α → Fin (n+1) → Prop := fun a j => P a j.succ
+    have hInit' : P' (f init 0) 0 := by
+      simpa [P'] using (hSucc init 0 hInit)
+    have hSucc' :
+        ∀ a (i : Fin n),
+          P' a ⟨i.val, Nat.lt_succ_of_lt i.is_lt⟩ →
+            P' (f' a i) ⟨i.val + 1, Nat.succ_lt_succ i.is_lt⟩ := by
+      intro a i hi
+      simpa [f', P'] using (hSucc a i.succ (by simpa [P'] using hi))
+    rw [Fin.foldl_succ]
+    simpa [f', P'] using (ih f' (f init 0) P' hInit' hSucc')
 
 theorem Fin.foldl_induction' (n) (f : α → Fin n → α) (init : α) (P : α → Prop)
     (hInit : P init)
@@ -99,7 +100,7 @@ theorem Fin.foldl_of_comm (n) (f : α → Fin n → α) (init : α) (i : Fin n)
     (nomatch ·)
     (by
       intro a j ih h
-      cases Nat.lt_or_eq_of_le (Nat.lt_succ.mp h)
+      cases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp h)
       next h =>
         have ⟨acc, hAcc⟩ := ih h
         refine ⟨f acc j,?_⟩
@@ -141,7 +142,7 @@ theorem Array.mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
 theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List α) :
     Array.foldl f init { toList := a :: as } 0 (size { toList := a :: as }) =
       Array.foldl f (f init a) { toList := as } 0 (size { toList := as }) := by
-  simp only [List.length_cons, List.foldl_toArray', List.foldl_cons]
+  simp only [List.foldl_toArray', List.foldl_cons]
 
 theorem Array.ofFn_getElem (A : Array α) : Array.ofFn (n := A.size) (A[·]) = A := by
   ext i hi <;> simp
@@ -285,26 +286,14 @@ def parTasksUnit [ForIn IO σ α] (xs : σ) (f : α → IO Unit)
 
 end TaskIO
 
-def Option.forIn [Monad m] (o : Option α) (b : β) (f : α → β → m (ForInStep β)) : m β := do
-  match o with
-  | none => return b
-  | some a =>
-  match ← f a b with
-  | .done b => return b
-  | .yield b => return b
-
-instance : ForIn m (Option α) α where
-  forIn := Option.forIn
-
 def IO.timeMs (prog : IO α) : IO (Nat × α) := do
   let start ← IO.monoMsNow
   let res ← prog
   let end_ ← IO.monoMsNow
-
   return (end_ - start, res)
 
 instance : GetElem String Nat Char (fun s i => i < s.length) where
-  getElem | xs, i, _ => xs.get (String.Pos.mk i)
+  getElem | xs, i, _ => String.Pos.Raw.get xs (String.Pos.Raw.mk i)
 
 def randFin (n) (_h : n > 0) : IO (Fin n) := do
   let i ← IO.rand 0 n.pred
@@ -346,7 +335,7 @@ theorem List.sizeOf_filter_lt_of_ne [SizeOf α] (f) (L : List α)
   split
   next hHd =>
     simp [hHd] at h
-    simp [_sizeOf_1]
+    simp
     rcases h with ⟨x, hx₁, hx₂⟩
     exact ih _ hx₁ hx₂
   next hHd =>

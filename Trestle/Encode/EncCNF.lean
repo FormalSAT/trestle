@@ -65,7 +65,7 @@ def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
 @[simp] theorem toPropFun_addClause (C : Clause (Literal ν)) (s)
   : (addClause C s).toPropFun = s.toPropFun ⊓ (PropFun.map s.vMap C)
   := by
-  simp [dbgTraceIfShared, addClause, himp_eq, sup_comm]
+  simp [dbgTraceIfShared, addClause]
 
 
 def addComment (comment : String) (s : State ν) : State ν :=
@@ -126,7 +126,7 @@ def new (nextVar : IVar) (f : ν ↪ IVar) (h : ∀ v, f v < nextVar) (names : L
 theorem interp_new (vars) (f : ν ↪ IVar) (h) (names)
   : interp (new vars f h names) = fun _ => True := by
   ext τ
-  simp [new, State.new, interp, Cnf.toPropFun, PropAssignment.map_eq_map, RichCnf.toICnf]
+  simp [new, State.new, interp, Cnf.toPropFun, RichCnf.toICnf]
   apply τ.exists_preimage
 
 @[simp]
@@ -141,7 +141,7 @@ def addClause (C : Clause (Literal ν)) : LawfulState ν → LawfulState ν
   vMapInj,
   cnfVarsLt := by
     intro c hc v hv
-    simp [State.addClause, Cnf.addClause, Clause.or, LitVar.map] at hc
+    simp [State.addClause, Cnf.addClause] at hc
     rcases hc with hc|hc
     · exact cnfVarsLt _ hc _ hv
     · subst_vars; simp [Clause.map] at hv
@@ -154,7 +154,7 @@ open PropFun in
         (C : Clause (Literal ν)) (s : LawfulState ν)
   : interp (addClause C s) = fun τ => interp s τ ∧ (τ ⊨ ↑C) := by
   ext τ
-  simp [addClause, interp, State.addClause, imp_iff_not_or]
+  simp [addClause, interp, State.addClause]
   rw [← exists_and_right]
   apply exists_congr; intro σ
   aesop
@@ -173,7 +173,7 @@ def addComment (comm : String) : LawfulState ν → LawfulState ν
 @[simp] theorem interp_addComment (comm : String) (s : LawfulState ν)
   : interp (addComment comm s) = interp s := by
   ext τ
-  simp [addComment, interp, State.addComment, imp_iff_not_or]
+  simp [addComment, interp, State.addComment]
 
 @[simp] theorem vMap_addComment (comm : String) (s : LawfulState ν)
   : (addComment comm s).vMap = s.vMap := by
@@ -347,7 +347,7 @@ theorem LawfulState.interp_withTemps [IndexType ι] [LawfulIndexType ι] (s : La
       rcases vot with (v|t)
       · have := congrFun h1 v
         simp at this; simp [this]; clear this h2
-        simp [withTemps, State.withTemps, State.withTemps.vMap]
+        simp [State.withTemps.vMap]
         rw [PropAssignment.setMany_not_mem]
         simp; intro x
         have := s.vMapLt v

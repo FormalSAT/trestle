@@ -344,16 +344,16 @@ theorem setMany_satisfies_iff_inter_semVars (τ : PropAssignment ν) (vs τ' φ)
   · simp
   next x vs hx ih =>
   if h : x ∈ φ.semVars then
-    rw [Finset.insert_eq, Finset.union_inter_distrib_right
-        , Finset.singleton_inter_of_mem h]
-    simp [setMany_union]; apply ih
+    rw [Finset.insert_eq, Finset.union_inter_distrib_right,
+        Finset.singleton_inter_of_mem h]
+    simp [setMany_union, -Finset.singleton_union]
+    apply ih
   else
   simp [Finset.insert_eq, Finset.union_inter_distrib_right
       , Finset.singleton_inter_of_notMem h
-      , setMany_union]
-  rw [← ih _, ← τ.set_setMany_comm _ _ _ _ hx]
+      , -Finset.singleton_union, setMany_union]
   rw [not_mem_semVars] at h
-  rw [h]
+  rw [← ih _, ← τ.set_setMany_comm _ _ _ _ hx, h]
 
 end semVars /- section -/
 
@@ -380,8 +380,7 @@ theorem equivalentOver_iff_extendsOver (X : Set ν) (φ₁ φ₂ : PropFun ν) :
     exact ⟨fun σ₁ h₁ => h σ₁ |>.mp ⟨σ₁, σ₁.agreeOn_refl X, h₁⟩,
       fun σ₂ h₂ => h σ₂ |>.mpr ⟨σ₂, σ₂.agreeOn_refl X, h₂⟩⟩
   case mpr =>
-    intro ⟨h₁, h₂⟩
-    intro τ
+    intro ⟨h₁, h₂⟩ τ
     constructor
     case mp =>
       intro ⟨σ₁, hAgree₁, hσ₁⟩

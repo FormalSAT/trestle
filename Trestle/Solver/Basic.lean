@@ -42,7 +42,7 @@ namespace Solver
 def Solutions (_f : ICnf) (_varsToBlock : List IVar) : Type := Unit
 def solutions (f vars) : Solutions f vars := ()
 
-instance [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
+instance [Monad m] [Solver m] : ForIn m (Solutions f vars) (HashAssn ILit) where
   forIn _ b perItem := do
     let mut b := b
     let mut state := some f
@@ -73,7 +73,6 @@ def allSolutions [Monad m] [Solver m] (f : ICnf) (varsToBlock : List IVar)
   for assn in solutions f varsToBlock do
     sols := assn :: sols
   return sols
-
 
 class IpasirSolver (S : outParam Type) (m : Type → Type v) where
   new : m S

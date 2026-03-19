@@ -45,16 +45,13 @@ theorem existsInv_existsInv [Fintype ν''] (f : ν'' → ν') (g : ν' → ν) (
     : (φ.existsInv g).existsInv f = φ.existsInv (g ∘ f) := by
   ext τ; simp
   constructor
-  · rintro ⟨_, ⟨σ,h,rfl⟩, rfl⟩
+  · rintro ⟨σ,h,rfl⟩
     use σ
     simp [*, PropAssignment.map]
     rfl
   · rintro ⟨σ,h,rfl⟩
-    use σ.map g
-    simp [*, PropAssignment.map, Function.comp]
-    constructor
-    · use σ
-    · rfl
+    use σ
+    simp [*, PropAssignment.map, PropAssignment.map_eq_map]
 
 
 open Classical in

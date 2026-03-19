@@ -92,7 +92,7 @@ def parseVar (maxVar : Nat) (s : String) : Except String IVar := do
 
 def parseLit (maxVar : Nat) (s : String) : Except String ILit := do
   if s.startsWith "-" then
-    parseVar maxVar (s.drop 1) |>.map (- ·)
+    parseVar maxVar (s.drop 1).copy |>.map (- ·)
   else
     parseVar maxVar s
 
@@ -121,16 +121,16 @@ def parseHeader (s : String) : Except String (Nat × Nat) := do
 def parseFormula (s : String) : Except String DimacsParseRes := do
   let ⟨pLine, clauseLines⟩ ←
     s.splitOn "\n"
-    |>.map (·.trim)
+    |>.map (·.trimAscii)
     |>.filter (!·.isEmpty)
     |>.filter (!·.startsWith "c")
     |>.expectNonempty fun () => "Missing p line"
-  let (nvars, _) ← parseHeader pLine
+  let (nvars, _) ← parseHeader pLine.copy
   let clauses ← clauseLines.toArray.mapIdxM (fun lineNum line =>
     if line.startsWith "c " then
-      .ok (.comment (line.drop 2))
+      .ok (.comment (line.drop 2).copy)
     else
-      parseClause nvars line
+      parseClause nvars line.copy
       |>.map (.clause ·)
       |>.mapError (s!"line {lineNum+1}: {·}"))
   return {

@@ -338,11 +338,11 @@ theorem satisfies_disj {τ : PropAssignment ν} : τ ⊨ φ₁ ⊔ φ₂ ↔ τ 
 @[simp]
 theorem satisfies_impl {τ : PropAssignment ν} : τ ⊨ φ₁ ⇨ φ₂ ↔ (τ ⊨ φ₁ → τ ⊨ φ₂) := by
   simp only [sEntails, satisfies, eval_impl, HImp.himp]
-  cases (eval τ φ₁) <;> simp [himp_eq]
+  cases (eval τ φ₁) <;> simp
 
 theorem satisfies_impl' {τ : PropAssignment ν} : τ ⊨ φ₁ ⇨ φ₂ ↔ τ ⊭ φ₁ ∨ τ ⊨ φ₂ := by
   simp only [sEntails, satisfies, eval_impl, HImp.himp]
-  cases (eval τ φ₁) <;> simp [himp_eq]
+  cases (eval τ φ₁) <;> simp
 
 @[simp]
 theorem satisfies_biImpl {τ : PropAssignment ν} : τ ⊨ (φ₁ ⇔ φ₂) ↔ (τ ⊨ φ₁ ↔ τ ⊨ φ₂) := by
@@ -374,7 +374,7 @@ theorem var_ne_bot (v : ν) : var v ≠ ⊥ := by
 @[simp]
 theorem var_ne_top (v : ν) : var v ≠ ⊤ := by
   intro h_con
-  simp only [eq_top_iff, satisfies_var, Bool.not_eq_false] at h_con
+  simp only [eq_top_iff, satisfies_var] at h_con
   have := h_con (fun _ => false)
   contradiction
 
@@ -585,7 +585,7 @@ theorem eq_bot_of_equisat {F C : PropFun ν} : EquiSat F (F ⊓ C) → (F ⊓ C)
 
 theorem equisat_of_entails {F C : PropFun ν} : F ≤ C → EquiSat F (F ⊓ C) := by
   intro h_entails
-  simp only [EquiSat, Sat, ge_iff_le, satisfies_conj]
+  simp only [EquiSat, Sat, satisfies_conj]
   exact ⟨fun ⟨τ, hτ⟩ => ⟨τ, hτ, h_entails τ hτ⟩, fun ⟨τ, hτ, _⟩ => ⟨τ, hτ⟩⟩
 
 namespace Notation
