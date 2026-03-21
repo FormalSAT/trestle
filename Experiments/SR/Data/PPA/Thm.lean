@@ -101,11 +101,11 @@ instance instSemanticEntails : SemanticEntails (PropAssignment IVar) (PropFun IV
 theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
     σ ⊨ ↑τ ↔ ∀ (i : Fin τ.size), σ ⊨ τ.idxToPropFun i := by
   constructor
-  . intro hσ i
+  · intro hσ i
     have ⟨ϕ, hϕ⟩ := Fin.foldl_of_comm τ.size (· ⊓ τ.idxToPropFun ·) ⊤ i (by intros; simp; ac_rfl)
     rw [toPropFun, hϕ] at hσ
     simp_all
-  . intro h
+  · intro h
     unfold toPropFun
     apply Fin.foldl_induction' (hInit := PropFun.satisfies_tr)
     intro ϕ i hϕ
@@ -114,20 +114,21 @@ theorem satisfies_iff {τ : PPA} {σ : PropAssignment IVar} :
 theorem satisfies_iff_vars {τ : PPA} {σ : PropAssignment IVar} :
     σ ⊨ ↑τ ↔ ∀ ⦃v⦄ ⦃b⦄, τ.varValue? v = some b → σ v = b := by
   constructor
-  . intro h ⟨v, hv⟩ b h'
+  · intro h ⟨v, hv⟩ b h'
     have := lt_size_of_varValue?_some h'
     let i : Fin τ.size := ⟨v - 1, this⟩
     have h := satisfies_iff.mp h i
     simp [idxToPropFun, varToPropFun, IVar.ofIndex,
-        Nat.sub_add_cancel hv, Subtype.val, i, h'] at h
+        Nat.sub_add_cancel hv, i, h'] at h
     cases b <;> simp_all
-  . intro h
+  · intro h
     apply satisfies_iff.mpr
     intro i
     unfold idxToPropFun varToPropFun
-    cases' h' : (varValue? τ _) with b
-    . simp
-    . have := h h'
+    match h' : τ.varValue? (IVar.ofIndex ↑i) with
+    | none => simp
+    | some b =>
+      have := h h'
       cases b <;> simp_all
 
 theorem satisfies_iff_lits {τ : PPA} {σ : PropAssignment IVar} :
@@ -224,7 +225,7 @@ theorem varValue?_none_iff {τ : PPA} {v : IVar} :
         PropAssignment.set_get_of_ne _ _ this
       have hσ : σ ⊨ τ.toPropFun := (agreeOn_semVars this).mpr τ.toSatAssignment_satisfies
       have : σ ⊭ .var v := by
-        simp only [satisfies_var, PropAssignment.set_get, not_false_eq_true, σ]
+        simp only [satisfies_var, PropAssignment.set_get, σ]
         trivial
       exact this (entails_ext.mp h_lt σ hσ)
     · intro h_lt
@@ -256,8 +257,7 @@ theorem litValue?_true_iff {τ : PPA} {l : ILit} :
 theorem litValue?_false_iff {τ : PPA} {l : ILit} :
     τ.litValue? l = some false ↔ τ.toPropFun ≤ (↑l)ᶜ := by
   simp [litValue?, LitVar.toPropFun]
-  cases polarity l <;>
-    simp (config := {contextual := true}) [varValue?_false_iff, varValue?_true_iff]
+  cases polarity l <;> simp
 
 -- CC: Not `simp` because generates two not-too-useful things
 theorem litValue?_none_iff {τ : PPA} {l : ILit} :
@@ -536,9 +536,9 @@ theorem isSet_of_isSetFor_pos : n > 0 → isSetFor τ v n → isSet τ v := by
   intro hn
   simp [isSet, isSetFor, varValue?]
   match hv : τ.assignment[v.index]? with
-  | none => simp [hv]; aesop
+  | none => simp; grind
   | some g =>
-    simp [hv]
+    simp
     rintro rfl
     exact le_of_lt_succ (Nat.lt_of_sub_pos hn)
 
@@ -609,7 +609,7 @@ theorem isSet_iff_isSetFor_pos : isSet τ v ↔ ∃ n > 0, isSetFor τ v n := by
       simp [isSet, varValue?, hv] at h
     | some g =>
       simp [isSet, varValue?, hv] at h
-      simp [h, hv, isSetFor]
+      simp [hv, isSetFor]
       exact lt_succ_of_le h
   . rintro ⟨n, hn, h⟩
     exact isSet_of_isSetFor_pos hn h
@@ -649,14 +649,10 @@ theorem setVarFor_isSetFor_of_ne {v v' : IVar}
     : v ≠ v' → ∀ τ b extraBumps, isSetFor (τ.setVarFor v b extraBumps) v' = isSetFor τ v' := by
   intro h τ b extraBumps
   ext n
-  simp [isSetFor, setVarFor, varValue?_setVarFor_of_ne h]
+  simp [isSetFor, setVarFor]
   have := index_ne_iff.mpr h
   simp [Array.getElem?_setF, this]
-  split_ifs
-  · rfl
-  · simp [*]
-  · simp [*]
-  · simp [*]
+  grind
 
 @[simp]
 theorem setLitFor_isSetFor_self (τ : PPA) (l : ILit) (extraBumps : Nat) :
@@ -666,7 +662,7 @@ theorem setLitFor_isSetFor_self (τ : PPA) (l : ILit) (extraBumps : Nat) :
 theorem setLitFor_isSetFor_of_ne {l : ILit} {v : IVar} :
     toVar l ≠ v → ∀ τ extraBumps, isSetFor (τ.setLitFor l extraBumps) v = isSetFor τ v := by
   intro h τ extraBumps
-  simp [isSetFor, setLitFor, varValue?_setLitFor_of_ne h]
+  simp [setLitFor]
   exact setVarFor_isSetFor_of_ne h _ _ _
 
 theorem isSetFor_bump {τ : PPA} {v : IVar} {n : Nat} :
@@ -924,7 +920,7 @@ where
         go (i+1) unit? hUnit (by
           simp [l] at hl
           intro j hj
-          rcases Nat.lt_or_eq_of_le (Nat.lt_succ.mp hj) with hj | hj
+          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hj) with hj | hj
           . exact hLits j hj
           . right
             apply litValue?_false_iff.mp
@@ -935,16 +931,16 @@ where
           if hEq : u = l then
             go (i+1) (some l) (by simp [C.getElem_mem hi, hl, l]) (by
               intro j hj
-              rcases Nat.lt_or_eq_of_le (Nat.lt_succ.mp hj) with hj | hj
+              rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hj) with hj | hj
               . exact hEq ▸ hLits j hj
               . apply Or.inl
-                simp [hEq, hj, l])
+                simp [hj, l])
           else
             ⟨τ, .notUnit⟩
         | .none =>
           go (i+1) (some l) (by simp [C.getElem_mem hi, hl, l]) (by
             intro j hj
-            rcases Nat.lt_or_eq_of_le (Nat.lt_succ.mp hj) with hj | hj
+            rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hj) with hj | hj
             . apply Or.inr
               have := hLits j hj
               simpa using this
@@ -1009,7 +1005,7 @@ theorem unitPropM.aux_cons (τ : PPA) (l : ILit) (ls : List ILit) (unit? : Optio
         else
           .error false := by
   unfold unitPropM.aux pevalM
-  simp only [List.length_cons, List.foldlM_toArray', List.foldlM_cons]
+  simp only [List.foldlM_toArray', List.foldlM_cons]
   match hl : τ.litValue? l with
   | some true => rfl
   | some false => rfl
@@ -1091,7 +1087,7 @@ theorem unitProp.loop_eq_unitPropM.aux (τ : PPA) (ls : List ILit) (n : Nat) (hn
   | zero =>
     unfold loop
     have : n = ls.length := by omega
-    simp [this, unitPropM, unitPropM_Except, pure, Except.pure]
+    simp [this, unitPropM_Except]
     cases unit? <;> rfl
   | succ m ih =>
     unfold loop
@@ -1215,7 +1211,7 @@ theorem unitPropM_unit {τ : PPA} {C : IClause} {l : ILit}
   have ⟨C⟩ := C
   unfold unitPropM unitPropM_Except
   split <;> try (intro; contradiction)
-  simp only [UPResult.unit.injEq, Array.mem_toArray, ILit.toPropFun]
+  simp only [UPResult.unit.injEq, List.mem_toArray, ILit.toPropFun]
   rintro rfl
   rename_i u h
   exact unitPropM.aux_none_some_toPropFun τ C u h

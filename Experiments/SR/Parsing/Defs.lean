@@ -5,8 +5,8 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: Cayden Codel
 -/
 
-import Trestle.Data.ICnf
-import Experiments.SR.Data.RangeArray
+import Trestle.Data.ICnf.Defs
+import Experiments.SR.Data.RangeArray.Defs
 
 /-!
 
@@ -59,7 +59,9 @@ def SRAdditionLine.new : SRAdditionLine := ⟨
   Array.mkEmpty 100,
   by simp, by simp⟩
 
-instance : Inhabited SRAdditionLine := ⟨{
+namespace SRAdditionLine
+
+instance instInhabited : Inhabited SRAdditionLine := ⟨{
   witnessLits := #[],
   witnessMaps := #[],
   upHints := #[],
@@ -68,6 +70,18 @@ instance : Inhabited SRAdditionLine := ⟨{
   ratSizesEq := by simp,
   witnessMapsMod := by simp
 }⟩
+
+instance instToString : ToString SRAdditionLine where
+  toString line :=
+    match line with
+    | ⟨wL, wM, uH, _, rH, _, _⟩ =>
+      let wLs := if wL.size > 0 then s!"{wL}" else ""
+      let wMs := if wM.size > 0 then s!"{wM}" else ""
+      let uHs := if uH.size > 0 then s!"{uH}" else ""
+      let rHs := if rH.size > 0 then s!"{rH}" else ""
+      s!"{wLs} {wMs} 0 {uHs} {rHs}"
+
+end SRAdditionLine /- namespace -/
 
 abbrev SRDeletionLine := Array Nat
 

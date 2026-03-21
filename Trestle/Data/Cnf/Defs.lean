@@ -18,8 +18,14 @@ def Cube (L : Type u) := Array L
 
 namespace Clause
 
-instance instToString [ToString L] : ToString (Clause L) where
-  toString C := s!"({String.intercalate " ∨ " (C.map toString).toList})"
+/--
+  A logical string representation of a clause.
+
+  This is NOT a `ToString` instance because the `abbrev` overrides
+  the printing of *any* `Array Lit`, which is undesirable.
+-/
+def toLString [ToString L] (C : Clause L) : String :=
+  String.intercalate " " (C.map toString).toList ++ " 0"
 
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
@@ -36,8 +42,14 @@ end Clause
 
 namespace Cnf
 
-instance instToString [ToString L] : ToString (Cnf L) where
-  toString C := s!"{String.intercalate " ∧ " (C.map toString).toList}"
+/--
+  A logical string representation of a CNF formula.
+
+  This is NOT a `ToString` instance because the `abbrev` overrides
+  the printing of *any* `Array (Clause Lit)`, which is undesirable.
+-/
+def toLString [ToString L] (F : Cnf L) : String :=
+  String.intercalate " " (F.map (Clause.toLString)).toList
 
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 

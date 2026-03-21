@@ -8,7 +8,7 @@ Authors: James Gallicchio, Cayden Codel
 import Trestle.Upstream.ToStd
 
 theorem Int.neg_cast_le (n : Nat) : -(n : Int) ≤ 0 :=
-  Int.neg_nonpos_of_nonneg (ofNat_zero_le n)
+  Int.neg_nonpos_of_nonneg (natCast_nonneg n)
 
 theorem Int.exists_nat_of_ge_zero {i : Int} : 0 ≤ i → ∃ (n : Nat), (n : Int) = i := by
   intro h
@@ -27,7 +27,7 @@ theorem Array.foldlM_nil {m : Type v → Type w} [Monad m] (f : β → α → m 
 theorem Array.foldlM_trivial {m : Type v → Type w} [Monad m] (f : β → α → m β)
     (init : β) (as : Array α) (i : Nat) :
     as.foldlM f init i i = pure init := by
-  simp [foldlM, Id.run]
+  simp [foldlM]
   split <;> rename _ => hi
   · simp [foldlM.loop]
   · rw [foldlM.loop]

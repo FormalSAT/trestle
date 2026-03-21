@@ -75,7 +75,7 @@ theorem Multiset.countP_eq_succ [DecidableEq α] (p) [DecidablePred p] (xs : Mul
     rw [ih]
     apply exists_congr; intro a
     apply and_congr_right; intro ha
-    simp [countP_eq_zero, erase_cons_tail_of_mem ha, p_hd]
+    simp [erase_cons_tail_of_mem ha, p_hd]
 
 theorem List.toFinset_map [DecidableEq α] [DecidableEq β] (f : α → β) (L : List α)
     (hf : f.Injective) :
@@ -178,7 +178,7 @@ def BitVec.oneAt (i : Fin n) : BitVec n :=
 
 @[simp] theorem BitVec.getElem_oneAt (i : Fin n) (j) (hj : j < n) : (oneAt i)[j] = decide (i = j) := by
   rw [Bool.eq_iff_iff]
-  simp [oneAt, Nat.zero_lt_of_lt hj, Nat.sub_eq_zero_iff_le]
+  simp [oneAt, Nat.sub_eq_zero_iff_le]
   exact antisymm_iff
 
 @[simp] theorem BitVec.toNat_oneAt (i : Fin n) : (oneAt i).toNat = 2^i.val := by
@@ -232,7 +232,7 @@ theorem BitVec.xor_eq_symm (x y z : BitVec n) : x ^^^ y = z ↔ x = z ^^^ y := b
   simp [Nat.shiftLeft_eq, Nat.mul_pos_iff_of_pos_right, Nat.pow_pos]
 
 @[simp] theorem Nat.shiftLeft_eq_zero (x y : Nat) : x <<< y = 0 ↔ x = 0 := by
-  simp [Nat.shiftLeft_eq, Nat.mul_eq_zero, Nat.pow_pos]
+  simp [Nat.shiftLeft_eq, Nat.mul_eq_zero]
 
 theorem Fin.val_eq_iff_lt_and_eq (x : Fin n) (y : Nat) : x.val = y ↔ ∃ (h : y < n), x = ⟨y,h⟩ := by
   rcases x; simp; intro; simp_all
@@ -325,12 +325,12 @@ theorem allPerms.mem_aux (m) : ∀ v ∈ aux m, ∀ n : Fin m, n ∈ v := by
     unfold aux at v_mem_aux
     simp only [Array.mem_def,
       Array.toList_flatten, List.mem_flatten,
-      List.mem_map, Array.toList_ofFn, List.mem_ofFn, Set.mem_range] at v_mem_aux
+      List.mem_map, Array.toList_ofFn, List.mem_ofFn] at v_mem_aux
     rcases v_mem_aux with ⟨-,⟨-,⟨ins_idx,rfl⟩,rfl⟩,v_mem_vecs⟩
     simp only [Array.toList_map, List.mem_map, Array.mem_toList_iff] at v_mem_vecs
     rcases v_mem_vecs with ⟨prev,prev_mem_aux,rfl⟩
     apply Vector.Mem.mk
-    simp only [Array.mem_def, Vector.toArray_ofFn, Array.toList_ofFn, List.mem_ofFn, Set.mem_range]
+    simp only [Array.mem_def, Vector.toArray_ofFn, Array.toList_ofFn, List.mem_ofFn]
     induction n using Fin.lastCases
     · use ins_idx
       simp [Fin.last]
@@ -341,7 +341,7 @@ theorem allPerms.mem_aux (m) : ∀ v ∈ aux m, ∀ n : Fin m, n ∈ v := by
       rcases ih with ⟨y,hy,rfl⟩
       if y < ins_idx.val then
         use ⟨y,by omega⟩
-        simp [*, Fin.lt_def]
+        simp [*]
       else
         simp at hy
         use ⟨y+1,by omega⟩

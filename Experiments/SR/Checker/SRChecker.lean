@@ -8,7 +8,7 @@ Authors: Cayden Codel, Wojciech Nawrocki, James Gallicchio
 import Trestle.Data.ICnf.Defs
 import Experiments.SR.Data.PPA.Defs
 import Experiments.SR.Data.PS.Defs
-import Experiments.SR.Data.RangeArray.Defs
+import Experiments.SR.Data.RangeArray
 import Experiments.SR.Parsing
 
 /-!
@@ -75,7 +75,7 @@ def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ
       have : e - (i + 1) < e - i := by omega
 
       let lit := F.get i (by
-        simp only [e, index_eq_index!] at hi
+        simp only [e] at hi
         have := index!_le_dsize F (idx + 1)
         have := F.h_size
         omega
@@ -114,7 +114,7 @@ def unitProp (τ : PPA) (F : RangeArray ILit) (hint : Nat) (h_hint : hint < F.si
       have : e - (i + 1) < e - i := by omega
 
       let ⟨lit, h_lit⟩ := F.get i (by
-        simp [e, index_eq_index!] at h
+        simp [e] at h
         have := index!_le_dsize F (hint + 1)
         have := F.h_size
         omega
@@ -180,20 +180,20 @@ def applyUPHints (F : RangeArray ILit) (offset : Nat) (τ : PPA) (hints : Array 
   The time savings are ~30%.
 -/
 def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : PS.ReductionResult :=
-  let s := F.index idx hidx
   /- Instead of calculating `rsize` and then subtracting off `s`,
      we compute the ending manually as the start of the next index.
      The performance improvement is about ~8-10%.  -/
+  let s := F.index idx hidx
   let e := F.index! (idx + 1)
 
-  let ⟨mappings, gens, generation, maxGen, sizes_eq, _⟩ := σ
+  let ⟨gens, mappings, generation, maxGen, sizes_eq, _⟩ := σ
 
   let rec loop (i : Nat) (reduced? : Bool) : PS.ReductionResult :=
     if h : i < e then
       have : e - (i + 1) < e - i := by omega
 
       let lit := F.get i (by
-        simp [e, index_eq_index!] at h
+        simp [e] at h
         have := index!_le_dsize F (idx + 1)
         have := F.h_size
         omega
@@ -202,20 +202,26 @@ def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : P
       if hlit : lit.index < gens.size then
         let gen := gens[lit.index]'hlit
         if gen ≥ generation then
-          let n := mappings[lit.index]'(by rw [← sizes_eq] at hlit; exact hlit)
+          let n := mappings[lit.index]'(by rw [sizes_eq] at hlit; exact hlit)
           match n with
           | 0 =>
-            if lit.polarity then .satisfied
+            if LitVar.polarity lit then .satisfied
             else loop (i + 1) true
           | 1 =>
-            if lit.polarity then loop (i + 1) true
+            if LitVar.polarity lit then loop (i + 1) true
             else .satisfied
           | n =>
-            if PS.ILitToMappedNat lit ≠ n then
-              loop (i + 1) true
-            else
+            let n' :=
+              if LitVar.polarity lit then
+                PS.ILitToMappedNat lit
+              else
+                PS.negateMappedNat (PS.ILitToMappedNat lit)
+            if n' = n then
               loop (i + 1) reduced?
-        else loop (i + 1) reduced?
+            else
+              loop (i + 1) true
+        else
+          loop (i + 1) reduced?
       else loop (i + 1) reduced?
     else -- i ≥ e
       if reduced? then .reduced else .notReduced
@@ -268,21 +274,27 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
     match F.applyUPHints (ratHints.size + 1) τ upHints with
     | (_, .err) => .error false
     | (τ, .contra) =>
+      -- dbg_trace s!"UP contra with {F.size} clauses"
       if F.usize = 0 then .error true  -- If the clause is empty, we have a successful contradiction proof
       else .ok ⟨F.commit, τ, σ⟩
 
     | (τ, .unit) =>
       -- If the clause is empty, we should have derived UP contradiction by now
-      if hu : 0 < F.usize then
-        let pivot : ILit := witnessLits.getD 0 (F.uget 0 hu)
-        if pivot != F.uget 0 hu then .error false else
+      if hu : 0 = F.usize then
+        .error false
+      else
+        have hu' : 0 < F.usize := by omega
+        let pivot : ILit := witnessLits.getD 0 (F.uget 0 hu')
+        if pivot != F.uget 0 hu' then .error false else
         let σ := assumeWitness σ pivot witnessLits witnessMaps
+        -- dbg_trace s!"σ := {σ} {σ.gens}"
 
         -- Loop through each clause in the formula to check RAT conditions
         -- The Bool is true if the check succeeds on all clauses, false otherwise
         let Fsize := F.size
         let rec loop (i cachedRatHintIndex bumpCounter : Nat) (τ : PPA) : PPA × Bool :=
           if hi : i < Fsize then
+            -- dbg_trace s!"RAT check on clause {i}"
             have : F.indexes.size - (i + 1) < F.indexes.size - i := by
               simp [Fsize, RangeArray.size] at hi
               omega
@@ -295,6 +307,7 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
               | .satisfied
               | .notReduced => loop (i + 1) cachedRatHintIndex bumpCounter τ
               | .reduced =>
+                -- dbg_trace s!"Clause {i} is reduced under σ: {F.arrGet i}"
                 if bumpCounter < ratHints.size then
                   -- Find the corresponding RAT hint
                   match findRATHintIndex cachedRatHintIndex i ratHintIndexes with
@@ -315,9 +328,6 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
         match loop 0 0 0 τ with
         | ⟨_, false⟩ => .error false
         | ⟨τ, true⟩ => .ok ⟨F.commit, τ, σ⟩
-
-      else -- F.usize = 0
-        .error false
 
 --@[inline, always_inline]
 def consumeDeletionLine (F : RangeArray ILit) (line : SRDeletionLine) : Except Unit (RangeArray ILit) :=

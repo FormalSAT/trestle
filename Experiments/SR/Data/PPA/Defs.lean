@@ -287,9 +287,7 @@ theorem setNegatedClause_loop_drop (τ : PPA) {C : List ILit} {i j : Nat} :
       rw [← List.getElem_cons_drop] at h_drop
       · simp at h_drop
         rcases h_drop with ⟨h_Ci, h_drop⟩
-        simp only [h_drop, setNegatedClause_cons]
-        have : ({ toList := C } : Array ILit)[i] = C[i] := rfl
-        simp only [this, h_Ci]
+        simp only [h_drop, setNegatedClause_cons, h_Ci]
       · exact hi
     · exact Nat.eq_sub_add_of_add_eq_sub hj
 

@@ -5,7 +5,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 Authors: Cayden Codel
 -/
 
-import Trestle.Data.ICnf
+import Trestle.Data.ICnf.Defs
 import Experiments.SR.SetF
 
 /-!
@@ -122,10 +122,15 @@ end PSV
 open PSV
 
 def toString (σ : PS) : String :=
-  String.intercalate ", "
+  String.intercalate " "
     (Fin.foldl σ.size (fun str idx =>
       if σ.gens[idx] ≥ σ.generation then
-        str ++ [s!"({idx}: {σ.gens[idx]}, {σ.mappings[idx]!})"]
+        if σ.mappings[idx]! = MAPPED_TRUE then
+          str ++ [s!"{idx.val + 1} T"]
+        else if σ.mappings[idx]! = MAPPED_FALSE then
+          str ++ [s!"{idx.val + 1} F"]
+        else
+          str ++ [s!"{idx.val + 1} {ILitFromMappedNat σ.mappings[idx]!}"]
       else
         str) [])
 
@@ -190,7 +195,7 @@ def new (n : Nat) : PS where
   generation := ⟨1, Nat.one_pos⟩
   maxGen := 0
   sizes_eq := by simp
-  le_maxGen := by simp_all [List.mem_replicate]
+  le_maxGen := by simp_all
 
 /-- Reset the assignment to an empty one. -/
 def reset (σ : PS) : PS :=
@@ -211,7 +216,7 @@ theorem setVar_le_maxGen (σ : PS) (i : Nat) (gen : Nat) :
   rcases this with (h | rfl | rfl)
   · have := σ.le_maxGen _ h
     exact Nat.le_trans this (Nat.le_max_left σ.maxGen gen)
-  · simp only [Int.natAbs_zero, Nat.zero_le]
+  · simp only [Nat.zero_le]
   · exact Nat.le_max_right _ _
 
 /-- Sets the given literal to `true` for the current generation in the PS. -/

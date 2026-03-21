@@ -269,10 +269,10 @@ def delete (i : Nat) (hi : i < A.size) : RangeArray α :=
   indexes := A.indexes.set i v
   deletedSize := dSize + rSize
   h_dsize_empty := by
-    simp only [Array.size_set, List.length_eq_zero_iff]
+    simp only [Array.size_set]
     have := A.h_dsize_empty
     intro h
-    simp only [List.length_eq_zero_iff, h, true_implies] at this
+    simp only [h, true_implies] at this
     exact this
   h_indexes := by
     simp only [Array.size_set, v]
@@ -287,7 +287,7 @@ def delete (i : Nat) (hi : i < A.size) : RangeArray α :=
     · simp only [v, hjk_eq, Nat.le_refl]
     · by_cases hij : i = j
       · simp only [v, hij, Array.getElem_set_self,
-          getIndex_markIndex, ne_eq, hjk_eq, not_false_eq_true, Array.getElem_set]
+          getIndex_markIndex, hjk_eq, Array.getElem_set]
         exact A.h_indexes_inc hjk hk
       · rw [Array.getElem_set_ne _ _ hij]
         by_cases hik : i = k
@@ -401,6 +401,52 @@ def uget! [Inhabited α] (i : Nat) : α :=
   if hi : i < A.usize then
     A.uget i hi
   else default
+
+/-! # Conveience functions, DO NOT USE for computational efficiency -/
+
+def arrGet (A : RangeArray α) (i : Nat) : Option (Array α) :=
+  if hi : i < A.size then
+    if A.isDeleted i hi then none
+    else some <| A.data.extract (A.index i hi) (A.index! (i + 1))
+  else none
+
+def uArrGet (A : RangeArray α) : Array α :=
+  A.data.extract A.dsize A.data.size
+
+/-! # instances -/
+
+instance : Inhabited (RangeArray α) where
+  default := empty
+
+instance [Repr α] : Repr (RangeArray α) where
+  reprPrec A _ := s!"RangeArray(size={A.size}, usize={A.usize}, indexes={A.indexes}, data={repr A.data})"
+
+instance [ToString α] : ToString (RangeArray α) where
+  toString A := s!"RangeArray(size={A.size}, usize={A.usize}, indexes={A.indexes}, data={toString A.data})"
+
+/--
+  A for-loop across a `RangeArray` returns the sub-arrays,
+  or `none` if the sub-array at that index has been deleted.
+-/
+instance [Monad m] : ForIn m (RangeArray α) (Option (Array α)) where
+  forIn A b f := do
+    let mut b := b
+    let mut i := 0
+    while hi : i < A.size do
+      let item :=
+        if A.isDeleted i hi then
+          none
+        else
+          let start := A.index i hi
+          let stop := start + A.rsize i hi
+          some <| A.data.extract start stop
+      match ← f item b with
+      | .done b' =>
+        return b'
+      | .yield b' =>
+        b := b'
+      i := i + 1
+    return b
 
 /-! # models -/
 

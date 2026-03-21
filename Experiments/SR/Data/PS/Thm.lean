@@ -4,6 +4,7 @@ Released under the Apache License v2.0; see LICENSE for full text.
 -/
 
 import Experiments.SR.Data.PS.Defs
+import Trestle.Data.ICnf.Basic
 import Trestle.Model.Subst
 
 namespace Trestle.PS
@@ -26,6 +27,12 @@ def PSV.toPropFun : PSV → PropFun IVar
   | Sum.inl l => LitVar.toPropFun l
   | Sum.inr true => ⊤
   | Sum.inr false => ⊥
+
+instance PSV.coeToPropForm : Coe PSV (PropForm IVar) :=
+  ⟨PSV.toPropForm⟩
+
+instance PSV.coeToPropFun : Coe PSV (PropFun IVar) :=
+  ⟨PSV.toPropFun⟩
 
 @[simp]
 theorem PSV.toPropForm_eq_toPropFun (p : PSV)
@@ -131,7 +138,7 @@ theorem fromMappedNat_ILitToMappedNat (l : ILit)
     · rename_i n h
       simp only [succ_eq_add_one] at h
       have : n % 2 = 0 := by omega
-      simp only [this, ↓reduceIte, mkPos, ne_eq, Int.ofNat_eq_coe, cast_add,
+      simp only [this, ↓reduceIte, mkPos, ne_eq, Int.ofNat_eq_natCast, cast_add,
         Int.natCast_ediv, cast_ofNat, cast_one, Sum.inl.injEq]
       congr
       simp only [polarity, decide_eq_true_eq] at hpol
@@ -146,7 +153,7 @@ theorem fromMappedNat_ILitToMappedNat (l : ILit)
       simp only [succ_eq_add_one, Nat.add_left_inj] at h
       have : n % 2 = 1 := by omega
       simp only [this, one_ne_zero, ↓reduceIte, mkNeg, ne_eq,
-        Int.ofNat_eq_coe, cast_add, Int.natCast_ediv, cast_ofNat,
+        Int.ofNat_eq_natCast, cast_add, Int.natCast_ediv, cast_ofNat,
         cast_one, neg_add_rev, Int.reduceNeg, Sum.inl.injEq]
       congr
       simp only [polarity, decide_eq_true_eq, not_lt] at hpol
@@ -172,8 +179,7 @@ theorem ILitFromMappedNat_ILitToMappedNat (l : ILit)
     · rename_i n h
       simp only [succ_eq_add_one] at h
       have : n % 2 = 0 := by omega
-      simp only [this, ↓reduceIte, mkPos, ne_eq, Int.ofNat_eq_coe, cast_add,
-        Int.natCast_ediv, cast_ofNat, cast_one, Sum.inl.injEq]
+      simp only [this, ↓reduceIte]
       congr
       simp only [polarity, decide_eq_true_eq] at hpol
       omega
@@ -186,9 +192,7 @@ theorem ILitFromMappedNat_ILitToMappedNat (l : ILit)
     · rename_i n h
       simp only [succ_eq_add_one, Nat.add_left_inj] at h
       have : n % 2 = 1 := by omega
-      simp only [this, one_ne_zero, ↓reduceIte, mkNeg, ne_eq,
-        Int.ofNat_eq_coe, cast_add, Int.natCast_ediv, cast_ofNat,
-        cast_one, neg_add_rev, Int.reduceNeg, Sum.inl.injEq]
+      simp only [this, one_ne_zero, ↓reduceIte, ne_eq, Int.reduceNeg]
       congr
       simp only [polarity, decide_eq_true_eq, not_lt] at hpol
       omega
@@ -237,13 +241,13 @@ theorem litValue_Nat_eq (σ : PS) (l : ILit)
 @[simp] theorem TRUE_ne_ILitToMappedNat (l : ILit) : MAPPED_TRUE ≠ ILitToMappedNat l := by
   have := l.property
   have : (l.val).natAbs > 0 := by omega
-  cases h_pol : polarity l <;> simp [ILitToMappedNat, h_pol, MAPPED_TRUE, MAPPED_FALSE]
+  cases h_pol : polarity l <;> simp [ILitToMappedNat, h_pol, MAPPED_TRUE]
   · omega
 
 @[simp] theorem FALSE_ne_ILitToMappedNat (l : ILit) : MAPPED_FALSE ≠ ILitToMappedNat l := by
   have := l.property
   have : (l.val).natAbs > 0 := by omega
-  cases h_pol : polarity l <;> simp [ILitToMappedNat, h_pol, MAPPED_TRUE, MAPPED_FALSE]
+  cases h_pol : polarity l <;> simp [ILitToMappedNat, h_pol, MAPPED_FALSE]
   · omega
   · omega
 
@@ -353,7 +357,7 @@ theorem varValue_eq_of_ge {σ : PS} {v : IVar}
   simp only [ge_iff_le, not_le]
   exact lt_size_of_varValue_of_not_id
 
-theorem lt_size_of_litValue_of_not_id {σ : PS} {l : ILit} :
+theorem lt_size_of_litValue_ne_id {σ : PS} {l : ILit} :
     σ.litValue l ≠ .inl l → l.index < σ.size := by
   intro h
   rw [← ILit.toVar_index]
@@ -367,11 +371,90 @@ theorem lt_size_of_litValue_of_not_id {σ : PS} {l : ILit} :
     rw [litValue_eq_varValue_neg hpol σ, hl] at h
     simp [h_con] at h
 
+theorem ge_gen_of_litValue_ne_id {σ : PS} {l : ILit} (h_ne : σ.litValue l ≠ .inl l)
+    : σ.gens[l.index]'(lt_size_of_litValue_ne_id h_ne) ≥ σ.generation := by
+  unfold litValue litValue_Nat varValue_Nat at h_ne
+  by_contra h_gen
+  simp [h_gen] at h_ne
+  rcases LitVar.exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> have ⟨v, hv⟩ := v
+  <;> simp at h_ne
+
+theorem mappings_eq_of_litValue_true {σ : PS} {l : ILit} (h : σ.litValue l = .inr true)
+    : σ.mappings[l.index]'(σ.sizes_eq ▸ lt_size_of_litValue_ne_id (σ := σ) (l := l) (by simp [h]))
+        = if polarity l then MAPPED_TRUE else MAPPED_FALSE := by
+  have h_lt := lt_size_of_litValue_ne_id (σ := σ) (l := l) (by simp [h])
+  have h_gen := ge_gen_of_litValue_ne_id (σ := σ) (l := l) (by simp [h])
+  unfold litValue litValue_Nat varValue_Nat at h
+  rcases LitVar.exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> have ⟨v, hv⟩ := v
+  <;> simp at h_lt h_gen ⊢
+  <;> simp [h_lt, h_gen] at h
+  <;> simp [PS.size, σ.sizes_eq] at h_lt
+  all_goals (
+    simp [PSV.fromMappedNat] at h
+    match h_map : σ.mappings[IVar.index ⟨v, hv⟩] with
+    | 0 | 1 => first | rfl | simp [h_map] at h
+    | n + 2 =>
+      simp [h_map] at h
+      split at h <;> contradiction
+  )
+
+theorem mappings_eq_of_litValue_false {σ : PS} {l : ILit} (h : σ.litValue l = .inr false)
+    : σ.mappings[l.index]'(σ.sizes_eq ▸ lt_size_of_litValue_ne_id (σ := σ) (l := l) (by simp [h]))
+        = if polarity l then MAPPED_FALSE else MAPPED_TRUE := by
+  have h_lt := lt_size_of_litValue_ne_id (σ := σ) (l := l) (by simp [h])
+  have h_gen := ge_gen_of_litValue_ne_id (σ := σ) (l := l) (by simp [h])
+  unfold litValue litValue_Nat varValue_Nat at h
+  rcases LitVar.exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> have ⟨v, hv⟩ := v
+  <;> simp at h_lt h_gen ⊢
+  <;> simp [h_lt, h_gen] at h
+  <;> simp [PS.size, σ.sizes_eq] at h_lt
+  all_goals (
+    simp [PSV.fromMappedNat] at h
+    match h_map : σ.mappings[IVar.index ⟨v, hv⟩] with
+    | 0 | 1 => first | rfl | simp [h_map] at h
+    | n + 2 =>
+      simp [h_map] at h
+      split at h <;> contradiction
+  )
+
+theorem mappings_eq_of_litValue_lit {σ : PS} {l l' : ILit} (h_ne : l ≠ l')
+      (h : σ.litValue l = .inl l')
+    : ∃ (n : Nat), σ.mappings[l.index]'(σ.sizes_eq ▸ lt_size_of_litValue_ne_id (σ := σ) (l := l) (by simp [h]; exact Ne.symm h_ne)) = n + 2 := by
+  have h_lt := lt_size_of_litValue_ne_id (σ := σ) (l := l) (by simp [h]; exact Ne.symm h_ne)
+  unfold litValue litValue_Nat varValue_Nat at h
+  rcases LitVar.exists_mkPos_or_mkNeg l with ⟨v, rfl | rfl⟩
+  <;> have ⟨v, hv⟩ := v
+  <;> simp at h_lt
+  <;> simp [h_lt] at h
+  <;> simp [PS.size, σ.sizes_eq] at h_lt
+  all_goals (
+    simp
+    simp [PSV.fromMappedNat] at h
+    split at h <;> rename_i h_gen
+    · match h_map : σ.mappings[IVar.index ⟨v, hv⟩] with
+      | 0 | 1 => simp at h
+      | n + 2 => exact ⟨n, rfl⟩
+    · contradiction
+    · rename Nat => n'
+      split at h_gen
+      · exact ⟨n', h_gen⟩
+      · simp [IVarToMappedNat] at h_gen
+        have : n' % 2 = 0 := by omega
+        simp [this] at h
+        simp [← h] at h_ne
+        have : v = n' / 2 + 1 := by omega
+        subst this
+        contradiction
+  )
+
 theorem litValue_eq_of_ge {σ : PS} {l : ILit}
     : l.index ≥ σ.size → σ.litValue l = .inl l := by
   contrapose
   simp only [ge_iff_le, not_le]
-  exact lt_size_of_litValue_of_not_id
+  exact lt_size_of_litValue_ne_id
 
 @[simp]
 theorem varValue_eq_toSubst (σ : PS) (v : IVar)
@@ -407,7 +490,7 @@ theorem varValue_true_iff {σ : PS} {v : IVar}
     : σ.varValue v = .inr true ↔ substL (.var v) σ.toSubst = ⊤ := by
   rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
   · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
-    simp [hσ', toSubst_fun, h_lt]
+    simp [hσ', toSubst_fun]
     split
     <;> rename_i hv
     <;> simp [hv]
@@ -419,7 +502,7 @@ theorem varValue_lit_iff {σ : PS} {v : IVar} {l : ILit}
     : σ.varValue v = .inl l ↔ substL (.var v) σ.toSubst = l := by
   rcases Nat.lt_or_ge v.index σ.size with (h_lt | h_ge)
   · rcases toSubst_of_comm σ h_lt with ⟨σ', hσ'⟩
-    simp [hσ', toSubst_fun, h_lt]
+    simp [hσ', toSubst_fun]
     split
     <;> rename_i hv
     <;> simp [hv]
@@ -531,6 +614,21 @@ theorem varValue_setVarToLit_ne (σ : PS) {v₁ v₂ : IVar} (h : v₁ ≠ v₂)
 
 /-! # reduction -/
 
+theorem seval_spec (σ : PS) (l : ILit)
+  : match seval σ l with
+    | .satisfied  => substL l σ.toSubst = ⊤
+    | .reduced    => substL l σ.toSubst = σ.litValue l
+    | .notReduced => substL l σ.toSubst = l := by
+  simp [seval]
+  match hl : σ.litValue l with
+  | .inr true => simp; exact litValue_true_iff.mp hl
+  | .inr false => simp
+  | .inl lit =>
+    have := litValue_lit_iff.mp hl
+    by_cases h : l = lit
+    <;> simp [h] at this ⊢
+    simp [this]
+
 @[simp]
 theorem reduceM.aux_nil (σ : PS) (b : Bool)
     : reduceM.aux σ { toList := [] } b = .ok b := by
@@ -544,14 +642,14 @@ theorem reduceM.aux_cons (σ : PS) (l : ILit) (ls : List ILit) (b : Bool)
         | .inr false => reduceM.aux σ { toList := ls } true
         | .inl lit => reduceM.aux σ { toList := ls } (if l ≠ lit then true else b) := by
   unfold reduceM.aux sevalM
-  simp only [ne_eq, ite_not, List.size_toArray, List.length_cons, Nat.add_left_inj,
+  simp only [ne_eq, ite_not, List.size_toArray, List.length_cons,
       List.foldlM_toArray', List.foldlM_cons, Bool.if_true_right]
   match hl : σ.litValue l with
   | .inr true => rfl
   | .inr false => rfl
   | .inl lit =>
     by_cases h : l = lit
-    <;> simp [h, hl, bind, Except.bind]
+    <;> simp [h, bind, Except.bind]
 
 @[simp]
 theorem reduceM.aux_true_ne_false (σ : PS) (ls : List ILit)
@@ -605,7 +703,7 @@ theorem reduce.loop_eq_reduceM.aux (σ : PS) (ls : List ILit)
   | zero =>
     unfold loop
     have : n = ls.length := by omega
-    simp [this, reduceM, reduceM_Except, pure, Except.pure]
+    simp [this, reduceM_Except]
     cases b <;> rfl
   | succ m ih =>
     unfold loop
@@ -683,6 +781,18 @@ theorem reduceM.aux_error {σ : PS} {C : List ILit} {b : Bool}
     | .inl lit =>
       simp only [hl] at h_aux
       simp only [ih h_aux, le_top, sup_of_le_right]
+
+/-theorem reduce_spec (σ : PS) (C : IClause)
+    : match σ.reduce C with
+      | .satisfied  => substL C σ.toSubst = ⊤
+      | .reduced    => substL C σ.toSubst = σ.reduceLitValue C
+      | .notReduced => substL C σ.toSubst = Clause.toPropFun C := by
+  simp only [reduce_eq_reduceM, reduceM_Except, reduceM.aux_nil, reduceM.aux_cons]
+  match C with
+  | [] => simp
+  | l :: ls =>
+    by_cases h_aux : reduceM.aux σ { toList := l :: ls } false = .ok false
+    <;> simp [h_aux, reduceM.aux_false h_aux, reduceM.aux_error h_aux] -/
 
 end PS
 

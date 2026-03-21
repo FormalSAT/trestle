@@ -45,7 +45,7 @@ theorem setF_go_eq (A : Array α) (i : Nat) (v default : α) :
   | zero => rfl
   | succ i ih =>
     rw [setF.go, ih (push A default)]
-    simp only [push_eq_append_singleton, replicate_succ', append_assoc]
+    simp only [push_eq_append, replicate_succ', append_assoc]
 
 theorem setF_gt {A : Array α} {i : Nat} (hi : i > A.size) (v default : α) :
     A.setF i v default = A ++ replicate (i - A.size) default ++ #[v] := by
@@ -116,7 +116,7 @@ theorem getElem_setF_lt (A : Array α) (i : Nat) (v default : α)
     · simp [setF_eq, getElem_push, hj, hij]
     · simp [setF_gt hi, hij, getElem_append, getElem_push]
       split
-      · simp [getElem_append, hj]
+      · simp
       · omega
 
 set_option linter.unusedVariables false in
