@@ -546,12 +546,9 @@ theorem isSet_of_isSetFor_succ {n : Nat} {τ : PPA} {v : IVar} :
     isSetFor τ v (n + 1) → isSet τ v :=
   fun h => isSet_of_isSetFor_pos (succ_pos _) h
 
-theorem not_isSet_of_varValue?_none {τ : PPA} {v : IVar} :
-    τ.varValue? v = none → ¬isSet τ v := by
-  intro h
-  rw [isSet]
-  intro h_con
-  contradiction
+theorem not_isSet_iff_varValue?_none {τ : PPA} {v : IVar} :
+    ¬isSet τ v ↔ τ.varValue? v = none := by
+  simp [isSet]
 
 theorem isSet_of_litValue?_some {τ : PPA} {v : IVar} {b : Bool} :
     τ.varValue? v = some b → isSet τ v := by
@@ -691,6 +688,34 @@ theorem isSet_of_isSet_bump {τ : PPA} {v : IVar}
     use n + 2
     simp [isSetFor_of_isSetFor_bump hs]
 
+theorem not_isSet_bump_of_not_isSet {τ : PPA} {v : IVar}
+    : ¬isSet τ v → ¬isSet τ.bump v := by
+  contrapose
+  exact isSet_of_isSet_bump
+
+theorem bump_varValue?_none {τ : PPA} {v : IVar} :
+    τ.varValue? v = none → τ.bump.varValue? v = none := by
+  simp_rw [← not_isSet_iff_varValue?_none]
+  exact not_isSet_bump_of_not_isSet
+
+theorem bump_varValue?_eq_of_isSetFor {τ : PPA} {v : IVar} {n : Nat} :
+    isSetFor τ v (n + 2) → τ.bump.varValue? v = τ.varValue? v := by
+  simp [isSetFor, bump, varValue?]
+  intro hn
+  match hi : τ.assignment[v.index]? with
+  | none => simp
+  | some g =>
+    simp [hi] at hn ⊢
+    have : ↑τ.generation + 1 ≤ g.natAbs := by omega
+    simp [this]
+    omega
+
+theorem bump_varValue?_eq_of_bump_isSetFor {τ : PPA} {v : IVar} {n : Nat} :
+    isSetFor τ.bump v (n + 1) → τ.bump.varValue? v = τ.varValue? v := by
+  intro h
+  have := isSetFor_of_isSetFor_bump h
+  exact bump_varValue?_eq_of_isSetFor this
+
 end isSetFor /- section -/
 
 /-! # extendsFor and uniform -/
@@ -790,6 +815,85 @@ theorem uniform_of_uniform_of_extendsFor {τ₁ τ₂ : PPA} {offset : Nat} :
     rw [← hs_eq] at this
     exact this
   · exact h
+
+-- If everything newly set in τ₂ is set only until the next bump,
+-- then bumping it is roughly equivalent to bumping τ₁.
+theorem uniform_bump_of_uniform_of_extendsFor {τ₁ τ₂ : PPA} {offset : Nat}
+    : uniform τ₁ (offset + 1) → extendsFor τ₁ τ₂ 0 →
+        uniform τ₂.bump offset ∧ τ₁.toPropFun ≤ τ₂.bump.toPropFun := by
+  intro h_uni h_ext
+  constructor
+  · intro v hv
+    have := isSet_of_isSet_bump hv
+    rcases isSet_iff_isSetFor_pos.mp this with ⟨n, hn, hs₂⟩
+    rcases h_ext v with (⟨hs, hv₂⟩ | ⟨hns, hv₂⟩)
+    · rw [hs] at hs₂
+      have := isSet_iff_isSetFor_pos.mpr ⟨n, hn, hs₂⟩
+      have := h_uni _ this
+      rw [← hs] at this
+      exact isSetFor_bump this
+    · have := isSetFor_bump hv₂
+      simp at this
+      have := varValue?_ne_none_of_isSetFor hn hs₂
+      contradiction
+  · refine entails_ext.mpr fun τ hτ => ?_
+    rw [satisfies_iff_vars] at hτ ⊢
+    intro v b hv
+    replace h_ext := h_ext v
+    apply hτ
+    rw [← hv]
+    clear hv
+    symm
+    by_cases hτ₁ : τ₁.isSet v
+    <;> simp [hτ₁] at h_ext
+    · rcases h_ext with ⟨hs₂, hv₂⟩
+      have := h_uni _ hτ₁
+      rw [← hs₂] at this
+      rw [← hv₂]
+      have := isSetFor_bump this
+      simp at this
+      exact bump_varValue?_eq_of_bump_isSetFor this
+    · simp [isSet] at hτ₁
+      rw [hτ₁]
+      rcases h_ext with (⟨h₁, h₂⟩ | h)
+      · apply bump_varValue?_none
+        rwa [h₂]
+      · have := isSetFor_bump h
+        simp at this
+        exact this
+
+-- If the uniformity lasts for at least two bumps, then we get equality under `toPropFun`.
+theorem uniform_bump_of_uniform_of_extendsFor' {τ₁ τ₂ : PPA} {offset : Nat}
+    : uniform τ₁ (offset + 2) → extendsFor τ₁ τ₂ 0 →
+        uniform τ₂.bump (offset + 1) ∧ τ₁.toPropFun = τ₂.bump.toPropFun := by
+  intro h_uni h_ext
+  constructor
+  · exact uniform_bump_of_uniform_of_extendsFor h_uni h_ext |>.1
+  · apply le_antisymm
+    · exact uniform_bump_of_uniform_of_extendsFor h_uni h_ext |>.2
+    · refine entails_ext.mpr fun τ hτ₂ => ?_
+      rw [satisfies_iff_vars] at hτ₂ ⊢
+      intro v b hτ₁
+      apply hτ₂
+      rw [← hτ₁]
+      clear hτ₁
+      replace h_ext := h_ext v
+      by_cases hτ₁ : τ₁.isSet v
+      <;> simp [hτ₁] at h_ext
+      · rcases h_ext with ⟨hs₂, hv₂⟩
+        rw [← hv₂]
+        have := h_uni _ hτ₁
+        rw [← hs₂] at this
+        exact bump_varValue?_eq_of_isSetFor this
+      · rcases h_ext with (⟨h₁, h₂⟩ | h)
+        · rw [not_isSet_iff_varValue?_none] at hτ₁
+          rw [hτ₁] at h₂ ⊢
+          exact bump_varValue?_none h₂
+        · rw [not_isSet_iff_varValue?_none] at hτ₁
+          rw [hτ₁]
+          have := isSetFor_bump h
+          simp at this
+          exact this
 
 end extendsFor /- section -/
 

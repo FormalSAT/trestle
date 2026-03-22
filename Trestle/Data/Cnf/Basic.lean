@@ -249,6 +249,12 @@ theorem toPropFun_all (ls : Array L)
   ext τ
   simp [satisfies_iff, Clause.satisfies_iff, LitVar.satisfies_iff, all]
 
+theorem toPropFun_mem_le {C : Clause L} {φ : Cnf L} : C ∈ φ → φ.toPropFun ≤ C.toPropFun := by
+  intro h
+  refine PropFun.entails_ext.mpr fun τ hτ => ?_
+  rw [Cnf.satisfies_iff] at hτ
+  exact hτ _ h
+
 /-! #### Satisfiability -/
 
 abbrev Sat (f : Cnf L) : Prop := f.toPropFun.Sat

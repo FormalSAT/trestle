@@ -211,11 +211,9 @@ def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : P
             if LitVar.polarity lit then loop (i + 1) true
             else .satisfied
           | n =>
-            let n' :=
-              if LitVar.polarity lit then
-                PS.ILitToMappedNat lit
-              else
-                PS.negateMappedNat (PS.ILitToMappedNat lit)
+            -- Since we looked at `mappings` for `lit.index = var.index`,
+            -- we compare the underlying mapping to the mapping for `lit`'s var.
+            let n' := PS.IVarToMappedNat (LitVar.toVar lit)
             if n' = n then
               loop (i + 1) reduced?
             else
@@ -280,7 +278,7 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
 
     | (τ, .unit) =>
       -- If the clause is empty, we should have derived UP contradiction by now
-      if hu : 0 = F.usize then
+      if hu : F.usize = 0 then
         .error false
       else
         have hu' : 0 < F.usize := by omega

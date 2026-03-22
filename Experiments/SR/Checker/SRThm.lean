@@ -14,7 +14,7 @@ import Trestle.Data.ICnf.Basic
 namespace Trestle.SR
 
 open RangeArray PPA PS
-open Trestle Trestle.Model PropFun
+open Trestle Trestle.Model PropFun Trestle.Parsing
 open Except
 
 /-
@@ -85,7 +85,6 @@ theorem cnfAsListToPropFun_append (Cs₁ Cs₂ : List (Option (List ILit))) :
   induction Cs₁ with
   | nil => simp
   | cons C Cs₁ ih =>
-    simp [List.append]
     cases C <;> simp [ih, inf_assoc]
 
 @[simp]
@@ -102,7 +101,7 @@ theorem clausePropFun_ge_of_mem {C : List ILit} {l : ILit}
   intro h
   rw [clauseAsListToPropFun_eq_toPropFun]
   apply Clause.toPropFun_mem_le
-  simp only [Array.mem_toArray, h]
+  simp only [List.mem_toArray, h]
 
 theorem cnfPropFun_le_of_mem {Cs : List (Option (List ILit))} {C : List ILit} {i : Nat}
       {hi : i < Cs.length} :
@@ -123,7 +122,7 @@ theorem cnfPropFun_le_of_mem {Cs : List (Option (List ILit))} {C : List ILit} {i
       match i with
       | 0 =>
         simp at h; subst h
-        simp [clauseAsListToPropFun_eq_toPropFun]
+        simp
       | i + 1 =>
         simp at h
         have := ih h
@@ -172,7 +171,7 @@ theorem assumeNegatedCandidateFor.loop.aux {F : RangeArray ILit} {τ : PPA} {Ls 
     simp at h_le₂ ⊢
     simp [not_lt.mpr h_le₁]
     unfold assumeNegatedCandidateFor.loop
-    simp [not_lt.mpr h_le₂]
+    simp
     intro h
     omega
   | succ j ih =>
@@ -190,7 +189,7 @@ theorem assumeNegatedCandidateFor.loop.aux {F : RangeArray ILit} {τ : PPA} {Ls 
     · rw [← @ih (setLitFor τ (-L[i]) bumps) (i + 1) (by omega)]
       rw [assumeNegatedCandidateFor.loop]
       have : F.dsize + i < F.data.size := by omega
-      simp [this, hi, h_get, h_agree, Nat.add_assoc]
+      simp [this, h_get, h_agree, Nat.add_assoc]
     · rw [← @ih τ _ (by omega)]
       rw [assumeNegatedCandidateFor.loop]
       split <;> rename _ => hi'
@@ -247,14 +246,14 @@ theorem assumeRATClause.loop.aux {F : RangeArray ILit} {τ : PPA} {σ : PS}
     clear hF
     match hσ : σ.litValue C[j] with
     | .inr true =>
-      simp [hσ]
+      simp
       have := List.mem_drop_iff_getElem.mpr ⟨0, (by rw [Nat.zero_add]; exact hj_lt), rfl⟩
-      simp [Nat.zero_add] at this
+      simp at this
       have := substL_le_of_le (Clause.toPropFun_mem_list_le this) σ.toSubst
       apply le_trans _ this
       simp [PS.litValue_true_iff.mp hσ]
     | .inr false =>
-      simp [hσ]
+      simp
       replace ih := ih (τ := τ) hk
       split <;> rename_i h_loop
       <;> simp [h_loop, ← Nat.add_assoc] at ih
@@ -266,7 +265,7 @@ theorem assumeRATClause.loop.aux {F : RangeArray ILit} {τ : PPA} {σ : PS}
       · rename PPA => τ''
         rcases ih with ⟨h_eq, h_extends⟩
         constructor
-        · rw [h_eq, ← List.getElem_cons_drop_succ_eq_drop hj_lt, Clause.toPropFun_cons]
+        · rw [h_eq, ← List.getElem_cons_drop hj_lt, Clause.toPropFun_cons]
           simp [litValue_false_iff.mp hσ]
         · exact h_extends
     | .inl l' =>
@@ -277,7 +276,7 @@ theorem assumeRATClause.loop.aux {F : RangeArray ILit} {τ : PPA} {σ : PS}
         replace ih := ih (τ := τ.setLitFor (-l') 0) hk
         have h_neg := litValue?_negate_none_iff.mpr hτ
         have hτ_le := PPA.toPropFun_setLitFor_le_of_none h_neg 0
-        rw [← List.getElem_cons_drop_succ_eq_drop hj_lt, Clause.toPropFun_cons]
+        rw [← List.getElem_cons_drop hj_lt, Clause.toPropFun_cons]
         simp [← litValue_eq, hσ, PSV.toPropFun]
         split <;> rename_i h_loop
         <;> simp [h_loop, ← Nat.add_assoc] at ih
@@ -302,7 +301,7 @@ theorem assumeRATClause.loop.aux {F : RangeArray ILit} {τ : PPA} {σ : PS}
             exact le_trans ih.1 (substL_le_of_le this _)
           · simp [ih.1]
             clear ih
-            rw [← List.getElem_cons_drop_succ_eq_drop hj_lt, Clause.toPropFun_cons]
+            rw [← List.getElem_cons_drop hj_lt, Clause.toPropFun_cons]
             simp [← litValue_eq, hσ, PSV.toPropFun]
             have := litValue?_false_iff.mp hτ
             have :  τ.toPropFun ⊓ (LitVar.toPropFun l')ᶜ = τ.toPropFun := by
@@ -310,13 +309,13 @@ theorem assumeRATClause.loop.aux {F : RangeArray ILit} {τ : PPA} {σ : PS}
             rw [← inf_assoc, this]
         -- true branch
         · have := Clause.toPropFun_mem_list_le (List.mem_drop_iff_getElem.mpr ⟨0, (by rw [Nat.zero_add]; exact hj_lt), rfl⟩)
-          simp [Nat.add_zero] at this
+          simp at this
           have := litValue?_true_iff.mp hτ
-          rw [← List.getElem_cons_drop_succ_eq_drop hj_lt, Clause.toPropFun_cons]
+          rw [← List.getElem_cons_drop hj_lt, Clause.toPropFun_cons]
           simp [← litValue_eq, hσ, PSV.toPropFun]
           exact le_sup_of_le_left this
 
-theorem assumeRATClause_result {F : RangeArray ILit} {τ : PPA} {σ : PS}
+theorem assumeRATClause_spec {F : RangeArray ILit} (τ : PPA) (σ : PS)
     {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)     -- models
     {i : Nat} (hi : i < F.size)                                                     -- Clause index
     {C : List ILit} (hC : Ls.get ⟨i, h_models.h_size₁ ▸ hi⟩ = some C)               -- Clause at c_idx
@@ -325,6 +324,28 @@ theorem assumeRATClause_result {F : RangeArray ILit} {τ : PPA} {σ : PS}
     | .ok τ' => τ'.toPropFun = ↑τ ⊓ (PropFun.substL (clauseAsListToPropFun C) σ.toSubst)ᶜ ∧ extendsFor τ τ' 0 := by
   simp [assumeRATClause]
   exact @assumeRATClause.loop.aux _ _ _ _ _ h_models i hi C hC 0 (C.length) rfl
+
+theorem assumeRATClause_error {F : RangeArray ILit} {τ τ' : PPA} {σ : PS}
+    {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)     -- models
+    {i : Nat} {hi : i < F.size}                                                     -- Clause index
+    {C : List ILit} (hC : Ls.get ⟨i, h_models.h_size₁ ▸ hi⟩ = some C)               -- Clause at c_idx
+  : assumeRATClause F i hi σ τ = .error τ' →
+    τ.toPropFun ≤ PropFun.substL (clauseAsListToPropFun C) σ.toSubst ∧ extendsFor τ τ' 0 := by
+  intro h
+  have := assumeRATClause_spec τ σ h_models hi hC
+  simp [h] at this
+  exact this
+
+theorem assumeRATClause_ok {F : RangeArray ILit} {τ τ' : PPA} {σ : PS}
+    {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)     -- models
+    {i : Nat} {hi : i < F.size}                                                     -- Clause index
+    {C : List ILit} (hC : Ls.get ⟨i, h_models.h_size₁ ▸ hi⟩ = some C)               -- Clause at c_idx
+  : assumeRATClause F i hi σ τ = .ok τ' →
+    τ'.toPropFun = ↑τ ⊓ (PropFun.substL (clauseAsListToPropFun C) σ.toSubst)ᶜ ∧ extendsFor τ τ' 0 := by
+  intro h
+  have := assumeRATClause_spec τ σ h_models hi hC
+  simp [h] at this
+  exact this
 
 def unit_to_option (n : Int) : Option ILit :=
   if hn : n = 0 then none else some ⟨n, hn⟩
@@ -349,7 +370,7 @@ theorem unitProp.loop.aux {F : RangeArray ILit} (τ : PPA)
     have hj := hi' ▸ hj_le
     simp [rsize] at hj
     rw [add_comm j] at hj
-    simp [not_lt_of_ge hj, not_lt_of_ge hj_le, List.drop_eq_nil_iff.mpr hj_le]
+    simp [not_lt_of_ge hj, not_lt_of_ge hj_le]
     split <;> rename _ => h_unit
     <;> simp [h_unit, unit_to_option]
   | succ k ih =>
@@ -375,7 +396,7 @@ theorem unitProp.loop.aux {F : RangeArray ILit} (τ : PPA)
       · split <;> rename_i hul
         · subst hul
           simp [@ih τ (j + 1) unit hk, unit_to_option, h_lit]
-        · simp [unit_to_option, hul, h_unit]
+        · simp [unit_to_option, h_unit]
           intro h_con
           injection h_con
           contradiction
@@ -466,22 +487,21 @@ theorem applyUPHints.loop.cons_succ' (F : RangeArray ILit) (τ : PPA) (bumps hin
     match h_hint : applyUPHint F bumps τ hints[i] with
     | ⟨τ', .err⟩ => simp
     | ⟨τ', .unit⟩ => simp [ih (τ := τ') hj']
-    | ⟨τ', .contra⟩ => simp [ih (τ := τ') hj']
+    | ⟨τ', .contra⟩ => simp
 
 @[simp]
 theorem applyUPHints.loop.cons_succ (F : RangeArray ILit) (τ : PPA) (bumps hint i : Nat) {hints : List Nat}
   : applyUPHints.loop F bumps { toList := hint :: hints } (i + 1) τ = applyUPHints.loop F bumps { toList := hints } i τ := by
   exact @applyUPHints.loop.cons_succ' F τ bumps hint hints i (hints.length - i) (by omega)
 
-theorem applyUPHints_spec {F : RangeArray ILit} {τ : PPA}
+theorem applyUPHints_spec {F : RangeArray ILit} (τ : PPA)
   {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)
   (bumps : Nat)
   (hints : List Nat)
   : match applyUPHints F bumps τ { toList := hints } with
     | ⟨_, .err⟩ => True
     | ⟨τ', .unit⟩ => (cnfAsListToPropFun Ls) ⊓ τ ≤ τ' ∧ extendsFor τ τ' bumps
-    | ⟨τ', .contra⟩ => (cnfAsListToPropFun Ls) ⊓ τ = ⊥ ∧ extendsFor τ τ' bumps
-  := by
+    | ⟨τ', .contra⟩ => (cnfAsListToPropFun Ls) ⊓ τ = ⊥ ∧ extendsFor τ τ' bumps := by
   unfold applyUPHints
   induction hints generalizing τ with
   | nil => simp [applyUPHints.loop]
@@ -496,7 +516,7 @@ theorem applyUPHints_spec {F : RangeArray ILit} {τ : PPA}
       rcases h_spec with ⟨hint, h_hint_lt, C, hC, lit, h_lit_mem, hτ_lit, hτ', hτ₁, hτ₂⟩
       simp
       match h_loop : applyUPHints.loop F bumps { toList := hints } 0 τ' with
-      | ⟨τ'', .err⟩ => simp [h_loop]
+      | ⟨τ'', .err⟩ => simp
       | ⟨τ'', .unit⟩ =>
         simp
         replace ih := ih (τ := τ')
@@ -532,24 +552,41 @@ theorem applyUPHints_spec {F : RangeArray ILit} {τ : PPA}
       have h_spec := applyUPHint_spec (τ := τ) h_models hint bumps
       simp [h_hint] at h_spec
       rcases h_spec with ⟨hint, h_hint_mem, C, hC, rfl, hC_inf⟩
-      have := cnfPropFun_le_of_mem hC
-      simp [hC_inf] at this
-      simp [this]
+      simp
       apply le_bot_iff.mp
       rw [← hC_inf]
-      exact inf_le_inf_right τ'.toPropFun this
+      exact inf_le_inf_right τ'.toPropFun (cnfPropFun_le_of_mem hC)
+
+theorem applyUPHints_unit {F : RangeArray ILit} {τ τ' : PPA}
+  {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)
+  {bumps : Nat} {hints : List Nat}
+  : applyUPHints F bumps τ { toList := hints } = (τ', .unit)
+    → (cnfAsListToPropFun Ls) ⊓ τ ≤ τ' ∧ extendsFor τ τ' bumps := by
+  intro h
+  have := applyUPHints_spec τ h_models bumps hints
+  simp [h] at this
+  exact this
+
+theorem applyUPHints_contra {F : RangeArray ILit} {τ τ' : PPA}
+  {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)
+  {bumps : Nat} {hints : List Nat}
+  : applyUPHints F bumps τ { toList := hints } = (τ', .contra)
+    → (cnfAsListToPropFun Ls) ⊓ τ = ⊥ ∧ extendsFor τ τ' bumps := by
+  intro h
+  have := applyUPHints_spec τ h_models bumps hints
+  simp [h] at this
+  exact this
 
 /-! # reduce -/
 
-theorem reduce_loop_eq_reduceM_aux (F : RangeArray ILit) (σ : PS) (hint : Nat)
+theorem reduce_loop_eq_reduce_loop (F : RangeArray ILit) (σ : PS) (hint : Nat)
   (h_hint : hint < F.size)
   {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)
   {C : List ILit} (hC : Ls.get ⟨hint, h_models.h_size₁ ▸ h_hint⟩ = some C)
-  (b : Bool)
-    {i j : Nat}
+  (b : Bool) {i j : Nat}
     : j = F.rsize hint h_hint - i →
-        RangeArray.reduce.loop F hint σ.mappings σ.gens σ.generation σ.sizes_eq.symm (F.index hint h_hint + i) b =
-        PS.reduce.loop σ { toList := C } i b := by
+        RangeArray.reduce.loop F hint σ.gens σ.mappings σ.generation σ.sizes_eq (F.index hint h_hint + i) b =
+        PS.reduce.loop σ ({ toList := C } : IClause) i b := by
   intro hj
   induction j generalizing i b with
   | zero =>
@@ -570,207 +607,298 @@ theorem reduce_loop_eq_reduceM_aux (F : RangeArray ILit) (σ : PS) (hint : Nat)
     have : F.index hint h_hint + i < F.index! (hint + 1) := by omega
     have h_rsize' := h_models.h_sizes (h_models.h_size₁ ▸ h_hint) hC
     have hiC := h_rsize' ▸ hi
-    unfold RangeArray.reduce.loop
-    unfold PS.reduce.loop
+    unfold RangeArray.reduce.loop PS.reduce.loop
     simp [← h_rsize', hi, this]
     have h_hint' := h_models.h_size₁ ▸ h_hint
     have h_Fget := h_models.h_agree h_hint' hC hiC
     simp [oget] at h_Fget
-    simp [h_Fget]
-    split_ifs
+    simp [h_Fget, seval]
+    match hσ : σ.litValue C[i] with
+    | .inr true =>
+      -- Satisfied case
+      have h_size := lt_size_of_litValue_ne_id (σ := σ) (l := C[i]) (by simp [hσ])
+      have h_gen := ge_gen_of_litValue_ne_id (σ := σ) (l := C[i]) (by simp [hσ])
+      have h_map := mappings_eq_of_litValue_true hσ
+      rw [PS.size] at h_size
+      simp [h_size, h_gen, h_map]
+      by_cases h_pol : LitVar.polarity C[i]
+      <;> simp [h_pol, MAPPED_TRUE, MAPPED_FALSE]
+    | .inr false =>
+      -- Literal is falsified, we induct trivially
+      have h_size := lt_size_of_litValue_ne_id (σ := σ) (l := C[i]) (by simp [hσ])
+      have h_gen := ge_gen_of_litValue_ne_id (σ := σ) (l := C[i]) (by simp [hσ])
+      have h_map := mappings_eq_of_litValue_false hσ
+      rw [PS.size] at h_size
+      simp [h_size, h_gen, h_map]
+      by_cases h_pol : LitVar.polarity C[i]
+      <;> simp [h_pol, MAPPED_TRUE, MAPPED_FALSE]
+      <;> have := ih true hj'
+      <;> rwa [← Nat.add_assoc] at this
+    | .inl lit =>
+      by_cases h_lit : C[i] = lit
+      -- Id-mapped case
+      · simp [h_lit] at hσ ⊢
+        unfold litValue litValue_Nat varValue_Nat at hσ
+        by_cases h_pol : LitVar.polarity lit
+        <;> simp [h_pol] at hσ
+        · by_cases h_lt : lit.index < σ.gens.size
+          <;> simp [h_lt] at hσ ⊢
+          · by_cases h_gen : σ.generation ≤ σ.gens[lit.index]
+            · simp [h_gen, PSV.fromMappedNat] at hσ ⊢
+              split at hσ
+              <;> try contradiction
+              rename_i h_map
+              split at hσ <;> rename_i n h_mod
+              · simp at hσ
+                subst hσ
+                simp at h_map
+                have : (n / 2 + 1) * 2 = n + 1 + 1 := by omega
+                simp [h_map, IVarToMappedNat, this]
+                rw [Nat.add_assoc]
+                exact ih b hj'
+              · simp at hσ
+                subst hσ
+                simp at h_pol
+            · simp [h_gen] at hσ ⊢
+              rw [Nat.add_assoc]
+              exact ih b hj'
+          · rw [Nat.add_assoc]
+            exact ih b hj'
+        · by_cases h_lt : lit.index < σ.gens.size
+          <;> simp [h_lt] at hσ ⊢
+          · by_cases h_gen : σ.generation ≤ σ.gens[lit.index]
+            <;> simp [h_gen, PSV.fromMappedNat] at hσ ⊢
+            · split at hσ
+              <;> try contradiction
+              rename_i n' h_map
+              simp [h_map]
+              split at hσ
+              · rename_i h_mod
+                simp at hσ
+                subst hσ
+                have : (n' / 2 + 1) * 2 = n' + 1 + 1 := by omega
+                simp [IVarToMappedNat, this]
+                rw [Nat.add_assoc]
+                exact ih b hj'
+              · simp at hσ
+                subst hσ
+                simp at h_pol
+            · rw [Nat.add_assoc]
+              exact ih b hj'
+          · rw [Nat.add_assoc]
+            exact ih b hj'
+      · have h_size := lt_size_of_litValue_ne_id (σ := σ) (l := C[i]) (by simp [hσ]; exact Ne.symm h_lit)
+        have h_gen := ge_gen_of_litValue_ne_id (σ := σ) (l := C[i]) (by simp [hσ]; exact Ne.symm h_lit)
+        have h_map := mappings_eq_of_litValue_lit h_lit hσ
+        rcases h_map with ⟨n, hn⟩
+        simp [h_size, h_gen, hn, h_lit]
+        unfold litValue litValue_Nat varValue_Nat at hσ
+        simp [h_size, h_gen, hn] at hσ
+        clear hn h_size h_gen
+        rcases LitVar.mkPos_or_mkNeg C[i] with (hC | hC)
+        · rw [hC] at hσ
+          simp [PSV.fromMappedNat] at hσ
+          split at hσ <;> simp at hσ
+          · subst hσ
+            rw [hC] at h_lit
+            simp at h_lit
+            simp [IVarToMappedNat]
+            split <;> rename_i h
+            · have : (LitVar.toVar C[i]).val = n / 2 + 1 := by omega
+              apply absurd _ h_lit
+              simp [← this]
+            · rw [Nat.add_assoc]
+              exact ih true hj'
+          · rename_i h_mod
+            subst hσ
+            clear h_lit
+            simp [IVarToMappedNat]
+            split <;> rename_i h
+            · omega
+            · rw [Nat.add_assoc]
+              exact ih true hj'
+        · rw [hC] at hσ
+          simp [PSV.fromMappedNat, negateMappedNat] at hσ
+          split at hσ
+          <;> try contradiction
+          rename_i n' hn'
+          split at hn'
+          · rename_i h_mod
+            simp at hn'; subst hn'
+            have : (n + 1) % 2 ≠ 0 := by omega
+            simp [this] at hσ; clear this
+            subst hσ
+            simp [IVarToMappedNat]
+            split <;> rename_i h
+            · have : (LitVar.toVar C[i]).val = (n + 1) / 2 + 1 := by omega
+              apply absurd _ h_lit
+              rw [hC]
+              simp [← this]
+            · rw [Nat.add_assoc]
+              exact ih true hj'
+          · rename_i h_mod
+            simp at hn'; subst hn'
+            simp at h_mod
+            have : n' % 2 = 0 := by omega
+            simp [this] at hσ; clear this
+            subst hσ
+            simp [IVarToMappedNat]
+            split <;> rename_i h
+            · omega
+            · rw [Nat.add_assoc]
+              exact ih true hj'
 
-    · stop
-      rename_i hC_index h_gen_index h_pol
-      split
-      · simp [seval]
-        rename_i h_map
-        unfold PS.litValue PS.litValue_Nat PS.varValue_Nat
-        simp [h_pol, hC_index, LitVar.polarity, h_gen_index]
-        simp [ILit.polarity] at h_pol
-        split at h_pol
-        rename_i lit h_lit h_lit_eq
-        simp at h_pol
-        simp [h_lit_eq] at h_map
-        simp [h_lit_eq, h_pol, h_map]
-      · simp [seval]
-        rename_i h_map
-        unfold PS.litValue PS.litValue_Nat PS.varValue_Nat
-        simp [h_pol, hC_index, LitVar.polarity, h_gen_index]
-        simp [ILit.polarity] at h_pol
-        split at h_pol
-        rename_i lit h_lit h_lit_eq
-        simp at h_pol
-        simp [h_lit_eq] at h_map
-        simp [h_lit_eq, h_pol, h_map]
-        rw [Nat.add_assoc]
-        exact ih true hj'
-      · stop
-        rename_i h_map₀ h_map₁
-        simp [ILit.polarity] at h_pol
-        split at h_pol
-        rename_i lit h_lit h_lit_eq
-        simp at h_pol
-        simp [h_lit_eq, ILit.index] at h_map₀ h_map₁
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval]
-        unfold PS.litValue PS.litValue_Nat PS.varValue_Nat
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval, LitVar.toVar]
-        simp [h_lit_eq, ILit.index] at hC_index h_gen_index
-        simp [PSV.fromMappedNat, IVar.index, hC_index, h_gen_index]
-        match h_map_val : σ.mappings[lit.natAbs - 1]'(σ.sizes_eq ▸ hC_index) with
-        | 0 => contradiction
-        | 1 => contradiction
-        | m + 2 =>
-          simp
-          split
-          · split
-            · rename_i h
-              split at h <;> try contradiction
-              · clear h
-                rename_i h; split at h <;> contradiction
-              · split at h <;> contradiction
-            · exact ih b hj'
-            · rename_i h
-              split at h <;> try contradiction
-              · clear h
-                rename_i h
-                split at h <;> contradiction
-              · split at h <;> try contradiction
-                clear h
-                rename_i h _
-                split at h
-                · injection h
-                  rename_i h; subst h
-                  rename_i h
-                  simp [LitVar.mkPos] at h
-                  rename_i h_m2 _ _ hm
-                  simp [Int.natAbs] at h_m2
-                  split at h_m2
-                  · rename_i n
-                    simp [Int.ofNat] at h
-                    have : n = (m + 2) / 2 := by omega
-                    simp at this
-                    have : (⟨↑n, by omega⟩ : ILit) = ⟨↑m / 2 + 1, by omega⟩ := by
-                      simp; omega
-                    exact absurd this h
-                  · omega
-                · injection h
-                  rename_i h; subst h
-                  omega
-          · split
-            · rename_i h
-              split at h
-              · rename_i hm
-                split at hm <;> contradiction
-              · contradiction
-              · split at h <;> simp at h <;> contradiction
-            · rename_i h
-              split at h <;> try contradiction
-              split at h <;> simp at h <;> try contradiction
-              clear h
-              rename_i h; subst h
-              rename_i h
-              split at h
-              · injection h; rename_i h; injection h; rename_i h; subst h; rename_i h
-                simp [Int.natAbs] at h
-                omega
-              · injection h; rename_i h; injection h; rename_i h; subst h; rename_i h
-                simp [Int.ofNat] at h_pol
-                omega
-              done
-            · exact ih true hj'
-    · split
-      · stop
-        rename_i hC_index h_gen_index h_pol n h_map₀
-        simp [ILit.polarity] at h_pol
-        split at h_pol
-        rename_i lit h_lit h_lit_eq
-        simp at h_pol
-        simp [h_lit_eq, ILit.index] at h_map₀
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval]
-        unfold PS.litValue PS.litValue_Nat PS.varValue_Nat
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval, LitVar.toVar]
-        simp [h_lit_eq, ILit.index] at hC_index h_gen_index
-        simp [PSV.fromMappedNat, IVar.index, hC_index, h_gen_index, not_lt_of_ge h_pol, negateMappedNat, h_map₀]
-        exact ih true hj'
-      · stop
-        rename_i hC_index h_gen_index h_pol n h_map₁
-        simp [ILit.polarity] at h_pol
-        split at h_pol
-        rename_i lit h_lit h_lit_eq
-        simp at h_pol
-        simp [h_lit_eq, ILit.index] at h_map₁
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval]
-        unfold PS.litValue PS.litValue_Nat PS.varValue_Nat
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval, LitVar.toVar]
-        simp [h_lit_eq, ILit.index] at hC_index h_gen_index
-        simp [PSV.fromMappedNat, IVar.index, hC_index, h_gen_index, not_lt_of_ge h_pol, negateMappedNat, h_map₁]
-        done
-      · rename_i hC_index h_gen_index h_pol _ h_map₀ h_map₁
-        simp [ILit.polarity] at h_pol
-        split at h_pol
-        rename_i lit h_lit h_lit_eq
-        simp at h_pol
-        simp [h_lit_eq, ILit.index] at h_map₀ h_map₁
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval]
-        unfold PS.litValue PS.litValue_Nat PS.varValue_Nat
-        simp [ILitToMappedNat, LitVar.polarity, h_lit_eq, h_pol, ILit.index, seval, LitVar.toVar]
-        simp [h_lit_eq, ILit.index] at hC_index h_gen_index
-        simp [PSV.fromMappedNat, IVar.index, hC_index, h_gen_index, not_lt_of_ge h_pol, negateMappedNat]
-        match h_map_val : σ.mappings[lit.natAbs - 1]'(σ.sizes_eq ▸ hC_index) with
-        | 0 => contradiction
-        | 1 => contradiction
-        | m + 2 =>
-          by_cases h_natAbs : lit.natAbs * 2 + 1 = m + 2
-          <;> simp only [h_natAbs]
-          · simp
-            done
-          · simp
-            split
-            · rename_i h
-              split at h
-              done
-            · rename_i h
-              split at h <;> try contradiction
-              simp at h; subst h
-              rename_i h
-              split at h <;> try contradiction
-              split at h
-              · injection h
-                rename_i h
-                simp [LitVar.mkPos] at h
-                injection h
-                rename_i h; subst h
-                omega
-              · simp [LitVar.mkNeg] at h
-                injection h
-                rename_i h; subst h
-                rename_i n hn2 hn
-                have : -(1 : Int) + -(↑n / 2) = -(1 + n / 2) := by omega
-                split at hn2
-                · simp [Int.natAbs] at h_natAbs
-                  have : m + 1 = n := by omega
-                  subst this
-                  clear hn2
-                  split at h_natAbs
-                  ·
-                    done
-                  · rename_i h
+theorem reduce_eq_reduce (F : RangeArray ILit) (σ : PS) (hint : Nat)
+  (h_hint : hint < F.size)
+  {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)
+  {C : List ILit} (hC : Ls.get ⟨hint, h_models.h_size₁ ▸ h_hint⟩ = some C)
+    : RangeArray.reduce σ F hint h_hint = PS.reduce σ ({ toList := C } : IClause) := by
+  unfold RangeArray.reduce PS.reduce
+  have := @reduce_loop_eq_reduce_loop F σ hint h_hint _ _ h_models C hC false 0 (F.rsize hint h_hint) rfl
+  simp at this
+  exact this
 
-
-                    done
-                  done
-                · omega
-                  done
-                done
-              done
-            done
-          done
-        done
-      done
-    done
-  done
-
-#exit
+theorem checkLine.loop_ok_aux {line : SRAdditionLine} {F : RangeArray ILit}
+    {Ls : List (Option (List ILit))} {L : List ILit} (h_models : models F Ls L)
+    {τ τ' : PPA} {σ : PS} {i j cri bc : Nat} :
+  j = F.size - i →
+  uniform τ (line.ratHints.size + 1 - bc) →
+    checkLine.loop F line.witnessMaps line.ratHintIndexes line.ratHints line.ratSizesEq σ i cri bc τ = ⟨τ', true⟩ →
+    ---- can probably be done in a suffices -----
+      (∃ (b : Nat), b ≤ line.ratHints.size + 1 - bc ∧ uniform τ' b)
+      ∧ τ'.toPropFun = τ.toPropFun
+    ---- suffices -----
+      ∧ ∀ {k : Nat} {hk : k < Ls.length} {C : List ILit},
+        Ls.get ⟨k, hk⟩ = some C → i ≤ k →
+          (cnfAsListToPropFun Ls) ⊓ τ ≤ PropFun.substL (clauseAsListToPropFun C) σ.toSubst := by
+  intro hj h_uniform
+  simp
+  induction j generalizing τ i cri bc with
+  | zero =>
+    have hi : i ≥ F.size := Nat.le_of_sub_eq_zero hj.symm
+    unfold loop
+    simp [not_lt.mpr hi]
+    rintro rfl
+    simp
+    use ⟨line.ratHints.size + 1 - bc, le_refl _, h_uniform⟩
+    intro k hk₂ _ _ hk₁
+    rw [← h_models.h_size₁] at hk₂
+    have := lt_of_le_of_lt hk₁ hk₂
+    exact absurd this (not_lt.mpr hi)
+  | succ j ih =>
+    unfold loop
+    have hi : i < F.size := by omega
+    have hj' : j = F.size - (i + 1) := by omega
+    simp [hi]
+    -- Split on whether the ith clause is deleted
+    split <;> rename_i h_del
+    · -- It's deleted, so no change in the reduction at hint `i`
+      intro h_loop
+      rcases ih hj' h_uniform h_loop with ⟨hτ, hpf, hkC⟩
+      use hτ, hpf
+      intro k hk₂ C hC hk₁
+      by_cases hik : i = k
+      · -- if i = k, then the loop body checks the kth clause
+        subst hik
+        clear hk₁
+        rw [(h_models.h_some (h_models.h_size₁ ▸ hi)).mpr ⟨C, hC⟩] at h_del
+        contradiction
+      · -- if i ≠ k, then we use `hkC` from the IH on an earlier reduction
+        exact hkC hC (by omega)
+    · -- Not deleted, so we split on the returned result from `reduce`
+      simp at h_del
+      intro h_loop
+      rcases (h_models.h_some (h_models.h_size₁ ▸ hi)).mp h_del with ⟨C, hC⟩
+      split at h_loop <;> rename_i h_reduce
+      -- reduce: Satisfied
+      · rcases ih hj' h_uniform h_loop with ⟨hτ, hpf, hkC⟩
+        use hτ, hpf
+        intro k hk C' hC' hik
+        rcases lt_or_eq_of_le hik with (hk₁ | rfl)
+        · exact hkC hC' (by omega)
+        · rw [reduce_eq_reduce F σ i hi h_models hC] at h_reduce
+          have h_reduce := PS.reduce_satisfied h_reduce
+          simp [hC'] at hC
+          subst hC
+          simp [h_reduce]
+      -- reduce: not reduced
+      · rcases ih hj' h_uniform h_loop with ⟨hτ, hpf, hkC⟩
+        use hτ, hpf
+        intro k hk C hC hik
+        rcases lt_or_eq_of_le hik with (hk₁ | rfl)
+        · exact hkC hC (by omega)
+        · rw [reduce_eq_reduce F σ i hi h_models hC] at h_reduce
+          rw [PS.reduce_notReduced h_reduce]
+          exact inf_le_of_left_le (cnfPropFun_le_of_mem hC)
+      -- reduce. We continue with the loop by running UP on the reduced clause
+      · split at h_loop <;> rename_i h_bc
+        · -- Do we successfully find a RAT hint?
+          split at h_loop
+          · simp at h_loop
+          · rename_i ri h_ri h_find_hint
+            -- What's the result of assuming the negation of the reduced clause?
+            split at h_loop
+            <;> rename_i τ'' h_assume
+            · -- Error: the clause is satisfied by σ or τ
+              rcases assumeRATClause_error h_models hC h_assume with ⟨hτ_le, hτ_ext⟩
+              clear h_assume
+              have : line.ratHints.size + 1 - bc = line.ratHints.size - (bc + 1) + 2 := by omega
+              rcases uniform_bump_of_uniform_of_extendsFor' (this ▸ h_uniform) hτ_ext with ⟨h_uniform'', hτ''⟩
+              clear this
+              have : (line.ratHints.size - (bc + 1) + 1) = line.ratHints.size + 1 - (bc + 1) := by omega
+              rw [this] at h_uniform''
+              rcases ih hj' h_uniform'' h_loop with ⟨hτ, hpf, hkC⟩
+              clear ih
+              rcases hτ with ⟨b, hb₁, hb₂⟩
+              use ⟨b, by omega, hb₂⟩
+              clear b hb₁ hb₂
+              use Eq.trans hpf hτ''.symm
+              intro k hk₂ C' hC' hk₁
+              rcases lt_or_eq_of_le hk₁ with (hk₁ | rfl)
+              · rw [hτ'']
+                exact hkC hC' (Nat.succ_le_of_lt hk₁)
+              · simp [hC'] at hC
+                subst hC
+                exact inf_le_of_right_le hτ_le
+            · -- .ok: we assumed the negation of the clause under σ
+              -- We expect a UP contradiction under the new assignment
+              split at h_loop
+              <;> try simp at h_loop
+              rename_i τ''' h_up
+              rcases applyUPHints_contra h_models h_up with ⟨h_bot, h_ext₃⟩
+              rcases assumeRATClause_ok h_models hC h_assume with ⟨hτ'', h_ext⟩
+              have : (line.ratHints.size + 1 - bc) = (line.ratHints.size - (bc + 1) + 2) := by omega
+              rcases uniform_bump_of_uniform_of_extendsFor' (this ▸ h_uniform) h_ext with ⟨h_uniform'', hpf⟩
+              clear this
+              have : (line.ratHints.size - (bc + 1) + 1) = line.ratHints.size + 1 - (bc + 1) := by omega
+              rw [this] at h_uniform''
+              clear this
+              have h_ext₄ := extendsFor_trans h_ext h_ext₃
+              have h_uniform''' : τ'''.bump.uniform (line.ratHints.size + 1 - (bc + 1)) := by
+                have h_uni : uniform τ (line.ratHints.size - (bc + 1) + 2) := by
+                  have : (line.ratHints.size + 1 - bc) = (line.ratHints.size - (bc + 1) + 2) := by omega
+                  exact this ▸ h_uniform
+                have h_uni' := (uniform_bump_of_uniform_of_extendsFor' (τ₁ := τ) (τ₂ := τ''')
+                    (offset := line.ratHints.size - (bc + 1)) h_uni h_ext₄).1
+                have : (line.ratHints.size - (bc + 1) + 1) = line.ratHints.size + 1 - (bc + 1) := by omega
+                exact this ▸ h_uni'
+              have hpf₄ : τ.toPropFun = τ'''.bump.toPropFun := by
+                have h_uni : uniform τ (line.ratHints.size - (bc + 1) + 2) := by
+                  have : (line.ratHints.size + 1 - bc) = (line.ratHints.size - (bc + 1) + 2) := by omega
+                  exact this ▸ h_uniform
+                exact (uniform_bump_of_uniform_of_extendsFor' (τ₁ := τ) (τ₂ := τ''')
+                    (offset := line.ratHints.size - (bc + 1)) h_uni h_ext₄).2
+              rcases ih hj' h_uniform''' h_loop with ⟨⟨b, hb₁, hb₂⟩, hpf₃, hkC⟩
+              use ⟨b, by omega, hb₂⟩, Eq.trans hpf₃ hpf₄.symm
+              clear b hb₁ hb₂
+              intro k hk₂ C' hC' hk₁
+              rcases lt_or_eq_of_le hk₁ with (hk₁ | rfl)
+              · simpa [hpf₄] using hkC hC' (Nat.succ_le_of_lt hk₁)
+              · simp [hC'] at hC
+                subst hC
+                apply le_iff_inf_compl_eq_bot.mpr
+                rwa [inf_assoc, ← clauseAsListToPropFun, ← hτ'']
+        · simp at h_loop
 
 -- The SR rule
 theorem eqsat_of_SR {F C : PropFun ν} :
@@ -792,7 +920,8 @@ theorem eqsat_of_SR {F C : PropFun ν} :
     rw [satisfies_conj] at hτ
     exact ⟨τ, hτ.1⟩
 
-theorem eqsat_of_SR' {F C : PropFun ν} :
+-- Alternative proof that uses the computational `substL` instead of the abstract `subst`.
+theorem eqsatL_of_SR {F C : PropFun ν} :
     (∃ σ, F ⊓ Cᶜ ≤ substL (F ⊓ C) σ) → EquiSat F (F ⊓ C) := by
   rintro ⟨σ, hSR⟩
   stop
@@ -842,9 +971,28 @@ theorem checkLine_spec {F : RangeArray ILit}
     simp [hC] at this
     rcases this with ⟨hτ', hτ_extends⟩
     match h_hints : F.applyUPHints (line.ratHints.size + 1) τ' line.upHints with
-    | ⟨τ'', .err⟩ => simp [h_hints]
+    | ⟨τ'', .err⟩ => simp
     | ⟨τ'', .unit⟩ =>
+      -- We derived units, but no contradiction. SR checking continues.
       simp
+      by_cases h_usize : F.usize = 0
+      <;> simp [h_usize]
+      · have h_usize' : 0 < F.usize := by omega
+        split
+        · rename_i h
+          split at h
+          · rename_i h_pivot
+            split at h
+            · clear h
+              rename_i τ' h_loop
+
+              done
+            done
+          done
+        done
+      split
+      ·
+        done
       by_cases h_dsize : F.dsize < F.data.size
       <;> simp [h_dsize]
       -- Check that we have a nontrivial witness

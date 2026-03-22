@@ -782,6 +782,32 @@ theorem reduceM.aux_error {σ : PS} {C : List ILit} {b : Bool}
       simp only [hl] at h_aux
       simp only [ih h_aux, le_top, sup_of_le_right]
 
+theorem reduceM_satisfied {σ : PS} {C : List ILit}
+    : reduceM σ { toList := C } = .satisfied
+        → substL (Clause.toPropFun { toList := C }) σ.toSubst = ⊤ := by
+  unfold reduceM reduceM_Except
+  split <;> rename_i h
+  <;> try simp
+  exact reduceM.aux_error h
+
+theorem reduceM_notReduced {σ : PS} {C : List ILit}
+    : reduceM σ { toList := C } = .notReduced
+        → substL (Clause.toPropFun { toList := C }) σ.toSubst = Clause.toPropFun { toList := C } := by
+  unfold reduceM reduceM_Except
+  split <;> rename_i h
+  <;> try simp
+  exact reduceM.aux_false h
+
+theorem reduce_satisfied {σ : PS} {C : IClause}
+    : σ.reduce C = .satisfied → substL C σ.toSubst = ⊤ := by
+  simp [reduce_eq_reduceM]
+  exact reduceM_satisfied
+
+theorem reduce_notReduced {σ : PS} {C : IClause}
+    : σ.reduce C = .notReduced → substL C σ.toSubst = Clause.toPropFun C := by
+  simp [reduce_eq_reduceM]
+  exact reduceM_notReduced
+
 /-theorem reduce_spec (σ : PS) (C : IClause)
     : match σ.reduce C with
       | .satisfied  => substL C σ.toSubst = ⊤
