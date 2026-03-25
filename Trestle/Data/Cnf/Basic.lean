@@ -255,6 +255,21 @@ theorem toPropFun_mem_le {C : Clause L} {φ : Cnf L} : C ∈ φ → φ.toPropFun
   rw [Cnf.satisfies_iff] at hτ
   exact hτ _ h
 
+theorem toPropFun_drop_le_drop_of_ge (F : List (Clause L)) {n₁ n₂ : Nat}
+    : n₁ ≤ n₂ → Cnf.toPropFun { toList := F.drop n₁ } ≤ Cnf.toPropFun { toList := F.drop n₂ } := by
+  intro hn
+  refine PropFun.entails_ext.mpr fun τ hτ => ?_
+  rw [Cnf.satisfies_iff] at hτ ⊢
+  intro C hC
+  simp [List.mem_drop_iff_getElem] at hC
+  rcases hC with ⟨i, hi, rfl⟩
+  apply hτ
+  simp
+  apply List.mem_drop_iff_getElem.mpr
+  use (i + (n₂ - n₁)), by omega
+  have : n₁ + (i + (n₂ - n₁)) = n₂ + i := by omega
+  simp [this]
+
 /-! #### Satisfiability -/
 
 abbrev Sat (f : Cnf L) : Prop := f.toPropFun.Sat

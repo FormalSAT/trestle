@@ -624,6 +624,25 @@ theorem models_delete! (h_models : models A Ls L) (i : Nat)
     exact h_models
 
 omit [Inhabited α] in
+theorem eq_none_of_models_of_deleted (h_models : models A Ls L) {i : Nat} (hi : i < Ls.length)
+    : A.isDeleted i (h_models.h_size₁ ▸ hi) = true → Ls.get ⟨i, hi⟩ = none := by
+  intro h_deleted
+  simp
+  match hLs : Ls[i] with
+  | none => rfl
+  | some sL =>
+    have := (h_models.h_some hi).mpr ⟨_, hLs⟩
+    rw [this] at h_deleted
+    contradiction
+
+omit [Inhabited α] in
+theorem eq_none_of_models_of_deleted! (h_models : models A Ls L) {i : Nat} (hi : i < Ls.length)
+    : A.isDeleted! i = true → Ls.get ⟨i, hi⟩ = none := by
+  have hi' := h_models.h_size₁ ▸ hi
+  rw [← isDeleted_eq_isDeleted! hi']
+  exact eq_none_of_models_of_deleted h_models hi
+
+omit [Inhabited α] in
 theorem eq_nil_of_models_of_usize_zero (h_models : models A Ls L)
     : A.usize = 0 → L = [] := by
   intro h_usize

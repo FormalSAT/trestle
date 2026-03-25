@@ -62,23 +62,36 @@ def assumeNegatedCandidateFor (F : RangeArray ILit) (τ : PPA) (bumps : Nat) : E
 
   Returns an error if `C` is satisfied by either `σ`, or `τ` under `σ`.
 -/
-def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ : PS) (τ : PPA) : Except PPA PPA :=
+def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx ≤ F.size)
+      (σ : PS) (τ : PPA) : Except PPA PPA :=
   /- Instead of using `rsize` and substracting off `index i`,
      we calculate it directly. For whatever reason, this is faster.
      The performance improvement is about 8%. -/
-  let s := F.index idx h_idx
-  let e := F.index! (idx + 1)
+  let s := F.index! idx
+  let e := if idx = F.size then F.data.size else F.index! (idx + 1)
 
   let rec loop (i : Nat) (τ : PPA) : Except PPA PPA :=
     if hi : i < e then
-      -- CC: Needed for termination argument (not needed in lower version of Lean)
+      -- Hypothesis needed for termination argument
       have : e - (i + 1) < e - i := by omega
 
       let lit := F.get i (by
         simp only [e] at hi
         have := index!_le_dsize F (idx + 1)
         have := F.h_size
-        omega
+
+        by_cases h_eq : idx = F.size
+        · simp [h_eq] at hi
+          exact hi
+        · simp [h_eq] at hi
+          replace h_idx := Nat.lt_of_le_of_ne h_idx h_eq
+          simp [index!] at hi
+          split at hi <;> rename_i hi'
+          · have := index!_le_dsize F (idx + 1)
+            rw [index!] at this
+            simp [hi'] at this
+            omega
+          · omega
       )
 
       let sv := σ.litValue_Nat lit
@@ -97,9 +110,8 @@ def assumeRATClause (F : RangeArray ILit) (idx : Nat) (h_idx : idx < F.size) (σ
           .error τ
     else -- i ≥ e
       .ok τ
-  termination_by (F.index! (idx + 1)) - i
+  termination_by (if idx = F.size then F.data.size else F.index! (idx + 1)) - i
   loop s τ
-
 
 def unitProp (τ : PPA) (F : RangeArray ILit) (hint : Nat) (h_hint : hint < F.size) : PPA.UPResult :=
   /- Instead of using `rsize` and substracting off `index idx`,
@@ -148,7 +160,6 @@ inductive HintResult where
   | err
 deriving DecidableEq, Inhabited
 
---@[inline, always_inline]
 def applyUPHint (F : RangeArray ILit) (bumps : Nat) (τ : PPA) (hint : Nat) : PPA × HintResult :=
   if h_hint : hint < F.size then
     if !F.isDeleted hint h_hint then
@@ -162,7 +173,6 @@ def applyUPHint (F : RangeArray ILit) (bumps : Nat) (τ : PPA) (hint : Nat) : PP
   else
     ⟨τ, .err⟩
 
---@[inline, always_inline]
 def applyUPHints (F : RangeArray ILit) (offset : Nat) (τ : PPA) (hints : Array Nat) : PPA × HintResult :=
   let rec loop (i : Nat) (τ : PPA) : PPA × HintResult :=
     if hi : i < hints.size then
@@ -179,24 +189,34 @@ def applyUPHints (F : RangeArray ILit) (offset : Nat) (τ : PPA) (hints : Array 
   from the arrays, rather than boxing the result into an inductive datatype.
   The time savings are ~30%.
 -/
-def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : PS.ReductionResult :=
+def reduce (F : RangeArray ILit) (idx : Nat) (h_idx : idx ≤ F.size) (σ : PS) : PS.ReductionResult :=
   /- Instead of calculating `rsize` and then subtracting off `s`,
      we compute the ending manually as the start of the next index.
      The performance improvement is about ~8-10%.  -/
-  let s := F.index idx hidx
-  let e := F.index! (idx + 1)
-
-  let ⟨gens, mappings, generation, maxGen, sizes_eq, _⟩ := σ
+  let s := F.index! idx
+  let e := if idx = F.size then F.data.size else F.index! (idx + 1)
+  let ⟨gens, mappings, generation, _, sizes_eq, _⟩ := σ
 
   let rec loop (i : Nat) (reduced? : Bool) : PS.ReductionResult :=
-    if h : i < e then
+    if hi : i < e then
       have : e - (i + 1) < e - i := by omega
 
       let lit := F.get i (by
-        simp [e] at h
+        simp [e] at hi
         have := index!_le_dsize F (idx + 1)
         have := F.h_size
-        omega
+        by_cases h_eq : idx = F.size
+        · simp [h_eq] at hi
+          exact hi
+        · simp [h_eq] at hi
+          replace h_idx := Nat.lt_of_le_of_ne h_idx h_eq
+          simp [index!] at hi
+          split at hi <;> rename_i hi'
+          · have := index!_le_dsize F (idx + 1)
+            rw [index!] at this
+            simp [hi'] at this
+            omega
+          · omega
       )
 
       if hlit : lit.index < gens.size then
@@ -223,7 +243,7 @@ def reduce (σ : PS) (F : RangeArray ILit) (idx : Nat) (hidx : idx < F.size) : P
       else loop (i + 1) reduced?
     else -- i ≥ e
       if reduced? then .reduced else .notReduced
-  termination_by F.index! (idx + 1) - i
+  termination_by (if idx = F.size then F.data.size else F.index! (idx + 1)) - i
   loop s false
 
 end RangeArray
@@ -255,8 +275,8 @@ def findRATHintIndex (ratIndex clauseId : Nat) (ratHintIndexes : Array Nat) : Op
 
 
 /-- Set the witness substitution σ from the provided mapping, resetting σ first. -/
-def assumeWitness (σ : PS) (pivot : ILit) (A₁ : Array ILit) (A₂ : Array ILit) : PS :=
-  ((σ.reset.setLits A₁).setVars' A₂).setLit pivot
+def assumeWitness (σ : PS) (tf_lits : Array ILit) (lit_maps : Array ILit) : PS :=
+  ((σ.reset.setLits tf_lits).setVars' lit_maps)
 
 structure SRState where
   F : RangeArray ILit
@@ -282,28 +302,28 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
         .error false
       else
         have hu' : 0 < F.usize := by omega
-        let pivot : ILit := witnessLits.getD 0 (F.uget 0 hu')
-        if pivot != F.uget 0 hu' then .error false else
-        let σ := assumeWitness σ pivot witnessLits witnessMaps
+        let σ := assumeWitness σ witnessLits witnessMaps
         -- dbg_trace s!"σ := {σ} {σ.gens}"
 
         -- Loop through each clause in the formula to check RAT conditions
         -- The Bool is true if the check succeeds on all clauses, false otherwise
         let Fsize := F.size
-        let rec loop (i cachedRatHintIndex bumpCounter : Nat) (τ : PPA) : PPA × Bool :=
+        let rec loop (i : Nat) (hi_le : i ≤ Fsize) (cachedRatHintIndex bumpCounter : Nat) (τ : PPA) : PPA × Bool :=
           if hi : i < Fsize then
             -- dbg_trace s!"RAT check on clause {i}"
             have : F.indexes.size - (i + 1) < F.indexes.size - i := by
               simp [Fsize, RangeArray.size] at hi
               omega
 
+            have hi' := Nat.succ_le_of_lt hi
+
             if h_del : F.isDeleted i hi = true then
-              loop (i + 1) cachedRatHintIndex bumpCounter τ
+              loop (i + 1) hi' cachedRatHintIndex bumpCounter τ
             else
               -- First, check how the ith clause is reduced by σ
-              match F.reduce σ i hi with
+              match F.reduce i (Nat.le_of_lt hi) σ with
               | .satisfied
-              | .notReduced => loop (i + 1) cachedRatHintIndex bumpCounter τ
+              | .notReduced => loop (i + 1) hi' cachedRatHintIndex bumpCounter τ
               | .reduced =>
                 -- dbg_trace s!"Clause {i} is reduced under σ: {F.arrGet i}"
                 if bumpCounter < ratHints.size then
@@ -312,18 +332,37 @@ def checkLine : SRState → SRAdditionLine → Except Bool SRState :=
                   | none => ⟨τ, false⟩
                   | some ⟨ratIndex, hr⟩ =>
                     -- Assume the negation of the RAT clause
-                    match F.assumeRATClause i hi σ τ with
-                    | .error τ => loop (i + 1) (ratIndex + 1) (bumpCounter + 1) τ.bump
+                    match F.assumeRATClause i (Nat.le_of_lt hi) σ τ with
+                    | .error τ => loop (i + 1) hi' (ratIndex + 1) (bumpCounter + 1) τ.bump
                     | .ok τ =>
                       match F.applyUPHints 0 τ (ratHints[ratIndex]'(by rw [ratSizesEq] at hr; exact hr)) with
                       | (τ, .err) => ⟨τ, false⟩
                       | (τ, .unit) => ⟨τ, false⟩
-                      | (τ, .contra) => loop (i + 1) (ratIndex + 1) (bumpCounter + 1) τ.bump
+                      | (τ, .contra) => loop (i + 1) hi' (ratIndex + 1) (bumpCounter + 1) τ.bump
                 else ⟨τ, false⟩
-          else ⟨τ, true⟩
+          else
+            -- The candidate clause might also be RAT
+            match F.reduce F.size (by exact Nat.le_refl F.size) σ with
+            | .satisfied => (τ, true)
+            | .notReduced => (τ, false) -- Error: If the witness doesn't reduce it, we should just use RUP
+            | .reduced =>
+              if bumpCounter < ratHints.size then
+                -- Find the corresponding RAT hint
+                match findRATHintIndex cachedRatHintIndex i ratHintIndexes with
+                | none => ⟨τ, false⟩
+                | some ⟨ratIndex, hr⟩ =>
+                  -- Assume the negation of the RAT clause
+                  match F.assumeRATClause i hi_le σ τ with
+                  | .error τ => (τ.bump, true)
+                  | .ok τ =>
+                    match F.applyUPHints 0 τ (ratHints[ratIndex]'(by rw [ratSizesEq] at hr; exact hr)) with
+                    | (τ, .err) => ⟨τ, false⟩
+                    | (τ, .unit) => ⟨τ, false⟩
+                    | (τ, .contra) => (τ.bump, true)
+              else ⟨τ, false⟩
         termination_by F.size - i
 
-        match loop 0 0 0 τ with
+        match loop 0 (Nat.zero_le _) 0 0 τ with
         | ⟨_, false⟩ => .error false
         | ⟨τ, true⟩ => .ok ⟨F.commit, τ, σ⟩
 

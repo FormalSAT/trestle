@@ -985,6 +985,22 @@ theorem assumeNegatedClauseFor_spec (τ : PPA) (ls : List ILit) (bumps : Nat)
           exact le_sup_of_le_right ih₁
         · exact ih₂
 
+theorem assumeNegatedClauseFor_ok {τ τ' : PPA} {ls : List ILit} {bumps : Nat}
+    : τ.assumeNegatedClauseFor { toList := ls } bumps = .ok τ' →
+      τ'.toPropFun = ↑τ ⊓ (Clause.toPropFun ({ toList := ls } : IClause))ᶜ ∧ extendsFor τ τ' bumps := by
+  intro h
+  have := assumeNegatedClauseFor_spec τ ls bumps
+  simp [h] at this
+  exact this
+
+theorem assumeNegatedClauseFor_error {τ τ' : PPA} {ls : List ILit} {bumps : Nat}
+    : τ.assumeNegatedClauseFor { toList := ls } bumps = .error τ' →
+      τ.toPropFun ≤ (Clause.toPropFun ({ toList := ls } : IClause)) ∧ extendsFor τ τ' bumps := by
+  intro h
+  have := assumeNegatedClauseFor_spec τ ls bumps
+  simp [h] at this
+  exact this
+
 end assumeNegatedClause /- section -/
 
 /-! ## Unit propagation -/
