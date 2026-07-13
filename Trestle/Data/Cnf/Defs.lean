@@ -1,6 +1,7 @@
-import Trestle.Data.LitVar.Defs
 
+import Trestle.Data.LitVar.Defs
 import Batteries.Data.List.Basic
+import Trestle.Upstream.ToStd
 
 namespace Trestle
 
@@ -35,8 +36,11 @@ def or (c1 c2 : Clause L) : Clause L :=
 def negate (c : Clause L) : Cube L :=
   Array.map (-·) c
 
-nonrec def map (L') [LitVar L' ν'] (f : ν → ν') (c : Clause L) : Clause L' :=
+nonrec def map [LitVar L' ν'] (f : ν → ν') (c : Clause L) : Clause L' :=
   c.map (LitVar.map f)
+
+def maxVar [Ord ν] [LitVar L ν] (C : Clause L) : Option ν :=
+  Array.map LitVar.toVar C |>.max?
 
 end Clause
 
@@ -64,6 +68,12 @@ def any (ls : Array L) : Cnf L := #[ls]
 
 def all (ls : Array L) : Cnf L :=
   Array.map (fun l => #[l]) ls
+
+def maxVar [Ord ν] [LitVar L ν] (F : Cnf L) : Option ν :=
+  match Array.map Clause.maxVar F |>.max? with
+  | none => none
+  | some none => none
+  | some (some v) => some v
 
 end Cnf
 

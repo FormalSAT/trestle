@@ -24,6 +24,12 @@ class Formula (F : Type _) where
   commitClause : F → F
   commitClauseUntil : F → Nat → F
   size : F → Nat
+  uncommittedSize : F → Nat
+
+instance Formula.instInhabited {F : Type _} [Formula F] : Inhabited F where
+  default := Formula.empty
+
+@[simp] theorem Formula.default_eq_empty {F : Type _} [Formula F] : (default : F) = Formula.empty := rfl
 
 instance : Formula (RangeArray ILit) where
   empty := (RangeArray.empty : RangeArray ILit)
@@ -31,6 +37,7 @@ instance : Formula (RangeArray ILit) where
   commitClause := RangeArray.commit
   commitClauseUntil := RangeArray.commitUntil
   size := RangeArray.size
+  uncommittedSize := RangeArray.usize
 
 instance : Formula (ICnf × IClause) where
   empty := (#[], #[])
@@ -38,6 +45,7 @@ instance : Formula (ICnf × IClause) where
   commitClause := (fun ⟨F, C⟩ => (F.push C, #[]))
   commitClauseUntil := (fun ⟨F, C⟩ _ => (F, C)) -- CC: TODO
   size := (fun ⟨F, _⟩ => F.size)
+  uncommittedSize := (fun ⟨_, C⟩ => C.size)
 
 --------------------------------------------------------------------------------
 
@@ -52,11 +60,11 @@ structure SRAdditionLine where
   -- CC: Technically, ratHints can be a RangeArray. Try later
 
 def SRAdditionLine.new : SRAdditionLine := ⟨
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
-  Array.mkEmpty 100,
+  Array.emptyWithCapacity 16,
+  Array.emptyWithCapacity 16,
+  Array.emptyWithCapacity 16,
+  Array.emptyWithCapacity 16,
+  Array.emptyWithCapacity 16,
   by simp, by simp⟩
 
 namespace SRAdditionLine
@@ -103,7 +111,7 @@ structure ParsingState (CNF : Type _) where
 
 section SRParsing
 
-variable [Formula CNF] [Inhabited CNF]
+variable {CNF : Type _} [Formula CNF] [Inhabited CNF]
 
 @[inline, specialize]
 def processSRAtom (atom pivot : Int) : ParsingState CNF → ParsingState CNF := fun ⟨mode, F, line⟩ =>

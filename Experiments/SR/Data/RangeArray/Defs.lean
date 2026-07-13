@@ -144,7 +144,7 @@ abbrev usize : Nat := A.data.size - A.dsize
   h_indexes_inc := by intro i j hi hj; contradiction
 } -/
 
-def empty (size : Nat := 100) : RangeArray α := {
+def empty (size : Nat := 64) : RangeArray α := {
   data := Array.mkEmpty size
   indexes := Array.mkEmpty size
   dsize := 0

@@ -74,6 +74,15 @@ instance [LitVar L1 V1] [LitVar L2 V2] : LitVar (L1 ⊕ L2) (V1 ⊕ V2) where
   polarity := fun | .inl l => LitVar.polarity l | .inr l => LitVar.polarity l
   negate := Sum.map (LitVar.negate) (LitVar.negate)
 
-end LitVar
+instance instOrd (L : Type u) (ν : outParam (Type v)) [LitVar L ν] [Ord ν] : Ord L where
+  compare l₁ l₂ :=
+    if !polarity l₁ then
+      if polarity l₂ then .lt
+      else Ord.compare (LitVar.toVar l₂) (LitVar.toVar l₁) -- Reversed order, due to negation
+    else
+      if !polarity l₂ then .gt
+      else Ord.compare (LitVar.toVar l₁) (LitVar.toVar l₂)
+
+end LitVar /- namespace -/
 
 end Trestle

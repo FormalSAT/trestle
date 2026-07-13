@@ -86,7 +86,7 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
       simp [*]
 
 @[simp] theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Clause L)
-  : (c.map L' f).toPropFun = c.toPropFun.map f
+  : (c.map (L' := L') f).toPropFun = c.toPropFun.map f
   := by
   ext τ
   simp [map, satisfies_iff]

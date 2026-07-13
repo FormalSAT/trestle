@@ -416,3 +416,71 @@ theorem Array.ofFn_data (f : Fin n → α)
     simp at this
     rw [this]
     exact ⟨List.length_fins n ▸ hi, rfl⟩
+
+namespace List
+
+variable {α : Type u} {β : Type v} [Ord α]
+
+protected def minFn? (xs : List β) (f : β → α) : Option α :=
+  match xs with
+  | [] => none
+  | x :: xs => some <| xs.foldl (init := f x) fun min x =>
+    let x := f x
+    if compare x min |>.isLT then x else min
+
+protected def minWithFn (xs : List β) (f : β → α) (d : α) : α :=
+  xs.foldl (init := d) fun min x =>
+    let x := f x
+    if compare x min |>.isLT then x else min
+
+@[simp] theorem minFn?_nil (f : β → α) : List.minFn? [] f = none := rfl
+@[simp] theorem minWithFn_nil (f : β → α) (d : α) : List.minWithFn [] f d = d := rfl
+
+@[simp]
+theorem minFn?_eq_none_iff (xs : List β) (f : β → α)
+    : xs.minFn? f = none ↔ xs = [] := by
+  cases xs <;> simp [List.minFn?]
+
+-- @[simp]
+-- theorem minFn?_eq_minWithFn (xs : List β) (f : β → α) (d : α)
+--     : Option.getD (xs.minFn? f) d = some (xs.minWithFn f d) := by
+
+end List /- namespace -/
+
+namespace Array
+
+variable {α : Type u} {β : Type v} [Ord α]
+
+@[inline]
+protected def minWithFn (xs : Array β) (f : β → α) (d : α) (start := 0) (stop := xs.size) : α :=
+  xs.foldl (init := d) (start := start) (stop := stop) fun min x =>
+    let x := f x
+    if compare x min |>.isLT then x else min
+
+@[simp]
+theorem minWithFn_empty (f : β → α) (d : α) : Array.minWithFn #[] f d = d :=
+  rfl
+
+theorem minWithFn_cons (f : β → α) (d : α) (x : β) (xs : List β)
+    : Array.minWithFn { toList := x :: xs } f d = Array.minWithFn { toList := xs } f (if compare (f x) d |>.isLT then f x else d) := by
+  simp [Array.minWithFn]
+
+-- theorem minWithFn_le_init [LT α] [LE α] [Std.LawfulOrd α] [Std.IsPreorder α] (xs : Array β) (f : β → α) (d : α)
+--     : Array.minWithFn xs f d ≤ d := by
+--   have ⟨xs⟩ := xs
+--   simp [Array.minWithFn]
+--   induction xs generalizing d with
+--   | nil => simp [Std.IsPreorder.le_refl]
+--   | cons x xs ih =>
+--     simp
+--     split
+--     · rename_i h
+--       apply Std.IsPreorder.le_trans _ _ _ (ih (f x))
+--       have := Std.LawfulLTCmp.eq_lt_iff_lt.mp h
+--       sorry
+--     · apply ih
+
+-- theorem minWithFn_is_min [LE α] [Std.IsPreorder α] (xs : Array β) (f : β → α) (d : α)
+--     : ∀ b ∈ xs, Array.minWithFn xs f d ≤ f b := by
+
+end Array /- namespace -/

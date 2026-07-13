@@ -22,29 +22,11 @@ partial def main : List String → IO Unit
   | [cnfFile, lsrFile] => do
 
     let cnfContents ← IO.FS.withFile cnfFile .read (·.readBinToEnd)
-    if hc : cnfContents.size ≥ USize.size then
-      IO.println "c CNF file too large"
-      return
-    else
-
     let (F, nVars) ← IO.ofExcept <|
-      SRParser.parseFormula ⟨cnfContents, Nat.not_le.mp hc⟩ (RangeArray.empty : RangeArray ILit)
-
-    -- IO.println s!"CNF Formula:"
-    -- let mut i := 0
-    -- for C in F do
-    --   i := i + 1
-    --   match C with
-    --   | none => IO.println s!"  {i}: [del]"
-    --   | some C => IO.println s!"  {i}: {Clause.toLString C}"
+      parseCnf cnfContents (RangeArray.empty : RangeArray ILit)
 
     let bytes ← IO.FS.withFile lsrFile .read (·.readBinToEnd)
-    if h_lsr : bytes.size ≥ USize.size then
-      IO.println "c LSR file too large"
-      return
-    else
-    let bytes : ByteArray' := ⟨bytes, Nat.not_le.mp h_lsr⟩
-    let size := bytes.val.size.toUSize
+    let size := bytes.size.toUSize
     let τ := PPA.new (nVars * 2)
     let σ := PS.new (nVars * 2)
     let iter : USize := 0
@@ -55,9 +37,9 @@ partial def main : List String → IO Unit
         -- Parse a new line
         let ⟨lineId, iter⟩ := ByteArray.readNat bytes iter
         let iter := ByteArray.ws bytes iter
-        let ch := ByteArray.peekc bytes iter
+        let ch := ByteArray.peek bytes iter
         if ch = ASCII_D then
-          let iter := ByteArray.skip bytes iter
+          let iter := ByteArray.token bytes iter
           match parseDeletionLine bytes iter with
           | .error _ => .error false
           | .ok ⟨clauseIds, iter⟩ =>
