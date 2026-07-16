@@ -8,6 +8,7 @@ Authors: Cayden Codel
 import Experiments.SR.Parsing.Defs
 import Experiments.SR.Data.ByteArray.Defs
 import Experiments.SR.Data.ByteArray.Basic
+import Experiments.SR.Data.BStream.BStream
 
 /-!
 
@@ -43,13 +44,21 @@ decreasing_by
     have : c ≠ UInt8.EOF := by simp [h]; trivial
     exact USize.succ_le_of_lt <| iter_lt_of_peek_ne_EOF this
 
+partial def consumeCommentLinesBS : BStreamM Unit := do
+  let ch ← BStream.peek
+  if ch = UInt8.toUInt32 (Char.toUInt8 'c') then
+    BStream.line
+    consumeCommentLinesBS
+  else
+    return ()
+
 /-! # parseClause -/
 
 /--
   Parses a clause from the array `arr` starting at `iter`.
 -/
 @[specialize]
-def parseClause (F : CNF) (arr : ByteArray) (maxVar : Nat) (iter : USize) : CNF × USize :=
+partial def parseClause (F : CNF) (arr : ByteArray) (maxVar : Nat) (iter : USize) : CNF × USize :=
   if _ : iter < arr.size.toUSize then
     match h_atom : ByteArray.readInt32 arr iter with
     | atom =>
@@ -66,15 +75,30 @@ def parseClause (F : CNF) (arr : ByteArray) (maxVar : Nat) (iter : USize) : CNF 
         parseClause (Formula.addLiteral F ⟨atom, by simp [h]⟩) arr maxVar iter'
   else
     (F, iter)
-termination_by arr.size.toUSize - iter
-decreasing_by
-  subst h_iter' h_atom
-  simp
-  apply USize.lt_iff_toNat_lt.mp
-  apply USize.sub_lt_sub_of_lt_of_le
-  · exact iter_lt_skipInt_of_readInt32 h
-  · apply skipInt_le_of_le
-    exact USize.le_of_lt (by assumption)
+-- termination_by arr.size.toUSize - iter
+-- decreasing_by
+--   subst h_iter' h_atom
+--   simp
+--   apply USize.lt_iff_toNat_lt.mp
+--   apply USize.sub_lt_sub_of_lt_of_le
+--   · exact iter_lt_skipInt_of_readInt32 h
+--   · apply skipInt_le_of_le
+--     exact USize.le_of_lt (by assumption)
+
+@[specialize]
+partial def parseClauseBS (F : CNF) (maxVar : Nat) : BStreamM CNF := do
+  BStream.ws
+  if (← BStream.peek) != EOF then
+    let atom ← BStream.readInt32NoWs
+    if h : atom = 0 then
+      return (Formula.commitClause F)
+    else if atom.natAbs > maxVar then
+      let F' : CNF := panic! s!"Variable {atom.natAbs} in clause {Formula.size F + 1} exceeds maximum variable {maxVar}"
+      return (F')
+    else
+      parseClauseBS (Formula.addLiteral F ⟨atom, by simp [h]⟩) maxVar
+  else
+    return F
 
 -- @[simp]
 -- private theorem iter_le_parseClause_iter (F : CNF) (arr : ByteArray) (iter : USize) (maxVar : Nat)
@@ -142,22 +166,21 @@ decreasing_by
 @[specialize]
 partial def parseClauses (F : CNF) (arr : ByteArray) (iter : USize) (nVars nClauses : Nat) : Except String CNF := do
   let size := arr.size.toUSize
-  let rec loop (F : CNF) (iter : USize) : Except String (CNF × USize) :=
+  let rec loop (F : CNF) (iter : USize) : (CNF × USize) :=
     have : size = arr.size.toUSize := rfl
     let iter₂ := ws arr iter
     if _ : iter₂ < size then
       --let prevSize := Formula.size F
       match _ : parseClause F arr nVars iter₂ with
-      | (F', iter₃) =>
+      | (F', iter₃) => loop F' iter₃
       -- if Formula.uncommittedSize F' != 0 || Formula.size F' = prevSize then
       --   .error s!"Formula clause {Formula.size F' + 1} contained a parsing error"
       -- else if iter₃ = iter₂ then
       --   -- TODO(CC): Remove this branch by adding a theorem on `parseClause` that the iteraor *will* move forward
       --   .error s!"Iterator did not advance forward in formula clause {Formula.size F' + 1}"
       -- else
-        loop F' iter₃
     else
-      .ok (F, iter₂)
+      (F, iter₂)
   -- termination_by arr.size.toUSize - iter
   -- decreasing_by
   --   simp_wf
@@ -171,11 +194,29 @@ partial def parseClauses (F : CNF) (arr : ByteArray) (iter : USize) (nVars nClau
   --     simp [hp] at this
   --     exact this <| USize.le_of_lt (by assumption)
 
-  let (F, _) ← loop F iter
+  let (F, _) := loop F iter
   if Formula.size F != nClauses then
     throw s!"Expected {nClauses} clauses, but parsed {Formula.size F}"
   else
     .ok F
+
+@[specialize]
+partial def parseClausesBS (F : CNF) (nVars nClauses : Nat) : BStreamM CNF := do
+  let rec loop (F : CNF) : BStreamM CNF := do
+    BStream.ws
+    let ch ← BStream.peek
+    if ch != EOF then
+      let F' ← parseClauseBS F nVars
+      loop F'
+    else
+      return F
+
+  let F ← loop F
+  if Formula.size F != nClauses then
+    panic! s!"Expected {nClauses} clauses, but parsed {Formula.size F}"
+  else
+    return F
+
 
 def parseHeader (arr : ByteArray) (iter : USize) : Except String (Nat × Nat × USize) := do
   let iter := consumeCommentLines arr iter
@@ -195,11 +236,33 @@ def parseHeader (arr : ByteArray) (iter : USize) : Except String (Nat × Nat × 
   else
     .ok (nVars, nClauses, iter)
 
+def parseHeaderBS : BStreamM (Nat × Nat) := do
+  consumeCommentLinesBS
+  let h ← BStream.scanMatch "p cnf"
+  if !h then
+    panic! "Invalid cnf header: Expected 'p cnf'"
+
+  let nVars ← BStream.readNat
+  let nClauses ← BStream.readNat
+  if nVars = 0 then
+    panic! s!"Invalid cnf header: The number of variables was 0"
+  else if nClauses = 0 then
+    panic! s!"Invalid cnf header: The number of clauses was 0"
+  else
+    return (nVars, nClauses)
+
 @[specialize]
 def parseCnf (arr : ByteArray) (F : CNF) : Except String (CNF × Nat) := do
   let ⟨nVars, nClauses, iter⟩ ← parseHeader arr 0
   dbgTrace s!"c Parsing formula with {nVars} variables, {nClauses} clauses" fun () => do
   let F ← parseClauses F arr iter nVars nClauses
+  return (F, nVars)
+
+@[specialize]
+def parseCnfBS (bs : BStream) (F : CNF) : IO (CNF × Nat) := do
+  let (⟨nVars, nClauses⟩, bs) ← parseHeaderBS bs
+  dbgTrace s!"c Parsing formula with {nVars} variables, {nClauses} clauses" fun () => do
+  let (F, _) ← parseClausesBS F nVars nClauses bs
   return (F, nVars)
 
 -- CC: Because the parse line is called at top-level, it's okay for this to be Except.
@@ -239,6 +302,31 @@ partial def parseLSRAdditionLine (F : CNF) (arr : ByteArray) (iter : USize) : Ex
   loop st iter
 
 @[specialize]
+partial def parseLSRAdditionLineBS (F : CNF) : BStreamM (CNF × SRAdditionLine) := do
+  let pivot ← BStream.readInt32
+  let line := SRAdditionLine.new
+  let st :=
+    if hp : pivot = 0 then
+      ParsingState.mk .upHints F line
+    else
+      ParsingState.mk .clause (Formula.addLiteral F ⟨pivot, hp⟩) line
+
+  let rec loop (st : ParsingState CNF) : BStreamM (CNF × SRAdditionLine) := do
+    BStream.ws
+    let ch ← BStream.peek
+    if ch != EOF then
+      let atom ← BStream.readInt64
+      let ⟨mode, F, line⟩ := processSRAtom atom pivot st
+      match mode with
+      | .err str => panic! str
+      | .lineDone => return (F, line)
+      | _ => loop ⟨mode, F, line⟩
+    else
+      panic! "Line ended early"
+
+  loop st
+
+@[specialize]
 partial def parseDeletionLine (arr : ByteArray) (iter : USize) : Except String (Array Nat × USize) :=
   let iter := ByteArray.ws arr iter
   let size := arr.size.toUSize
@@ -250,6 +338,8 @@ partial def parseDeletionLine (arr : ByteArray) (iter : USize) : Except String (
       let iter' := ByteArray.skipInt arr iter
       if atom = 0 then
         .ok ⟨acc, iter'⟩
+      else if atom < 0 then
+        throw s!"Invalid deletion line: Clause ID {atom.natAbs} is negative"
       else
         loop (acc.push (atom - 1).toNat) iter'
     else
@@ -273,3 +363,22 @@ partial def parseDeletionLine (arr : ByteArray) (iter : USize) : Except String (
   --     apply USize.le_of_lt hi
 
   loop #[] iter
+
+@[specialize]
+partial def parseDeletionLineBS (acc : Array Nat := #[]) : BStreamM (Array Nat) := do
+  BStream.ws
+  let ch ← BStream.peek
+  if ch != EOF then
+    let atom ← BStream.readInt64NoWs
+    if atom = 0 then
+      return acc
+    else if atom < 0 then
+      panic! s!"Invalid deletion line: Clause ID {atom.natAbs} is negative"
+    else
+      parseDeletionLineBS (acc.push (atom - 1).toNat)
+  else
+    panic! "Line ended early"
+
+end SRParser /- namespace -/
+
+end Trestle /- namespace -/

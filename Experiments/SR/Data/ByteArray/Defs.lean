@@ -341,4 +341,63 @@ def readInt64 (arr : ByteArray) (iter : USize) : Int :=
   let iter := ws arr iter
   readInt64NoWs arr iter
 
+def undoBinaryMapping32 (x : UInt32) : Int :=
+  if x &&& 1 = 1 then
+    ((((x >>> 1).toNat) : Int) * -1)
+  else
+    (((x >>> 1).toNat) : Int)
+
+def undoBinaryMapping64 (x : UInt64) : Int :=
+  if x &&& 1 = 1 then
+    ((((x >>> 1).toNat) : Int) * -1)
+  else
+    (((x >>> 1).toNat) : Int)
+
+def readBinInt32Impl (arr : ByteArray) (iter : USize) (acc : UInt32 := 0) (shift : UInt32 := 0) : Int :=
+  if hi : iter < arr.usize then
+    let atom := arr.uget iter (USize.toNat_lt_of_lt_toUSize hi)
+    let acc' := acc ||| ((atom &&& 127).toUInt32 <<< shift)
+    if atom &&& 128 != 0 then
+      readBinInt32Impl arr (iter + 1) acc' (shift + 7)
+    else
+      undoBinaryMapping32 acc'
+  else
+    panic! "Attempted to read a binary Int32, but the iterator is out of bounds"
+termination_by arr.usize - iter
+decreasing_by simp; apply USize.lt_iff_toNat_lt.mp; apply USize.sub_succ_lt_sub_of_lt; assumption
+
+@[extern "lean_byte_array_read_bin_int32"]
+def readBinInt32 (arr : @& ByteArray) (iter : @& USize) : Int :=
+  readBinInt32Impl arr iter 0 0
+
+def readBinInt64Impl (arr : ByteArray) (iter : USize) (acc : UInt64 := 0) (shift : UInt64 := 0) : Int :=
+  if hi : iter < arr.usize then
+    let atom := arr.uget iter (USize.toNat_lt_of_lt_toUSize hi)
+    let acc' := acc ||| ((atom &&& 127).toUInt64 <<< shift)
+    if atom &&& 128 != 0 then
+      readBinInt64Impl arr (iter + 1) acc' (shift + 7)
+    else
+      undoBinaryMapping64 acc'
+  else
+    panic! "Attempted to read a binary Int64, but the iterator is out of bounds"
+termination_by arr.usize - iter
+decreasing_by simp; apply USize.lt_iff_toNat_lt.mp; apply USize.sub_succ_lt_sub_of_lt; assumption
+
+@[extern "lean_byte_array_read_bin_int64"]
+def readBinInt64 (arr : @& ByteArray) (iter : @& USize) : Int :=
+  readBinInt64Impl arr iter 0 0
+
+@[extern "lean_byte_array_skip_bin_int"]
+def skipBinInt (arr : ByteArray) (iter : USize) : USize :=
+  if hi : iter < arr.usize then
+    let atom := arr.uget iter (USize.toNat_lt_of_lt_toUSize hi)
+    if atom &&& 128 != 0 then
+      skipBinInt arr (iter + 1)
+    else
+      iter + 1
+  else
+    iter
+termination_by arr.usize - iter
+decreasing_by simp; apply USize.lt_iff_toNat_lt.mp; apply USize.sub_succ_lt_sub_of_lt; assumption
+
 end ByteArray /- namespace -/

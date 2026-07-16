@@ -270,6 +270,9 @@ theorem toPropFun_drop_le_drop_of_ge (F : List (Clause L)) {n₁ n₂ : Nat}
   have : n₁ + (i + (n₂ - n₁)) = n₂ + i := by omega
   simp [this]
 
+@[simp] theorem toPropFun_empty : Cnf.toPropFun (#[] : Cnf L) = ⊤ := rfl
+@[simp] theorem toPropFun_nil : Cnf.toPropFun ({ toList := [] } : Cnf L) = ⊤ := rfl
+
 /-! #### Satisfiability -/
 
 abbrev Sat (f : Cnf L) : Prop := f.toPropFun.Sat

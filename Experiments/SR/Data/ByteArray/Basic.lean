@@ -123,25 +123,25 @@ theorem le_skip_of_le {iter₁ iter₂ : USize}
   apply USize.le_trans hi
   exact iter_le_skip arr iter₂ pred
 
-@[simp]
-theorem skip_skip (arr : ByteArray) (iter : USize) (pred : UInt8 → Bool)
-    : skip arr (skip arr iter pred) pred = skip arr iter pred := by
-  unfold skip
-  stop
-  simp
-  split
-  · rename_i hsi
-    split
-    · split
-      · split
-        ·
-          done
-        done
-      done
-    done
-  ·
-    done
-  done
+-- @[simp]
+-- theorem skip_skip (arr : ByteArray) (iter : USize) (pred : UInt8 → Bool)
+--     : skip arr (skip arr iter pred) pred = skip arr iter pred := by
+--   unfold skip
+--   stop
+--   simp
+--   split
+--   · rename_i hsi
+--     split
+--     · split
+--       · split
+--         ·
+--           done
+--         done
+--       done
+--     done
+--   ·
+--     done
+--   done
 
 
 /-! # ws -/
@@ -180,9 +180,9 @@ theorem ws_eq_of_uget_isDigit {arr : ByteArray} {iter : USize} (hi : iter < arr.
   apply skip_eq_of_uget_pred_false hi
   exact UInt8.not_isSpace_of_isDigit h
 
-@[simp]
-theorem ws_ws (arr : ByteArray) (iter : USize) : ws arr (ws arr iter) = ws arr iter :=
-  skip_skip arr iter _
+-- @[simp]
+-- theorem ws_ws (arr : ByteArray) (iter : USize) : ws arr (ws arr iter) = ws arr iter :=
+--   skip_skip arr iter _
 
 /-! # line -/
 
@@ -279,18 +279,17 @@ theorem iter_lt_skipNatNoWs_of_peek_isDigit {arr : ByteArray} {iter : USize}
   apply iter_lt_skip_of_peek_ne_EOF_of_pred_true _ h_peek
   apply UInt8.ne_EOF_of_isDigit h_peek
 
-
-theorem skipInt_le_of_le {arr : ByteArray} {iter : USize}
-    : iter ≤ arr.size.toUSize → skipInt arr iter ≤ arr.size.toUSize := by
-  stop
-  intro hi
-  unfold skipInt
-  simp
-  split
-  · rename_i h_neg
-    apply skip_le_of_le hi fun x => x.isDigit || x == UInt8._minus
-    simp [h_neg]
-  · apply skipNatNoWs_le_of_le hi
+-- theorem skipInt_le_of_le {arr : ByteArray} {iter : USize}
+--     : iter ≤ arr.size.toUSize → skipInt arr iter ≤ arr.size.toUSize := by
+--   stop
+--   intro hi
+--   unfold skipInt
+--   simp
+--   split
+--   · rename_i h_neg
+--     apply skip_le_of_le hi fun x => x.isDigit || x == UInt8._minus
+--     simp [h_neg]
+--   · apply skipNatNoWs_le_of_le hi
 
 /-! # readNat, readInt -/
 
@@ -417,41 +416,41 @@ theorem iter_lt_skipNat_of_readUInt32NoWs_ne_zero {arr : ByteArray} {iter : USiz
   intro _ _
   apply iter_lt_skipNat_of_readUInt32NoWs.loop_ne_zero
 
-theorem iter_lt_skipNat_of_readUInt32 {arr : ByteArray} {iter}
-    : readUInt32 arr iter ≠ 0 → iter < skipNat arr iter := by
-  unfold readUInt32 skipNat
-  simp
-  intro h
-  apply USize.lt_of_le_of_lt <| iter_le_ws arr iter
-  have := iter_lt_skipNat_of_readUInt32NoWs_ne_zero h
-  simp [skipNat] at this
-  exact this
+-- theorem iter_lt_skipNat_of_readUInt32 {arr : ByteArray} {iter}
+--     : readUInt32 arr iter ≠ 0 → iter < skipNat arr iter := by
+--   unfold readUInt32 skipNat
+--   simp
+--   intro h
+--   apply USize.lt_of_le_of_lt <| iter_le_ws arr iter
+--   have := iter_lt_skipNat_of_readUInt32NoWs_ne_zero h
+--   simp [skipNat] at this
+--   exact this
 
-theorem iter_lt_skipInt_of_readInt32NoWs {arr : ByteArray} {iter : USize}
-    : readInt32NoWs arr iter ≠ 0 → iter < skipInt arr iter := by
-  unfold readInt32NoWs skipInt
-  simp
-  intro hi h
-  stop
-  split at h
-  · simp at h
-    done
-  ·
-    done
-  rw [ws_eq_of_uget_isDigit hi h_neg]
-  apply iter_lt_skip_of_pred_uget_true h_neg
-  exact hi
+-- theorem iter_lt_skipInt_of_readInt32NoWs {arr : ByteArray} {iter : USize}
+--     : readInt32NoWs arr iter ≠ 0 → iter < skipInt arr iter := by
+--   unfold readInt32NoWs skipInt
+--   simp
+--   intro hi h
+--   stop
+--   split at h
+--   · simp at h
+--     done
+--   ·
+--     done
+--   rw [ws_eq_of_uget_isDigit hi h_neg]
+--   apply iter_lt_skip_of_pred_uget_true h_neg
+--   exact hi
 
-theorem iter_lt_skipInt_of_readInt32 {arr : ByteArray} {iter}
-    : readInt32 arr iter ≠ 0 → iter < skipInt arr iter := by
-  unfold readInt32 skipInt
-  stop
-  simp
-  intro h
-  apply USize.lt_of_le_of_lt <| iter_le_ws arr iter
-  have := iter_lt_skipNat_of_readUInt32NoWs_ne_zero h
-  simp [skipInt, skipNat] at this
-  exact this
+-- theorem iter_lt_skipInt_of_readInt32 {arr : ByteArray} {iter}
+--     : readInt32 arr iter ≠ 0 → iter < skipInt arr iter := by
+--   unfold readInt32 skipInt
+--   stop
+--   simp
+--   intro h
+--   apply USize.lt_of_le_of_lt <| iter_le_ws arr iter
+--   have := iter_lt_skipNat_of_readUInt32NoWs_ne_zero h
+--   simp [skipInt, skipNat] at this
+--   exact this
 
 
 end readNat

@@ -182,3 +182,80 @@ lean_object* lean_byte_array_read_int64_no_ws(lean_object* arr, size_t iter) {
     return NULL; // Unreachable
   }
 }
+
+lean_object* lean_byte_array_read_bin_int32(lean_object* arr, size_t iter) {
+  size_t arr_size = lean_sarray_size(arr);
+  uint32_t acc = 0;
+  uint32_t shift = 0;
+
+  while (iter < arr_size) {
+    uint8_t ch = lean_byte_array_uget(arr, iter);
+    acc |= ((uint32_t) (ch & 0x7F)) << shift;
+    iter++;
+
+    // Stop reading bytes if the most significant bit is not set
+    if ((ch & 0x80) == 0) {
+      // The number is negative if its least-significat bit is set
+      int32_t res = (int32_t) acc;
+      if (res & 1) {
+        res = -(res >> 1);
+      } else {
+        res >>= 1;
+      }
+
+      return lean_int32_to_int(res);
+    }
+
+    // Otherwise, we read the next 7 bits
+    shift += 7;
+  }
+
+  lean_byte_array_read_panic_oob(lean_box_usize(iter));
+  return NULL; // Unreachable
+}
+
+lean_object* lean_byte_array_read_bin_int64(lean_object* arr, size_t iter) {
+  size_t arr_size = lean_sarray_size(arr);
+  uint64_t acc = 0;
+  uint64_t shift = 0;
+
+  while (iter < arr_size) {
+    uint8_t ch = lean_byte_array_uget(arr, iter);
+    acc |= ((uint64_t) (ch & 0x7F)) << shift;
+    iter++;
+
+    // Stop reading bytes if the most significant bit is not set
+    if ((ch & 0x80) == 0) {
+      // The number is negative if its least-significat bit is set
+      int64_t res = (int64_t) acc;
+      if (res & 1) {
+        res = -(res >> 1);
+      } else {
+        res >>= 1;
+      }
+
+      return lean_int64_to_int(res);
+    }
+
+    // Otherwise, we read the next 7 bits
+    shift += 7;
+  }
+
+  lean_byte_array_read_panic_oob(lean_box_usize(iter));
+  return NULL; // Unreachable
+}
+
+size_t lean_byte_array_skip_bin_int(lean_object* arr, size_t iter) {
+  size_t arr_size = lean_sarray_size(arr);
+  while (iter < arr_size) {
+    uint8_t ch = lean_byte_array_uget(arr, iter);
+    iter++;
+
+    // Stop reading bytes if the most significant bit is not set
+    if ((ch & 0x80) == 0) {
+      return iter;
+    }
+  }
+
+  return iter;
+}

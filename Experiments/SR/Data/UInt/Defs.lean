@@ -108,6 +108,10 @@ def isSpace (c : UInt32) : Bool :=
   || c == 12                           -- '\f'
   || c == (UInt8.toUInt32 <| Char.toUInt8 '\r')
 
+@[inline, always_inline]
+def isNewline (c : UInt32) : Bool :=
+  c == (UInt8.toUInt32 <| Char.toUInt8 '\n')
+
 def numDigits (x : UInt32) : UInt32 :=
   if x < 10 then 1
   else if x < 100 then 2
