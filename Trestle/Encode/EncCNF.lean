@@ -415,25 +415,46 @@ def nextVar_mono_of_eq {e : EncCNF ν α} (h : e.1 s = (a, s')) :
   have := h ▸ e.2 s
   exact this
 
+/-- Tempify the state and extract its `vMap` in one opaque step.
+
+`@[noinline]` is essential here: it forces the compiler to consume `s` before
+the inner encoder runs. Without it, the LCNF simplifier substitutes the
+`s.vMap` projection to its use site after the inner run, which keeps `s` (and
+hence its `cnf`) alive during the whole run; every `addClause` inside then
+sees a shared `cnf` and copies the entire array. -/
+@[noinline]
+def LawfulState.withTempsAux [IndexType ι] [LawfulIndexType ι]
+    (s : LawfulState ν) (names : Option (ι → String)) :
+    LawfulState (ν ⊕ ι) × (ν → IVar) :=
+  (s.withTemps names, s.vMap)
+
 def withTemps (ι) [IndexType ι] [LawfulIndexType ι] (e : EncCNF (ν ⊕ ι) α) (names : Option (ι → String) := none) : EncCNF ν α :=
   ⟨ fun s =>
-    let vMap := s.vMap
-    let vMapInj := s.vMapInj
-    let tempify := s.withTemps names
+    match haux : LawfulState.withTempsAux s names with
+    | (tempify, vMap) =>
     match h : e.1 tempify with
     | (a,s') =>
     (a, s'.withoutTemps vMap (by
+        simp [LawfulState.withTempsAux, Prod.ext_iff] at haux
+        obtain ⟨htemp, hvmap⟩ := haux
+        subst htemp; subst hvmap
         intro v; rw [IVar.lt_def]
         apply Nat.lt_of_lt_of_le (m := s.nextVar.val)
         · apply s.vMapLt
-        · apply Nat.le_trans (m := tempify.nextVar.val)
-          · simp [tempify, LawfulState.withTemps, State.withTemps]
+        · apply Nat.le_trans (m := (s.withTemps names).nextVar.val)
+          · simp [LawfulState.withTemps, State.withTemps]
           · rw [← IVar.le_def]
             exact e.nextVar_mono_of_eq h
-      ) vMapInj)
-  , by simp [LawfulState.withoutTemps, State.withoutTemps]
-       intro s; split; simp; have := e.nextVar_mono_of_eq ‹_›
-       simp [LawfulState.withTemps, State.withTemps] at this
+      ) (by
+        simp [LawfulState.withTempsAux, Prod.ext_iff] at haux
+        exact haux.2 ▸ s.vMapInj))
+  , by intro s
+       dsimp only
+       split
+       next a s' h' =>
+       simp [LawfulState.withoutTemps, State.withoutTemps]
+       have := e.nextVar_mono_of_eq h'
+       simp [LawfulState.withTempsAux, LawfulState.withTemps, State.withTemps] at this
        apply Nat.le_trans (m := (s.nextVar + IndexType.card ι).val)
        · apply Nat.le_add_right
        · exact (PNat.coe_le_coe ..).mp this⟩
