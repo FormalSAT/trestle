@@ -59,7 +59,7 @@ def addClause (C : Clause (Literal ν)) (s : State ν) : State ν :=
         dbgTraceIfShared
           "State.addClause: cnf is shared (performance bug!)"
           cnf
-      cnf.addClause (C.map _ vMap)
+      cnf.addClause (C.map vMap)
   }
 
 @[simp] theorem toPropFun_addClause (C : Clause (Literal ν)) (s)
