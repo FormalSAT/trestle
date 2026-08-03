@@ -209,7 +209,7 @@ where
     )
 
 
-/-
+/--
 info: p cnf 13 11
 -11 12 0
 -12 13 0
@@ -223,7 +223,7 @@ info: p cnf 13 11
 12 -13 3 0
 13 0
 -/
---#guard_msgs in
+#guard_msgs in
 #eval! (show VEncCNF (Fin 10) Unit _ from
           sinzExactlyOne #[Literal.pos 0, Literal.pos 1, Literal.pos 2]
         ).1.run.2.cnf |> Solver.Dimacs.printRichCnf (IO.print)

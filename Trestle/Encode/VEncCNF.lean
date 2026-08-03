@@ -163,7 +163,7 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     unfold ls_post'; clear ls_post'
     generalize retVal_def : (EncCNF.withTemps ι ve.val _).val ls_pre = retVal
     -- let's get through a nasty match in withTemps
-    dsimp [EncCNF.withTemps] at retVal_def
+    dsimp [EncCNF.withTemps, EncCNF.LawfulState.withTempsAux] at retVal_def
     split at retVal_def; next a ls_post_withTemps pre_to_post =>
     generalize ls_post_def : ls_post_withTemps.withoutTemps _ _ _ = ls_post at retVal_def
     subst retVal; dsimp
