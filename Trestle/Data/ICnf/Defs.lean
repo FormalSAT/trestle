@@ -30,7 +30,7 @@ namespace Trestle
   and also in case we want to change the backing type to `UInt64` in the future.
 -/
 def IVar := { n : Nat // 0 < n }
-  deriving DecidableEq, Repr
+  deriving DecidableEq, Repr, Hashable
 
 /--
   The implementation type of DIMACS literals (hence the "I" in `ILit`).
@@ -39,7 +39,7 @@ def IVar := { n : Nat // 0 < n }
   We represent them as integers, with the invariant that they are non-zero.
 -/
 def ILit := { i : Int // i ≠ 0 }
-  deriving DecidableEq, Repr
+  deriving DecidableEq, Repr, Hashable
 
 namespace IVar
 
@@ -95,15 +95,25 @@ instance instLT : LT IVar where
 
 theorem lt_def (a b : IVar) : (a < b) = (a.val < b.val) := rfl
 
-@[simp] theorem lt_ofIndex (a b : Nat) : ofIndex a < ofIndex b ↔ a < b := by simp [ofIndex, lt_def]
+@[simp] theorem lt_ofIndex (a b : Nat) : ofIndex a < ofIndex b ↔ a < b := by
+  rw [lt_def]
+  simp [ofIndex]
 
 instance instLE : LE IVar where
   le a b := a.val ≤ b.val
 
+instance instMax : Max IVar where
+  max a b := ⟨max a.val b.val, by cases a; cases b; simp only; omega⟩
+
+instance instMin : Min IVar where
+  min a b := ⟨min a.val b.val, by cases a; cases b; simp only; omega⟩
+
 theorem le_def (a b : IVar) : (a ≤ b) = (a.val ≤ b.val) := rfl
 
 @[simp] theorem le_refl (a : IVar) : a ≤ a := Nat.le_refl _
-@[simp] theorem le_ofIndex (a b : Nat) : ofIndex a ≤ ofIndex b ↔ a ≤ b := by simp [ofIndex, le_def]
+@[simp] theorem le_ofIndex (a b : Nat) : ofIndex a ≤ ofIndex b ↔ a ≤ b := by
+  rw [le_def]
+  simp [ofIndex]
 
 instance : HAdd IVar Nat IVar where
   hAdd v off := ⟨v.val + off, by have := v.property; omega⟩

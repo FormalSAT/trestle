@@ -23,7 +23,7 @@ theorem eval_ofBool (b : Bool) : (PropForm.ofBool b).eval τ = b := by
 
 /-- Any function from assignments to `Prop` over a list of variables
 can be written as a `PropForm`, by truth table construction. -/
-def ofFun [DecidableEq V] (p : PropAssignment V → Bool) (L : List V) (h : ∀ v, v ∈ L) :=
+def ofFun [DecidableEq V] (p : PropAssignment V → Bool) (L : List V) (h : ∀ v, v ∈ L) : PropForm V :=
   aux L (fun v h => by simp [*] at h)
 where aux (rem : List V) (passn : (v : V) → ¬ v ∈ rem → Bool) : PropForm V :=
   match rem with
@@ -49,7 +49,7 @@ theorem eval_ofFun [DecidableEq V] {L : List V} {hc}
   | nil => simp [ofFun.aux]; congr; funext v; simp [*]
   | cons head tail ih =>
     simp [ofFun.aux]
-    cases hhead : τ head <;> (simp; apply ih; intro v h; split <;> simp [*])
+    cases hhead : τ head <;> (simp; apply ih; intro v h; simp; split <;> simp [*])
 
 @[simp]
 theorem entails_ofFun [DecidableEq V] {L : List V} {hc} (p τ)
@@ -64,7 +64,7 @@ def ofFun {V : Type u} [DecidableEq V] [Fintype V]
     (p : PropAssignment V → Bool) : PropFun V :=
   Fintype.elim_elems (fun L h1 _ => ⟦ PropForm.ofFun p L h1 ⟧) (by
     intro L1 L2 h1 _ h2 _
-    simp; ext; rw [satisfies_mk, satisfies_mk]
+    ext; rw [satisfies_mk, satisfies_mk]
     simp only [PropForm.entails_ofFun]
   )
 

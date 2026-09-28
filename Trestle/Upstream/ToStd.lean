@@ -144,9 +144,6 @@ theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List 
       Array.foldl f (f init a) { toList := as } 0 (size { toList := as }) := by
   simp only [List.foldl_toArray', List.foldl_cons]
 
-theorem Array.ofFn_getElem (A : Array α) : Array.ofFn (n := A.size) (A[·]) = A := by
-  ext i hi <;> simp
-
 /-! List -/
 
 open List in
@@ -187,13 +184,13 @@ where
 @[simp] theorem List.fins_zero : List.fins 0 = [] := rfl
 
 theorem List.fins_succ (n : Nat)
-  : List.fins (n.succ) = (List.fins n).map (Fin.castSucc) ++ [Fin.last n] := by
+  : List.fins (n + 1) = (List.fins n).map (Fin.castSucc) ++ [Fin.last n] := by
   unfold fins
   conv => lhs; unfold fins.finsAux
   suffices ∀ i (hi : i ≤ n) acc,
-      fins.finsAux n.succ i (trans hi (Nat.le_succ _)) (map Fin.castSucc acc ++ [Fin.last n]) =
+      fins.finsAux (n + 1) i (trans hi (Nat.le_succ _)) (map Fin.castSucc acc ++ [Fin.last n]) =
         map Fin.castSucc (fins.finsAux n i hi acc) ++ [Fin.last n]
-    by have := this n (Nat.le_refl _) []; simpa using this
+    by have := this n (Nat.le_refl _) []; simpa only [map_nil, nil_append]
   intro i hi acc
   induction i generalizing acc with
   | zero => unfold fins.finsAux; simp
@@ -211,7 +208,6 @@ theorem List.get_fins {n : Nat} (i : Fin (List.fins n).length)
   | zero => simp only [fins_zero, length_nil, Nat.not_lt_zero, get_eq_getElem, forall_false]
   | succ i ih =>
     intro hj
-    --rw [List.length_fins] at hj
     by_cases h : j = i
     · subst h
       simp only [get_eq_getElem, fins_succ, Fin.last, length_map,

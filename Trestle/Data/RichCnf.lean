@@ -11,43 +11,55 @@ namespace Trestle
 
 namespace RichCnf
 
-inductive Line
-| clause (c : IClause)
-| comment (s : String)
+inductive Line (L : Type u)
+  | clause (c : Clause L)
+  | comment (s : String)
 
-end RichCnf
+end RichCnf /- namespace -/
 
-def RichCnf := Array RichCnf.Line
+def RichCnf (L : Type u) := Array (RichCnf.Line L)
+abbrev RichICnf := RichCnf ILit
 
 namespace RichCnf
 
-def toICnf : RichCnf → ICnf :=
+variable {L : Type u}
+
+def toCnf : RichCnf L → Cnf L :=
   Array.filterMap (fun | .clause c => some c | .comment _ => none)
 
-def fromICnf : ICnf → RichCnf := Array.map (.clause ·)
+def fromCnf : Cnf L → RichCnf L :=
+  Array.map (.clause ·)
 
-@[simp] def toPropFun (c : RichCnf) : Model.PropFun IVar :=
-  c.toICnf.toPropFun
+instance instCoeToCnf : Coe (RichCnf L) (Cnf L) := ⟨toCnf⟩
+instance instCoeOfCnf : Coe (Cnf L) (RichCnf L) := ⟨fromCnf⟩
 
-def maxVar (fml : RichCnf) : Nat :=
-  fml.maxBy (fun
-    | .comment _ => 0
-    | .clause c => c.maxBy (LitVar.toVar · |>.val) |>.getD 0
-  ) |>.getD 0
+@[simp]
+def toPropFun {ν : Type v} [LitVar L ν] (F : RichCnf L) : Model.PropFun ν :=
+  F.toCnf.toPropFun
 
-def addClause (c : IClause) (a : RichCnf) : RichCnf :=
-  a.push (.clause c)
+def addClause (c : Clause L) (F : RichCnf L) : RichCnf L :=
+  F.push (.clause c)
 
-@[simp] theorem addClause_toICnf (c a) :
-    (addClause c a).toICnf = a.toICnf.addClause c := by
-  simp [addClause, toICnf, Cnf.addClause, Array.push]
+def addComment (s : String) (F : RichCnf L) : RichCnf L :=
+  F.push (.comment s)
 
-def addComment (s : String) (a : RichCnf) : RichCnf :=
-  a.push (.comment s)
+def maxVar {ν : Type v} [Max ν] [LitVar L ν] (F : RichCnf L) : Option ν :=
+  F.toCnf.maxVar
 
-@[simp] theorem addComment_toICnf (s a) :
-    (addComment s a).toICnf = a.toICnf := by
-  simp only [addComment, toICnf, ← Array.toList_inj, Array.toList_filterMap]
-  simp
+@[simp]
+theorem addClause_toCnf (c : Clause L) (F : RichCnf L) : (addClause c F).toCnf = F.toCnf.addClause c := by
+  suffices h : ∀ xs : Array (Line L), toCnf (xs.push (.clause c)) = (toCnf xs).addClause c from h F
+  intro xs
+  simp [toCnf, Cnf.addClause]
 
-end RichCnf
+@[simp]
+theorem addComment_toCnf (s : String) (F : RichCnf L) : (addComment s F).toCnf = F.toCnf := by
+  suffices h : ∀ xs : Array (Line L), toCnf (xs.push (.comment s)) = toCnf xs from h F
+  intro xs
+  simp [toCnf]
+
+instance instInhabited (L : Type u) : Inhabited (RichCnf L) := ⟨Array.empty⟩
+
+end RichCnf /- namespace -/
+
+end Trestle /- namespace -/

@@ -20,15 +20,17 @@ def toPropFun (C : Clause L) : PropFun ν :=
 
 instance instCoeToPropFun : CoeHead (Clause L) (PropFun ν) := ⟨toPropFun⟩
 
-theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Clause L)
-  : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
+theorem mem_semVars_toPropFun [DecidableEq ν] {x : ν} {C : Clause L}
+    : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C ∧ LitVar.toVar l = x := by
   intro h
   rcases C with ⟨data⟩
-  have ⟨τ,hpos,hneg⟩ := (PropFun.mem_semVars _ _).mp h; clear h
+  obtain ⟨τ, h_pos, h_neg⟩ := PropFun.mem_semVars.mp h; clear h
   simp_all [toPropFun, Array.mem_def]
-  rcases hpos with ⟨l,hl,h⟩
-  have := (PropFun.mem_semVars _ _).mpr ⟨τ,h,hneg l hl⟩; clear hneg h
-  aesop
+  obtain ⟨l, hl, h⟩ := h_pos
+  have := PropFun.mem_semVars.mpr ⟨τ, h, h_neg l hl⟩; clear h_neg h
+  simp at this
+  subst this
+  use l, hl
 
 open PropFun
 
@@ -86,7 +88,7 @@ theorem tautology_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Clause L) :
       simp [*]
 
 @[simp] theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Clause L)
-  : (c.map (L' := L') f).toPropFun = c.toPropFun.map f
+  : (c.map (L' := L') f).toPropFun = c.toPropFun.vmap f
   := by
   ext τ
   simp [map, satisfies_iff]
@@ -163,7 +165,7 @@ theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
   have := PropFun.semVars_conj _ _ hv
   simp at this
   rcases this with (h|h)
-  · have := Clause.mem_semVars_toPropFun _ _ h
+  · have := Clause.mem_semVars_toPropFun h
     simp_rw [Array.mem_def] at this
     aesop
   · have := ih h
@@ -172,7 +174,7 @@ theorem semVars_toPropFun [DecidableEq ν] (F : Cnf L)
 
 instance : CoeHead (Cnf L) (PropFun ν) := ⟨toPropFun⟩
 
-theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (F : Cnf L)
+theorem mem_semVars_toPropFun [DecidableEq ν] {x : ν} {F : Cnf L}
   : x ∈ F.toPropFun.semVars → ∃ C, C ∈ F ∧ x ∈ C.toPropFun.semVars := by
   intro h
   rcases F with ⟨data⟩
@@ -288,25 +290,27 @@ def toPropFun (C : Cube L) : PropFun ν :=
 
 instance : CoeHead (Cube L) (PropFun ν) := ⟨toPropFun⟩
 
-theorem mem_semVars_toPropFun [DecidableEq ν] (x : ν) (C : Cube L)
-  : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C.toArray ∧ LitVar.toVar l = x := by
+theorem mem_semVars_toPropFun [DecidableEq ν] {x : ν} {C : Cube L}
+    : x ∈ C.toPropFun.semVars → ∃ l, l ∈ C.toArray ∧ LitVar.toVar l = x := by
   intro h
   rcases C with ⟨data⟩
-  have ⟨τ,hpos,hneg⟩ := (PropFun.mem_semVars _ _).mp h; clear h
+  obtain ⟨τ, hpos, hneg⟩ := PropFun.mem_semVars.mp h; clear h
   simp_all [toPropFun, Array.mem_def]
   rcases hneg with ⟨l,hl,h⟩
-  have := (PropFun.mem_semVars _ _).mpr ⟨τ,hpos l hl,h⟩; clear hpos h
-  aesop
+  have := PropFun.mem_semVars.mpr ⟨τ,hpos l hl,h⟩; clear hpos h
+  simp at this
+  subst this
+  use l, hl
 
 open PropFun
 
-theorem satisfies_iff {τ : PropAssignment ν} {C : Cube L} :
-    τ ⊨ C.toPropFun ↔ ∀ l ∈ C.toArray, τ ⊨ LitVar.toPropFun l := by
+theorem satisfies_iff {τ : PropAssignment ν} {C : Cube L}
+    : τ ⊨ C.toPropFun ↔ ∀ l ∈ C.toArray, τ ⊨ LitVar.toPropFun l := by
   simp_rw [toPropFun, Array.mem_def]
-  simp
+  simp [Cube.toArray]
 
-theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
-    C.toPropFun = ⊥ ↔ ∃ l₁ ∈ C.toArray, ∃ l₂ ∈ C.toArray, l₁ = -l₂ := by
+theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] {C : Cube L}
+    : C.toPropFun = ⊥ ↔ ∃ l₁ ∈ C.toArray, ∃ l₂ ∈ C.toArray, l₁ = -l₂ := by
   constructor
   · intro h
     rcases C with ⟨lits⟩
@@ -323,8 +327,7 @@ theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
       rcases hr with ⟨τ,hr⟩
       replace h := h (τ.set (LitVar.toVar hd) (LitVar.polarity hd)) (by
         simp [LitVar.satisfies_iff])
-      simp at h
-      rcases h with ⟨hd',hd'_mem,h⟩
+      rcases h with ⟨hd', hd'_mem, h⟩
       replace hr := hr hd' hd'_mem
       simp [LitVar.satisfies_iff, PropAssignment.set] at hr h
       split at h
@@ -340,27 +343,46 @@ theorem empty_iff [DecidableEq ν] [LawfulLitVar L ν] (C : Cube L) :
         · simp [hEq]
         · exact List.mem_cons_of_mem _ hd'_mem
       · exact False.elim (h hr)
-  · rintro ⟨_,hl1,l,hl2,rfl⟩
+  · rintro ⟨_, hl₁, l, hl₂, rfl⟩
     ext τ; simp [satisfies_iff]
     by_cases τ ⊨ LitVar.toPropFun l <;> aesop
 
-@[simp] theorem toPropFun_and (c1 c2 : Cube L)
-  : (c1.and c2).toPropFun = c1.toPropFun ⊓ c2.toPropFun := by
+@[simp]
+theorem toPropFun_and (c1 c2 : Cube L)
+    : (c1.and c2).toPropFun = c1.toPropFun ⊓ c2.toPropFun := by
   ext τ
-  simp [and, satisfies_iff]
+  simp [and, satisfies_iff, toArray]
   apply Iff.intro
   · rintro h
+    replace h := satisfies_iff.mp h
+    simp [toArray] at h ⊢
     constructor
-    · aesop
-    · aesop
-  · rintro h l (l_mem|l_mem) <;>
-      aesop
+    <;> intro l hl
+    <;> apply h
+    · exact Array.mem_append_left _ hl
+    · exact Array.mem_append_right _ hl
+  · rintro ⟨hl₁, hl₂⟩
+    apply satisfies_iff.mpr
+    intro l hl
+    simp [toArray] at hl
+    rcases Array.mem_append.mp hl with (hl | hl)
+    · exact hl₁ _ hl
+    · exact hl₂ _ hl
 
-@[simp] theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Cube L)
-  : (c.map L' f).toPropFun = c.toPropFun.map f
-  := by
+/-- `map` on cubes commutes with `toArray`. -/
+theorem toArray_map [LitVar L' ν'] (f : ν → ν') (c : Cube L)
+    : (c.map L' f).toArray = c.toArray.map (LitVar.map f) := rfl
+
+@[simp]
+theorem mem_map [LitVar L' ν'] {f : ν → ν'} {c : Cube L} {l : L'}
+    : l ∈ (c.map L' f).toArray ↔ ∃ l' ∈ c.toArray, LitVar.map f l' = l := by
+  simp [toArray_map]
+
+@[simp]
+theorem toPropFun_map [LitVar L' ν'] [LawfulLitVar L' ν'] (f : ν → ν') (c : Cube L)
+    : (c.map L' f).toPropFun = c.toPropFun.vmap f := by
   ext τ
-  simp [map, satisfies_iff]
+  simp [PropFun.satisfies_vmap, satisfies_iff]
 
 end Cube
 

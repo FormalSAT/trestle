@@ -40,7 +40,7 @@ def printICnf [Monad m] (print : String → m Unit) (f : ICnf) (vars := f.maxVar
   for c in f do
     print <| formatClause c ++ "\n"
 
-def printRichCnf [Monad m] (print : String → m Unit) (f : RichCnf) (vars := f.maxVar) : m Unit := do
+def printRichCnf [Monad m] (print : String → m Unit) (f : RichICnf) (vars := f.maxVar) : m Unit := do
   let clauses := f.foldl (· + match · with |.clause _ => 1 | _ => 0) 0
   print <| s!"p cnf {vars} {clauses}\n"
   for line in show Array _ from f do
@@ -56,7 +56,7 @@ def toFile (file : System.FilePath) (cnf : ICnf) : IO Unit := do
   IO.FS.withFile file .write fun handle =>
     printICnf handle.putStr cnf
 
-def toFileRich (file : System.FilePath) (cnf : RichCnf) : IO Unit := do
+def toFileRich (file : System.FilePath) (cnf : RichICnf) : IO Unit := do
   IO.FS.withFile file .write fun handle =>
     printRichCnf handle.putStr cnf
 
@@ -78,7 +78,7 @@ def printRes [Monad m] [MonadExcept ε m] [Inhabited ε] (print : String → m U
 
 structure DimacsParseRes where
   vars : Nat
-  clauses : RichCnf
+  clauses : RichICnf
 
 def parseVar (maxVar : Nat) (s : String) : Except String IVar := do
   let n ← liftM <| s.toNat?.expectSome fun () => s!"Expected variable; got non-Nat: `{s}`"

@@ -1,14 +1,12 @@
 /-
-Copyright (c) 2024 The Trestle Contributors.
+Copyright (c) 2026 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: Wojciech Nawrocki, James Gallicchio
 -/
 
-import Mathlib.Data.Set.Basic
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Fintype.Pi
-import Trestle.Upstream.ToMathlib
 
 namespace Trestle.Model
 
@@ -28,54 +26,56 @@ instance [DecidableEq V] [Fintype V] : DecidableEq (PropAssignment V) :=
 instance [DecidableEq V] [Fintype V] : Fintype (PropAssignment V) :=
   inferInstanceAs (Fintype (_ → _))
 
+/-- Due to Lean's new `def` transparency (around v4.30), `PropAssignment ν` is
+now semireducible for `ν → Bool`, so instance resolution cannot see that
+the inequality of two assignments is decidable. -/
+instance (σ₁ σ₂ : PropAssignment ν) : DecidablePred (fun x => σ₁ x ≠ σ₂ x) :=
+  fun x => inferInstanceAs (Decidable (σ₁ x ≠ σ₂ x))
+
 @[ext] theorem ext (v1 v2 : PropAssignment ν) (h : ∀ x, v1 x = v2 x) : v1 = v2 := funext h
 
 section set
 
-variable [DecidableEq ν] (τ : PropAssignment ν)
+variable {ν : Type u} [DecidableEq ν] (τ : PropAssignment ν)
 
-def set (x : ν) (v : Bool) :
-    PropAssignment ν :=
+/-- Modifies the assignment `τ` by setting `τ (x) = v`. -/
+def set (x : ν) (v : Bool) : PropAssignment ν :=
   fun y => if y = x then v else τ y
 
 @[simp]
-theorem set_get (x : ν) (v : Bool) :
-    τ.set x v x = v := by
+theorem get_set_self (x : ν) (v : Bool) : τ.set x v x = v := by
+  simp [set]
+
+theorem get_set_of_ne {x y : ν} (h_ne : x ≠ y) (τ : PropAssignment ν) (v : Bool)
+    : τ.set x v y = τ y := by
+  simp [set, h_ne.symm]
+
+theorem get_set (x y : ν) (v : Bool) : τ.set x v y = if y = x then v else τ y := by
   simp [set]
 
 @[simp]
-theorem set_get_of_ne {x y : ν} (τ : PropAssignment ν) (v : Bool) :
-    x ≠ y → τ.set x v y = τ y := by
-  intro h
-  simp [set, h.symm]
-
-@[simp]
-theorem set_set (x : ν) (v v' : Bool) :
-    (τ.set x v).set x v' = τ.set x v' := by
+theorem set_set (x : ν) (v v' : Bool) : (τ.set x v).set x v' = τ.set x v' := by
   ext x'
   dsimp [set]; split <;> simp_all
 
 @[simp]
-theorem set_same (x : ν) :
-    τ.set x (τ x) = τ := by
+theorem set_get (x : ν) : τ.set x (τ x) = τ := by
   ext x'
   dsimp [set]; split <;> simp_all
 
-theorem set_comm (x₁ b₁ x₂ b₂) (h : x₁ ≠ x₂)
-  : (τ.set x₂ b₂).set x₁ b₁ = (τ.set x₁ b₁).set x₂ b₂ := by
+theorem set_comm {x₁ x₂ : ν} (h_ne : x₁ ≠ x₂) (τ : PropAssignment ν) (b₁ b₂ : Bool)
+    : (τ.set x₂ b₂).set x₁ b₁ = (τ.set x₁ b₁).set x₂ b₂ := by
   ext v
   simp [set]; split <;> split <;> (subst_vars; simp at *)
 
-/-- Assignment which agrees with `τ'` on `xs` but `τ` everywhere else. -/
+/-- Assignment which agrees with `τ'` on `vs` but `τ` everywhere else. -/
 def setMany (xs : Finset ν) (τ' : PropAssignment ν) : PropAssignment ν :=
   fun v => if v ∈ xs then τ' v else τ v
 
-@[simp]
-theorem setMany_mem (xs) (τ') (h : v ∈ xs) : (setMany τ xs τ') v = τ' v := by
+theorem setMany_mem {v : ν} {xs} (h : v ∈ xs) (τ τ') : (setMany τ xs τ') v = τ' v := by
   simp only [setMany, h, ↓reduceIte]
 
-@[simp]
-theorem setMany_not_mem (xs) (τ') (h : ¬ v ∈ xs) : (setMany τ xs τ') v = τ v := by
+theorem setMany_not_mem {v : ν} {xs} (h : ¬ v ∈ xs) (τ τ') : (setMany τ xs τ') v = τ v := by
   simp only [setMany, h, ↓reduceIte]
 
 @[simp]
@@ -84,7 +84,7 @@ theorem setMany_same (xs) : setMany τ xs τ = τ := by
 
 @[simp]
 theorem setMany_setMany (xs₁ τ₁ xs₂ τ₂)
-    : (setMany τ xs₁ τ₁).setMany xs₂ τ₂ = τ.setMany (xs₁ ∪ xs₂) (τ₁.setMany xs₂ τ₂) := by
+    : (τ.setMany xs₁ τ₁).setMany xs₂ τ₂ = τ.setMany (xs₁ ∪ xs₂) (τ₁.setMany xs₂ τ₂) := by
   ext v
   simp only [setMany, Finset.mem_union]
   split_ifs <;> try rfl
@@ -100,7 +100,7 @@ theorem setMany_setMany (xs₁ τ₁ xs₂ τ₂)
     · exact absurd hv hv₂
 
 theorem setMany_union (xs₁ xs₂ τ')
-    : τ.setMany (xs₁ ∪ xs₂) τ' = (setMany τ xs₁ τ').setMany xs₂ τ' := by
+    : τ.setMany (xs₁ ∪ xs₂) τ' = (τ.setMany xs₁ τ').setMany xs₂ τ' := by
   ext v
   simp only [setMany, Finset.mem_union]
   split_ifs <;> try rfl
@@ -124,15 +124,30 @@ theorem setMany_singleton (v : ν) (τ') : τ.setMany {v} τ' = τ.set v (τ' v)
   subst h
   rfl
 
-theorem set_setMany_comm (xs τ' v b) (h : ¬ v ∈ xs)
+theorem setMany_set_comm (xs) (τ') (v : ν)
+    : (τ.setMany xs τ').set v (τ' v) = (τ.set v (τ' v)).setMany xs τ' := by
+  simp_rw [← setMany_singleton, ← setMany_union]
+  rw [Finset.union_comm]
+
+theorem setMany_set_comm_of_not_mem {xs} {v : ν} (h : ¬ v ∈ xs) (τ') (b : Bool)
     : (τ.setMany xs τ').set v b = (τ.set v b).setMany xs τ' := by
-  ext v; simp [setMany, set]; aesop
+  ext v'
+  by_cases h_mem' : v' ∈ xs
+  · have : v ≠ v' := by
+      rintro rfl
+      exact h h_mem'
+    simp [setMany_mem h_mem', get_set_of_ne this]
+  · simp [setMany_not_mem h_mem', get_set]
+
+theorem setMany_insert (v : ν) (vs) (τ')
+    : τ.setMany (insert v vs) τ' = (τ.setMany vs τ').set v (τ' v) := by
+  rw [Finset.insert_eq, setMany_set_comm, ← setMany_singleton, ← setMany_union]
 
 end set /- section -/
 
 section agreeOn
 
-variable (τ : PropAssignment ν)
+variable {ν : Type u} (τ : PropAssignment ν)
 
 -- TODO: is this defined in mathlib for functions in general?
 def agreeOn (X : Set ν) (σ₁ σ₂ : PropAssignment ν) : Prop :=
@@ -177,6 +192,7 @@ theorem agreeOn_setMany_compl [DecidableEq ν] (xs : Finset ν) (τ')
 
 end agreeOn /- section -/
 
+/-- Maps a truth assignment on variable type `ν₁` to variable type `ν₂` via `f`. -/
 abbrev map (f : ν₂ → ν₁) (τ : PropAssignment ν₁) : PropAssignment ν₂ :=
   τ ∘ f
 
@@ -198,7 +214,7 @@ def pmap {vs : Set ν₂} [DecidablePred (· ∈ vs)] [DecidableEq ν₂]
   fun v =>
     if h : v ∈ vs then τ (f ⟨v,h⟩) else false
 
-def exists_preimage [DecidableEq ν₂] (f : ν₁ ↪ ν₂) (τ : PropAssignment ν₁)
+theorem exists_preimage [DecidableEq ν₂] (f : ν₁ ↪ ν₂) (τ : PropAssignment ν₁)
     : ∃ σ : PropAssignment ν₂, τ = σ.map f := by
   have : ∀ v2 : Set.range f, ∃ v1, f v1 = v2 := by
     rintro ⟨v2,h⟩

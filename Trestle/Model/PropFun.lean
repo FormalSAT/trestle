@@ -1,5 +1,5 @@
 /-
-Copyright (c) 2024 The Trestle Contributors.
+Copyright (c) 2026 The Trestle Contributors.
 Released under the Apache License v2.0; see LICENSE for full text.
 
 Authors: Wojciech Nawrocki
@@ -15,12 +15,11 @@ namespace Trestle.Model
 
 /-! # Propositional Formulas mod Equivalence
 
-This file defines the type of propositional formulas over
-a set `ν` of variables, quotiented by strong equivalence.
+This file defines the type of propositional formulas over a variable type `ν`,
+quotiented by strong equivalence.
 
-We show that they form a Boolean algebra
-with ordering given by semantic entailment.
-This allows us to use Mathlib's lattice notation & lemmas.
+We show that they form a `BooleanAlgebra` with ordering `≤` given by
+semantic entailment. This allows us to use Mathlib's lattice notation & lemmas.
 
 -/
 
@@ -38,45 +37,114 @@ def PropFun ν := Quotient (PropFun.setoid ν)
 
 namespace PropFun
 
-/-- Applied backwards,
-this reduces an equivalence between two syntactic formulas
-to an equality between the functions they denote. -/
-theorem exact {φ₁ φ₂ : PropForm ν} : @Eq (PropFun ν) ⟦φ₁⟧ ⟦φ₂⟧ → PropForm.equivalent φ₁ φ₂ :=
+variable {ν : Type u} {β : Type v}
+
+-- We re-define many `Quotient` definitions to provide an API for `PropFun`.
+
+/--
+  Injects a `PropForm` into a `PropFun`.
+
+  If you `open PropFun`, you can use the `⟦·⟧` notation.
+-/
+def mk (φ : PropForm ν) : PropFun ν :=
+  Quotient.mk _ φ
+
+/-- Overloaded quotient bracket notation `⟦·⟧` for `PropFun`. -/
+scoped notation:arg (priority := high) "⟦" φ "⟧" => PropFun.mk φ
+
+instance instCoePropForm : Coe (PropForm ν) (PropFun ν) where
+  coe := (⟦·⟧)
+
+@[inherit_doc Quotient.lift]
+protected def lift (f : PropForm ν → β) (h : ∀ (φ₁ φ₂ : PropForm ν), φ₁ ≈ φ₂ → f φ₁ = f φ₂) : PropFun ν → β :=
+  Quotient.lift f h
+
+@[simp] theorem lift_mk (f : PropForm ν → β) (h) (φ : PropForm ν) : PropFun.lift f h ⟦φ⟧ = f φ := rfl
+
+@[inherit_doc Quotient.out]
+noncomputable def out (φ : PropFun ν) : PropForm ν :=
+  Quotient.out φ
+
+@[simp] theorem out_eq (φ : PropFun ν) : ⟦φ.out⟧ = φ := Quotient.out_eq φ
+@[simp] theorem mk_out (φ : PropForm ν) : (⟦φ⟧ : PropFun ν).out ≈ φ := Quotient.mk_out φ
+@[simp] theorem out_equiv_out {φ₁ φ₂ : PropFun ν} : φ₁.out ≈ φ₂.out ↔ φ₁ = φ₂ := Quotient.out_equiv_out
+
+/-- For each `PropFun` `φ`, there exists a `PropForm` `φ'` that represents it. -/
+theorem exists_rep (φ : PropFun ν) : ∃ (φ' : PropForm ν), ⟦φ'⟧ = φ :=
+  ⟨φ.out, out_eq φ⟩
+
+@[inherit_doc Quotient.exact]
+theorem exact {φ₁ φ₂ : PropForm ν} : ⟦φ₁⟧ = ⟦φ₂⟧ → φ₁ ≈ φ₂ :=
   Quotient.exact
 
-theorem sound {φ₁ φ₂ : PropForm ν} : PropForm.equivalent φ₁ φ₂ → @Eq (PropFun ν) ⟦φ₁⟧ ⟦φ₂⟧ :=
+@[inherit_doc Quotient.sound]
+theorem sound {φ₁ φ₂ : PropForm ν} : φ₁ ≈ φ₂ → ⟦φ₁⟧ = ⟦φ₂⟧ :=
   @Quotient.sound _ (PropFun.setoid ν) _ _
+
+/-- Two `PropForm`s equal under the quotient are also equivalent. -/
+theorem eq {x y : PropForm ν} : ⟦x⟧ = ⟦y⟧ ↔ x ≈ y :=
+  Quotient.eq
+
+/--
+  Given an indexed family of `PropFun`s `f : ι → PropFun ν`, returns a
+  quotiented function that sends each `i : ι` to a representative `PropForm`.
+-/
+noncomputable def choice {ι : Type w} (f : ι → PropFun ν) :
+    @Quotient (ι → PropForm ν) inferInstance :=
+  Quotient.choice f
+
+@[simp]
+theorem choice_eq {ι : Type w} (f : ι → PropForm ν) :
+    (PropFun.choice (⟦f ·⟧)) = Quotient.mk _ f :=
+  Quotient.choice_eq f
+
+/-- The family chosen by `PropFun.choice f` represents `f` pointwise. -/
+@[simp]
+theorem choice_out {ι : Type w} (f : ι → PropFun ν) (i : ι) :
+    ⟦(choice f).out i⟧ = f i :=
+  (sound (Quotient.exact (Quotient.out_eq (choice f)) i)).trans (out_eq (f i))
+
+@[inherit_doc Quotient.map]
+protected def map (f : PropForm ν → PropForm ν') (hf : ∀ ⦃a b⦄, a ≈ b → f a ≈ f b) : PropFun ν → PropFun ν' :=
+  Quotient.map f hf
+
+@[inherit_doc Quotient.map₂]
+protected def map₂ (f : PropForm ν → PropForm ν → PropForm ν') (hf : ∀ ⦃a₁ a₂⦄, a₁ ≈ a₂ → ∀ ⦃b₁ b₂⦄,  b₁ ≈ b₂ → f a₁ b₁ ≈ f a₂ b₂) :
+    PropFun ν → PropFun ν → PropFun ν' :=
+  Quotient.map₂ f hf
+
+/-! logical operations on `PropFun` -/
 
 def var (x : ν) : PropFun ν := ⟦.var x⟧
 
-instance : Coe ν (PropFun ν) := ⟨.var⟩
+instance instCoeVar : Coe ν (PropFun ν) := ⟨.var⟩
 
 def tr : PropFun ν := ⟦.tr⟧
 
 def fls : PropFun ν := ⟦.fls⟧
 
 def neg : PropFun ν → PropFun ν :=
-  Quotient.map (.neg ·) (by
+  PropFun.map (.neg ·) (by
     intro _ _ h τ
     simp [h τ])
 
 def conj : PropFun ν → PropFun ν → PropFun ν :=
-  Quotient.map₂ (.conj · ·) (by
+  PropFun.map₂ (.conj · ·) (by
     intro _ _ h₁ _ _ h₂ τ
     simp [h₁ τ, h₂ τ])
 
 def disj : PropFun ν → PropFun ν → PropFun ν :=
-  Quotient.map₂ (.disj · ·) (by
+  PropFun.map₂ (.disj · ·) (by
     intro _ _ h₁ _ _ h₂ τ
     simp [h₁ τ, h₂ τ])
 
 def impl : PropFun ν → PropFun ν → PropFun ν :=
-  Quotient.map₂ (.impl · ·) (by
+  PropFun.map₂ (.impl · ·) (by
     intro _ _ h₁ _ _ h₂ τ
     simp [h₁ τ, h₂ τ])
 
 def biImpl : PropFun ν → PropFun ν → PropFun ν :=
-  Quotient.map₂ (.biImpl · ·) (by
+  PropFun.map₂ (.biImpl · ·) (by
     intro _ _ h₁ _ _ h₂ τ
     simp [h₁ τ, h₂ τ])
 
@@ -93,48 +161,48 @@ theorem eval_mk (τ : PropAssignment ν) (φ : PropForm ν) :
 
 @[simp]
 theorem eval_var (τ : PropAssignment ν) (x : ν) : eval τ (var x) = τ x := by
-  simp [eval, var]
+  simp [var, eval_mk, PropForm.eval]
 
 @[simp]
 theorem eval_tr (τ : PropAssignment ν) : eval τ tr = true := by
-  simp [eval, tr]
+  simp [tr, eval_mk, PropForm.eval]
 
 @[simp]
 theorem eval_fls (τ : PropAssignment ν) : eval τ fls = false := by
-  simp [eval, fls]
+  simp [fls, eval_mk, PropForm.eval]
 
-@[simp]
 theorem eval_neg (τ : PropAssignment ν) (φ : PropFun ν) : eval τ (neg φ) = !(eval τ φ) := by
-  have ⟨φ, h⟩ := Quotient.exists_rep φ
-  simp [← h, eval, neg]
+  obtain ⟨φ, rfl⟩ := exists_rep φ
+  simp only [eval, neg]
+  rfl
 
-@[simp]
 theorem eval_conj (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
     eval τ (conj φ₁ φ₂) = (eval τ φ₁ && eval τ φ₂) := by
-  have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
-  have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
-  simp [← h₁, ← h₂, conj, eval]
+  obtain ⟨φ₁, rfl⟩ := exists_rep φ₁
+  obtain ⟨φ₂, rfl⟩ := exists_rep φ₂
+  simp only [conj, eval]
+  rfl
 
-@[simp]
 theorem eval_disj (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
     eval τ (disj φ₁ φ₂) = (eval τ φ₁ || eval τ φ₂) := by
-  have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
-  have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
-  simp [← h₁, ← h₂, eval, disj]
+  obtain ⟨φ₁, rfl⟩ := exists_rep φ₁
+  obtain ⟨φ₂, rfl⟩ := exists_rep φ₂
+  simp only [eval]
+  rfl
 
-@[simp]
 theorem eval_impl (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
     eval τ (impl φ₁ φ₂) = (eval τ φ₁) ⇨ (eval τ φ₂) := by
-  have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
-  have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
-  simp [← h₁, ← h₂, eval, impl]
+  obtain ⟨φ₁, rfl⟩ := exists_rep φ₁
+  obtain ⟨φ₂, rfl⟩ := exists_rep φ₂
+  simp only [eval, impl]
+  rfl
 
-@[simp]
 theorem eval_biImpl (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
     eval τ (biImpl φ₁ φ₂) = (eval τ φ₁ = eval τ φ₂) := by
-  have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
-  have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
-  simp [← h₁, ← h₂, eval, biImpl]
+  obtain ⟨φ₁, rfl⟩ := exists_rep φ₁
+  obtain ⟨φ₂, rfl⟩ := exists_rep φ₂
+  simp [eval, biImpl]
+  exact decide_eq_true_iff
 
 /-! Satisfying assignments -/
 
@@ -155,11 +223,10 @@ instance (τ : PropAssignment ν) (φ : PropFun ν) : Decidable (τ ⊨ φ) :=
 
 @[ext]
 theorem ext : (∀ (τ : PropAssignment ν), τ ⊨ φ₁ ↔ τ ⊨ φ₂) → φ₁ = φ₂ := by
-  have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
-  have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
-  simp only [← h₁, ← h₂]
+  obtain ⟨φ₁, rfl⟩ := exists_rep φ₁
+  obtain ⟨φ₂, rfl⟩ := exists_rep φ₂
   intro h
-  apply Quotient.sound ∘ PropForm.equivalent_ext.mpr
+  apply sound ∘ PropForm.equivalent_ext.mpr
   apply h
 
 /-! Semantic entailment -/
@@ -176,13 +243,15 @@ theorem entails_mk {φ₁ φ₂ : PropForm ν} : entails ⟦φ₁⟧ ⟦φ₂⟧
 
 theorem entails_ext {φ₁ φ₂ : PropFun ν} :
     entails φ₁ φ₂ ↔ (∀ (τ : PropAssignment ν), τ ⊨ φ₁ → τ ⊨ φ₂) := by
-  have ⟨φ₁, h₁⟩ := Quotient.exists_rep φ₁
-  have ⟨φ₂, h₂⟩ := Quotient.exists_rep φ₂
-  simp only [← h₁, ← h₂, entails_mk]
+  obtain ⟨φ₁, rfl⟩ := exists_rep φ₁
+  obtain ⟨φ₂, rfl⟩ := exists_rep φ₂
+  simp only [entails_mk]
   exact PropForm.entails_ext
 
+@[refl]
 theorem entails_refl (φ : PropFun ν) : entails φ φ :=
   fun _ => le_rfl
+@[trans]
 theorem entails.trans : entails φ₁ φ₂ → entails φ₂ φ₃ → entails φ₁ φ₃ :=
   fun h₁ h₂ τ => le_trans (h₁ τ) (h₂ τ)
 theorem entails.antisymm : entails φ ψ → entails ψ φ → φ = ψ := by
@@ -235,7 +304,7 @@ theorem biImpl_eq (φ ψ : PropFun ν) : biImpl φ ψ = conj (impl φ ψ) (impl 
 /-! From this point onwards we use lattice notation for `PropFun`s
 in order to get the mathlib laws for free. -/
 
-instance : BooleanAlgebra (PropFun ν) where
+instance instBooleanAlgebra : BooleanAlgebra (PropFun ν) where
   le := entails
   top := tr
   bot := fls
@@ -261,49 +330,65 @@ instance : BooleanAlgebra (PropFun ν) where
 
 /-
 
-Now that `PropFun`s are instances of `BooleanAlgebra`,
-we re-prove the eval theorems where the involved formulas
-use the lattice operations/syntax, as opposed to
-the formula constructors themselves.
+Now that we have shown that `PropFun`s are instances of `BooleanAlgebra`,
+we should use lattice operations/syntax. These `@[simp]` lemmas ensure
+that manual operations get converted into lattice syntax.
 
-(CC: For whatever reason, we must state them again, even though
-they are exact copies of the above?)
+We "re-prove" the following theorems because they apply to new syntax,
+since apparently Lean's simplifier matches on the head symbol, and e.g.
+`Compl.compl` is a different head symbol than `PropFun.neg`.
 
 -/
 
-@[simp]
-theorem eval_neg' (τ : PropAssignment ν) (φ : PropFun ν) : eval τ (φᶜ) = !(eval τ φ) :=
-  eval_neg τ φ
+section mk_quotient
 
-@[simp]
-theorem eval_conj' (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
-    eval τ (φ₁ ⊓ φ₂) = (eval τ φ₁ && eval τ φ₂) :=
-  eval_conj τ φ₁ φ₂
+variable (φ φ₁ φ₂ : PropForm ν)
 
-@[simp]
-theorem eval_disj' (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
-    eval τ (φ₁ ⊔ φ₂) = (eval τ φ₁ || eval τ φ₂) :=
-  eval_disj τ φ₁ φ₂
+@[simp] theorem mk_var (x : ν) : ⟦.var x⟧ = var x := rfl
+@[simp] theorem mk_tr : ⟦.tr⟧ = (⊤ : PropFun ν) := rfl
+@[simp] theorem mk_fls : ⟦.fls⟧ = (⊥ : PropFun ν) := rfl
+@[simp] theorem mk_compl (φ : PropForm ν) : ⟦φᶜ⟧ = (⟦φ⟧)ᶜ := rfl
 
-@[simp]
-theorem eval_impl' (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
-    eval τ (φ₁ ⇨ φ₂) = (eval τ φ₁) ⇨ (eval τ φ₂) :=
-  eval_impl τ φ₁ φ₂
+@[simp] theorem mk_conj : ⟦.conj φ₁ φ₂⟧ = (⟦φ₁⟧ ⊓ ⟦φ₂⟧) := rfl
+@[simp] theorem mk_disj : ⟦.disj φ₁ φ₂⟧ = (⟦φ₁⟧ ⊔ ⟦φ₂⟧) := rfl
+@[simp] theorem mk_impl : ⟦.impl φ₁ φ₂⟧ = (⟦φ₁⟧ ⇨ ⟦φ₂⟧) := rfl
+@[simp] theorem mk_biImpl : ⟦.biImpl φ₁ φ₂⟧ = (⟦φ₁⟧ ⇔ ⟦φ₂⟧) := biImpl_eq ⟦φ₁⟧ ⟦φ₂⟧
+
+end mk_quotient /- section -/
+
+section eval
+
+variable (τ : PropAssignment ν) (φ φ₁ φ₂ : PropFun ν)
+
+@[simp] theorem neg_eq_compl : neg φ = φᶜ := rfl
+@[simp] theorem conj_eq_inf : conj φ₁ φ₂ = φ₁ ⊓ φ₂ := rfl
+@[simp] theorem disj_eq_sup : disj φ₁ φ₂ = φ₁ ⊔ φ₂ := rfl
+@[simp] theorem impl_eq_himp : impl φ₁ φ₂ = φ₁ ⇨ φ₂ := rfl
+
+@[simp] theorem eval_neg' : eval τ (φᶜ) = !(eval τ φ) := eval_neg τ φ
+@[simp] theorem eval_conj' : eval τ (φ₁ ⊓ φ₂) = (eval τ φ₁ && eval τ φ₂) := eval_conj τ φ₁ φ₂
+@[simp] theorem eval_disj' : eval τ (φ₁ ⊔ φ₂) = (eval τ φ₁ || eval τ φ₂) := eval_disj τ φ₁ φ₂
+@[simp] theorem eval_impl' : eval τ (φ₁ ⇨ φ₂) = (eval τ φ₁) ⇨ (eval τ φ₂) := eval_impl τ φ₁ φ₂
 
 -- We use the new notation for bi-implication `⇔` here. See `ToMathlib.lean`.
 @[simp]
-theorem eval_biImpl' (τ : PropAssignment ν) (φ₁ φ₂ : PropFun ν) :
-    eval τ (φ₁ ⇔ φ₂) = (eval τ φ₁ = eval τ φ₂) := by
+theorem eval_biImpl' : eval τ (φ₁ ⇔ φ₂) = (eval τ φ₁ = eval τ φ₂) := by
   by_cases hφ₁ : eval τ φ₁
   <;> by_cases hφ₂ : eval τ φ₂
   <;> simp [hφ₁, hφ₂]
 
+end eval /- section -/
 
-/- Now phrase things in terms of satisfaction/entailment. -/
+/- Now write some lemmas for semantic entailment. -/
 
+section satisfies
 
+variable {τ : PropAssignment ν} {φ φ₁ φ₂ : PropFun ν}
+
+/-- Semantic entailment commutes with quotienting from `PropForm`.  -/
 @[simp]
-theorem satisfies_mk {τ : PropAssignment ν} {φ : PropForm ν} : τ ⊨ ⟦φ⟧ ↔ (open PropForm in τ ⊨ φ) :=
+theorem satisfies_mk {τ : PropAssignment ν} {φ : PropForm ν} :
+    τ ⊨ ⟦φ⟧ ↔ (open PropForm in τ ⊨ φ) :=
   ⟨id, id⟩
 
 @[simp]
@@ -311,45 +396,47 @@ theorem satisfies_var {τ : PropAssignment ν} {x : ν} : τ ⊨ var x ↔ τ x 
   simp only [SemanticEntails.entails, satisfies, eval_var]
 
 @[simp]
-theorem satisfies_set {τ : PropAssignment ν} [DecidableEq ν] : τ.set x ⊤ ⊨ var x := by
-  simp only [top_eq_true, satisfies_var, PropAssignment.set_get]
+theorem satisfies_set [DecidableEq ν] (τ : PropAssignment ν) (x : ν) : τ.set x ⊤ ⊨ var x := by
+  simp only [top_eq_true, satisfies_var, PropAssignment.get_set_self]
 
 @[simp]
-theorem satisfies_tr {τ : PropAssignment ν} : τ ⊨ ⊤ := by
+theorem satisfies_tr (τ : PropAssignment ν) : τ ⊨ ⊤ := by
   simp only [SemanticEntails.entails, satisfies, Top.top, eval_tr]
 
 @[simp]
-theorem not_satisfies_fls {τ : PropAssignment ν} : τ ⊭ ⊥ :=
+theorem not_satisfies_fls (τ : PropAssignment ν) : τ ⊭ ⊥ :=
   fun h => nomatch h
 
 @[simp]
-theorem satisfies_neg {τ : PropAssignment ν} : τ ⊨ (φᶜ) ↔ τ ⊭ φ := by
+theorem satisfies_neg : τ ⊨ (φᶜ) ↔ τ ⊭ φ := by
   simp only [SemanticEntails.entails, satisfies, compl, eval_neg,
     Bool.not_eq_eq_eq_not, Bool.not_true, Bool.not_eq_true]
 
 @[simp]
-theorem satisfies_conj {τ : PropAssignment ν} : τ ⊨ φ₁ ⊓ φ₂ ↔ τ ⊨ φ₁ ∧ τ ⊨ φ₂ := by
+theorem satisfies_conj : τ ⊨ φ₁ ⊓ φ₂ ↔ τ ⊨ φ₁ ∧ τ ⊨ φ₂ := by
   simp only [SemanticEntails.entails, satisfies, eval_conj', Bool.and_eq_true]
 
 @[simp]
-theorem satisfies_disj {τ : PropAssignment ν} : τ ⊨ φ₁ ⊔ φ₂ ↔ τ ⊨ φ₁ ∨ τ ⊨ φ₂ := by
+theorem satisfies_disj : τ ⊨ φ₁ ⊔ φ₂ ↔ τ ⊨ φ₁ ∨ τ ⊨ φ₂ := by
   simp only [SemanticEntails.entails, satisfies, eval_disj', Bool.or_eq_true]
 
 @[simp]
-theorem satisfies_impl {τ : PropAssignment ν} : τ ⊨ φ₁ ⇨ φ₂ ↔ (τ ⊨ φ₁ → τ ⊨ φ₂) := by
+theorem satisfies_impl : τ ⊨ φ₁ ⇨ φ₂ ↔ (τ ⊨ φ₁ → τ ⊨ φ₂) := by
   simp only [sEntails, satisfies, eval_impl, HImp.himp]
   cases (eval τ φ₁) <;> simp
 
-theorem satisfies_impl' {τ : PropAssignment ν} : τ ⊨ φ₁ ⇨ φ₂ ↔ τ ⊭ φ₁ ∨ τ ⊨ φ₂ := by
+theorem satisfies_impl' : τ ⊨ φ₁ ⇨ φ₂ ↔ τ ⊭ φ₁ ∨ τ ⊨ φ₂ := by
   simp only [sEntails, satisfies, eval_impl, HImp.himp]
   cases (eval τ φ₁) <;> simp
 
 @[simp]
-theorem satisfies_biImpl {τ : PropAssignment ν} : τ ⊨ (φ₁ ⇔ φ₂) ↔ (τ ⊨ φ₁ ↔ τ ⊨ φ₂) := by
+theorem satisfies_biImpl : τ ⊨ (φ₁ ⇔ φ₂) ↔ (τ ⊨ φ₁ ↔ τ ⊨ φ₂) := by
   simp only [satisfies_conj, satisfies_impl]
   exact Iff.symm iff_iff_implies_and_implies
 
-instance : Nontrivial (PropFun ν) where
+end satisfies /- section -/
+
+instance instNontrivial : Nontrivial (PropFun ν) where
   exists_pair_ne := by
     use ⊤, ⊥
     intro h
@@ -427,11 +514,10 @@ theorem ne_top_of_disj_ne_top {φ₁ φ₂ : PropFun ν} : φ₁ ⊔ φ₂ ≠ �
   fun h => ⟨ne_top_left_of_disj_ne_top h, ne_top_right_of_disj_ne_top h⟩
 
 theorem var.inj [DecidableEq ν] : (var (ν := ν)).Injective := by
-  intro v1 v2 h
+  intro v₁ v₂ h
   rw [PropFun.ext_iff] at h
-  have := h (fun v => v = v2)
-  simp only [satisfies_var, decide_eq_true_eq, decide_true, iff_true] at this
-  exact this
+  have h₁ := (h (fun v => v = v₂)).mpr (satisfies_var.mpr (by simp))
+  simpa using satisfies_var.mp h₁
 
 @[simp]
 theorem var_eq_var_iff [DecidableEq ν] (v v' : ν) : var v = var v' ↔ v = v' := by
@@ -439,22 +525,29 @@ theorem var_eq_var_iff [DecidableEq ν] (v v' : ν) : var v = var v' ↔ v = v' 
   · intro; apply var.inj; assumption
   · rintro rfl; rfl
 
-theorem eq_compl_iff_neq {φ₁ φ₂ : PropFun ν} : φ₁ = (φ₂)ᶜ → φ₁ ≠ φ₂ := by
+theorem eq_compl_iff_ne {φ₁ φ₂ : PropFun ν} : φ₁ = (φ₂)ᶜ → φ₁ ≠ φ₂ := by
+  rintro rfl h; rw [PropFun.ext_iff] at h; simp at h
+
+theorem compl_eq_iff_ne {φ₁ φ₂ : PropFun ν} : (φ₁)ᶜ = φ₂ → φ₁ ≠ φ₂ := by
   rintro rfl h; rw [PropFun.ext_iff] at h; simp at h
 
 @[simp]
-theorem var_ne_var_compl [DecidableEq ν] (v1 v2 : ν) : var v1 ≠ (var v2)ᶜ := by
+theorem var_ne_var_compl [DecidableEq ν] (v₁ v₂ : ν) : var v₁ ≠ (var v₂)ᶜ := by
   intro h
   rw [PropFun.ext_iff] at h
-  have := h (fun v => v = v1 || v = v2)
-  simp at this
+  set τ : PropAssignment ν := (fun v => v = v₁ || v = v₂) with hτ
+  have this := h τ
+  simp only [satisfies_var, satisfies_neg] at this
+  simp [hτ] at this
 
 @[simp]
-theorem var_compl_ne_var [DecidableEq ν] (v1 v2 : ν) : (var v1)ᶜ ≠ (var v2) := by
+theorem var_compl_ne_var [DecidableEq ν] (v₁ v₂ : ν) : (var v₁)ᶜ ≠ (var v₂) := by
   intro h
   rw [PropFun.ext_iff] at h
-  have := h (fun v => v = v1 || v = v2)
-  simp at this
+  set τ : PropAssignment ν := (fun v => v = v₁ || v = v₂) with hτ
+  have this := h τ
+  simp only [satisfies_var, satisfies_neg] at this
+  simp [hτ] at this
 
 theorem compl_eq_iff_eq_compl {φ₁ φ₂ : PropFun ν} : φ₁ᶜ = φ₂ ↔ φ₁ = φ₂ᶜ := by
   constructor
@@ -463,30 +556,6 @@ theorem compl_eq_iff_eq_compl {φ₁ φ₂ : PropFun ν} : φ₁ᶜ = φ₂ ↔ 
 
 theorem eq_compl_iff_compl_eq {φ₁ φ₂ : PropFun ν} : φ₁ = φ₂ᶜ ↔ φ₁ᶜ = φ₂ :=
   Iff.symm (@compl_eq_iff_eq_compl _ φ₁ φ₂)
-
-/-! Lemmas to push `Quotient.mk` inwards. -/
-
--- TODO: custom simp set?
-
-@[simp] theorem mk_var (x : ν) : ⟦.var x⟧ = var x := rfl
-@[simp] theorem mk_tr : @Eq (PropFun ν) ⟦.tr⟧ ⊤ := rfl
-@[simp] theorem mk_fls : @Eq (PropFun ν) ⟦.fls⟧ ⊥ := rfl
-@[simp] theorem mk_neg (φ : PropForm ν) : @Eq (PropFun ν) ⟦.neg φ⟧ (⟦φ⟧)ᶜ := rfl
-
-@[simp]
-theorem mk_conj (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.conj φ₁ φ₂⟧ (⟦φ₁⟧ ⊓ ⟦φ₂⟧) := rfl
-
-@[simp]
-theorem mk_disj (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.disj φ₁ φ₂⟧ (⟦φ₁⟧ ⊔ ⟦φ₂⟧) := rfl
-
-@[simp]
-theorem mk_impl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.impl φ₁ φ₂⟧ (⟦φ₁⟧ ⇨ ⟦φ₂⟧) := rfl
-
-@[simp]
-theorem mk_biImpl (φ₁ φ₂ : PropForm ν) : @Eq (PropFun ν) ⟦.biImpl φ₁ φ₂⟧ (⟦φ₁⟧ ⇔ ⟦φ₂⟧) := by
-  have : @Eq (PropFun ν) ⟦.biImpl φ₁ φ₂⟧ (biImpl ⟦φ₁⟧ ⟦φ₂⟧) := rfl
-  simp only [this, biImpl_eq]
-  rfl
 
 /-! ### All/any -/
 
@@ -535,6 +604,38 @@ theorem all_ofList_cons (l : PropFun ν) (ls : List (PropFun ν))
     : all (l :: ls) = l ⊓ all ls := by
   simp only [all, Multiset.inf_coe, List.foldr_cons]
 
+/-! # Variables -/
+
+def vmap (f : ν₁ → ν₂) (φ : PropFun ν₁) : PropFun ν₂ :=
+  φ.lift (⟦PropForm.vmap f ·⟧) (fun _ _ h => by
+    ext τ
+    simp only [satisfies_mk, PropForm.satisfies_vmap]
+    exact PropForm.equivalent_ext.mp h _)
+
+section vmap
+
+/-- A variable-wise function `f` commutes across satisfaction/entailment via `vmap`. -/
+@[simp]
+theorem satisfies_vmap {φ : PropFun ν₁} {f} {τ : PropAssignment ν₂}
+    : τ ⊨ φ.vmap f ↔ (τ.map f) ⊨ φ := by
+  obtain ⟨φ, rfl⟩ := φ.exists_rep
+  simp only [vmap, lift_mk, satisfies_mk, PropForm.satisfies_vmap]
+
+variable (f : ν₁ → ν₂) (φ φ₁ φ₂ : PropFun ν₁)
+
+@[simp] theorem vmap_top (f : ν₁ → ν₂) : vmap f (⊤ : PropFun ν₁) = (⊤ : PropFun ν₂) := rfl
+@[simp] theorem vmap_bot (f : ν₁ → ν₂) : vmap f (⊥ : PropFun ν₁) = (⊥ : PropFun ν₂) := rfl
+@[simp] theorem vmap_var (f : ν₁ → ν₂) (x : ν₁) : vmap f (var x) = var (f x) := rfl
+@[simp] theorem vmap_compl (f : ν₁ → ν₂) (φ : PropFun ν₁) : vmap f (φᶜ) = (vmap f φ)ᶜ := by
+  induction φ using Quotient.ind
+  rfl
+@[simp] theorem vmap_conj : vmap f (φ₁ ⊓ φ₂) = (vmap f φ₁ ⊓ vmap f φ₂) := by ext; simp
+@[simp] theorem vmap_disj : vmap f (φ₁ ⊔ φ₂) = (vmap f φ₁ ⊔ vmap f φ₂) := by ext; simp
+@[simp] theorem vmap_impl : vmap f (φ₁ ⇨ φ₂) = (vmap f φ₁ ⇨ vmap f φ₂) := by ext; simp
+@[simp] theorem vmap_biImpl : vmap f (φ₁ ⇔ φ₂) = (vmap f φ₁ ⇔ vmap f φ₂) := by ext; simp
+
+end vmap /- section -/
+
 /-! # Satisfiable and Equisatisfiable -/
 
 def Sat (φ : PropFun ν) : Prop :=
@@ -544,17 +645,17 @@ def EquiSat (φ₁ φ₂ : PropFun ν) : Prop :=
   Sat φ₁ ↔ Sat φ₂
 
 @[symm]
-def EquiSat.symm {φ₁ φ₂ : PropFun ν} : EquiSat φ₁ φ₂ ↔ EquiSat φ₂ φ₁ :=
+theorem EquiSat.symm {φ₁ φ₂ : PropFun ν} : EquiSat φ₁ φ₂ ↔ EquiSat φ₂ φ₁ :=
   ⟨fun h => ⟨h.2, h.1⟩, fun h => ⟨h.2, h.1⟩⟩
 
 @[trans]
-def EquiSat.trans {φ₁ φ₂ φ₃ : PropFun ν} : EquiSat φ₁ φ₂ → EquiSat φ₂ φ₃ → EquiSat φ₁ φ₃ :=
+theorem EquiSat.trans {φ₁ φ₂ φ₃ : PropFun ν} : EquiSat φ₁ φ₂ → EquiSat φ₂ φ₃ → EquiSat φ₁ φ₃ :=
   fun h₁ h₂ => ⟨fun h => h₂.1 (h₁.1 h), fun h => h₁.2 (h₂.2 h)⟩
 
 @[simp]
 theorem top_sat : Sat (⊤ : PropFun ν) := by
   use (fun _ => ⊤)
-  simp only [top_eq_true, satisfies_tr]
+  apply satisfies_tr
 
 @[simp]
 theorem bot_not_sat : ¬Sat (⊥ : PropFun ν) := by

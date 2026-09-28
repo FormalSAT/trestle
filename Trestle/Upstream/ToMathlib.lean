@@ -23,8 +23,19 @@ theorem biImpl_eq {α : Type u} [BooleanAlgebra α] (a b : α) : (a ⇔ b) = ((a
 class SemanticEntails (α : Type u) (β : outParam $ Type v) where
   entails : α → β → Prop
 
-infix:51 " ⊨ " => SemanticEntails.entails
-infix:51 " ⊭ " => fun M φ => ¬(M ⊨ φ)
+notation:51 a:50 " ⊨ " b:50 => SemanticEntails.entails a b
+/-- `a ⊭ b` is negated entailment. It is notation for `¬ (a ⊨ b)`. -/
+notation:51 a:50 " ⊭ " b:50 => ¬ (a ⊨ b)
+
+open Lean Lean.PrettyPrinter.Delaborator in
+/-- Delaborator for `⊭`, so that `¬ (a ⊨ b)` is displayed as `a ⊭ b`.
+    See `Mathlib.Util.Delaborators.delabNotIn` for the `∉` analogue. -/
+@[app_delab Not] def delabNotEntails := whenPPOption Lean.getPPNotation do
+  let #[f] := (← SubExpr.getExpr).getAppArgs | failure
+  guard <| f.isAppOfArity ``SemanticEntails.entails 5
+  let stx₁ ← SubExpr.withAppArg <| SubExpr.withNaryArg 3 delab
+  let stx₂ ← SubExpr.withAppArg <| SubExpr.withNaryArg 4 delab
+  return ← `($stx₁ ⊭ $stx₂)
 
 /-! Nat -/
 
@@ -158,7 +169,6 @@ def Multiset.find? (f : α → Bool) (xs : Multiset α)
       (h : ∀ a1 a2, f a1 = true → f a2 = true → a1 = a2) : Option α :=
   xs.lift (·.find? f) (by
     intro a b perm
-    simp
     apply perm.find?_unique h
   )
 
@@ -291,12 +301,10 @@ theorem Fintype.invFun_eq_invFun [Fintype α] [DecidableEq α'] (f f' : α ↪ �
   · rintro ⟨a,h,h'⟩
     simp_all
 
-@[simp] theorem PNat.val_eq_val (x y)
-  : PNat.val x = PNat.val y ↔ x = y := by
-  simp [PNat.val, Subtype.val_inj]
+@[simp] theorem PNat.val_eq_val (x y) : PNat.val x = PNat.val y ↔ x = y := by
+  exact eq_iff_eq_of_cmp_eq_cmp rfl
 
-@[simp] theorem PNat.natPred_succ (n)
-  : PNat.natPred n + 1 = n := by
+@[simp] theorem PNat.natPred_succ (n) : PNat.natPred n + 1 = n := by
   match n with
   | ⟨_+1,_⟩ => simp
 

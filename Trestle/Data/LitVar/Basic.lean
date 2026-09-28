@@ -16,7 +16,7 @@ import Trestle.Model.Subst
 
 namespace Trestle
 
-open Model
+open Model PropFun
 
 namespace LitVar
 
@@ -206,20 +206,20 @@ theorem eq_of_flip [DecidableEq ν] {τ : PropAssignment ν} {l : L} {x : ν} {p
   simp only [satisfies_iff]
   intro h hSet
   by_cases hEq : x = toVar l
-  . rw [hEq, τ.set_get] at hSet
+  . rw [hEq, PropAssignment.get_set_self] at hSet
     simp [hSet, hEq]
-  . exfalso; exact h (τ.set_get_of_ne p hEq ▸ hSet)
+  . exfalso; exact h (τ.get_set_of_ne hEq p ▸ hSet)
 
 theorem eq_of_flip' [DecidableEq ν] {τ : PropAssignment ν} {l : L} {x : ν} {p : Bool} :
     τ ⊨ toPropFun l → τ.set x p ⊭ toPropFun l → l = mkLit L x !p := by
   simp only [satisfies_iff]
   intro h hSet
   by_cases hEq : x = toVar l
-  . rw [hEq, τ.set_get] at hSet
+  . rw [hEq, τ.get_set_self] at hSet
     have : (!p) = polarity l := by
       simp [Bool.eq_bnot, hSet]
     simp [hEq, this]
-  . exfalso; exact hSet (τ.set_get_of_ne p hEq ▸ h)
+  . exfalso; exact hSet (τ.get_set_of_ne hEq p ▸ h)
 
 theorem toPropFun.inj [DecidableEq ν] : (toPropFun (L := L)).Injective := by
   intro l₁ l₂ h; simp [toPropFun] at h
@@ -269,7 +269,7 @@ theorem satisfies_map [LitVar L V] [LitVar L' V']
 
 @[simp]
 theorem toPropFun_map [LitVar L V] [LitVar L' V'] [LawfulLitVar L' V'] (f : V → V') (l : L)
-    : LitVar.toPropFun (LitVar.map f l : L') = (LitVar.toPropFun l).map f := by
+    : LitVar.toPropFun (LitVar.map f l : L') = (LitVar.toPropFun l).vmap f := by
   ext τ; simp
 
 

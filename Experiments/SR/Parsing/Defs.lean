@@ -170,7 +170,11 @@ def processSRAtom (atom pivot : Int) : ParsingState CNF → ParsingState CNF := 
       ⟨.witnessMappedReady, F,
         { line with
           witnessMaps := line.witnessMaps.push v |>.push ⟨atom, h_atom⟩,
-          witnessMapsMod := by simp [Nat.add_assoc, Nat.add_mod_right]; exact line.witnessMapsMod }⟩
+          witnessMapsMod := by
+            have := line.witnessMapsMod
+            grind only [= Array.size_push]
+        }
+      ⟩
     | .upHints =>
       if atom < 0 then
         if pivot = 0 then

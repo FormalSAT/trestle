@@ -63,7 +63,7 @@ theorem toNegILit_negate (v : IVar) : -(v.toNegILit) = v.toPosILit := by
   simp only [Neg.neg, Int.neg, negate, Int.negOfNat]
   split
   · contradiction
-  · simp
+  · simp; rfl
 
 end IVar
 
@@ -71,17 +71,20 @@ end IVar
 
 namespace ILit
 
+theorem toIVar_eq_toVar (l : ILit) : l.toIVar = LitVar.toVar l := by
+  obtain ⟨l, hl⟩ := l; rfl
+
 @[simp]
 theorem toIVar_negate (l : ILit) : (-l).toIVar = l.toIVar := by
-  simp [toIVar]; rfl
+  simp [toIVar_eq_toVar]
 
 @[simp]
 theorem toIVar_mkPos (v : IVar) : ILit.toIVar (mkPos v) = v := by
-  simp [toIVar]
+  simp [toIVar_eq_toVar]
 
 @[simp]
 theorem toIVar_mkNeg (v : IVar) : ILit.toIVar (mkNeg v) = v := by
-  simp [toIVar]
+  simp [toIVar_eq_toVar]
 
 @[simp] abbrev toPropFun (l : ILit) := LitVar.toPropFun l
 instance instCoeILit : Coe ILit (PropFun IVar) := ⟨LitVar.toPropFun⟩

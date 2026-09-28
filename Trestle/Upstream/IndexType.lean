@@ -27,6 +27,7 @@ import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.ProxyType
 import Mathlib.Data.Finset.Dedup
+import Trestle.Upstream.ToStd
 
 
 @[inline]
@@ -107,6 +108,9 @@ namespace IndexType
 def toList (α) [IndexType α] : List α :=
   List.ofFn IndexType.fromFin
 
+def toArray (α) [IndexType α] : Array α :=
+  Array.ofFn IndexType.fromFin
+
 variable [IndexType ι] [LawfulIndexType ι]
 
 @[simp] theorem toFin_fromFin
@@ -133,11 +137,13 @@ def toEquiv : ι ≃ Fin (IndexType.card ι) where
   left_inv := LawfulIndexType.leftInv
   right_inv := LawfulIndexType.rightInv
 
+@[simp]
 theorem toFin_eq_iff (x y : ι) : toFin x = toFin y ↔ x = y := by
   constructor
   · apply toEquiv.injective
   · rintro rfl; rfl
 
+@[simp]
 theorem fromFin_eq_iff (x y : Fin _) : (fromFin x : ι) = fromFin y ↔ x = y := by
   constructor
   · apply toEquiv.symm.injective
@@ -180,18 +186,19 @@ instance : Fintype ι where
 
 /-! #### Transport over equivalence -/
 
+@[instance_reducible]
 def ofEquiv {ι} [IndexType.{_} ι'] (f : ι' ≃ ι) : IndexType.{_} ι where
-  card := IndexType.card ι'
+  card    := IndexType.card ι'
   toFin   := IndexType.toFin ∘ f.symm
   fromFin := f ∘ IndexType.fromFin
 
-def ofEquivLawful {ι} [I' : IndexType ι'] [LI' : LawfulIndexType ι'] (f : ι' ≃ ι)
+theorem ofEquivLawful {ι} [I' : IndexType ι'] [LI' : LawfulIndexType ι'] (f : ι' ≃ ι)
     : @LawfulIndexType ι (ofEquiv f) :=
   @LawfulIndexType.mk
     (ι := ι)
     (I := ofEquiv f)
-    (leftInv  := by simp [ofEquiv]; intro; simp)
-    (rightInv := by simp [ofEquiv]; intro; simp)
+    (leftInv  := by intro x; unfold ofEquiv; simp)
+    (rightInv := by intro x; unfold ofEquiv; simp)
 
 /-! #### Unit -/
 
@@ -228,8 +235,7 @@ instance : IndexType.{max u v} (α × β) where
   fromFin := fun p => (fromFin (Fin.pair_left p), fromFin (Fin.pair_right p))
 
 instance : LawfulIndexType.{max u v} (α × β) where
-  rightInv := by
-    rintro ⟨i,hi⟩; simp [toFin]
+  rightInv := by rintro ⟨i,hi⟩; simp [toFin, fromFin]
   leftInv := by
     rintro ⟨a,b⟩; simp [toFin, fromFin]
 
@@ -264,7 +270,7 @@ instance : IndexType.{max u v} (α ⊕ β) where
 instance : LawfulIndexType (α ⊕ β) where
   leftInv := by
     rintro (a|b)
-      <;> simp [fromFin]
+      <;> simp [toFin, fromFin]
   rightInv := by
     rintro ⟨i,hi⟩
     simp [toFin, fromFin]
@@ -273,9 +279,7 @@ instance : LawfulIndexType (α ⊕ β) where
     else
       simp [*]; simp_all
 
-
-end
-
+end /- section -/
 
 /-! #### Generic inductives -/
 
@@ -313,4 +317,4 @@ initialize
   registerDerivingHandler ``IndexType mkIndexTypeInstanceHandler
   registerTraceClass `Elab.Deriving.indextype
 
-end
+end /- section -/

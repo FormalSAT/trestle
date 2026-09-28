@@ -28,7 +28,7 @@ theorem index_eq_index! {A : RangeArray α} {i : Nat} (hi : i < A.size)
 @[simp]
 theorem index!_le_dsize (i : Nat) : A.index! i ≤ A.dsize := by
   by_cases hi : i < A.size
-  <;> simp [index!, hi, ↓reduceDIte, Nat.le_refl]
+  <;> simp [index!, hi, ↓reduceDIte]
   exact A.h_indexes hi
 
 theorem index!_of_ge_size {A : RangeArray α} {i : Nat} (hi : i ≥ A.size)
@@ -77,7 +77,7 @@ theorem usize_empty (n : Nat) : (empty n : RangeArray α).usize = 0 := by
 /-! # push -/
 
 @[simp] theorem size_push : (A.push v).size = A.size := by simp only [size, push]
-@[simp] theorem dsize_push : (A.push v).dsize = A.dsize := by simp only [push,]
+@[simp] theorem dsize_push : (A.push v).dsize = A.dsize := by simp only [push]
 
 @[simp]
 theorem data_size_push : (A.push v).data.size = A.data.size + 1 := by
@@ -89,24 +89,30 @@ theorem usize_push : (A.push v).usize = A.usize + 1 := by
 
 @[simp]
 theorem index!_push : (A.push v).index! i = A.index! i := by
-  simp only [index!, push, index]
+  simp only [index!, size, push, index]; rfl
 
 @[simp]
-theorem rsize_push {A : RangeArray α} {i : Nat} (hi : i < A.size) (v : α) :
-    (A.push v).rsize i hi = A.rsize i hi := by
+theorem rsize_push {A : RangeArray α} {i : Nat} (hi : i < A.size) (v : α)
+    : (A.push v).rsize i (size_push A v ▸ hi) = A.rsize i hi := by
   simp only [rsize]; rfl
+
+/-- Like `rsize_push`, except the size hypothesis is on `(A.push v)`. -/
+@[simp]
+theorem rsize_push' {A : RangeArray α} {i : Nat} (hi : i < (A.push v).size) (v : α)
+    : (A.push v).rsize i hi = A.rsize i (size_push A v ▸ hi) := by
+  exact rsize_push (size_push A v ▸ hi) v
 
 @[simp]
 theorem rsize!_push : (A.push v).rsize! i = A.rsize! i := by
-  simp only [rsize!, size_push, rsize_push]
+  simp only [rsize!, size_push, rsize_push']
 
 @[simp]
 theorem isDeleted!_push : (A.push v).isDeleted! i = A.isDeleted! i := by
-  simp only [isDeleted!, size, push, isDeleted]
+  simp only [isDeleted!, size, push, isDeleted]; rfl
 
 @[simp]
 theorem delete!_push_comm : (A.push v).delete! i = (A.delete! i).push v := by
-  simp only [delete!, size_push, delete, dsize_push, rsize_push]
+  simp only [delete!, size_push, delete, dsize_push]
   split
   · congr 1
   · rfl
@@ -152,9 +158,9 @@ theorem rsize!_delete!_ne {i j : Nat} (hij : i ≠ j) (A : RangeArray α)
     : (A.delete! i).rsize! j = A.rsize! j := by
   simp only [delete!]
   split <;> rename _ => hi <;> try rfl
-  simp [rsize!, rsize, size, delete, Array.size_set]
+  simp only [rsize!, size_delete]
   split <;> rename _ => hj <;> try rfl
-  simp [index, Array.getElem_set, hij, ↓reduceIte]
+  simp [rsize, delete, index, Array.getElem_set, hij, ↓reduceIte]
   rcases Nat.eq_or_lt_of_le (Nat.succ_le_of_lt hj) with (h | h)
   · rw [Nat.succ_eq_add_one] at h
     simp [h, index!, size]
@@ -192,9 +198,9 @@ theorem isDeleted!_delete!_ne {i j : Nat} (hij : i ≠ j) (A : RangeArray α)
     : (A.delete! i).isDeleted! j = A.isDeleted! j := by
   simp only [delete!]
   split <;> rename _ => hi <;> try rfl
-  simp only [isDeleted!, delete, Array.size_set, size]
+  simp only [isDeleted!, size_delete]
   split <;> try rfl
-  simp only [isDeleted, Array.getElem_set, hij, ↓reduceIte]
+  simp [isDeleted, delete, Array.getElem_set, hij, ↓reduceIte]
 
 theorem isDeleted_delete_ne {A : RangeArray α} {i j : Nat}
     (hi : i < A.size) (hj : j < A.size) (hij : i ≠ j)
@@ -266,8 +272,8 @@ theorem index_commit_eq : (A.commit).index A.size (by simp) = A.dsize :=
 theorem index!_commit_gt {A : RangeArray α} {i : Nat} (hi : i > A.size)
     : (A.commit).index! i = A.dsize + A.usize := by
   rw [size] at hi
-  simp [index!, size, commit, Array.size_push]
-  split
+  simp only [index!, size, size_commit, dsize_commit]
+  split <;> rename_i hi'
   · omega
   · simp [usize]
     have := A.h_size
@@ -300,8 +306,7 @@ theorem rsize_commit_eq : (A.commit).rsize A.size (by simp) = A.usize :=
 theorem rsize!_commit_gt {A : RangeArray α} {i : Nat} (hi : i > A.size)
     : (A.commit).rsize! i = 0 := by
   rw [size] at hi
-  simp only [rsize!, size, commit, Array.size_push, dite_eq_right_iff]
-  intro
+  simp only [rsize!, size, size_commit, dite_eq_right_iff]
   omega
 
 theorem isDeleted!_commit_lt {A : RangeArray α} {i : Nat} (hi : i < A.size)
@@ -328,8 +333,7 @@ theorem isDeleted_commit_eq : (A.commit).isDeleted A.size (by simp) = false :=
 theorem isDeleted!_commit_gt {A : RangeArray α} {i : Nat} (hi : i > A.size) :
     (A.commit).isDeleted! i = true := by
   rw [size] at hi
-  simp only [isDeleted!, size, commit, Array.size_push, dite_eq_right_iff]
-  intro
+  simp only [isDeleted!, size, size_commit, dite_eq_right_iff]
   omega
 
 section get
@@ -362,19 +366,18 @@ theorem get_push_eq : (A.push v).get A.data.size (by simp) = v := by
 
 theorem get!_push_gt {A : RangeArray α} {i : Nat} (hi : i > A.data.size) (v : α)
     : (A.push v).get! i = default := by
-  simp only [get!, push, Array.size_push, dite_eq_right_iff]
-  intro
-  omega
+  simp only [get!]
+  rw [dif_neg (by rw [data_size_push]; omega)]
 
 @[simp]
 theorem get!_commit : (A.commit).get! i = A.get! i := by
-  simp only [get!, commit, get]
+  rfl
 
+omit [Inhabited α] in
 @[simp]
 theorem get_commit {A : RangeArray α} {i} (hi : i < A.data.size)
     : (A.commit).get i hi = A.get i (by simp [hi]) := by
-  simp only [get_eq_get!]
-  exact get!_commit ..
+  rfl
 
 theorem oget_eq_oget! {A : RangeArray α} {i offset : Nat} {hi : i < A.size} (ho : offset < A.rsize i hi)
     : A.oget i hi offset ho = A.oget! i offset := by
@@ -393,7 +396,7 @@ theorem uget_eq_uget! {A : RangeArray α} {i} (hi : i < A.usize)
 @[simp]
 theorem oget!_push (A : RangeArray α) (i offset : Nat) (v : α)
     : (A.push v).oget! i offset = A.oget! i offset := by
-  simp only [oget!, oget, size_push, rsize_push]
+  simp only [oget!, size_push, rsize_push']
   split <;> try rfl
   split <;> try rfl
   exact get_push_lt ..
@@ -401,7 +404,8 @@ theorem oget!_push (A : RangeArray α) (i offset : Nat) (v : α)
 @[simp]
 theorem oget_push {A : RangeArray α} {i offset : Nat} (hi : i < A.size) (ho : offset < A.rsize i hi) (v : α)
     : (A.push v).oget i hi offset ho = A.oget i hi offset ho := by
-  simp only [oget_eq_oget!, oget!_push]
+  rw [oget_eq_oget! (A := A.push v) (hi := hi) ho, oget!_push,
+    ← oget_eq_oget! (A := A) (hi := hi) ho]
 
 theorem oget!_commit_lt {A : RangeArray α} {i offset : Nat} (hi : i < A.size) (ho : offset < A.rsize! i)
     : (A.commit).oget! i offset = A.oget! i offset := by

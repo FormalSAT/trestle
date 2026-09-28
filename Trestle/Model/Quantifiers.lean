@@ -45,14 +45,12 @@ theorem existsInv_existsInv [Fintype ν''] (f : ν'' → ν') (g : ν' → ν) (
     : (φ.existsInv g).existsInv f = φ.existsInv (g ∘ f) := by
   ext τ; simp
   constructor
+  all_goals (
   · rintro ⟨σ,h,rfl⟩
     use σ
-    simp [*, PropAssignment.map]
-    rfl
-  · rintro ⟨σ,h,rfl⟩
-    use σ
-    simp [*, PropAssignment.map, PropAssignment.map_eq_map]
-
+    simp only [h, PropAssignment.map, true_and]
+    exact Function.comp_assoc _ _ _
+  )
 
 open Classical in
 /-- Most general form of universal quantification.
