@@ -23,7 +23,7 @@ instance : LitVar (Literal ν) ν where
   toVar := toVar
   polarity := polarity
 
-instance : LawfulLitVar (Literal ν) ν where
+instance instLawfulLitVar : LawfulLitVar (Literal ν) ν where
   toVar_negate := by intro _; simp only [Neg.neg, LitVar.negate, LitVar.toVar]
   toVar_mkPos := by simp [LitVar.mkPos, LitVar.toVar]
   toVar_mkNeg := by simp [LitVar.mkNeg, LitVar.toVar]

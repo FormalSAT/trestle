@@ -30,4 +30,4 @@ scoped instance : SemanticEntails (PropAssignment ν) (PropPred ν) := ⟨(· |>
 @[simp]
 theorem satisfies_def (τ : PropAssignment ν) (f) : (τ ⊨ f) ↔ f τ := by rfl
 
-end PropPred
+end PropPred /- namespace -/

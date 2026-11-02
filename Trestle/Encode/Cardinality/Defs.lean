@@ -38,6 +38,7 @@ abbrev atLeast (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· ≥
 abbrev exactly (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· = k)
 
 abbrev lessThan (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· < k)
+abbrev greaterThan (k : Nat) (lits : Multiset (Literal ν)) := cardPred lits (· > k)
 
 theorem ofList_eq_map_get (L : List α)
   : Multiset.ofList L = (Finset.univ.val.map fun i => L.get i) := by
@@ -76,7 +77,7 @@ theorem card_map
   simp only [card, Multiset.coe_countP, List.countP_map]
   congr
   ext l
-  simp only [Function.comp_apply, LitVar.toPropFun_map, satisfies_map]
+  simp only [Function.comp_apply, LitVar.toPropFun_map, satisfies_vmap]
 
 theorem card_eq_one (ls : Multiset (Literal ν)) (nodup : ls.Nodup)
   : card ls τ = 1 ↔ ∃! l ∈ ls, τ ⊨ LitVar.toPropFun l := by

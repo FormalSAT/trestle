@@ -113,41 +113,44 @@ def Function.iterate (f : α → α) : Nat → (α → α)
 | 0 => id
 | n+1 => iterate f n ∘ f
 
-/-! Array -/
+namespace Array
 
-def Array.pop? (A : Array α) :=
+def pop? (A : Array α) :=
   match A.back? with
   | none => none
   | some a => some (A.pop, a)
 
 @[simp]
-theorem Array.size_pop? : A.pop? = some (A', a) → size A' + 1 = size A := by
+theorem size_pop? : A.pop? = some (A', a) → size A' + 1 = size A := by
   rcases A with ⟨h,t⟩
   <;> simp [pop?, back?, getElem?, pop, decidableGetElem?]
   rintro rfl
   simp
 
-def Array.maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
+def maxBy (f : α → β) [Max β] (A : Array α) : Option β :=
   if h : A.size > 0 then
     let b0 := f A[0]
     some <| A.foldl (start := 1) (max · <| f ·) b0
   else
     none
 
-theorem Array.mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
+theorem mkArray_succ_eq_singleton_append (n : Nat) (a : α) :
     Array.replicate (n + 1) a = #[a] ++ (Array.replicate n a) := by
   apply Array.ext'; simp; rfl
 
 @[simp]
-theorem Array.foldl_cons (f : β → α → β) (init : β) (a : α) (as : List α) :
+theorem foldl_cons (f : β → α → β) (init : β) (a : α) (as : List α) :
     Array.foldl f init { toList := a :: as } 0 (size { toList := a :: as }) =
       Array.foldl f (f init a) { toList := as } 0 (size { toList := as }) := by
   simp only [List.foldl_toArray', List.foldl_cons]
 
+end Array /- namespace -/
+
 /-! List -/
 
-open List in
-theorem List.Sublist.sizeOf_le [SizeOf α] {L₁ L₂ : List α} :
+namespace List
+
+theorem Sublist.sizeOf_le [SizeOf α] {L₁ L₂ : List α} :
         L₁ <+ L₂ → sizeOf L₁ ≤ sizeOf L₂ := by
   intro h
   induction h
@@ -155,21 +158,21 @@ theorem List.Sublist.sizeOf_le [SizeOf α] {L₁ L₂ : List α} :
   · simp; omega
   · simp; assumption
 
-def List.distinct [DecidableEq α] (L : List α) : List α :=
+def distinct [DecidableEq α] (L : List α) : List α :=
   L.foldl (·.insert ·) []
 
-def List.isDistinct [BEq α] : List α → Bool
+def isDistinct [BEq α] : List α → Bool
 | [] => true
 | x::xs => !xs.contains x && xs.isDistinct
 
-def List.fins (n : Nat) : List (Fin n) :=
+def fins (n : Nat) : List (Fin n) :=
   finsAux n (Nat.le_refl _) []
 where
   finsAux : (i : Nat) → i ≤ n → List (Fin n) → List (Fin n)
   | 0, _, acc => acc
   | i+1, h, acc => finsAux i (Nat.le_of_lt h) (⟨i,h⟩ :: acc)
 
-@[simp] theorem List.length_fins (n : Nat) : (List.fins n).length = n := by
+@[simp] theorem length_fins (n : Nat) : (List.fins n).length = n := by
   unfold fins
   suffices ∀ i (hi : i ≤ n) acc, length (fins.finsAux n i hi acc) = length acc + i
     by have := this n (Nat.le_refl _) []; simp at this; exact this
@@ -181,9 +184,9 @@ where
     rw [ih (Nat.le_of_succ_le hi) (⟨n', hi⟩ :: acc), List.length,
       Nat.add_assoc, Nat.add_comm 1]
 
-@[simp] theorem List.fins_zero : List.fins 0 = [] := rfl
+@[simp] theorem fins_zero : List.fins 0 = [] := rfl
 
-theorem List.fins_succ (n : Nat)
+theorem fins_succ (n : Nat)
   : List.fins (n + 1) = (List.fins n).map (Fin.castSucc) ++ [Fin.last n] := by
   unfold fins
   conv => lhs; unfold fins.finsAux
@@ -200,7 +203,7 @@ theorem List.fins_succ (n : Nat)
     simpa using ih
 
 @[simp]
-theorem List.get_fins {n : Nat} (i : Fin (List.fins n).length)
+theorem get_fins {n : Nat} (i : Fin (List.fins n).length)
   : (List.fins n).get i = ⟨i, by cases i; simp; simp_all⟩ := by
   rcases i with ⟨j, hj⟩
   revert hj
@@ -220,16 +223,18 @@ theorem List.get_fins {n : Nat} (i : Fin (List.fins n).length)
       rfl
 
 @[simp]
-theorem List.get_fins' {n i : Nat} (hi : i < n)
+theorem get_fins' {n i : Nat} (hi : i < n)
     : (List.fins n).get ⟨i, by rw [List.length_fins]; exact hi⟩ = ⟨i, hi⟩ :=
   List.get_fins ⟨i, by rw [List.length_fins]; exact hi⟩
 
 @[simp]
-theorem List.mem_fins {n : Nat} (x : Fin n) : x ∈ List.fins n := by
+theorem mem_fins {n : Nat} (x : Fin n) : x ∈ List.fins n := by
   rw [mem_iff_get]
   refine ⟨⟨x,?_⟩,?_⟩
   · simp only [length_fins, Fin.is_lt]
   · rw [List.get_fins' x.isLt]
+
+end List /- namespace -/
 
 /- Better parallelism primitive, that is actually like Scala's Future -/
 def TaskIO (α) := IO (Task (Except IO.Error α))
@@ -309,7 +314,6 @@ where randPermTR (L acc n) := do
     let idx ← IO.rand 0 n
     let acc' := acc.insertIdx idx x
     randPermTR xs acc' (n+1)
-
 
 @[simp]
 theorem List.sizeOf_filter [SizeOf α] (f) (L : List α)
@@ -391,28 +395,6 @@ def PrinterM.run : PrinterM Unit → String := (StateT.run · "" |>.2)
 
 instance : Monad PrinterM := show Monad (StateM String) from inferInstance
 
-@[simp]
-theorem Array.ofFn_data (f : Fin n → α)
-  : (Array.ofFn f).toList = (List.fins n).map f := by
-  ext i x
-  simp
-  refine ⟨?mp, ?mpr⟩
-  case mp =>
-    rintro ⟨h,rfl⟩
-    refine ⟨_,?_,rfl⟩
-    have := List.length_fins n ▸ h
-    simp only [List.getElem?_eq_getElem this, Option.some.injEq]
-    have := List.get_fins' h
-    simp only [List.get_eq_getElem] at this
-    rw [this]
-  case mpr =>
-    rintro ⟨a, ha, rfl⟩
-    rcases List.getElem?_eq_some_iff.mp ha with ⟨hi, rfl⟩
-    have := List.get_fins ⟨_, hi⟩
-    simp at this
-    rw [this]
-    exact ⟨List.length_fins n ▸ hi, rfl⟩
-
 namespace List
 
 variable {α : Type u} {β : Type v} [Ord α]
@@ -445,6 +427,28 @@ end List /- namespace -/
 
 namespace Array
 
+@[simp]
+theorem ofFn_data (f : Fin n → α)
+  : (Array.ofFn f).toList = (List.fins n).map f := by
+  ext i x
+  simp
+  refine ⟨?mp, ?mpr⟩
+  case mp =>
+    rintro ⟨h,rfl⟩
+    refine ⟨_,?_,rfl⟩
+    have := List.length_fins n ▸ h
+    simp only [List.getElem?_eq_getElem this, Option.some.injEq]
+    have := List.get_fins' h
+    simp only [List.get_eq_getElem] at this
+    rw [this]
+  case mpr =>
+    rintro ⟨a, ha, rfl⟩
+    rcases List.getElem?_eq_some_iff.mp ha with ⟨hi, rfl⟩
+    have := List.get_fins ⟨_, hi⟩
+    simp at this
+    rw [this]
+    exact ⟨List.length_fins n ▸ hi, rfl⟩
+
 variable {α : Type u} {β : Type v} [Ord α]
 
 @[inline]
@@ -461,22 +465,20 @@ theorem minWithFn_cons (f : β → α) (d : α) (x : β) (xs : List β)
     : Array.minWithFn { toList := x :: xs } f d = Array.minWithFn { toList := xs } f (if compare (f x) d |>.isLT then f x else d) := by
   simp [Array.minWithFn]
 
--- theorem minWithFn_le_init [LT α] [LE α] [Std.LawfulOrd α] [Std.IsPreorder α] (xs : Array β) (f : β → α) (d : α)
---     : Array.minWithFn xs f d ≤ d := by
---   have ⟨xs⟩ := xs
---   simp [Array.minWithFn]
---   induction xs generalizing d with
---   | nil => simp [Std.IsPreorder.le_refl]
---   | cons x xs ih =>
---     simp
---     split
---     · rename_i h
---       apply Std.IsPreorder.le_trans _ _ _ (ih (f x))
---       have := Std.LawfulLTCmp.eq_lt_iff_lt.mp h
---       sorry
---     · apply ih
-
--- theorem minWithFn_is_min [LE α] [Std.IsPreorder α] (xs : Array β) (f : β → α) (d : α)
---     : ∀ b ∈ xs, Array.minWithFn xs f d ≤ f b := by
-
 end Array /- namespace -/
+
+/-! Monad morphisms -/
+
+/-- A function between monads that commutes with `pure` and `bind` also commutes with `<$>`.
+
+For example, `Subtype.val` on a monad whose values are a subtype of another monad's values,
+when its `pure` and `bind` are inherited from the underlying monad. -/
+theorem map_eq_of_pure_bind {m : Type u → Type v} {n : Type u → Type w}
+    [Monad m] [LawfulMonad m] [Monad n] [LawfulMonad n]
+    (φ : ∀ {α : Type u}, n α → m α)
+    (φ_pure : ∀ {α : Type u} (a : α), φ (pure a) = pure a)
+    (φ_bind : ∀ {α β : Type u} (x : n α) (k : α → n β), φ (x >>= k) = φ x >>= fun a => φ (k a))
+    {α β : Type u} (g : α → β) (x : n α) :
+    φ (g <$> x) = g <$> φ x := by
+  rw [← bind_pure_comp, φ_bind, ← bind_pure_comp]
+  simp only [φ_pure]

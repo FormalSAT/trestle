@@ -689,6 +689,8 @@ theorem equisat_of_entails {F C : PropFun ν} : F ≤ C → EquiSat F (F ⊓ C) 
   simp only [EquiSat, Sat, satisfies_conj]
   exact ⟨fun ⟨τ, hτ⟩ => ⟨τ, hτ, h_entails τ hτ⟩, fun ⟨τ, hτ, _⟩ => ⟨τ, hτ⟩⟩
 
+/-! # syntax and notation -/
+
 namespace Notation
 open PropForm.Notation
 

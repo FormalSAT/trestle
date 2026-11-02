@@ -150,12 +150,28 @@ theorem mkNeg_inj {x y : ν} : mkNeg (L := L) x = mkNeg (L := L) y ↔ x = y := 
   dsimp [toPropFun]
   aesop
 
--- CC: This theorem already exists in the `LawfulLitVar` namespace
---     due to `attribute [ext]`
-theorem ext_iff (l1 l2 : L) : l1 = l2 ↔ toVar l1 = toVar l2 ∧ polarity l1 = polarity l2 := by
+theorem ext_iff {l₁ l₂ : L} : l₁ = l₂ ↔ toVar l₁ = toVar l₂ ∧ polarity l₁ = polarity l₂ := by
   constructor
-  · rintro rfl; simp
-  · aesop
+  · rintro rfl; exact ⟨rfl, rfl⟩
+  · rintro ⟨h₁, h₂⟩; exact LawfulLitVar.ext _ _ h₁ h₂
+
+-- CC: Should this really be @[simp]?
+@[simp]
+theorem beq_iff_eq [BEq ν] [LawfulBEq ν] {l₁ l₂ : L} : l₁ == l₂ ↔ l₁ = l₂ := by
+  simp [BEq.beq, LitVar.beq]
+  symm
+  rw [And.comm]
+  exact ext_iff
+
+omit [LawfulLitVar L ν] in
+@[simp]
+theorem toVar_beq_refl [BEq ν] [ReflBEq ν] (l : L) : toVar l == toVar l := by
+  simp
+
+omit [LawfulLitVar L ν] in
+@[simp]
+theorem beq_refl [BEq ν] [ReflBEq ν] (l : L) : l == l := by
+  simp [BEq.beq, LitVar.beq]
 
 @[simp] theorem neg_eq_neg (l1 l2 : L) : -l1 = -l2 ↔ l1 = l2 := by
   constructor

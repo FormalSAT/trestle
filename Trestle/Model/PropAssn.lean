@@ -228,3 +228,35 @@ theorem exists_preimage [DecidableEq ν₂] (f : ν₁ ↪ ν₂) (τ : PropAssi
   specialize h ⟨f v1, by simp⟩
   simp at h
   simp [pmap, h]
+
+/-- Extends an assignment `τ₁` on `ν` by the values `τ₂` on `ι`, giving an assignment on `ν ⊕ ι`.  -/
+def extend (τ₁ : PropAssignment ν) (τ₂ : PropAssignment ι) : PropAssignment (ν ⊕ ι) :=
+  Sum.elim τ₁ τ₂
+
+@[simp] theorem extend_inl (τ₁ : PropAssignment ν) (τ₂ : PropAssignment ι) (v : ν) :
+    (τ₁.extend τ₂) (.inl v) = τ₁ v := rfl
+@[simp] theorem extend_inl' (τ₁ : PropAssignment ν) (τ₂ : ι → Bool) :
+    (τ₁.extend τ₂) (.inl v) = τ₁ v := rfl
+
+@[simp] theorem extend_inr (τ₁ : PropAssignment ν) (τ₂ : PropAssignment ι) (i : ι) :
+    (τ₁.extend τ₂) (.inr i) = τ₂ i := rfl
+@[simp] theorem extend_inr' (τ₁ : PropAssignment ν) (τ₂ : ι → Bool) :
+    (τ₁.extend τ₂) (.inr i) = τ₂ i := rfl
+
+@[simp] theorem map_inl_extend (τ₁ : PropAssignment ν) (τ₂ : PropAssignment ι) :
+    (τ₁.extend τ₂).map Sum.inl = τ₁ := rfl
+@[simp] theorem map_inl_extend' (τ₁ : PropAssignment ν) (τ₂ : ι → Bool) :
+    (τ₁.extend τ₂).map Sum.inl = τ₁ := rfl
+
+@[simp] theorem map_inr_extend (τ₁ : PropAssignment ν) (τ₂ : PropAssignment ι) :
+    (τ₁.extend τ₂).map Sum.inr = τ₂ := rfl
+@[simp] theorem map_inr_extend' (τ₁ : PropAssignment ν) (τ₂ : ι → Bool) :
+    (τ₁.extend τ₂).map Sum.inr = τ₂ := rfl
+
+@[simp] theorem extend_map_inl (τ : PropAssignment (ν ⊕ ι)) :
+    (τ.map Sum.inl).extend (τ.map Sum.inr) = τ := by
+  ext x; cases x <;> simp
+
+end PropAssignment /- namespace -/
+
+end Trestle.Model /- namespace -/

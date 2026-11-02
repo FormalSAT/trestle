@@ -30,16 +30,19 @@ def map [LitVar L V] [LitVar L' V'] (f : V → V') (l : L) : L' :=
 variable {L : Type u} {ν : Type v} [LitVar L ν]
 
 -- controversial maybe?
-instance : Coe ν L :=
-  ⟨mkPos⟩
-
-instance : Neg L :=
-  ⟨negate⟩
+instance instCoeLit : Coe ν L := ⟨mkPos⟩
+instance instNeg : Neg L := ⟨negate⟩
 
 @[simp] theorem negate_eq (l : L) : negate l = -l := rfl
 
 instance [ToString ν] : ToString L where
   toString l := if polarity l then s!"{toVar l}" else s!"-{toVar l}"
+
+def beq [BEq ν] [LitVar L ν] (l₁ l₂ : L) : Bool :=
+  polarity l₁ == polarity l₂ && toVar l₁ == toVar l₂
+
+instance instBEq [BEq ν] [LitVar L ν] : BEq L where
+  beq := beq
 
 end LitVar
 

@@ -7,6 +7,7 @@ Authors: James Gallicchio
 
 import Trestle.Encode.EncCNF
 import Trestle.Model.PropPred
+import Trestle.Upstream.Iterators
 
 /-! ## Verified Encodings
 
@@ -20,96 +21,13 @@ namespace Trestle.Encode
 
 open Model EncCNF
 
-namespace EncCNF
-
-/-- `e` encodes proposition `P` -/
-def encodesProp (e : EncCNF ν α) (P : PropPred ν) : Prop :=
-  aux e.1
-where aux (e' : StateM _ α) :=
-  ∀ s,
-    let s' := (e' s).2
-    s'.vMap = s.vMap ∧
-    -- TODO(JG): should we weaken this to equisatisfiability?
-    ∀ (τ : PropAssignment ν), s'.interp τ ↔ s.interp τ ∧ (open PropPred in τ ⊨ P)
-
-/-- If `e` encodes `P`, then `P` is satisfiable iff `e.toICnf` is satisfiable -/
-theorem encodesProp_equisatisfiable [IndexType ν] [LawfulIndexType ν]
-          (e : EncCNF ν α) (P : PropPred ν) (h : encodesProp e P)
-  : (∃ τ : PropAssignment ν   , open PropPred in τ ⊨ P) ↔
-    (∃ τ : PropAssignment IVar, open PropFun  in τ ⊨ e.toICnf.toPropFun) := by
-  simp [EncCNF.toICnf, run, StateT.run]
-  generalize hls : LawfulState.new _ _ _ _ = ls
-  have := h ls
-  generalize hls' : e.1 ls = ls' at this
-  rcases ls' with ⟨a,ls'⟩
-  simp only at this ⊢
-  rcases this with ⟨-,h3⟩
-  rw [←hls] at h3; simp at h3
-  clear hls' hls
-  simp_rw [← h3]
-  simp [LawfulState.interp]
-
-attribute [aesop unsafe apply] le_trans
-
-theorem bind_encodesProp (e1 : EncCNF ν α) (f : α → EncCNF ν β)
-  : e1.encodesProp P → (∀ s, (f (e1.1 s).1).encodesProp Q) →
-    (e1 >>= f).encodesProp (P ⊓ Q)
-  := by
-  intro hP hQ s
-  simp [encodesProp, encodesProp.aux] at hP hQ
-  -- specialize hypotheses to the first state `s`
-  rcases e1 with ⟨e1,he1⟩
-  replace hP := hP s
-  replace hQ := hQ s
-  simp [Bind.bind, StateT.bind] at hP hQ ⊢
-  replace he1 := he1 s
-  -- give name to the next state `s'`
-  generalize hs' : e1 s = s' at *
-  rcases s' with ⟨a,s'⟩
-  simp at *
-  -- give name to the next state machine
-  generalize he2 : (f a) = e2 at *
-  rcases e2 with ⟨e2,he2⟩
-  -- specialize hypotheses to this state `s'`
-  replace hQ := hQ s'
-  simp at *
-  -- give name to the next state `s''`
-  generalize hs'' : e2 s' = s'' at *
-  rcases s'' with ⟨b,s''⟩
-  open PropPred in --necessary because simp doesn't simp thru scoped instances not in scope
-  simp at hP hQ ⊢
-  -- once again we ♥ aesop
-  aesop
-
-@[simp] theorem encodesProp_pure (a : α) : encodesProp (pure a : EncCNF ν α) ⊤ := by
-  intro s; simp [Pure.pure, StateT.pure]
-
-theorem encodesProp_map (e1 : EncCNF ν α) (f : α → β)
-  : (f <$> e1).encodesProp P ↔ e1.encodesProp P
-  := by
-  constructor
-  · intro h s
-    specialize h s
-    intro s'
-    extract_lets s'' at h
-    suffices s' = s'' by rw [this]; exact h
-    rfl
-  · intro h
-    rw [map_eq_pure_bind]
-    rw [show P = P ⊓ ⊤ by simp]
-    apply bind_encodesProp
-    · exact h
-    simp
-
-end EncCNF
-
 /-- The verified encoding monad. -/
 def VEncCNF (ν) (α : Type u) (P : PropPred ν) :=
   { e : EncCNF ν α // e.encodesProp P }
 
 namespace VEncCNF
 
-instance : CoeHead (VEncCNF ν α P) (EncCNF ν α) := ⟨(·.1)⟩
+instance instCoeEncCNF : CoeHead (VEncCNF ν α P) (EncCNF ν α) := ⟨(·.1)⟩
 
 theorem toICnf_equisatisfiable [IndexType ν] [LawfulIndexType ν] (v : VEncCNF ν α P) :
     (∃ τ : PropAssignment _, open PropFun in τ ⊨ v.val.toICnf.toPropFun) ↔
@@ -151,17 +69,16 @@ def addClause (C : Clause (Literal ν)) : VEncCNF ν Unit C :=
 def unit (l : Literal ν) : VEncCNF ν Unit l :=
   addClause #[l] |>.mapProp (by ext τ; simp [Clause.toPropFun])
 
-open PropFun in
-set_option pp.proofs.withType false in
 @[inline]
-def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν ⊕ ι) → Prop}
-    (ve : VEncCNF (ν ⊕ ι) α P) (names : Option (ι → String) := none) :
-    VEncCNF ν α (fun τ => ∃ σ, τ = σ.map Sum.inl ∧ P σ) :=
-  ⟨EncCNF.withTemps _ ve.1 names, by
+def withTemps {ν α : Type u} (ι : Type u) [IndexType ι] [LawfulIndexType ι]
+    {P : (ι → (ν ⊕ ι)) → PropPred (ν ⊕ ι)}
+    (ve : (temps : ι → (ν ⊕ ι)) → VEncCNF (ν ⊕ ι) α (P temps)) (names : Option (ι → String) := none) :
+    VEncCNF ν α (fun τ => ∃ (t : PropAssignment ι), P Sum.inr (τ.extend t)) :=
+  ⟨EncCNF.withTemps ι (fun m => (ve m).1) names, by
     -- this proof is about relating the states pre/post running ve
     intro ls_pre ls_post'
     unfold ls_post'; clear ls_post'
-    generalize retVal_def : (EncCNF.withTemps ι ve.val _).val ls_pre = retVal
+    generalize retVal_def : (EncCNF.withTemps ι (fun m => (ve m).1) _).val ls_pre = retVal
     -- let's get through a nasty match in withTemps
     dsimp [EncCNF.withTemps] at retVal_def
     split at retVal_def; next a ls_post_withTemps pre_to_post =>
@@ -172,7 +89,7 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     · simp [← ls_post_def]
     case right =>
     -- ve's correctness property gives us some facts from pre_to_post
-    have ⟨vMap_pre_post, interp_pre_post⟩ := ve.prop (ls_pre.withTemps names)
+    have ⟨vMap_pre_post, interp_pre_post⟩ := (ve Sum.inr).prop (ls_pre.withTemps names)
     rw [pre_to_post] at vMap_pre_post interp_pre_post
     -- the second goal relies on the interpretation of withoutTemps
     rw [← ls_post_def]; clear! ls_post
@@ -188,8 +105,27 @@ def withTemps (ι) [IndexType ι] [LawfulIndexType ι] {P : PropAssignment (ν �
     simp only [LawfulState.interp_withTemps, PropPred.satisfies_def]
     -- the rest is just reasoning about assignments
     intro τ
-    aesop
+    constructor
+    · rintro ⟨σ, rfl, hσ, h⟩
+      apply And.intro hσ
+      use (σ.map Sum.inr)
+      simp [h]
+    · rintro ⟨hls, t, ht⟩
+      use (τ.extend t)
+      simp [ht, hls]
   ⟩
+
+@[inline]
+abbrev withTemps' {ν α : Type u} (ι : Type u) [IndexType ι] [LawfulIndexType ι] {P : PropPred (ν ⊕ ι)}
+    (ve : VEncCNF (ν ⊕ ι) α P) (names : Option (ι → String) := none) :
+    VEncCNF ν α (fun τ => ∃ (t : PropAssignment ι), P (τ.extend t)) :=
+  withTemps ι (fun _ => ve) names
+
+@[inline]
+def withTemp {ν α : Type} {P : (ν ⊕ Unit) → PropPred (ν ⊕ Unit)}
+    (ve : (temp : (ν ⊕ Unit)) → VEncCNF (ν ⊕ Unit) α (P temp)) (name : Option String := none) :
+    VEncCNF ν α (fun τ => ∃ t, P (.inr ()) (τ.extend t)) :=
+  withTemps Unit (fun temps => ve (temps ())) (name.map fun n _ => n)
 
 protected def bind (e1 : VEncCNF ν α P) (e2 : α → VEncCNF ν β Q) : VEncCNF ν β (P ⊓ Q) :=
   VEncCNF.mapProp (show P ⊓ (Q ⊓ ⊤) = (P ⊓ Q) by simp)
@@ -217,24 +153,83 @@ macro_rules
     (fun a acc => `(seq $a $acc))
     (← `(VEncCNF.pure ()))
 
+/-! ### Iteration
+
+All iteration goes through `forIn`, which encodes a constraint for every element
+visited by any lawful iterator (see `Trestle.Upstream.Iterators`).
+The other combinators are specializations of it with nicer specs:
+* `for_all arr f` iterates over an `Array`, with spec `∀ a ∈ arr, P a τ`;
+* `for_univ f` iterates over an index type, with spec `∀ i, P i τ`;
+* `for_pairwise arr f` iterates over pairs `i < j`, with spec `arr.Pairwise P`;
+* `for_all_pairs arr f` iterates over pairs `i ≠ j`;
+* `for_all_adjacent arr f` iterates over adjacent pairs, with spec `arr.toList.IsChain P`.
+
+For other access patterns, call `forIn` directly with an iterator, e.g.
+`forIn (Iterators.filter (Iterators.pairs c) r) f`, `forIn (arr.iter.filter p) f`,
+or `forIn (Iterators.adjacent (IndexType.univ ι)) f`.
+
+`VEncCNF` cannot be the monad of a `ForIn` instance (so `for a in c do ...` can't
+be written directly in `VEncCNF`), because it is not a `Monad`. The spec `P` is a
+type index, and `bind` needs the spec of the continuation to be independent of the
+value it receives (see `VEncCNF.bind`). `ForIn.forIn`'s generic accumulator `β`
+gives no such guarantee. So `forIn` below takes the iterator generically and
+runs the loop with `EncCNF.forEach`, and `LawfulForIn` tells us which elements
+the loop visits.
+-/
+
+/-- Encodes `f a` for every element `a` visited by the iterator `c`,
+i.e., the conjunction of the `P a` for `a ∈ elems c`.
+
+This works over any lawful iterator, such as `Array`, `List`, ranges `[a:b]`,
+`IndexType.univ ι`, `Iterators.pairs c`, `Iterators.adjacent c`, `Iterators.filter c p`,
+and finite `Std.Iter`s. The loop is `EncCNF.forEach`, which does not allocate `elems c`.
+-/
+@[inline]
+def forIn {γ : Type u} {α : Type v}
+    [ForIn Id γ α] [ToList γ α] [LawfulForIn Id γ α]
+    (c : γ) {P : α → PropPred ν} (f : (a : α) → VEncCNF ν Unit (P a))
+  : VEncCNF ν Unit (fun τ => ∀ a ∈ toList c, P a τ) :=
+  ⟨EncCNF.forEach c (f · |>.1), encodesProp_forEach c (f · |>.2)⟩
+
+/-- Encodes `f a` for every element `a` of the array `arr`.
+
+This is `forIn` specialized to arrays. -/
 @[inline]
 def for_all (arr : Array α) {P : α → PropPred ν} (f : (a : α) → VEncCNF ν Unit (P a))
   : VEncCNF ν Unit (fun τ => ∀ a ∈ arr, P a τ) :=
-  ⟨ arr.foldlM (fun () x => f x) (),
-    by
-    rcases arr with ⟨L⟩
-    simp only [List.foldlM_toArray']
-    induction L with
-    | nil   => simp; apply encodesProp_pure
-    | cons hd tl ih =>
-      simp
-      apply bind_encodesProp
-      · have := (f hd).2
-        simpa using this
-      · aesop⟩
+  forIn arr f |>.mapProp (by simp)
 
--- Cayden TODO: Unit could possibly made to be β instead? Generalize later.
--- One would think that P could be of type {P : PropFun ν}. But Lean timed out synthesizing that
+/-- Encodes `f i` for every element `i` of an index type `ι`, as specifed by `ι.univ` and `ForIn`. -/
+@[inline]
+def for_univ {ι} [IndexType ι] [LawfulIndexType ι] {P : ι → PropPred ν} (f : (i : ι) → VEncCNF ν Unit (P i))
+  : VEncCNF ν Unit (fun τ => ∀ i, P i τ) :=
+  forIn (IndexType.univ ι) f |>.mapProp (by simp)
+
+/-- Encodes `f a b` for every pair of elements where `a` comes strictly before `b` in `arr`. -/
+@[inline]
+def for_pairwise (arr : Array α) {P : α → α → PropPred ν}
+    (f : (a b : α) → VEncCNF ν Unit (P a b))
+  : VEncCNF ν Unit (fun τ => arr.Pairwise (P · · τ)) :=
+  forIn arr.pairs (fun p => f p.1 p.2) |>.mapProp (by
+    ext τ; simp only [Pairs.toList_def, Array.coll_pairs, toList_array]
+    exact List.forall_mem_pairs_iff_Pairwise (R := (P · · τ)))
+
+/-- Encodes `f a b` for every pair of elements at distinct positions in `arr`, in either order. -/
+@[inline]
+def for_all_pairs (arr : Array α) {P : α → α → PropPred ν}
+    (f : (a b : α) → VEncCNF ν Unit (P a b))
+  : VEncCNF ν Unit (fun τ => arr.Pairwise (fun a b => P a b τ ∧ P b a τ)) :=
+  for_pairwise arr (fun a b => seq (f a b) (f b a))
+
+/-- Encodes `f a b` for every pair of adjacent elements in `arr`. -/
+@[inline]
+def for_all_adjacent (arr : Array α) {P : α → α → PropPred ν}
+    (f : (a b : α) → VEncCNF ν Unit (P a b))
+  : VEncCNF ν Unit (fun τ => arr.toList.IsChain (P · · τ)) :=
+  forIn arr.adjacent (fun p => f p.1 p.2) |>.mapProp (by
+    ext τ; simp only [Adjacent.toList_def, Array.coll_adjacent, toList_array]
+    exact List.forall_mem_adjacentPairs_iff_IsChain (R := (P · · τ)))
+
 def guard (p : Prop) [Decidable p] {P : p → PropPred ν}
       (f : (h : p) → VEncCNF ν Unit (P h))
   : VEncCNF ν Unit (fun τ => ∀ (h : p), P h τ) :=
@@ -259,7 +254,7 @@ def ite (p : Prop) [Decidable p] {P : p → PropPred ν} {Q : ¬p → PropPred �
 open PropFun in
 section
 def andImplyOr (hyps : Array (Literal ν)) (conc : Array (Literal ν))
-  : VEncCNF ν Unit (fun τ => (∀ h ∈ hyps, τ ⊨ ↑h) → (∃ c ∈ conc, τ ⊨ ↑c)) :=
+  : VEncCNF ν Unit (fun τ => (∀ h ∈ hyps, τ ⊨ ↑h) → τ ⊨ ↑conc) :=
   addClause (hyps.map LitVar.negate ++ conc)
   |> mapProp (by
     ext τ
@@ -277,27 +272,27 @@ def andImply (hyps : Array (Literal ν)) (conc : Literal ν)
   |> mapProp (by simp)
 
 def implyOr (hyp : Literal ν) (conc : Array (Literal ν))
-  : VEncCNF ν Unit (fun τ => τ ⊨ ↑hyp → ∃ c ∈ conc, τ ⊨ ↑c) :=
+  : VEncCNF ν Unit (fun τ => τ ⊨ ↑hyp → τ ⊨ ↑conc) :=
   andImplyOr #[hyp] conc
   |> mapProp (by simp)
 
 def orImplyOr (hyps : Array (Literal ν)) (conc : Array (Literal ν))
-  : VEncCNF ν Unit (fun τ => (∃ h ∈ hyps, τ ⊨ ↑h) → (∃ c ∈ conc, τ ⊨ ↑c)) :=
-  for_all hyps (fun hyp => andImplyOr #[hyp] conc)
-  |> mapProp (by ext τ; simp)
+  : VEncCNF ν Unit (fun τ => τ ⊨ ↑hyps → τ ⊨ ↑conc) :=
+  for_all hyps (andImplyOr #[·] conc)
+  |> mapProp (by simp [Clause.satisfies_iff (C := hyps)])
 
 def orImply (hyps : Array (Literal ν)) (conc : Literal ν)
-  : VEncCNF ν Unit (fun τ => (∃ h ∈ hyps, τ ⊨ ↑h) → τ ⊨ ↑conc) :=
+  : VEncCNF ν Unit (fun τ => (τ ⊨ ↑hyps) → τ ⊨ ↑conc) :=
   orImplyOr hyps #[conc]
   |> mapProp (by simp)
 
 def andImplyAnd (hyps : Array (Literal ν)) (concs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => (∀ h ∈ hyps, τ ⊨ ↑h) → (∀ c ∈ concs, τ ⊨ ↑c)) :=
-  for_all concs (fun conc => andImplyOr hyps #[conc])
+  for_all concs (andImplyOr hyps #[·])
   |> mapProp (by ext τ; simp; grind)
 
 def implyAnd (hyp : Literal ν) (concs : Array (Literal ν))
-  : VEncCNF ν Unit (fun τ => τ ⊨ ↑hyp → (∀ c ∈ concs, τ ⊨ ↑c)) :=
+  : VEncCNF ν Unit (fun τ => (τ ⊨ ↑hyp) → (∀ c ∈ concs, τ ⊨ ↑c)) :=
   andImplyAnd #[hyp] concs
   |> mapProp (by simp)
 
@@ -307,36 +302,37 @@ def orImplyAnd (hyps : Array (Literal ν)) (concs : Array (Literal ν))
     for_all concs (fun conc =>
       andImplyOr #[hyp] #[conc]
     )
-  )
-  |> mapProp (by
-    ext τ
-    simp
-    grind
-  )
+  ) |> mapProp (by ext τ; simp; grind)
 
-def imply (v1 v2 : Literal ν)
-  : VEncCNF ν Unit (· ⊨ ↑v1 ⇨ ↑v2) :=
-  andImplyOr #[v1] #[v2]
+def imply (v₁ v₂ : Literal ν)
+  : VEncCNF ν Unit (· ⊨ ↑v₁ ⇨ ↑v₂) :=
+  andImplyOr #[v₁] #[v₂]
   |> mapProp (by simp)
 
-def biImpl (v1 v2 : Literal ν)
-  : VEncCNF ν Unit (fun τ => τ ⊨ ↑v1 ↔ τ ⊨ ↑v2) :=
-  seq (imply v1 v2) (imply v2 v1)
-  |> mapProp (by aesop)
+/-- Adds a constraint saying that `v1` is equivalent to `v2`. -/
+def biImpl (v₁ v₂ : Literal ν)
+  : VEncCNF ν Unit (fun τ => τ ⊨ ↑v₁ ↔ τ ⊨ ↑v₂) :=
+  seq (imply v₁ v₂) (imply v₂ v₁)
+  |> mapProp (by grind [LitVar.mk_toPropForm, satisfies_impl])
 
+/-- Defines a literal `v` as a conjunction of other literals `vs`. -/
 def defConj (v : Literal ν) (vs : Array (Literal ν))
   : VEncCNF ν Unit (fun τ => τ ⊨ ↑v ↔ (∀ v ∈ vs, τ ⊨ ↑v)) :=
   seq (implyAnd v vs) (andImply vs v)
   |> mapProp (by grind)
 
+/-- Defines a literal `v` as a disjunction of other literals `vs`. -/
 def defDisj (v : Literal ν) (vs : Array (Literal ν))
-  : VEncCNF ν Unit (fun τ => τ ⊨ ↑v ↔ (∃ v ∈ vs, τ ⊨ ↑v)) :=
+  : VEncCNF ν Unit (fun τ => τ ⊨ ↑v ↔ (τ ⊨ ↑vs)) :=
   seq (implyOr v vs) (orImply vs v)
   |> mapProp (by grind)
-
 
 def castVar (h : ν₁ = ν₂) (ve : VEncCNF ν₁ α P) : VEncCNF ν₂ α (h ▸ P) :=
   match ve with
   | ⟨e,he⟩ => ⟨h ▸ e, by subst h; exact he⟩
 
-end
+end /- section -/
+
+end VEncCNF /- namespace -/
+
+end Trestle.Encode /- namespace -/
